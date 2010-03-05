@@ -41,6 +41,12 @@ sym_alloc(VALUE str, ID id)
     return sym;
 }
 
+static bool
+is_identchar(UChar c)
+{
+    return isalnum(c) || c == '_' || !isascii(c);
+}
+
 ID
 rb_intern_str(VALUE str)
 {
@@ -98,11 +104,9 @@ rb_intern_str(VALUE str)
 
     if (pos < chars_len && !isdigit(chars[pos])) {
 	for (; pos < chars_len; pos++) {
-	    UChar c = chars[pos];
-	    if (isalnum(c) || c == '_' || !isascii(c)) {
-		continue;
+	    if (!is_identchar(chars[pos])) {
+		break;
 	    }
-	    break;
 	}
     }
     if (pos < chars_len) {
@@ -315,6 +319,42 @@ rsym_equal(VALUE sym, SEL sel, VALUE other)
  */
 
 static bool
+is_special_global_name(UChar *ptr, long len)
+{
+    if (len <= 0) {
+	return false;
+    }
+
+    long pos = 0;
+    switch (ptr[pos]) {
+	case '~': case '*': case '$': case '?': case '!':
+	case '@': case '/': case '\\': case ';': case ',':
+	case '.': case '=': case ':': case '<': case '>': 
+	case '\"': case '&': case '`': case '\'': case '+': case '0':
+	    pos++;
+	    break;
+
+	case '-':
+	    pos++;
+	    if (pos < len && is_identchar(ptr[pos])) {
+		pos++;
+	    }
+	    break;
+
+	default:
+	    if (!isdigit(ptr[pos])) {
+		return false;
+	    }
+	    do {
+		pos++;
+	    }
+	    while (pos < len && isdigit(ptr[pos]));
+	    break;
+    }
+    return pos == len;
+}
+
+static bool
 sym_should_be_escaped(VALUE sym)
 {
     UChar *chars = NULL;
@@ -322,17 +362,169 @@ sym_should_be_escaped(VALUE sym)
     bool need_free = false;
     rb_str_get_uchars(RSYM(sym)->str, &chars, &chars_len, &need_free);
 
-    // TODO: this is really not enough, we should mimic 1.9's
-    // rb_enc_symname2_p() function.
+    if (chars_len == 0) {
+	return true;
+    }
+
     bool escape = false;
     for (long i = 0; i < chars_len; i++) {
-	if (!iswprint(chars[i])
-		|| iswspace(chars[i])) {
+	if (!isprint(chars[i])) {
 	    escape = true;
 	    break;
 	}
     }
 
+    if (escape) {
+	goto bail;
+    }
+
+    long pos = 0;
+    bool localid = false;
+
+    switch (chars[pos]) {
+	case '\0':
+	    escape = true;
+	    break;
+
+	case '$':
+	    pos++;
+	    if (pos < chars_len && is_special_global_name(&chars[pos],
+			chars_len - pos)) {
+		goto bail;
+	    }
+	    goto id;
+
+	case '@':
+	    pos++;
+	    if (pos < chars_len && chars[pos] == '@') {
+		pos++;
+	    }
+	    goto id;
+
+	case '<':
+	    pos++;
+	    if (pos < chars_len) {
+		if (chars[pos] == '<') {
+		    pos++;
+		}
+		else if (chars[pos] == '=') {
+		    pos++;
+		    if (pos < chars_len && chars[pos] == '>') {
+			pos++;
+		    }
+		}
+	    }
+	    break;
+
+	case '>':
+	    pos++;
+	    if (pos < chars_len) {
+		if (chars[pos] == '>' || chars[pos] == '=') {
+		    pos++;
+		}
+	    }
+	    break;
+
+	case '=':
+	    pos++;
+	    if (pos == chars_len) {
+		escape = true;
+		goto bail;
+	    }
+	    else {
+		if (chars[pos] == '~') {
+		    pos++;
+		}
+		else if (chars[pos] == '=') {
+		    pos++;
+		    if (pos < chars_len && chars[pos] == '=') {
+			pos++;
+		    }
+		}
+		else {
+		    escape = true;
+		    goto bail;
+		}
+	    }
+	    break;
+
+	case '*':
+	    pos++;
+	    if (pos < chars_len && chars[pos] == '*') {
+		pos++;
+	    }
+	    break;
+
+	case '+':
+	case '-':
+	    pos++;
+	    if (pos < chars_len && chars[pos] == '@') {
+		pos++;
+	    }
+	    break;
+
+	case '|': case '^': case '&': case '/':
+	case '%': case '~': case '`':
+	    pos++;
+	    break;
+
+	case '[':
+	    pos++;
+	    if (pos < chars_len && chars[pos] != ']') {
+		escape = true;
+		goto bail;
+	    }
+	    pos++;
+	    if (pos < chars_len && chars[pos] == '=') {
+		pos++;
+	    }
+	    break;
+
+	case '!':
+	    pos++;
+	    if (pos == chars_len) {
+		goto bail;
+	    }
+	    else {
+		if (chars[pos] == '=' || chars[pos] == '~') {
+		    pos++;
+		}
+		else {
+		    escape = true;
+		    goto bail;
+		}
+	    }
+	    break;
+
+	default:
+	    localid = !isupper(chars[pos]);
+	    // fall through	
+
+	id:
+	    if (pos >= chars_len
+		    || (chars[pos] != '_' && !isalpha(chars[pos])
+			&& isascii(chars[pos]))) {
+		escape = true;
+		goto bail;
+	    }
+	    while (pos < chars_len && is_identchar(chars[pos])) {
+		pos++;
+	    }
+	    if (localid) {
+		if (pos < chars_len
+			&& (chars[pos] == '!' || chars[pos] == '?'
+			    || chars[pos] == '=')) {
+		    pos++;
+		}
+	    }
+	    break;
+    }
+
+    if (pos < chars_len) {
+	escape = true;
+    }
+
+bail:
     if (need_free) {
 	free(chars);
     }
