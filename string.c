@@ -2391,7 +2391,7 @@ inspect_append(VALUE result, UChar c, bool escape)
 static VALUE
 str_inspect(rb_str_t *str, bool dump)
 {
-    const bool uchars = str_is_stored_in_uchars(str);
+    const bool uchars = str_try_making_data_uchars(str);
     const long len = uchars
 	? str_length(str, true) : str->length_in_bytes;
 
@@ -2409,13 +2409,20 @@ str_inspect(rb_str_t *str, bool dump)
 
 #define GET_UCHAR(pos) \
     ((uchars \
-      ? str->data.uchars[pos] : (UChar)str->data.bytes[pos]))
+      ? str->data.uchars[pos] : (unsigned char)str->data.bytes[pos]))
 
     inspect_append(result, '"', false);
     for (long i = 0; i < len; i++) {
 	const UChar c = GET_UCHAR(i);
 
-	if (iswprint(c)) {
+	bool print;
+	if (uchars) {
+	    print = iswprint(c);
+	}
+	else { // ASCII printable characters
+	    print = ((c >= 0x20) && (c <= 0x7E));
+	}
+	if (print) {
 	    if (c == '"' || c == '\\') {
 		inspect_append(result, c, true);
 	    }
