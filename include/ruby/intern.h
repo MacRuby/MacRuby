@@ -595,6 +595,7 @@ int rb_str_cmp(VALUE, VALUE);
 int rb_str_casecmp(VALUE, VALUE);
 VALUE rb_str_equal(VALUE str1, VALUE str2);
 void rb_str_update(VALUE, long, long, VALUE);
+void rb_str_delete(VALUE str, long beg, long len);
 VALUE rb_str_split(VALUE, const char*);
 void rb_str_associate(VALUE, VALUE);
 VALUE rb_str_associated(VALUE);

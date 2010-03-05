@@ -19,6 +19,7 @@
 #include "dln.h"
 #include "objc.h"
 #include "vm.h"
+#include "encoding.h"
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -2567,7 +2568,8 @@ static VALUE
 rb_file_s_split(VALUE klass, SEL sel, VALUE path)
 {
     FilePathStringValue(path);		/* get rid of converting twice */
-    return rb_assoc_new(rb_file_s_dirname(Qnil, 0, path), rb_file_s_basename(0,0,1,&path));
+    return rb_assoc_new(rb_file_s_dirname(Qnil, 0, path),
+	    rb_file_s_basename(0,0,1,&path));
 }
 
 static VALUE separator;
@@ -2575,46 +2577,41 @@ static VALUE separator;
 static VALUE
 rb_file_join(VALUE ary, VALUE sep)
 {
+    assert(rb_str_chars_len(sep) == 1);
+    UChar sep_char = rb_str_get_uchar(sep, 0);
     VALUE res = rb_str_new(NULL, 0);
 
-    const long count = RARRAY_LEN(ary);
-    if (count > 0) {
-	for (long i = 0; i < count; i++) {
-	    VALUE tmp = RARRAY_AT(ary, i);
-	    switch (TYPE(tmp)) {
-		case T_STRING:
-		    break;
+    for (long i = 0, count = RARRAY_LEN(ary); i < count; i++) {
+	VALUE tmp = RARRAY_AT(ary, i);
+	switch (TYPE(tmp)) {
+	    case T_STRING:
+		break;
 
-		case T_ARRAY:
-		    tmp = rb_file_join(tmp, sep);
-		    break;
+	    case T_ARRAY:
+		tmp = rb_file_join(tmp, sep);
+		break;
 
-		default:
-		    FilePathStringValue(tmp);
-	    }
-
-	    if (i > 0 && !NIL_P(sep)) {
-#if 0
-// TODO: we should probably mimic what 1.9 does here instead of this
-		if (CFStringHasSuffix(res, sep_cf)) {
-		    if (CFStringHasPrefix(tmp_cf, sep_cf)) {
-			// Remove trailing slash from res if tmp starts with a
-			// slash.
-			CFStringDelete(res,
-				CFRangeMake(CFStringGetLength(res) - 1, 1));
-		    }
-		}
-		else if (!CFStringHasPrefix(tmp_cf, sep_cf)) {
-		    CFStringAppend(res, sep_cf);
-		}
-#endif
-		rb_str_concat(res, sep);
-	    }
-
-	    rb_str_concat(res, tmp);
+	    default:
+		FilePathStringValue(tmp);
 	}
-    }
 
+	if (i > 0 && !NIL_P(sep)) {
+	    const long res_len = rb_str_chars_len(res);
+	    const long tmp_len = rb_str_chars_len(tmp);
+
+	    if (res_len > 0
+		    && rb_str_get_uchar(res, res_len - 1) == sep_char) {
+		if (tmp_len > 0 && rb_str_get_uchar(tmp, 0) == sep_char) {
+		    rb_str_delete(res, res_len - 1, 1);
+		}
+	    }
+	    else if (tmp_len == 0
+		    || rb_str_get_uchar(tmp, 0) != sep_char) {
+		rb_str_concat(res, sep);
+	    } 
+	}
+	rb_str_concat(res, tmp);
+    }
     return res;
 }
 

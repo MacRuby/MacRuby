@@ -5614,6 +5614,17 @@ rb_str_update(VALUE str, long beg, long len, VALUE val)
     }
 }
 
+void
+rb_str_delete(VALUE str, long beg, long len)
+{
+    if (IS_RSTR(str)) {
+	str_delete(RSTR(str), beg, len, false);
+    }
+    else {
+	abort(); // TODO
+    }
+}
+
 int
 rb_str_cmp(VALUE str1, VALUE str2)
 {
