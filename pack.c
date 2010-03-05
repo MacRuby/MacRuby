@@ -63,16 +63,16 @@ TOKEN_PASTE(swap,x)(xtype z)		\
     unsigned char *s, *t;		\
     int i;				\
 					\
-    zp = xmalloc(sizeof(xtype));	\
+    zp = malloc(sizeof(xtype));	\
     *zp = z;				\
     s = (unsigned char*)zp;		\
-    t = xmalloc(sizeof(xtype));		\
+    t = malloc(sizeof(xtype));		\
     for (i=0; i<sizeof(xtype); i++) {	\
 	t[sizeof(xtype)-i-1] = s[i];	\
     }					\
     r = *(xtype *)t;			\
-    xfree(t);				\
-    xfree(zp);				\
+    free(t);				\
+    free(zp);				\
     return r;				\
 }
 
@@ -366,8 +366,8 @@ num2i32(VALUE x)
 #endif
 static const char toofew[] = "too few arguments";
 
-static void encodes(CFMutableDataRef,const char*,long,int,int);
-static void qpencode(CFMutableDataRef,VALUE,long);
+static void encodes(VALUE,const char*,long,int,int);
+static void qpencode(VALUE,VALUE,long);
 
 static unsigned long utf8_to_uv(const char*,long*);
 
@@ -454,8 +454,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
     p = RSTRING_PTR(fmt);
     pend = p + RSTRING_LEN(fmt);
 
-    CFMutableDataRef data = CFDataCreateMutable(NULL, 0);
-    CFMakeCollectable(data);
+    VALUE data = bstr_new();
 
     items = RARRAY_LEN(ary);
     idx = 0;
@@ -531,19 +530,19 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 	      case 'A':         /* arbitrary binary string (ASCII space padded) */
 	      case 'Z':         /* null terminated string  */
 		if (plen >= len) {
-		    CFDataAppendBytes(data, (const UInt8 *)ptr, len);
+		    bstr_concat(data, (const UInt8 *)ptr, len);
 		    if (p[-1] == '*' && type == 'Z') {
-			CFDataAppendBytes(data, (const UInt8 *)nul10, 1);
+			bstr_concat(data, (const UInt8 *)nul10, 1);
 		    }
 		}
 		else {
-		    CFDataAppendBytes(data, (const UInt8 *)ptr, plen);
+		    bstr_concat(data, (const UInt8 *)ptr, plen);
 		    len -= plen;
 		    while (len >= 10) {
-			CFDataAppendBytes(data, (const UInt8 *)((type == 'A')?spc10:nul10), 10);
+			bstr_concat(data, (const UInt8 *)((type == 'A')?spc10:nul10), 10);
 			len -= 10;
 		    }
-		    CFDataAppendBytes(data, (const UInt8 *)((type == 'A')?spc10:nul10), len);
+		    bstr_concat(data, (const UInt8 *)((type == 'A')?spc10:nul10), len);
 		}
 		break;
 
@@ -563,7 +562,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 			    byte >>= 1;
 			else {
 			    char c = byte & 0xff;
-			    CFDataAppendBytes(data, (const UInt8 *)&c, 1);
+			    bstr_concat(data, (const UInt8 *)&c, 1);
 			    byte = 0;
 			}
 		    }
@@ -571,7 +570,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 			char c;
 			byte >>= 7 - (len & 7);
 			c = byte & 0xff;
-			CFDataAppendBytes(data, (const UInt8 *)&c, 1);
+			bstr_concat(data, (const UInt8 *)&c, 1);
 		    }
 		    len = j;
 		    goto grow;
@@ -593,7 +592,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 			    byte <<= 1;
 			else {
 			    char c = byte & 0xff;
-			    CFDataAppendBytes(data, (const UInt8 *)&c, 1);
+			    bstr_concat(data, (const UInt8 *)&c, 1);
 			    byte = 0;
 			}
 		    }
@@ -601,7 +600,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 			char c;
 			byte <<= 7 - (len & 7);
 			c = byte & 0xff;
-			CFDataAppendBytes(data, (const UInt8 *)&c, 1);
+			bstr_concat(data, (const UInt8 *)&c, 1);
 		    }
 		    len = j;
 		    goto grow;
@@ -626,13 +625,13 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 			    byte >>= 4;
 			else {
 			    char c = byte & 0xff;
-			    CFDataAppendBytes(data, (const UInt8 *)&c, 1);
+			    bstr_concat(data, (const UInt8 *)&c, 1);
 			    byte = 0;
 			}
 		    }
 		    if (len & 1) {
 			char c = byte & 0xff;
-			CFDataAppendBytes(data, (const UInt8 *)&c, 1);
+			bstr_concat(data, (const UInt8 *)&c, 1);
 		    }
 		    len = j;
 		    goto grow;
@@ -657,13 +656,13 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 			    byte <<= 4;
 			else {
 			    char c = byte & 0xff;
-			    CFDataAppendBytes(data, (const UInt8 *)&c, 1);
+			    bstr_concat(data, (const UInt8 *)&c, 1);
 			    byte = 0;
 			}
 		    }
 		    if (len & 1) {
 			char c = byte & 0xff;
-			CFDataAppendBytes(data, (const UInt8 *)&c, 1);
+			bstr_concat(data, (const UInt8 *)&c, 1);
 		    }
 		    len = j;
 		    goto grow;
@@ -679,7 +678,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 		from = NEXTFROM;
 		c = num2i32(from);
-		CFDataAppendBytes(data, (const UInt8 *)&c, 1);
+		bstr_concat(data, (const UInt8 *)&c, 1);
 	    }
 	    break;
 
@@ -690,7 +689,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 		from = NEXTFROM;
 		s = num2i32(from);
-		CFDataAppendBytes(data, (const UInt8 *)OFF16(&s), NATINT_LEN(short,2));
+		bstr_concat(data, (const UInt8 *)OFF16(&s), NATINT_LEN(short,2));
 	    }
 	    break;
 
@@ -701,7 +700,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 		from = NEXTFROM;
 		i = num2i32(from);
-		CFDataAppendBytes(data, (const UInt8 *)OFF32(&i), NATINT_LEN(int,4));
+		bstr_concat(data, (const UInt8 *)OFF32(&i), NATINT_LEN(int,4));
 	    }
 	    break;
 
@@ -712,7 +711,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 		from = NEXTFROM;
 		l = num2i32(from);
-		CFDataAppendBytes(data, (const UInt8 *)OFF32(&l), NATINT_LEN(long,4));
+		bstr_concat(data, (const UInt8 *)OFF32(&l), NATINT_LEN(long,4));
 	    }
 	    break;
 
@@ -723,7 +722,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 		from = NEXTFROM;
 		rb_quad_pack(tmp, from);
-		CFDataAppendBytes(data, (const UInt8 *)&tmp, QUAD_SIZE);
+		bstr_concat(data, (const UInt8 *)&tmp, QUAD_SIZE);
 	    }
 	    break;
 
@@ -734,7 +733,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		from = NEXTFROM;
 		s = num2i32(from);
 		s = NATINT_HTONS(s);
-		CFDataAppendBytes(data, (const UInt8 *)OFF16(&s), NATINT_LEN(short,2));
+		bstr_concat(data, (const UInt8 *)OFF16(&s), NATINT_LEN(short,2));
 	    }
 	    break;
 
@@ -745,7 +744,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		from = NEXTFROM;
 		l = num2i32(from);
 		l = NATINT_HTONL(l);
-		CFDataAppendBytes(data, (const UInt8 *)OFF32(&l), NATINT_LEN(long,4));
+		bstr_concat(data, (const UInt8 *)OFF32(&l), NATINT_LEN(long,4));
 	    }
 	    break;
 
@@ -756,7 +755,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		from = NEXTFROM;
 		s = num2i32(from);
 		s = NATINT_HTOVS(s);
-		CFDataAppendBytes(data, (const UInt8 *)OFF16(&s), NATINT_LEN(short,2));
+		bstr_concat(data, (const UInt8 *)OFF16(&s), NATINT_LEN(short,2));
 	    }
 	    break;
 
@@ -767,7 +766,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		from = NEXTFROM;
 		l = num2i32(from);
 		l = NATINT_HTOVL(l);
-		CFDataAppendBytes(data, (const UInt8 *)OFF32(&l), NATINT_LEN(long,4));
+		bstr_concat(data, (const UInt8 *)OFF32(&l), NATINT_LEN(long,4));
 	    }
 	    break;
 
@@ -778,7 +777,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 		from = NEXTFROM;
 		f = RFLOAT_VALUE(rb_Float(from));
-		CFDataAppendBytes(data, (const UInt8 *)&f, sizeof(float));
+		bstr_concat(data, (const UInt8 *)&f, sizeof(float));
 	    }
 	    break;
 
@@ -790,7 +789,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		from = NEXTFROM;
 		f = RFLOAT_VALUE(rb_Float(from));
 		f = HTOVF(f,ftmp);
-		CFDataAppendBytes(data, (const UInt8 *)&f, sizeof(float));
+		bstr_concat(data, (const UInt8 *)&f, sizeof(float));
 	    }
 	    break;
 
@@ -802,7 +801,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		from = NEXTFROM;
 		d = RFLOAT_VALUE(rb_Float(from));
 		d = HTOVD(d,dtmp);
-		CFDataAppendBytes(data, (const UInt8 *)&d, sizeof(double));
+		bstr_concat(data, (const UInt8 *)&d, sizeof(double));
 	    }
 	    break;
 
@@ -813,7 +812,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 		from = NEXTFROM;
 		d = RFLOAT_VALUE(rb_Float(from));
-		CFDataAppendBytes(data, (const UInt8 *)&d, sizeof(double));
+		bstr_concat(data, (const UInt8 *)&d, sizeof(double));
 	    }
 	    break;
 
@@ -825,7 +824,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		from = NEXTFROM;
 		f = RFLOAT_VALUE(rb_Float(from));
 		f = HTONF(f,ftmp);
-		CFDataAppendBytes(data, (const UInt8 *)&f, sizeof(float));
+		bstr_concat(data, (const UInt8 *)&f, sizeof(float));
 	    }
 	    break;
 
@@ -837,30 +836,30 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		from = NEXTFROM;
 		d = RFLOAT_VALUE(rb_Float(from));
 		d = HTOND(d,dtmp);
-		CFDataAppendBytes(data, (const UInt8 *)&d, sizeof(double));
+		bstr_concat(data, (const UInt8 *)&d, sizeof(double));
 	    }
 	    break;
 
 	  case 'x':		/* null byte */
 	  grow:
 	    while (len >= 10) {
-		CFDataAppendBytes(data, (const UInt8 *)nul10, 10);
+		bstr_concat(data, (const UInt8 *)nul10, 10);
 		len -= 10;
 	    }
-	    CFDataAppendBytes(data, (const UInt8 *)nul10, len);
+	    bstr_concat(data, (const UInt8 *)nul10, len);
 	    break;
 
 	  case 'X':		/* back up byte */
 	  shrink:
-	    plen = CFDataGetLength(data);
+	    plen = bstr_length(data);
 	    if (plen < len) {
 		rb_raise(rb_eArgError, "X outside of string");
 	    }
-	    CFDataSetLength(data, plen - len);
+	    bstr_set_length(data, plen - len);
 	    break;
 
 	  case '@':		/* null fill to absolute position */
-	    len -= CFDataGetLength(data);
+	    len -= bstr_length(data);
 	    if (len > 0) {
 		goto grow;
 	    }
@@ -887,7 +886,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		    rb_raise(rb_eRangeError, "pack(U): value out of range");
 		}
 		le = rb_uv_to_utf8(buf, l);
-		CFDataAppendBytes(data, (const UInt8 *)buf, le);
+		bstr_concat(data, (const UInt8 *)buf, le);
 	    }
 	    break;
 
@@ -958,14 +957,14 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		}
 		rb_ary_push(associates, from);
 		rb_obj_taint(from);
-		CFDataAppendBytes(data, (const UInt8 *)&t, sizeof(char*));
+		bstr_concat(data, (const UInt8 *)&t, sizeof(char*));
 	    }
 	    break;
 
 	  case 'w':		/* BER compressed integer  */
 	    while (len-- > 0) {
 		unsigned long ul;
-		CFMutableDataRef bufdata = CFDataCreateMutable(NULL, 0);
+		VALUE bufdata = bstr_new();
 		char c, *bufs, *bufe;
 
 		from = NEXTFROM;
@@ -974,7 +973,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		    while (TYPE(from) == T_BIGNUM) {
 			from = rb_big_divmod(from, big128);
 			c = NUM2INT(RARRAY_AT(from, 1)) | 0x80; /* mod */
-			CFDataAppendBytes(bufdata, (const UInt8 *)&c, sizeof(char));
+			bstr_concat(bufdata, (const UInt8 *)&c, sizeof(char));
 			from = RARRAY_AT(from, 0); /* div */
 		    }
 		}
@@ -987,28 +986,26 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 		while (ul) {
 		    c = ((ul & 0x7f) | 0x80);
-		    CFDataAppendBytes(bufdata, (const UInt8 *)&c, sizeof(char));
+		    bstr_concat(bufdata, (const UInt8 *)&c, sizeof(char));
 		    ul >>=  7;
 		}
 
-		if (CFDataGetLength(bufdata) > 0) {
-		    UInt8 *buf_beg = CFDataGetMutableBytePtr(bufdata);
+		if (bstr_length(bufdata) > 0) {
+		    UInt8 *buf_beg = bstr_bytes(bufdata);
 		    bufs = (char *)buf_beg;
-		    bufe = bufs + CFDataGetLength(bufdata) - 1;
+		    bufe = bufs + bstr_length(bufdata) - 1;
 		    *bufs &= 0x7f; /* clear continue bit */
 		    while (bufs < bufe) { /* reverse */
 			c = *bufs;
 			*bufs++ = *bufe;
 			*bufe-- = c;
 		    }
-		    CFDataAppendBytes(data, buf_beg, CFDataGetLength(bufdata));
+		    bstr_concat(data, buf_beg, bstr_length(bufdata));
 		}
 		else {
 		    c = 0;
-		    CFDataAppendBytes(data, (const UInt8 *)&c, sizeof(char));
+		    bstr_concat(data, (const UInt8 *)&c, sizeof(char));
 		}
-
-		CFRelease(bufdata);
 	    }
 	    break;
 
@@ -1017,22 +1014,19 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 	}
     }
 
-    VALUE bres = bstr_new_with_data(CFDataGetBytePtr(data),
-	    CFDataGetLength(data));
-
     // Taint the ByteString accordingly.
     if (OBJ_TAINTED(fmt)) {
-	OBJ_TAINT(bres);
+	OBJ_TAINT(data);
     }
     else {
 	for (long i = 0; i < items; i++) {
 	    if (OBJ_TAINTED(RARRAY_AT(ary, i))) {
-		OBJ_TAINT(bres);
+		OBJ_TAINT(data);
 		break;
 	    }
 	}
     }
-    return bres;
+    return data;
 }
 
 static const char uu_table[] =
@@ -1041,9 +1035,9 @@ static const char b64_table[] =
 "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 static void
-encodes(CFMutableDataRef data, const char *s, long len, int type, int tail_lf)
+encodes(VALUE data, const char *s, long len, int type, int tail_lf)
 {
-    char *buff = ALLOCA_N(char, len * 4 / 3 + 6);
+    char *buff = (char *)malloc(len * 4 / 3 + 6);
     long i = 0;
     const char *trans = type == 'u' ? uu_table : b64_table;
     int padding;
@@ -1065,7 +1059,7 @@ encodes(CFMutableDataRef data, const char *s, long len, int type, int tail_lf)
 	    len -= 3;
 	}
 	if (sizeof(buff) - i < 4) {
-	    CFDataAppendBytes(data, (const UInt8 *)buff, i);
+	    bstr_concat(data, (const UInt8 *)buff, i);
 	    i = 0;
 	}
     }
@@ -1084,12 +1078,13 @@ encodes(CFMutableDataRef data, const char *s, long len, int type, int tail_lf)
     if (tail_lf) {
 	buff[i++] = '\n';
     }
-    CFDataAppendBytes(data, (const UInt8 *)buff, i);
+    bstr_concat(data, (const UInt8 *)buff, i);
+    free(buff);
 }
 static const char hex_table[] = "0123456789ABCDEF";
 
 static void
-qpencode(CFMutableDataRef data, VALUE from, long len)
+qpencode(VALUE data, VALUE from, long len)
 {
     char buff[1024];
     long i = 0, n = 0, prev = EOF;
@@ -1127,7 +1122,7 @@ qpencode(CFMutableDataRef data, VALUE from, long len)
             prev = '\n';
         }
 	if (i > 1024 - 5) {
-	    CFDataAppendBytes(data, (const UInt8 *)buff, i);
+	    bstr_concat(data, (const UInt8 *)buff, i);
 	    i = 0;
 	}
 	s++;
@@ -1137,7 +1132,7 @@ qpencode(CFMutableDataRef data, VALUE from, long len)
 	buff[i++] = '\n';
     }
     if (i > 0) {
-	CFDataAppendBytes(data, (const UInt8 *)buff, i);
+	bstr_concat(data, (const UInt8 *)buff, i);
     }
 }
 
