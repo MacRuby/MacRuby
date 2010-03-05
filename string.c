@@ -863,15 +863,7 @@ str_compare(rb_str_t *self, rb_str_t *str)
 	return -1;
     }
 
-    if (str_is_stored_in_uchars(self) != str_is_stored_in_uchars(str)) {
-	// one is in uchars and the other is in binary
-	if (!str_try_making_data_uchars(self)
-		|| !str_try_making_data_uchars(str)) {
-	    // one is in uchars but the other one can't be converted in
-	    // uchars
-	    return -1;
-	}
-    }
+    str_make_same_format(self, str);
 
     const long min_len = self->length_in_bytes < str->length_in_bytes
 	? self->length_in_bytes : str->length_in_bytes;
@@ -905,16 +897,7 @@ str_case_compare(rb_str_t *self, rb_str_t *str)
 	return -1;
     }
 
-    if (str_is_stored_in_uchars(self)
-	    != str_is_stored_in_uchars(str)) {
-	// one is in uchars and the other is in binary
-	if (!str_try_making_data_uchars(self)
-		|| !str_try_making_data_uchars(str)) {
-	    // one is in uchars but the other one can't be converted in
-	    // uchars
-	    return -1;
-	}
-    }
+    str_make_same_format(self, str);
 
     const long min_length = self->length_in_bytes < str->length_in_bytes
 	? self->length_in_bytes : str->length_in_bytes;
@@ -4816,6 +4799,19 @@ rstr_sum(VALUE str, SEL sel, int argc, VALUE *argv)
     return rb_int2inum(sum);
 }
 
+/*
+ * call-seq:
+ *    str.hash   => fixnum
+ *
+ * Return a hash based on the string's length and content.
+ */
+
+static VALUE
+rstr_hash(VALUE str, SEL sel)
+{
+    return LONG2NUM(rb_str_hash(str));
+}
+
 // NSString primitives.
 
 static void
@@ -4994,6 +4990,7 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "squeeze", rstr_squeeze, -1);
     rb_objc_define_method(rb_cRubyString, "squeeze!", rstr_squeeze_bang, -1);
     rb_objc_define_method(rb_cRubyString, "sum", rstr_sum, -1);
+    rb_objc_define_method(rb_cRubyString, "hash", rstr_hash, 0);
 
     // MacRuby extensions.
     rb_objc_define_method(rb_cRubyString, "transform", rstr_transform, 1);
