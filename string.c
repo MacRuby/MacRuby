@@ -4747,6 +4747,42 @@ rstr_squeeze(VALUE str, SEL sel, int argc, VALUE *argv)
     return str;
 }
 
+/*
+ *  call-seq:
+ *     str.sum(n=16)   => integer
+ *  
+ *  Returns a basic <em>n</em>-bit checksum of the characters in <i>str</i>,
+ *  where <em>n</em> is the optional <code>Fixnum</code> parameter, defaulting
+ *  to 16. The result is simply the sum of the binary value of each character in
+ *  <i>str</i> modulo <code>2n - 1</code>. This is not a particularly good
+ *  checksum.
+ */
+
+static VALUE
+rstr_sum(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    int bits = 16;
+    if (argc > 0) {
+	VALUE vbits;
+	rb_scan_args(argc, argv, "01", &vbits);
+	bits = NUM2INT(vbits);
+    }
+
+    if (bits >= sizeof(long) * CHAR_BIT) {
+	rb_raise(rb_eArgError, "bits argument too big");
+    }
+
+    unsigned long sum = 0;
+    for (long i = 0; i < RSTR(str)->length_in_bytes; i++) {
+	sum += (unsigned char)RSTR(str)->data.bytes[i];
+    }
+    if (bits != 0) {
+	sum &= (((unsigned long)1) << bits) - 1;
+    }
+
+    return rb_int2inum(sum);
+}
+
 // NSString primitives.
 
 static void
@@ -4922,6 +4958,7 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "delete!", rstr_delete_bang, -1);
     rb_objc_define_method(rb_cRubyString, "squeeze", rstr_squeeze, -1);
     rb_objc_define_method(rb_cRubyString, "squeeze!", rstr_squeeze_bang, -1);
+    rb_objc_define_method(rb_cRubyString, "sum", rstr_sum, -1);
 
     // MacRuby extensions.
     rb_objc_define_method(rb_cRubyString, "transform", rstr_transform, 1);
