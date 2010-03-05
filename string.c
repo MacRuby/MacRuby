@@ -4159,6 +4159,32 @@ rstr_each_char(VALUE str, SEL sel)
 }
 
 /*
+ *  Document-method: each_byte
+ *  call-seq:
+ *     str.each_byte {|fixnum| block }    => str
+ *  
+ *  Passes each byte in <i>str</i> to the given block.
+ *     
+ *     "hello".each_byte {|c| print c, ' ' }
+ *     
+ *  <em>produces:</em>
+ *     
+ *     104 101 108 108 111
+ */
+
+static VALUE
+rstr_each_byte(VALUE str, SEL sel)
+{
+    RETURN_ENUMERATOR(str, 0, 0);
+
+    for (long i = 0; i < RSTR(str)->length_in_bytes; i++) {
+	rb_yield(INT2FIX(RSTR(str)->data.bytes[i]));
+	RETURN_IF_BROKEN();
+    }
+    return str;
+}
+
+/*
  *  call-seq:
  *     str.succ   => new_str
  *     str.next   => new_str
@@ -4946,6 +4972,8 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "each_line", rstr_each_line, -1);
     rb_objc_define_method(rb_cRubyString, "chars", rstr_each_char, 0);
     rb_objc_define_method(rb_cRubyString, "each_char", rstr_each_char, 0);
+    rb_objc_define_method(rb_cRubyString, "bytes", rstr_each_byte, 0);
+    rb_objc_define_method(rb_cRubyString, "each_byte", rstr_each_byte, 0);
     rb_objc_define_method(rb_cRubyString, "succ", rstr_succ, 0);
     rb_objc_define_method(rb_cRubyString, "succ!", rstr_succ_bang, 0);
     rb_objc_define_method(rb_cRubyString, "next", rstr_succ, 0);
