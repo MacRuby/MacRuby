@@ -338,10 +338,9 @@ rb_sprintf(const char *format, ...)
 #define isprenum(ch) ((ch) == '-' || (ch) == ' ' || (ch) == '+')
 
 static void
-pad_format_value(VALUE arg, long start, long width,
-	CFStringRef pad)
+pad_format_value(VALUE arg, long start, long width, VALUE pad)
 {
-    long slen = (long)CFStringGetLength((CFStringRef)arg);
+    const long slen = rb_str_chars_len(arg);
     if (width <= slen) {
 	return;
     }
@@ -350,7 +349,7 @@ pad_format_value(VALUE arg, long start, long width,
     }
     width -= slen;
     do {
-	CFStringInsert((CFMutableStringRef)arg, start, pad);
+	rb_str_update(arg, start, 0, pad);
     }
     while (--width > 0);
 }
@@ -386,8 +385,7 @@ cstr_update(UChar **str, long *str_len, long start, long num, VALUE replace)
 }
 
 static VALUE
-get_named_arg(UChar *format_str, long format_len, unsigned long *i,
-	VALUE hash)
+get_named_arg(UChar *format_str, long format_len, long *i, VALUE hash)
 {
     if (TYPE(hash) != T_HASH) {
 	rb_raise(rb_eArgError,
@@ -430,13 +428,14 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
     long num, pos;
     int j = 0;
     int ref_type = 0;
+    long format_str_capa = format_len;
 
-    for (unsigned long i = 0; i < format_len; i++) {
+    for (long i = 0; i < format_len; i++) {
 	if (format_str[i] != '%') {
 	    continue;
 	}
 	if (format_str[i + 1] == '%') {
-	    cstr_update(&format_str, &format_len, i, 1, 0);
+	    cstr_update(&format_str, &format_str_capa, i, 1, 0);
 	    continue;
 	}
 
@@ -451,10 +450,10 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 	long width = 0;
 	long precision = 0;
 	int base = 0;
-	CFStringRef negative_pad = NULL;
-	CFStringRef sharp_pad = CFSTR("");
+	VALUE negative_pad = 0;
+	VALUE sharp_pad = rb_str_new2("");
+	const long start = i;
 
-	unsigned long start = i;
 	while (i++ < format_len) {
 	    switch (format_str[i]) {
 		case '#':
@@ -601,24 +600,24 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		case 'x':
 		case 'X':
 		    base = 16;
-		    negative_pad = CFSTR("f");
-		    sharp_pad = CFSTR("0x");
+		    negative_pad = rb_str_new2("f");
+		    sharp_pad = rb_str_new2("0x");
 		    complete = true;
 		    break;
 
 		case 'o':
 		case 'O':
 		    base = 8;
-		    negative_pad = CFSTR("7");
-		    sharp_pad = CFSTR("0");
+		    negative_pad = rb_str_new2("7");
+		    sharp_pad = rb_str_new2("0");
 		    complete = true;
 		    break;
 
 		case 'B':
 		case 'b':
 		    base = 2;
-		    negative_pad = CFSTR("1");
-		    sharp_pad = CFSTR("0b");
+		    negative_pad = rb_str_new2("1");
+		    sharp_pad = rb_str_new2("0b");
 		    complete = true;
 		    break;
 
@@ -656,10 +655,10 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 				value < 0 ? "-Inf" : "Inf"));
 			if (isnan(value) || value > 0) {
 			    if (plus_flag) {
-				rb_str_update(arg, 0, 0, (VALUE)CFSTR("+"));
+				rb_str_update(arg, 0, 0, rb_str_new2("+"));
 			    }
 			    else if (space_flag) {
-				rb_str_update(arg, 0, 0, (VALUE)CFSTR(" "));
+				rb_str_update(arg, 0, 0, rb_str_new2(" "));
 			    }
 			}
 			break;
@@ -669,25 +668,25 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		    if (precision_flag) {
 			rb_str_update(arg, 0, 0, rb_big2str(LONG2NUM(precision),
 				10));
-			rb_str_update(arg, 0, 0, (VALUE)CFSTR("."));
+			rb_str_update(arg, 0, 0, rb_str_new2("."));
 		    }
 		    rb_str_update(arg, 0, 0, rb_big2str(LONG2NUM(width), 10));
 		    if (minus_flag) {
-			rb_str_update(arg, 0, 0, (VALUE)CFSTR("-"));
+			rb_str_update(arg, 0, 0, rb_str_new2("-"));
 		    }
 		    else if (zero_flag) {
-			rb_str_update(arg, 0, 0, (VALUE)CFSTR("0"));
+			rb_str_update(arg, 0, 0, rb_str_new2("0"));
 		    }
 		    if (plus_flag) {
-			rb_str_update(arg, 0, 0, (VALUE)CFSTR("+"));
+			rb_str_update(arg, 0, 0, rb_str_new2("+"));
 		    }
 		    else if (space_flag) {
-			rb_str_update(arg, 0, 0, (VALUE)CFSTR(" "));
+			rb_str_update(arg, 0, 0, rb_str_new2(" "));
 		    }
 		    if (sharp_flag) {
-			rb_str_update(arg, 0, 0, (VALUE)CFSTR("#"));
+			rb_str_update(arg, 0, 0, rb_str_new2("#"));
 		    }
-		    rb_str_update(arg, 0, 0, (VALUE)CFSTR("%"));
+		    rb_str_update(arg, 0, 0, rb_str_new2("%"));
 
 		    char *ptr;
 		    asprintf(&ptr, RSTRING_PTR(arg), value);
@@ -701,11 +700,10 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		case 'p':
 		case '@':
 		    GET_ARG();
-		    arg = (tolower(format_str[i]) != 's' ? rb_inspect(arg)
-			    : TYPE(arg) == T_STRING ? rb_str_new3(arg)
-			    : rb_obj_as_string(arg));
-		    if (precision_flag && precision
-			    < CFStringGetLength((CFStringRef)arg)) {
+		    arg = (tolower(format_str[i]) != 's'
+			    ? rb_inspect(arg) : TYPE(arg) == T_STRING
+				? rb_str_new3(arg) : rb_obj_as_string(arg));
+		    if (precision_flag && precision < rb_str_chars_len(arg)) {
 			CFStringPad((CFMutableStringRef)arg, NULL, precision,
 				0);
 		    }
@@ -725,7 +723,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 	    if (base != 0) {
 		bool sign_pad = false;
 		unsigned long num_index = 0;
-		CFStringRef zero_pad = CFSTR("0");
+		VALUE zero_pad = rb_str_new2("0");
 
 		VALUE num = rb_Integer(arg);
 		if (TYPE(num) == T_FIXNUM) {
@@ -736,7 +734,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		}
 		if (IS_NEG(num)) {
 		    num_index = 1;
-		    if (!sign_pad && negative_pad != NULL) {
+		    if (!sign_pad && negative_pad != 0) {
 			zero_pad = negative_pad;
 			num = rb_big_clone(num);
 			rb_big_2comp(num);
@@ -744,7 +742,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		}
 
 		arg = rb_big2str(num, base);
-		if (!sign_pad && IS_NEG(num) && negative_pad != NULL) {
+		if (!sign_pad && IS_NEG(num) && negative_pad != 0) {
 		    break; // TODO
 #if 0
 		    UChar neg = CFStringGetCharacterAtIndex(negative_pad, 0);
@@ -765,7 +763,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		if (precision_flag) {
 		    pad_format_value(arg, num_index,
 			    precision + (IS_NEG(num)
-				&& (sign_pad || negative_pad == NULL) ? 1 : 0),
+				&& (sign_pad || negative_pad == 0) ? 1 : 0),
 			    zero_pad);
 		}
 		if (sharp_flag && rb_cmpint(num, Qfalse, Qfalse) != 0) {
@@ -774,7 +772,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		}
 		if (sign_pad && RBIGNUM_POSITIVE_P(num)) {
 		    rb_str_update(arg, 0, 0, (VALUE)(plus_flag ?
-			    CFSTR("+") : CFSTR(" ")));
+			    rb_str_new2("+") : rb_str_new2(" ")));
 		    num_index++;
 		}
 		if (zero_flag) {
@@ -789,9 +787,10 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		tainted = true;
 	    }
 
-	    pad_format_value(arg, minus_flag ? -1 : 0, width, CFSTR(" "));
-	    num = cstr_update(&format_str, &format_len, start, i - start + 1,
-		    arg);
+	    pad_format_value(arg, minus_flag ? -1 : 0, width, rb_str_new2(" "));
+	    num = cstr_update(&format_str, &format_str_capa, start,
+		    i - start + 1, arg);
+	    format_len += num;
 	    i += num;
 	    break;
 	}
