@@ -1637,7 +1637,7 @@ rstr_is_ascii_only(VALUE self, SEL sel)
 static VALUE
 rb_str_subpat(VALUE str, VALUE re, int nth)
 {
-    if (rb_reg_search(re, str, 0, 0) >= 0) {
+    if (rb_reg_search(re, str, 0, false) >= 0) {
 	return rb_reg_nth_match(nth, rb_backref_get());
     }
     return Qnil;
@@ -4812,6 +4812,95 @@ rstr_hash(VALUE str, SEL sel)
     return LONG2NUM(rb_str_hash(str));
 }
 
+/*
+ *  call-seq:
+ *     str.partition(sep)              => [head, sep, tail]
+ *  
+ *  Searches the string for <i>sep</i> and returns the part before
+ *  it, the <i>sep</i>, and the part after it.  If <i>sep</i> is not found,
+ *  returns <i>str</i> and two empty strings.
+ *     
+ *     "hello".partition("l")         #=> ["he", "l", "lo"]
+ *     "hello".partition("x")         #=> ["hello", "", ""]
+ */
+
+static VALUE
+rstr_partition(VALUE str, SEL sel, VALUE sep)
+{
+    long pos = 0;
+    long seplen = 0;
+    bool regex = false;
+
+    if (TYPE(sep) == T_REGEXP) {
+	pos = rb_reg_search(sep, str, 0, false);
+	regex = true;
+    }
+    else {
+	StringValue(sep);
+	seplen = rb_str_chars_len(sep);
+	pos = str_index_for_string(RSTR(str), str_need_string(sep),
+		0, -1, false, true);
+    }
+    if (pos < 0) {
+failed:
+	return rb_ary_new3(3, str, rb_str_new(NULL,0), rb_str_new(NULL,0));
+    }
+    if (regex) {
+	sep = rb_str_subpat(str, sep, 0);
+	seplen = rb_str_chars_len(sep);
+	if (pos == 0 && seplen == 0) {
+	    goto failed;
+	}
+    }
+    const long len = rb_str_chars_len(str);
+    return rb_ary_new3(3, rstr_substr(str, 0, pos), sep,
+	    rstr_substr(str, pos + seplen, len - pos - seplen));
+}
+
+/*
+ *  call-seq:
+ *     str.rpartition(sep)            => [head, sep, tail]
+ *  
+ *  Searches <i>sep</i> in the string from the end of the string, and
+ *  returns the part before it, the <i>sep</i>, and the part after it.
+ *  If <i>sep</i> is not found, returns two empty strings and
+ *  <i>str</i>.
+ *     
+ *     "hello".rpartition("l")         #=> ["hel", "l", "o"]
+ *     "hello".rpartition("x")         #=> ["", "", "hello"]
+ */
+
+static VALUE
+rstr_rpartition(VALUE str, SEL sel, VALUE sep)
+{
+    const long len = rb_str_chars_len(str);
+    long pos = len;
+    bool regex = false;
+
+    if (TYPE(sep) == T_REGEXP) {
+	pos = rb_reg_search(sep, str, pos, true);
+	regex = true;
+    }
+    else {
+	StringValue(sep);
+	pos = str_index_for_string(RSTR(str), str_need_string(sep),
+		0, -1, true, true);
+    }
+    if (pos < 0) {
+failed:
+	return rb_ary_new3(3, rb_str_new(NULL, 0), rb_str_new(NULL,0), str);
+    }
+    if (regex) {
+	sep = rb_reg_nth_match(0, rb_backref_get());
+	if (sep == Qnil) {
+	    goto failed;
+	}
+    }
+    const long seplen = rb_str_chars_len(sep);
+    return rb_ary_new3(3, rstr_substr(str, 0, pos), sep,
+	    rstr_substr(str, pos + seplen, len - pos - seplen));
+}
+
 // NSString primitives.
 
 static void
@@ -4991,6 +5080,8 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "squeeze!", rstr_squeeze_bang, -1);
     rb_objc_define_method(rb_cRubyString, "sum", rstr_sum, -1);
     rb_objc_define_method(rb_cRubyString, "hash", rstr_hash, 0);
+    rb_objc_define_method(rb_cRubyString, "partition", rstr_partition, 1);
+    rb_objc_define_method(rb_cRubyString, "rpartition", rstr_rpartition, 1);
 
     // MacRuby extensions.
     rb_objc_define_method(rb_cRubyString, "transform", rstr_transform, 1);
