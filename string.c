@@ -4901,6 +4901,31 @@ failed:
 	    rstr_substr(str, pos + seplen, len - pos - seplen));
 }
 
+/*
+ *  call-seq:
+ *     str.crypt(other_str)   => new_str
+ *  
+ *  Applies a one-way cryptographic hash to <i>str</i> by invoking the standard
+ *  library function <code>crypt</code>. The argument is the salt string, which
+ *  should be two characters long, each character drawn from
+ *  <code>[a-zA-Z0-9./]</code>.
+ */
+
+static VALUE
+rstr_crypt(VALUE str, SEL sel, VALUE salt)
+{
+    StringValue(salt);
+    if (RSTRING_LEN(salt) < 2) {
+	rb_raise(rb_eArgError, "salt too short (need >=2 bytes)");
+    }
+
+    VALUE crypted = rb_str_new2(crypt(RSTRING_PTR(str), RSTRING_PTR(salt)));
+    if (OBJ_TAINTED(str) || OBJ_TAINTED(salt)) {
+	OBJ_TAINT(crypted);
+    }
+    return crypted;
+}
+
 // NSString primitives.
 
 static void
@@ -5082,6 +5107,7 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "hash", rstr_hash, 0);
     rb_objc_define_method(rb_cRubyString, "partition", rstr_partition, 1);
     rb_objc_define_method(rb_cRubyString, "rpartition", rstr_rpartition, 1);
+    rb_objc_define_method(rb_cRubyString, "crypt", rstr_crypt, 1);
 
     // MacRuby extensions.
     rb_objc_define_method(rb_cRubyString, "transform", rstr_transform, 1);
