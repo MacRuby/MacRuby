@@ -20,8 +20,6 @@
 #include "vm.h"
 #include <signal.h>
 #include <stdio.h>
-#include <dispatch/dispatch.h>
-#include <dispatch/queue.h>
 
 #define USE_DEFAULT_HANDLER (void (*)(int))-1
 
