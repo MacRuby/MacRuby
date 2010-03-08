@@ -1956,9 +1956,6 @@ rstr_rindex(VALUE self, SEL sel, int argc, VALUE *argv)
 	if (pos >= len) {
 	    pos = len - 1;
 	}
-	else if (pos == 0) {
-	    return Qnil;
-	}
     }
     else {
 	pos = len - 1;
@@ -2003,7 +2000,7 @@ rstr_plus(VALUE self, SEL sel, VALUE other)
 {
     rb_str_t *newstr = str_dup(RSTR(self));
     str_concat_string(newstr, str_need_string(other));
-    if (OBJ_TAINTED(self)) {
+    if (OBJ_TAINTED(self) || OBJ_TAINTED(other)) {
 	OBJ_TAINT(newstr);
     }
     return (VALUE)newstr;
