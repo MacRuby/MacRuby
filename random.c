@@ -564,7 +564,7 @@ random_bytes(VALUE obj, SEL sel, VALUE len)
 	ptr[i] = (char)r;
 	r >>= CHAR_BIT;
     }
-    VALUE bytes = bstr_new_with_data(ptr, n);
+    VALUE bytes = rb_bstr_new_with_data(ptr, n);
     free(ptr);
     return bytes;
 }

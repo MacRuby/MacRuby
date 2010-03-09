@@ -606,6 +606,20 @@ VALUE rb_str_inspect(VALUE);
 #if WITH_OBJC
 bool rb_objc_str_is_pure(VALUE);
 #endif
+
+// Return a string object appropriate for bstr_ calls. This does nothing for
+// data/binary RubyStrings.
+VALUE rb_str_bstr(VALUE str);
+
+// Byte strings APIs. Use this only when dealing with raw data.
+VALUE rb_bstr_new(void);
+VALUE rb_bstr_new_with_data(const uint8_t *bytes, long len);
+uint8_t *rb_bstr_bytes(VALUE str);
+void rb_bstr_concat(VALUE str, const uint8_t *bytes, long len);
+long rb_bstr_length(VALUE str);
+void rb_bstr_set_length(VALUE str, long len);
+void rb_bstr_resize(VALUE str, long capa);
+
 /* struct.c */
 VALUE rb_struct_new(VALUE, ...);
 VALUE rb_struct_define(const char*, ...);

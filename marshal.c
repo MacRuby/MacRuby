@@ -219,7 +219,7 @@ static void
 w_nbyte(const char *s, int n, struct dump_arg *arg)
 {
     VALUE buf = arg->str;
-    bstr_concat(buf, (const uint8_t *)s, n);
+    rb_bstr_concat(buf, (const uint8_t *)s, n);
     if (arg->dest && RSTRING_LEN(buf) >= BUFSIZ) {
 	if (arg->taint) OBJ_TAINT(buf);
 	rb_io_write(arg->dest, 0, buf);
@@ -898,7 +898,7 @@ dump(struct dump_call_arg *arg)
     w_object(arg->obj, arg->arg, arg->limit);
     if (arg->arg->dest) {
 	rb_io_write(arg->arg->dest, 0, arg->arg->str);
-	bstr_resize(arg->arg->str, 0);
+	rb_bstr_resize(arg->arg->str, 0);
     }
     return 0;
 }
@@ -982,14 +982,14 @@ marshal_dump(VALUE self, SEL sel, int argc, VALUE *argv)
 type_error:
 	    rb_raise(rb_eTypeError, "instance of IO needed");
 	}
-	GC_WB(&arg->str, bstr_new());
+	GC_WB(&arg->str, rb_bstr_new());
 	GC_WB(&arg->dest, port);
 	if (rb_obj_respond_to(port, s_binmode, Qtrue)) {
 	    rb_funcall2(port, s_binmode, 0, 0);
 	}
     }
     else {
-	port = bstr_new();
+	port = rb_bstr_new();
 	GC_WB(&arg->str, port);
     }
 
@@ -1121,9 +1121,9 @@ r_bytes0(long len, struct load_arg *arg)
     }
     if (TYPE(arg->src) == T_STRING) {
 	if (RSTRING_LEN(arg->src) - arg->offset >= len) {
-	    str = bstr_new();
-	    bstr_resize(str, len + 1);
-	    uint8_t *data = bstr_bytes(str);
+	    str = rb_bstr_new();
+	    rb_bstr_resize(str, len + 1);
+	    uint8_t *data = rb_bstr_bytes(str);
 	    memcpy(data, (UInt8 *)RSTRING_PTR(arg->src) + arg->offset, len);
 	    data[len] = '\0';
 	    arg->offset += len;

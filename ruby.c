@@ -1092,8 +1092,8 @@ load_file(VALUE parser, const char *fname, int script,
 		    char *pend;
 
 		    line = rb_str_bstr(line);
-		    p = (char *)bstr_bytes(line);
-		    pend = p + bstr_length(line);
+		    p = (char *)rb_bstr_bytes(line);
+		    pend = p + rb_bstr_length(line);
 
 		    if (pend[-1] == '\n') {
 			pend--;	/* chomp line */
@@ -1127,8 +1127,8 @@ load_file(VALUE parser, const char *fname, int script,
 	      start_read:
 		p += 4;
 
-		char *linebuf = (char *)bstr_bytes(line);
-		const long linebuflen = bstr_length(line);
+		char *linebuf = (char *)rb_bstr_bytes(line);
+		const long linebuflen = rb_bstr_length(line);
 
 		linebuf[linebuflen - 1] = '\0';
 		if (linebuf[linebuflen - 2] == '\r') {

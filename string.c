@@ -5392,14 +5392,14 @@ rb_str_bstr(VALUE str)
 }
 
 uint8_t *
-bstr_bytes(VALUE str)
+rb_bstr_bytes(VALUE str)
 {
     assert(IS_BSTR(str));
     return (uint8_t *)RSTR(str)->data.bytes;
 }
 
 VALUE
-bstr_new_with_data(const uint8_t *bytes, long len)
+rb_bstr_new_with_data(const uint8_t *bytes, long len)
 {
     rb_str_t *str = str_alloc(rb_cRubyString);
     str_replace_with_bytes(str, (char *)bytes, len,
@@ -5408,34 +5408,34 @@ bstr_new_with_data(const uint8_t *bytes, long len)
 }
 
 VALUE
-bstr_new(void)
+rb_bstr_new(void)
 {
-    return bstr_new_with_data(NULL, 0);
+    return rb_bstr_new_with_data(NULL, 0);
 }
 
 long
-bstr_length(VALUE str)
+rb_bstr_length(VALUE str)
 {
     assert(IS_BSTR(str));
     return RSTR(str)->length_in_bytes;
 }
 
 void
-bstr_concat(VALUE str, const uint8_t *bytes, long len)
+rb_bstr_concat(VALUE str, const uint8_t *bytes, long len)
 {
     assert(IS_BSTR(str));
     str_concat_bytes(RSTR(str), (const char *)bytes, len);
 }
 
 void
-bstr_resize(VALUE str, long capa)
+rb_bstr_resize(VALUE str, long capa)
 {
     assert(IS_BSTR(str));
     str_resize_bytes(RSTR(str), capa);
 }
 
 void
-bstr_set_length(VALUE str, long len)
+rb_bstr_set_length(VALUE str, long len)
 {
     assert(IS_BSTR(str));
     assert(len <= RSTR(str)->capacity_in_bytes);
@@ -5852,6 +5852,20 @@ rb_str_resize(VALUE str, long len)
 	abort(); // TODO
     }
     return str;
+}
+
+void
+rb_str_set_len(VALUE str, long len)
+{
+    if (IS_RSTR(str)) {
+	const long len_bytes = str_is_stored_in_uchars(RSTR(str))
+	    ? UCHARS_TO_BYTES(len) : len;
+	assert(len_bytes < RSTR(str)->length_in_bytes);
+	RSTR(str)->length_in_bytes = len_bytes;
+    }
+    else {
+	abort(); // TODO
+    }
 }
 
 VALUE

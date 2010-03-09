@@ -424,8 +424,8 @@ io_write(VALUE io, SEL sel, VALUE data)
     data = rb_obj_as_string(data);
 
     data = rb_str_bstr(data);
-    const uint8_t *buffer = bstr_bytes(data);
-    const long length = bstr_length(data);
+    const uint8_t *buffer = rb_bstr_bytes(data);
+    const long length = rb_bstr_length(data);
 
     if (length == 0) {
         return INT2FIX(0);
@@ -988,11 +988,11 @@ rb_io_read_all(rb_io_t *io_struct, VALUE outbuf)
 
     const long BUFSIZE = 512;
     long bytes_read = 0;
-    const long original_position = bstr_length(outbuf);
+    const long original_position = rb_bstr_length(outbuf);
 
     while (true) {
-	bstr_resize(outbuf, original_position + bytes_read + BUFSIZE);
-	uint8_t *bytes = bstr_bytes(outbuf) + original_position + bytes_read;
+	rb_bstr_resize(outbuf, original_position + bytes_read + BUFSIZE);
+	uint8_t *bytes = rb_bstr_bytes(outbuf) + original_position + bytes_read;
         const long last_read = rb_io_read_internal(io_struct, bytes, BUFSIZE);
         bytes_read += last_read;
 	if (last_read == 0) {
@@ -1000,7 +1000,7 @@ rb_io_read_all(rb_io_t *io_struct, VALUE outbuf)
 	}
     }
 
-    bstr_set_length(outbuf, original_position + bytes_read);
+    rb_bstr_set_length(outbuf, original_position + bytes_read);
     return outbuf; 
 }
 
@@ -1119,7 +1119,7 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
     rb_io_assert_readable(io_struct);
 
     if (NIL_P(outbuf)) {
-	outbuf = bstr_new();
+	outbuf = rb_bstr_new();
     }
 
     if (NIL_P(len)) {
@@ -1139,14 +1139,14 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
     }
 
     outbuf = rb_str_bstr(outbuf);
-    bstr_resize(outbuf, size);
-    uint8_t *bytes = bstr_bytes(outbuf);
+    rb_bstr_resize(outbuf, size);
+    uint8_t *bytes = rb_bstr_bytes(outbuf);
 
     const long data_read = rb_io_read_internal(io_struct, bytes, size);
     if (data_read == 0) {
 	return Qnil;
     }
-    bstr_set_length(outbuf, data_read);
+    rb_bstr_set_length(outbuf, data_read);
 
     return outbuf;
 }
@@ -1281,10 +1281,10 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
     }
     const long line_limit = NIL_P(limit) ? -1 : FIX2LONG(limit);
 
-    VALUE bstr = bstr_new();
+    VALUE bstr = rb_bstr_new();
     if (line_limit != -1) {
-	bstr_resize(bstr, line_limit);
-	uint8_t *bytes = bstr_bytes(bstr);
+	rb_bstr_resize(bstr, line_limit);
+	uint8_t *bytes = rb_bstr_bytes(bstr);
 	rb_io_read_internal(io_struct, bytes, line_limit);
 #if 0 // TODO
 	CFRange r = CFStringFind((CFStringRef)bstr, (CFStringRef)sep, 0);
@@ -1334,9 +1334,9 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 	    // Read from IO (slow).
 	    long s = 512;
 	    long data_read = 0;
-	    bstr_resize(bstr, s);
+	    rb_bstr_resize(bstr, s);
 
-	    uint8_t *buf = bstr_bytes(bstr);
+	    uint8_t *buf = rb_bstr_bytes(bstr);
 	    uint8_t *tmp_buf = (uint8_t *)malloc(seplen);
 	    while (true) {
 		if (rb_io_read_internal(io_struct, tmp_buf, seplen) != seplen) {
@@ -1344,8 +1344,8 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 		}
 		if (data_read >= s) {
 		    s += s;
-		    bstr_resize(bstr, s);
-		    buf = bstr_bytes(bstr);
+		    rb_bstr_resize(bstr, s);
+		    buf = rb_bstr_bytes(bstr);
 		}
 		memcpy(&buf[data_read], tmp_buf, seplen);
 		data_read += seplen;
@@ -1359,7 +1359,7 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 	    if (data_read == 0) {
 		return Qnil;
 	    }
-	    bstr_set_length(bstr, data_read);
+	    rb_bstr_set_length(bstr, data_read);
 	}
     }
     OBJ_TAINT(bstr);
@@ -3343,7 +3343,7 @@ rb_f_backquote(VALUE obj, SEL sel, VALUE str)
 	io_s->pid = -1;
     }
 
-    VALUE outbuf = bstr_new();
+    VALUE outbuf = rb_bstr_new();
     rb_io_read_all(ExtractIOStruct(io), outbuf);
     rb_io_close(io);
 
@@ -3840,8 +3840,8 @@ rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
     }
 
     outbuf = rb_str_bstr(outbuf);
-    uint8_t *bytes = bstr_bytes(outbuf);
-    const long length = bstr_length(outbuf);
+    uint8_t *bytes = rb_bstr_bytes(outbuf);
+    const long length = rb_bstr_length(outbuf);
 
     VALUE ary = rb_ary_new();
 
@@ -3852,7 +3852,7 @@ rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
 	void *ptr;
 	while ((ptr = memchr(&bytes[pos], byte, length - pos)) != NULL) {
 	    const long s = (long)ptr - (long)&bytes[pos] + 1;
-	    rb_ary_push(ary, bstr_new_with_data(&bytes[pos], s));
+	    rb_ary_push(ary, rb_bstr_new_with_data(&bytes[pos], s));
 	    pos += s; 
 	}
     }

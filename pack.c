@@ -454,7 +454,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
     p = RSTRING_PTR(fmt);
     pend = p + RSTRING_LEN(fmt);
 
-    VALUE data = bstr_new();
+    VALUE data = rb_bstr_new();
 
     items = RARRAY_LEN(ary);
     idx = 0;
@@ -530,19 +530,19 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 	      case 'A':         /* arbitrary binary string (ASCII space padded) */
 	      case 'Z':         /* null terminated string  */
 		if (plen >= len) {
-		    bstr_concat(data, (const UInt8 *)ptr, len);
+		    rb_bstr_concat(data, (const UInt8 *)ptr, len);
 		    if (p[-1] == '*' && type == 'Z') {
-			bstr_concat(data, (const UInt8 *)nul10, 1);
+			rb_bstr_concat(data, (const UInt8 *)nul10, 1);
 		    }
 		}
 		else {
-		    bstr_concat(data, (const UInt8 *)ptr, plen);
+		    rb_bstr_concat(data, (const UInt8 *)ptr, plen);
 		    len -= plen;
 		    while (len >= 10) {
-			bstr_concat(data, (const UInt8 *)((type == 'A')?spc10:nul10), 10);
+			rb_bstr_concat(data, (const UInt8 *)((type == 'A')?spc10:nul10), 10);
 			len -= 10;
 		    }
-		    bstr_concat(data, (const UInt8 *)((type == 'A')?spc10:nul10), len);
+		    rb_bstr_concat(data, (const UInt8 *)((type == 'A')?spc10:nul10), len);
 		}
 		break;
 
@@ -562,7 +562,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 			    byte >>= 1;
 			else {
 			    char c = byte & 0xff;
-			    bstr_concat(data, (const UInt8 *)&c, 1);
+			    rb_bstr_concat(data, (const UInt8 *)&c, 1);
 			    byte = 0;
 			}
 		    }
@@ -570,7 +570,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 			char c;
 			byte >>= 7 - (len & 7);
 			c = byte & 0xff;
-			bstr_concat(data, (const UInt8 *)&c, 1);
+			rb_bstr_concat(data, (const UInt8 *)&c, 1);
 		    }
 		    len = j;
 		    goto grow;
@@ -592,7 +592,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 			    byte <<= 1;
 			else {
 			    char c = byte & 0xff;
-			    bstr_concat(data, (const UInt8 *)&c, 1);
+			    rb_bstr_concat(data, (const UInt8 *)&c, 1);
 			    byte = 0;
 			}
 		    }
@@ -600,7 +600,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 			char c;
 			byte <<= 7 - (len & 7);
 			c = byte & 0xff;
-			bstr_concat(data, (const UInt8 *)&c, 1);
+			rb_bstr_concat(data, (const UInt8 *)&c, 1);
 		    }
 		    len = j;
 		    goto grow;
@@ -625,13 +625,13 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 			    byte >>= 4;
 			else {
 			    char c = byte & 0xff;
-			    bstr_concat(data, (const UInt8 *)&c, 1);
+			    rb_bstr_concat(data, (const UInt8 *)&c, 1);
 			    byte = 0;
 			}
 		    }
 		    if (len & 1) {
 			char c = byte & 0xff;
-			bstr_concat(data, (const UInt8 *)&c, 1);
+			rb_bstr_concat(data, (const UInt8 *)&c, 1);
 		    }
 		    len = j;
 		    goto grow;
@@ -656,13 +656,13 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 			    byte <<= 4;
 			else {
 			    char c = byte & 0xff;
-			    bstr_concat(data, (const UInt8 *)&c, 1);
+			    rb_bstr_concat(data, (const UInt8 *)&c, 1);
 			    byte = 0;
 			}
 		    }
 		    if (len & 1) {
 			char c = byte & 0xff;
-			bstr_concat(data, (const UInt8 *)&c, 1);
+			rb_bstr_concat(data, (const UInt8 *)&c, 1);
 		    }
 		    len = j;
 		    goto grow;
@@ -678,7 +678,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 		from = NEXTFROM;
 		c = num2i32(from);
-		bstr_concat(data, (const UInt8 *)&c, 1);
+		rb_bstr_concat(data, (const UInt8 *)&c, 1);
 	    }
 	    break;
 
@@ -689,7 +689,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 		from = NEXTFROM;
 		s = num2i32(from);
-		bstr_concat(data, (const UInt8 *)OFF16(&s), NATINT_LEN(short,2));
+		rb_bstr_concat(data, (const UInt8 *)OFF16(&s), NATINT_LEN(short,2));
 	    }
 	    break;
 
@@ -700,7 +700,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 		from = NEXTFROM;
 		i = num2i32(from);
-		bstr_concat(data, (const UInt8 *)OFF32(&i), NATINT_LEN(int,4));
+		rb_bstr_concat(data, (const UInt8 *)OFF32(&i), NATINT_LEN(int,4));
 	    }
 	    break;
 
@@ -711,7 +711,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 		from = NEXTFROM;
 		l = num2i32(from);
-		bstr_concat(data, (const UInt8 *)OFF32(&l), NATINT_LEN(long,4));
+		rb_bstr_concat(data, (const UInt8 *)OFF32(&l), NATINT_LEN(long,4));
 	    }
 	    break;
 
@@ -722,7 +722,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 		from = NEXTFROM;
 		rb_quad_pack(tmp, from);
-		bstr_concat(data, (const UInt8 *)&tmp, QUAD_SIZE);
+		rb_bstr_concat(data, (const UInt8 *)&tmp, QUAD_SIZE);
 	    }
 	    break;
 
@@ -733,7 +733,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		from = NEXTFROM;
 		s = num2i32(from);
 		s = NATINT_HTONS(s);
-		bstr_concat(data, (const UInt8 *)OFF16(&s), NATINT_LEN(short,2));
+		rb_bstr_concat(data, (const UInt8 *)OFF16(&s), NATINT_LEN(short,2));
 	    }
 	    break;
 
@@ -744,7 +744,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		from = NEXTFROM;
 		l = num2i32(from);
 		l = NATINT_HTONL(l);
-		bstr_concat(data, (const UInt8 *)OFF32(&l), NATINT_LEN(long,4));
+		rb_bstr_concat(data, (const UInt8 *)OFF32(&l), NATINT_LEN(long,4));
 	    }
 	    break;
 
@@ -755,7 +755,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		from = NEXTFROM;
 		s = num2i32(from);
 		s = NATINT_HTOVS(s);
-		bstr_concat(data, (const UInt8 *)OFF16(&s), NATINT_LEN(short,2));
+		rb_bstr_concat(data, (const UInt8 *)OFF16(&s), NATINT_LEN(short,2));
 	    }
 	    break;
 
@@ -766,7 +766,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		from = NEXTFROM;
 		l = num2i32(from);
 		l = NATINT_HTOVL(l);
-		bstr_concat(data, (const UInt8 *)OFF32(&l), NATINT_LEN(long,4));
+		rb_bstr_concat(data, (const UInt8 *)OFF32(&l), NATINT_LEN(long,4));
 	    }
 	    break;
 
@@ -777,7 +777,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 		from = NEXTFROM;
 		f = RFLOAT_VALUE(rb_Float(from));
-		bstr_concat(data, (const UInt8 *)&f, sizeof(float));
+		rb_bstr_concat(data, (const UInt8 *)&f, sizeof(float));
 	    }
 	    break;
 
@@ -789,7 +789,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		from = NEXTFROM;
 		f = RFLOAT_VALUE(rb_Float(from));
 		f = HTOVF(f,ftmp);
-		bstr_concat(data, (const UInt8 *)&f, sizeof(float));
+		rb_bstr_concat(data, (const UInt8 *)&f, sizeof(float));
 	    }
 	    break;
 
@@ -801,7 +801,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		from = NEXTFROM;
 		d = RFLOAT_VALUE(rb_Float(from));
 		d = HTOVD(d,dtmp);
-		bstr_concat(data, (const UInt8 *)&d, sizeof(double));
+		rb_bstr_concat(data, (const UInt8 *)&d, sizeof(double));
 	    }
 	    break;
 
@@ -812,7 +812,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 		from = NEXTFROM;
 		d = RFLOAT_VALUE(rb_Float(from));
-		bstr_concat(data, (const UInt8 *)&d, sizeof(double));
+		rb_bstr_concat(data, (const UInt8 *)&d, sizeof(double));
 	    }
 	    break;
 
@@ -824,7 +824,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		from = NEXTFROM;
 		f = RFLOAT_VALUE(rb_Float(from));
 		f = HTONF(f,ftmp);
-		bstr_concat(data, (const UInt8 *)&f, sizeof(float));
+		rb_bstr_concat(data, (const UInt8 *)&f, sizeof(float));
 	    }
 	    break;
 
@@ -836,30 +836,30 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		from = NEXTFROM;
 		d = RFLOAT_VALUE(rb_Float(from));
 		d = HTOND(d,dtmp);
-		bstr_concat(data, (const UInt8 *)&d, sizeof(double));
+		rb_bstr_concat(data, (const UInt8 *)&d, sizeof(double));
 	    }
 	    break;
 
 	  case 'x':		/* null byte */
 	  grow:
 	    while (len >= 10) {
-		bstr_concat(data, (const UInt8 *)nul10, 10);
+		rb_bstr_concat(data, (const UInt8 *)nul10, 10);
 		len -= 10;
 	    }
-	    bstr_concat(data, (const UInt8 *)nul10, len);
+	    rb_bstr_concat(data, (const UInt8 *)nul10, len);
 	    break;
 
 	  case 'X':		/* back up byte */
 	  shrink:
-	    plen = bstr_length(data);
+	    plen = rb_bstr_length(data);
 	    if (plen < len) {
 		rb_raise(rb_eArgError, "X outside of string");
 	    }
-	    bstr_set_length(data, plen - len);
+	    rb_bstr_set_length(data, plen - len);
 	    break;
 
 	  case '@':		/* null fill to absolute position */
-	    len -= bstr_length(data);
+	    len -= rb_bstr_length(data);
 	    if (len > 0) {
 		goto grow;
 	    }
@@ -886,7 +886,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		    rb_raise(rb_eRangeError, "pack(U): value out of range");
 		}
 		le = rb_uv_to_utf8(buf, l);
-		bstr_concat(data, (const UInt8 *)buf, le);
+		rb_bstr_concat(data, (const UInt8 *)buf, le);
 	    }
 	    break;
 
@@ -957,14 +957,14 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		}
 		rb_ary_push(associates, from);
 		rb_obj_taint(from);
-		bstr_concat(data, (const UInt8 *)&t, sizeof(char*));
+		rb_bstr_concat(data, (const UInt8 *)&t, sizeof(char*));
 	    }
 	    break;
 
 	  case 'w':		/* BER compressed integer  */
 	    while (len-- > 0) {
 		unsigned long ul;
-		VALUE bufdata = bstr_new();
+		VALUE bufdata = rb_bstr_new();
 		char c, *bufs, *bufe;
 
 		from = NEXTFROM;
@@ -973,7 +973,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		    while (TYPE(from) == T_BIGNUM) {
 			from = rb_big_divmod(from, big128);
 			c = NUM2INT(RARRAY_AT(from, 1)) | 0x80; /* mod */
-			bstr_concat(bufdata, (const UInt8 *)&c, sizeof(char));
+			rb_bstr_concat(bufdata, (const UInt8 *)&c, sizeof(char));
 			from = RARRAY_AT(from, 0); /* div */
 		    }
 		}
@@ -986,25 +986,25 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 		while (ul) {
 		    c = ((ul & 0x7f) | 0x80);
-		    bstr_concat(bufdata, (const UInt8 *)&c, sizeof(char));
+		    rb_bstr_concat(bufdata, (const UInt8 *)&c, sizeof(char));
 		    ul >>=  7;
 		}
 
-		if (bstr_length(bufdata) > 0) {
-		    UInt8 *buf_beg = bstr_bytes(bufdata);
+		if (rb_bstr_length(bufdata) > 0) {
+		    UInt8 *buf_beg = rb_bstr_bytes(bufdata);
 		    bufs = (char *)buf_beg;
-		    bufe = bufs + bstr_length(bufdata) - 1;
+		    bufe = bufs + rb_bstr_length(bufdata) - 1;
 		    *bufs &= 0x7f; /* clear continue bit */
 		    while (bufs < bufe) { /* reverse */
 			c = *bufs;
 			*bufs++ = *bufe;
 			*bufe-- = c;
 		    }
-		    bstr_concat(data, buf_beg, bstr_length(bufdata));
+		    rb_bstr_concat(data, buf_beg, rb_bstr_length(bufdata));
 		}
 		else {
 		    c = 0;
-		    bstr_concat(data, (const UInt8 *)&c, sizeof(char));
+		    rb_bstr_concat(data, (const UInt8 *)&c, sizeof(char));
 		}
 	    }
 	    break;
@@ -1059,7 +1059,7 @@ encodes(VALUE data, const char *s, long len, int type, int tail_lf)
 	    len -= 3;
 	}
 	if (sizeof(buff) - i < 4) {
-	    bstr_concat(data, (const UInt8 *)buff, i);
+	    rb_bstr_concat(data, (const UInt8 *)buff, i);
 	    i = 0;
 	}
     }
@@ -1078,7 +1078,7 @@ encodes(VALUE data, const char *s, long len, int type, int tail_lf)
     if (tail_lf) {
 	buff[i++] = '\n';
     }
-    bstr_concat(data, (const UInt8 *)buff, i);
+    rb_bstr_concat(data, (const UInt8 *)buff, i);
     free(buff);
 }
 static const char hex_table[] = "0123456789ABCDEF";
@@ -1122,7 +1122,7 @@ qpencode(VALUE data, VALUE from, long len)
             prev = '\n';
         }
 	if (i > 1024 - 5) {
-	    bstr_concat(data, (const UInt8 *)buff, i);
+	    rb_bstr_concat(data, (const UInt8 *)buff, i);
 	    i = 0;
 	}
 	s++;
@@ -1132,7 +1132,7 @@ qpencode(VALUE data, VALUE from, long len)
 	buff[i++] = '\n';
     }
     if (i > 0) {
-	bstr_concat(data, (const UInt8 *)buff, i);
+	rb_bstr_concat(data, (const UInt8 *)buff, i);
     }
 }
 
@@ -1447,10 +1447,10 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 		if (p[-1] == '*' || len > (send - s) * 8)
 		    len = (send - s) * 8;
 		bits = 0;
-		bitstr = bstr_new();
-		bstr_resize(bitstr, len);
+		bitstr = rb_bstr_new();
+		rb_bstr_resize(bitstr, len);
 		UNPACK_PUSH(bitstr);
-		t = (char *)bstr_bytes(bitstr);
+		t = (char *)rb_bstr_bytes(bitstr);
 		for (i=0; i<len; i++) {
 		    if (i & 7) {
 			bits >>= 1;
@@ -1473,10 +1473,10 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 		if (p[-1] == '*' || len > (send - s) * 8)
 		    len = (send - s) * 8;
 		bits = 0;
-		bitstr = bstr_new();
-		bstr_resize(bitstr, len);
+		bitstr = rb_bstr_new();
+		rb_bstr_resize(bitstr, len);
 		UNPACK_PUSH(bitstr);
-		t = (char *)bstr_bytes(bitstr);
+		t = (char *)rb_bstr_bytes(bitstr);
 		for (i=0; i<len; i++) {
 		    if (i & 7) {
 			bits <<= 1;
@@ -1499,10 +1499,10 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 		if (p[-1] == '*' || len > (send - s) * 2)
 		    len = (send - s) * 2;
 		bits = 0;
-		bitstr = bstr_new();
-		bstr_resize(bitstr, len);
+		bitstr = rb_bstr_new();
+		rb_bstr_resize(bitstr, len);
 		UNPACK_PUSH(bitstr);
-		t = (char *)bstr_bytes(bitstr);
+		t = (char *)rb_bstr_bytes(bitstr);
 		for (i=0; i<len; i++) {
 		    if (i & 1) {
 			bits >>= 4;
@@ -1525,10 +1525,10 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 		if (p[-1] == '*' || len > (send - s) * 2)
 		    len = (send - s) * 2;
 		bits = 0;
-		bitstr = bstr_new();
-		bstr_resize(bitstr, len);
+		bitstr = rb_bstr_new();
+		rb_bstr_resize(bitstr, len);
 		UNPACK_PUSH(bitstr);
-		t = (char *)bstr_bytes(bitstr);
+		t = (char *)rb_bstr_bytes(bitstr);
 		for (i=0; i<len; i++) {
 		    if (i & 1) {
 			bits <<= 4;
@@ -1783,11 +1783,11 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 
 	  case 'u':
 	    {
-		VALUE buf = bstr_new();
-		bstr_resize(buf, (send - s)*3/4);
-		char *ptr = (char *)bstr_bytes(buf);
+		VALUE buf = rb_bstr_new();
+		rb_bstr_resize(buf, (send - s)*3/4);
+		char *ptr = (char *)rb_bstr_bytes(buf);
 		long total = 0;
-		const long buflen = bstr_length(buf);
+		const long buflen = rb_bstr_length(buf);
 
 		while (s < send && *s > ' ' && *s < 'a') {
 		    long a,b,c,d;
@@ -1846,16 +1846,16 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 		    }
 		}
 
-		bstr_resize(buf, total);
+		rb_bstr_resize(buf, total);
 		UNPACK_PUSH(buf);
 	    }
 	    break;
 
 	  case 'm':
 	    {
-		VALUE buf = bstr_new();
-		bstr_resize(buf, (send - s)*3/4);
-		char *ptr = (char *)bstr_bytes(buf);
+		VALUE buf = rb_bstr_new();
+		rb_bstr_resize(buf, (send - s)*3/4);
+		char *ptr = (char *)rb_bstr_bytes(buf);
 		char *ptr_beg = ptr;
 		int a = -1,b = -1,c = 0,d;
 		static int first = 1;
@@ -1899,16 +1899,16 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 			*ptr++ = b << 4 | c >> 2;
 		    }
 		}
-		bstr_resize(buf, ptr - ptr_beg);
+		rb_bstr_resize(buf, ptr - ptr_beg);
 		UNPACK_PUSH(buf);
 	    }
 	    break;
 
 	  case 'M':
 	    {
-		VALUE buf = bstr_new();
-		bstr_resize(buf, send - s);
-		char *ptr = (char *)bstr_bytes(buf);
+		VALUE buf = rb_bstr_new();
+		rb_bstr_resize(buf, send - s);
+		char *ptr = (char *)rb_bstr_bytes(buf);
 		char *ptr_beg = ptr;
 		int c1, c2;
 
@@ -1929,7 +1929,7 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 		    }
 		    s++;
 		}
-		bstr_resize(buf, ptr - ptr_beg);
+		rb_bstr_resize(buf, ptr - ptr_beg);
 		UNPACK_PUSH(buf);
 	    }
 	    break;

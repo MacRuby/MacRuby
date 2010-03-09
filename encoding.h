@@ -306,19 +306,6 @@ unsigned long rb_str_hash_uchars(const UChar *chars, long chars_len);
 long rb_uchar_strtol(UniChar *chars, long chars_len, long pos,
 	long *end_offset);
 
-// Return a string object appropriate for bstr_ calls. This does nothing for
-// data/binary RubyStrings.
-VALUE rb_str_bstr(VALUE str);
-
-// Byte strings APIs. Use this only when dealing with raw data.
-VALUE bstr_new(void);
-VALUE bstr_new_with_data(const uint8_t *bytes, long len);
-uint8_t *bstr_bytes(VALUE str);
-void bstr_concat(VALUE str, const uint8_t *bytes, long len);
-long bstr_length(VALUE str);
-void bstr_set_length(VALUE str, long len);
-void bstr_resize(VALUE str, long capa);
-
 #if defined(__cplusplus)
 } // extern "C"
 #endif
