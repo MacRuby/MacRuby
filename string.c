@@ -4492,7 +4492,8 @@ rstr_reverse(VALUE str, SEL sel)
  */
 
 static void
-intersect_tr_table(char *tbl, VALUE source)
+fill_linear_charset_buffer(char *buf, long bufsize, long *lenp, bool *negatep,
+	VALUE source)
 {
     StringValue(source);
 
@@ -4502,20 +4503,19 @@ intersect_tr_table(char *tbl, VALUE source)
     rb_str_get_uchars(source, &chars, &chars_len, &need_free);
 
     long pos = 0;
-    bool negate = false;
-    if (chars_len > 0 && chars[0] == '^') {
-	pos++;
-	negate = true;
-    }
-
-    char buf[0xff];
-    char cflag = negate ? 1 : 0;
-    for (int i = 0; i < 0xff; i++) {
-	buf[i] = cflag;
+    if (negatep != NULL) {
+	if (chars_len > 0 && chars[0] == '^') {
+	    *negatep = true;
+	    pos++;
+	} 
+	else {
+	    *negatep = false;
+	}
     }
 
     bool error = false;
-    cflag = negate ? 0 : 1;
+    long bufpos = 0;
+
     while (pos < chars_len) {
 	UChar c = chars[pos];
 
@@ -4524,12 +4524,16 @@ intersect_tr_table(char *tbl, VALUE source)
 	    UChar e = chars[pos + 2];
 	    if (c > e) {
 		error = true;
-		break;
+		goto bail;
 	    }
 
 	    if (c < 0xff && e < 0xff) {
 		while (c <= e) {
-		    buf[c & 0xff] = cflag;
+		    if (bufpos >= bufsize) {
+			error = true;
+			goto bail;
+		    }
+		    buf[bufpos++] = (char)c;
 		    c++; 
 		}
 	    }
@@ -4537,12 +4541,19 @@ intersect_tr_table(char *tbl, VALUE source)
 	}
 	else {
 	    if (c < 0xff) {
-		buf[c & 0xff] = cflag;
+		if (bufpos >= bufsize) {
+		    error = true;
+		    goto bail;
+		}
+		buf[bufpos++] = (char)c;
 	    }
 	    pos++;
 	}
     }
 
+    *lenp = bufpos;
+
+bail:
     if (need_free) {
 	free(chars);
     }
@@ -4550,15 +4561,37 @@ intersect_tr_table(char *tbl, VALUE source)
     if (error) {
 	rb_raise(rb_eArgError, "invalid string transliteration");
     }
+}
+
+static void
+intersect_charset_table(char *tbl, VALUE source)
+{
+    // Generate linear buffer based on source pattern.
+    char buf[0xff];
+    bool negate = false;
+    long buflen = 0;
+    fill_linear_charset_buffer(buf, sizeof buf, &buflen, &negate, source);
+
+    // Create character table based on linear buffer.
+    char source_tbl[0xff];
+    char cflag = negate ? 1 : 0;
+    for (int i = 0; i < 0xff; i++) {
+	source_tbl[i] = cflag;
+    }
+    cflag = negate ? 0 : 1;
+    for (long i = 0; i < buflen; i++) {
+	char c = buf[i];
+	source_tbl[(int)c] = cflag;
+    }
 
     // Intersect both tables.
     for (int i = 0; i < 0xff; i++) {
-	tbl[i] = tbl[i] && buf[i];
+	tbl[i] = tbl[i] && source_tbl[i];
     }
 }
 
 static void
-create_tr_table(char *tbl, int argc, VALUE *argv)
+create_intersected_charset_table(char *tbl, int argc, VALUE *argv)
 {
     if (argc < 1) {
 	rb_raise(rb_eArgError, "wrong number of arguments");
@@ -4570,21 +4603,54 @@ create_tr_table(char *tbl, int argc, VALUE *argv)
     }
 
     for (int i = 0; i < argc; i++) {
-	intersect_tr_table(tbl, argv[i]);	
+	intersect_charset_table(tbl, argv[i]);	
     }
 }
 
-#define TR_TABLE_CREATE() \
-	char __tbl__[0xff]; \
-	create_tr_table(__tbl__, argc, argv);
+static void
+create_translate_charset_table(char *tbl, VALUE source, VALUE repl)
+{
+    // Generate linear buffer based on source pattern.
+    char source_buf[0xff];
+    bool negate = false;
+    long source_buflen = 0;
+    fill_linear_charset_buffer(source_buf, sizeof source_buf, &source_buflen,
+	    &negate, source);
 
-#define TR_TABLE_INCLUDES(c) \
+    // Generate linear buffer based on repl pattern.
+    char repl_buf[0xff];
+    long repl_buflen = 0;
+    fill_linear_charset_buffer(repl_buf, sizeof repl_buf, &repl_buflen,
+	    NULL, repl);
+    assert(repl_buflen > 0);
+
+    // Fill the table with 0s.
+    for (int i = 0; i < 0xff; i++) {
+	tbl[i] = 0;
+    }
+
+    // Now fill the table based on the linear buffer values.
+    long pos = 0;
+    while (pos < source_buflen) {
+	const char source_c = source_buf[pos];
+	const char repl_c = pos >= repl_buflen
+	    ? repl_buf[repl_buflen - 1] : repl_buf[pos];
+	tbl[(int)source_c] = repl_c;
+	pos++;
+    } 
+}
+
+#define INTERSECT_CHARSET_TABLE_CREATE() \
+	char __tbl__[0xff]; \
+	create_intersected_charset_table(__tbl__, argc, argv);
+
+#define CHARSET_TABLE_INCLUDES(c) \
 	((c) < 0xff && __tbl__[(c) & 0xff] == 1)
 
 static VALUE
 rstr_count(VALUE str, SEL sel, int argc, VALUE *argv)
 {
-    TR_TABLE_CREATE();
+    INTERSECT_CHARSET_TABLE_CREATE();
 
     UChar *chars = NULL;
     long chars_len = 0;
@@ -4593,7 +4659,7 @@ rstr_count(VALUE str, SEL sel, int argc, VALUE *argv)
 
     long count = 0;
     for (long i = 0; i < chars_len; i++) {
-	if (TR_TABLE_INCLUDES(chars[i])) {
+	if (CHARSET_TABLE_INCLUDES(chars[i])) {
 	    count++;
 	}
     }
@@ -4618,7 +4684,7 @@ rstr_delete_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     rstr_modify(str);
 
-    TR_TABLE_CREATE();
+    INTERSECT_CHARSET_TABLE_CREATE();
 
     UChar *chars = NULL;
     long chars_len = 0;
@@ -4627,7 +4693,7 @@ rstr_delete_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 
     bool modified = false;
     for (long i = 0; i < chars_len; i++) {
-	while (i < chars_len && TR_TABLE_INCLUDES(chars[i])) {
+	while (i < chars_len && CHARSET_TABLE_INCLUDES(chars[i])) {
 	    for (long j = i; j < chars_len - 1; j++) {
 		chars[j] = chars[j + 1];
 	    }
@@ -4698,7 +4764,7 @@ rstr_squeeze_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 	argc = 1;
     }
 
-    TR_TABLE_CREATE();
+    INTERSECT_CHARSET_TABLE_CREATE();
 
     UChar *chars = NULL;
     long chars_len = 0;
@@ -4708,7 +4774,7 @@ rstr_squeeze_bang(VALUE str, SEL sel, int argc, VALUE *argv)
     bool modified = false;
     for (long i = 0; i < chars_len; i++) {
 	UChar c = chars[i];
-	if (TR_TABLE_INCLUDES(c)) {
+	if (CHARSET_TABLE_INCLUDES(c)) {
 	    while (i + 1 < chars_len && chars[i + 1] == c) {
 		for (long j = i + 1; j < chars_len - 1; j++) {
 		    chars[j] = chars[j + 1];
@@ -4757,6 +4823,134 @@ rstr_squeeze(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     str = rb_str_new3(str);
     rstr_squeeze_bang(str, 0, argc, argv);
+    return str;
+}
+
+/*
+ *  call-seq:
+ *     str.tr!(from_str, to_str)   => str or nil
+ *  
+ *  Translates <i>str</i> in place, using the same rules as
+ *  <code>String#tr</code>. Returns <i>str</i>, or <code>nil</code> if no
+ *  changes were made.
+ */
+
+static VALUE
+translate(VALUE str, VALUE source, VALUE repl, bool sflag)
+{
+    StringValue(source);
+    StringValue(repl);
+
+    if (rb_str_chars_len(repl) == 0) {
+	return rstr_delete_bang(str, 0, 1, &source);
+    }
+
+    rstr_modify(str);
+
+    char tbl[0xff]; 
+    create_translate_charset_table(tbl, source, repl);
+
+    UChar *chars = NULL;
+    long chars_len = 0;
+    bool need_free = false;
+    rb_str_get_uchars(str, &chars, &chars_len, &need_free);
+
+    bool modified = false;
+    for (long i = 0; i < chars_len; i++) {
+	UChar c = chars[i];
+	if (c < 0xff) {
+	    char repl = tbl[(c & 0xff)];
+	    if (repl != 0) {
+		chars[i] = repl;
+		modified = true;
+// TODO
+//		if (sflag) {
+//		}
+	    }
+	}
+    } 
+
+    if (!modified) {
+	if (need_free) {
+	    free(chars);
+	}
+	return Qnil;
+    }
+
+    if (need_free) {
+	str_replace_with_uchars(RSTR(str), chars, chars_len);
+	free(chars);
+    }
+//    else {
+//	RSTR(str)->length_in_bytes = UCHARS_TO_BYTES(chars_len);
+//    }
+
+    return str;
+}
+
+static VALUE
+rstr_tr_bang(VALUE str, SEL sel, VALUE src, VALUE repl)
+{
+    return translate(str, src, repl, false);
+}
+
+/*
+ *  call-seq:
+ *     str.tr(from_str, to_str)   => new_str
+ *  
+ *  Returns a copy of <i>str</i> with the characters in <i>from_str</i> replaced
+ *  by the corresponding characters in <i>to_str</i>. If <i>to_str</i> is
+ *  shorter than <i>from_str</i>, it is padded with its last character. Both
+ *  strings may use the c1--c2 notation to denote ranges of characters, and
+ *  <i>from_str</i> may start with a <code>^</code>, which denotes all
+ *  characters except those listed.
+ *     
+ *     "hello".tr('aeiou', '*')    #=> "h*ll*"
+ *     "hello".tr('^aeiou', '*')   #=> "*e**o"
+ *     "hello".tr('el', 'ip')      #=> "hippo"
+ *     "hello".tr('a-y', 'b-z')    #=> "ifmmp"
+ */
+
+static VALUE
+rstr_tr(VALUE str, SEL sel, VALUE src, VALUE repl)
+{
+    str = rb_str_new3(str);
+    rstr_tr_bang(str, 0, src, repl);
+    return str;
+}
+
+/*
+ *  call-seq:
+ *     str.tr_s!(from_str, to_str)   => str or nil
+ *  
+ *  Performs <code>String#tr_s</code> processing on <i>str</i> in place,
+ *  returning <i>str</i>, or <code>nil</code> if no changes were made.
+ */
+
+static VALUE
+rstr_tr_s_bang(VALUE str, SEL sel, VALUE src, VALUE repl)
+{
+    return translate(str, src, repl, true);
+}
+
+/*
+ *  call-seq:
+ *     str.tr_s(from_str, to_str)   => new_str
+ *  
+ *  Processes a copy of <i>str</i> as described under <code>String#tr</code>,
+ *  then removes duplicate characters in regions that were affected by the
+ *  translation.
+ *     
+ *     "hello".tr_s('l', 'r')     #=> "hero"
+ *     "hello".tr_s('el', '*')    #=> "h*o"
+ *     "hello".tr_s('el', 'hx')   #=> "hhxo"
+ */
+
+static VALUE
+rstr_tr_s(VALUE str, SEL sel, VALUE src, VALUE repl)
+{
+    str = rb_str_new3(str);
+    rstr_tr_s_bang(str, 0, src, repl);
     return str;
 }
 
@@ -5100,6 +5294,10 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "delete!", rstr_delete_bang, -1);
     rb_objc_define_method(rb_cRubyString, "squeeze", rstr_squeeze, -1);
     rb_objc_define_method(rb_cRubyString, "squeeze!", rstr_squeeze_bang, -1);
+    rb_objc_define_method(rb_cRubyString, "tr", rstr_tr, 2);
+    rb_objc_define_method(rb_cRubyString, "tr!", rstr_tr_bang, 2);
+    rb_objc_define_method(rb_cRubyString, "tr_s", rstr_tr_s, 2);
+    rb_objc_define_method(rb_cRubyString, "tr_s!", rstr_tr_s_bang, 2);
     rb_objc_define_method(rb_cRubyString, "sum", rstr_sum, -1);
     rb_objc_define_method(rb_cRubyString, "hash", rstr_hash, 0);
     rb_objc_define_method(rb_cRubyString, "partition", rstr_partition, 1);
