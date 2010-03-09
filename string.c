@@ -3381,7 +3381,7 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 
     VALUE pat = get_pat(argv[0], 1);
     VALUE dest = rb_str_new5(str, NULL, 0);
-    long offset = 0;
+    long offset = 0, last = 0;
     bool changed = false;
     const long len = str_length(RSTR(str), false);
 
@@ -3391,9 +3391,9 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 	    if (!changed) {
 		return bang ? Qnil : rstr_dup(str, 0);
 	    }
-	    if (offset < len) {
+	    if (last < len) {
 		str_concat_string(RSTR(dest),
-			RSTR(rstr_substr(str, offset, len - offset)));
+			RSTR(rstr_substr(str, last, len - last)));
 	    }
 	    break;
 	}
@@ -3433,7 +3433,7 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 	}
 	changed = true;
 
-	offset = results[0].end;
+	offset = last = results[0].end;
 	if (results[0].beg == offset) {
 	    offset++;
 	}
@@ -4624,19 +4624,41 @@ create_translate_charset_table(char *tbl, VALUE source, VALUE repl)
 	    NULL, repl);
     assert(repl_buflen > 0);
 
-    // Fill the table with 0s.
-    for (int i = 0; i < 0xff; i++) {
-	tbl[i] = 0;
-    }
+    // Fill the table based on the values from the linear buffers.
+    if (negate) {
+	for (int i = 0; i < 0xff; i++) {
+	    tbl[i] = 1;
+	}
 
-    // Now fill the table based on the linear buffer values.
-    long pos = 0;
-    while (pos < source_buflen) {
-	const char source_c = source_buf[pos];
-	const char repl_c = pos >= repl_buflen
-	    ? repl_buf[repl_buflen - 1] : repl_buf[pos];
-	tbl[(int)source_c] = repl_c;
-	pos++;
+	long pos = 0;
+	while (pos < source_buflen) {
+	    const char source_c = source_buf[pos];
+	    tbl[(int)source_c] = 0;
+	    pos++;
+	}
+
+	for (int i = 0, pos = 0; i < 0xff; i++) {
+	    if (tbl[i] == 1) {
+		const char repl_c = pos >= repl_buflen
+		    ? repl_buf[repl_buflen - 1] : repl_buf[pos];
+		tbl[i] = repl_c;
+		pos++;
+	    }
+	}
+    }
+    else {
+	for (int i = 0; i < 0xff; i++) {
+	    tbl[i] = 0;
+	}
+
+	long pos = 0;
+	while (pos < source_buflen) {
+	    const char source_c = source_buf[pos];
+	    const char repl_c = pos >= repl_buflen
+		? repl_buf[repl_buflen - 1] : repl_buf[pos];
+	    tbl[(int)source_c] = repl_c;
+	    pos++;
+	}
     } 
 }
 
