@@ -1167,16 +1167,14 @@ ossl_ssl_read_internal(int argc, VALUE *argv, VALUE self, int nonblock)
     rb_scan_args(argc, argv, "11", &len, &str);
     ilen = NUM2INT(len);
     if(NIL_P(str)) {
-	str = rb_bytestring_new();
+	str = rb_bstr_new();
     }
     else{
         StringValue(str);
-        rb_str_modify(str);
-	if (CLASS_OF(str) != rb_cByteString) {
-	    rb_raise(rb_eArgError, "expected ByteString object");
-	}
+	rb_str_modify(str);
+	str = rb_str_bstr(str);
     }
-    rb_bytestring_resize(str, ilen);
+    rb_bstr_resize(str, ilen);
     if(ilen == 0) return str;
 
     Data_Get_Struct(self, SSL, ssl);
@@ -1185,8 +1183,8 @@ ossl_ssl_read_internal(int argc, VALUE *argv, VALUE self, int nonblock)
 	if(!nonblock && SSL_pending(ssl) <= 0)
 	    rb_thread_wait_fd(FPTR_TO_FD(fptr));
 	for (;;){
-	    nread = SSL_read(ssl, rb_bytestring_byte_pointer(str),
-		    rb_bytestring_length(str));
+	    nread = SSL_read(ssl, rb_bstr_bytes(str),
+		    rb_bstr_length(str));
 	    switch(ssl_get_error(ssl, nread)){
 	    case SSL_ERROR_NONE:
 		goto end;

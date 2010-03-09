@@ -597,17 +597,17 @@ s_recvfrom(VALUE sock, int argc, VALUE *argv, enum sock_recv_type from)
     }
     fd = fptr->fd;
 
-    str = rb_bytestring_new();
-    rb_bytestring_resize(str, buflen);
+    str = rb_bstr_new();
+    rb_bstr_resize(str, buflen);
 
   retry:
     rb_thread_wait_fd(fd);
     rb_io_check_closed(fptr);
-    if (rb_bytestring_length(str) != buflen) {
+    if (rb_bstr_length(str) != buflen) {
 	rb_raise(rb_eRuntimeError, "buffer string modified");
     }
     TRAP_BEG;
-    slen = recvfrom(fd, rb_bytestring_byte_pointer(str), buflen, flags,
+    slen = recvfrom(fd, rb_bstr_bytes(str), buflen, flags,
 	    (struct sockaddr *)buf, &alen);
     TRAP_END;
 
@@ -617,8 +617,8 @@ s_recvfrom(VALUE sock, int argc, VALUE *argv, enum sock_recv_type from)
 	}
 	rb_sys_fail("recvfrom(2)");
     }
-    if (slen < rb_bytestring_length(str)) {
-	rb_bytestring_resize(str, slen);
+    if (slen < rb_bstr_length(str)) {
+	rb_bstr_resize(str, slen);
     }
     rb_obj_taint(str);
     switch (from) {
@@ -677,19 +677,19 @@ s_recvfrom_nonblock(VALUE sock, int argc, VALUE *argv, enum sock_recv_type from)
     }
     fd = fptr->fd;
 
-    str = rb_bytestring_new();
-    rb_bytestring_resize(str, buflen);
+    str = rb_bstr_new();
+    rb_bstr_resize(str, buflen);
 
     rb_io_check_closed(fptr);
     rb_io_set_nonblock(fptr);
-    slen = recvfrom(fd, rb_bytestring_byte_pointer(str), buflen, flags,
+    slen = recvfrom(fd, rb_bstr_bytes(str), buflen, flags,
 	    (struct sockaddr *)buf, &alen);
 
     if (slen < 0) {
 	rb_sys_fail("recvfrom(2)");
     }
-    if (slen < rb_bytestring_length(str)) {
-	rb_bytestring_resize(str, slen);
+    if (slen < rb_bstr_length(str)) {
+	rb_bstr_resize(str, slen);
     }
     rb_obj_taint(str);
     switch (from) {
