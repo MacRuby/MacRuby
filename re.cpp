@@ -1371,10 +1371,14 @@ match_aref(VALUE rcv, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "11", &backref, &rest);
 
     if (NIL_P(rest)) {
-	const int pos = match_backref_number(rcv, backref, false);
-	return rb_reg_nth_match(pos, rcv);
+	switch (TYPE(backref)) {
+	    case T_STRING:
+	    case T_SYMBOL:
+	    case T_FIXNUM:
+		const int pos = match_backref_number(rcv, backref, false);
+		return rb_reg_nth_match(pos, rcv);
+	}
     }
-
     return rb_ary_aref(match_to_a(rcv, 0), 0, argc, argv);
 }
 
