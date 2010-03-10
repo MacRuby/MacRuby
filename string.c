@@ -5766,7 +5766,7 @@ rb_str_append_uchar(VALUE str, UChar c)
 }
 
 void
-rb_str_append_uchars(VALUE str, UChar *chars, long len)
+rb_str_append_uchars(VALUE str, const UChar *chars, long len)
 {
     assert(chars != NULL && len >= 0);
 
@@ -5898,7 +5898,7 @@ rb_str_set_len(VALUE str, long len)
     if (IS_RSTR(str)) {
 	const long len_bytes = str_is_stored_in_uchars(RSTR(str))
 	    ? UCHARS_TO_BYTES(len) : len;
-	assert(len_bytes < RSTR(str)->length_in_bytes);
+	assert(len_bytes <= RSTR(str)->length_in_bytes);
 	RSTR(str)->length_in_bytes = len_bytes;
     }
     else {
