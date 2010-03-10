@@ -543,6 +543,7 @@ rb_digest_base_finish(VALUE self, SEL sel)
 
     str = rb_bstr_new();
     rb_bstr_resize(str, algo->digest_len);
+    rb_bstr_set_length(str, algo->digest_len);
     algo->finish_func(pctx, rb_bstr_bytes(str));
 
     /* avoid potential coredump caused by use of a finished context */
