@@ -1055,6 +1055,10 @@ str_index_for_string(rb_str_t *self, rb_str_t *searched, long start_index,
     str_must_have_compatible_encoding(self, searched);
     str_make_same_format(self, searched);
 
+    if (searched->length_in_bytes == 0 && self->length_in_bytes == 0) {
+	return start_index;
+    }
+
     long start_offset_in_bytes;
     if (start_index == 0) {
 	start_offset_in_bytes = 0;
