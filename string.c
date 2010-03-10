@@ -5226,6 +5226,15 @@ rstr_imp_replaceCharactersInRangeWithString(void *rcv, SEL sel, CFRange range,
     str_splice(RSTR(rcv), range.location, range.length, spat, true);
 }
 
+// :nodoc:
+static VALUE
+nsdata_to_str(VALUE data, SEL sel)
+{
+    CFDataRef dataref = (CFDataRef)data;
+    return rb_bstr_new_with_data(CFDataGetBytePtr(dataref),
+	    CFDataGetLength(dataref));
+}
+
 void
 Init_String(void)
 {
@@ -5373,6 +5382,11 @@ Init_String(void)
     rb_fs = Qnil;
     rb_define_variable("$;", &rb_fs);
     rb_define_variable("$-F", &rb_fs);
+
+    // NSData extensions.
+    VALUE NSData = (VALUE)objc_getClass("NSData");
+    assert(NSData != 0);
+    rb_objc_define_method(NSData, "to_str", nsdata_to_str, 0);
 }
 
 bool
