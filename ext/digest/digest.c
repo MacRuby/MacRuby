@@ -541,8 +541,9 @@ rb_digest_base_finish(VALUE self, SEL sel)
 
     Data_Get_Struct(self, void, pctx);
 
-    str = rb_str_new(0, algo->digest_len);
-    algo->finish_func(pctx, (unsigned char *)RSTRING_PTR(str));
+    str = rb_bstr_new();
+    rb_bstr_resize(str, algo->digest_len);
+    algo->finish_func(pctx, rb_bstr_bytes(str));
 
     /* avoid potential coredump caused by use of a finished context */
     algo->init_func(pctx);
