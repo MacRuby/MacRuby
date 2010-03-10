@@ -5469,6 +5469,7 @@ rb_bstr_resize(VALUE str, long capa)
 {
     assert(IS_BSTR(str));
     str_resize_bytes(RSTR(str), capa);
+    RSTR(str)->length_in_bytes = capa;
 }
 
 void
