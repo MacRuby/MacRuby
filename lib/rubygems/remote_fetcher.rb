@@ -263,9 +263,7 @@ class Gem::RemoteFetcher
       if data.nil?
         raise Gem::RemoteFetcher::FetchError, "error when fetching data from #{uri}"
       end
-      string = String.__new_bytestring__(data)
-      #block.call(string) if block
-      return string
+      return String.new(data)
     end
     raise "block is dead" if block_given?
 
