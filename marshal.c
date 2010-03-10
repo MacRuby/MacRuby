@@ -220,11 +220,15 @@ w_nbyte(const char *s, int n, struct dump_arg *arg)
 {
     VALUE buf = arg->str;
     rb_bstr_concat(buf, (const uint8_t *)s, n);
+#if 0 // unused
     if (arg->dest && RSTRING_LEN(buf) >= BUFSIZ) {
-	if (arg->taint) OBJ_TAINT(buf);
+	if (arg->taint) {
+	    OBJ_TAINT(buf);
+	}
 	rb_io_write(arg->dest, 0, buf);
 	rb_str_resize(buf, 0);
     }
+#endif
 }
 
 static void
@@ -896,10 +900,12 @@ static VALUE
 dump(struct dump_call_arg *arg)
 {
     w_object(arg->obj, arg->arg, arg->limit);
+#if 0 // unused
     if (arg->arg->dest) {
 	rb_io_write(arg->arg->dest, 0, arg->arg->str);
 	rb_bstr_resize(arg->arg->str, 0);
     }
+#endif
     return 0;
 }
 
@@ -977,16 +983,20 @@ marshal_dump(VALUE self, SEL sel, int argc, VALUE *argv)
 	}
     }
     arg->dest = 0;
+    bool got_io = false;
     if (!NIL_P(port)) {
 	if (!rb_obj_respond_to(port, s_write, Qtrue)) {
 type_error:
 	    rb_raise(rb_eTypeError, "instance of IO needed");
 	}
 	GC_WB(&arg->str, rb_bstr_new());
+#if 0 // unused
 	GC_WB(&arg->dest, port);
+#endif
 	if (rb_obj_respond_to(port, s_binmode, Qtrue)) {
 	    rb_funcall2(port, s_binmode, 0, 0);
 	}
+	got_io = true;
     }
     else {
 	port = rb_bstr_new();
@@ -1007,6 +1017,12 @@ type_error:
     w_byte(MARSHAL_MINOR, arg);
 
     rb_ensure(dump, (VALUE)c_arg, dump_ensure, (VALUE)arg);
+
+    // If we got an IO object as the port, make sure to write the bytestring
+    // to it before leaving!
+    if (got_io) {
+	rb_io_write(port, 0, arg->str);	
+    }
 
     return port;
 }
@@ -1743,6 +1759,7 @@ marshal_load(VALUE self, SEL sel, int argc, VALUE *argv)
     v = rb_check_string_type(port);
     if (!NIL_P(v)) {
 	arg->taint = OBJ_TAINTED(port); /* original taintedness */
+	v = rb_str_bstr(v);
 	port = v;
     }
     else if (rb_obj_respond_to(port, s_getbyte, Qtrue)
