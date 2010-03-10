@@ -1242,13 +1242,6 @@ rstr_append(VALUE str, VALUE substr)
     }
 }
 
-static VALUE
-str_trim(VALUE str)
-{
-    // TODO
-    return str;
-}
-
 //----------------------------------------------
 // Functions called by MacRuby
 
@@ -2708,6 +2701,8 @@ rstr_scan(VALUE self, SEL sel, VALUE pat)
  *     "1,2,,3,4,,".split(',', -4)     #=> ["1", "2", "", "3", "4", "", ""]
  */
 
+static VALUE str_strip(VALUE str, int direction);
+
 static VALUE
 rstr_split(VALUE str, SEL sel, int argc, VALUE *argv)
 {
@@ -2729,6 +2724,10 @@ rstr_split(VALUE str, SEL sel, int argc, VALUE *argv)
     }
 
     VALUE result = rb_ary_new();
+    if (len == 0) {
+	return result;
+    }
+
     bool awk_split = false, spat_string = false;
     long spat_len = 0;
     if (NIL_P(spat)) {
@@ -2774,17 +2773,37 @@ fs_set:
 		    if (pos == -1) {
 			break;
 		    }
-		    VALUE substr = rstr_substr(str, beg, pos - beg);
-		    if (!awk_split || rb_str_chars_len(str_trim(substr)) > 0) {
-			rb_ary_push(result, substr);
-		    }
+		    rb_ary_push(result, rstr_substr(str, beg, pos - beg));
 		    beg = pos + 1;
 		}
 		while (limit == Qnil || --lim > 1);
 	    }
 	}
 	else {
-	    abort(); // TODO
+	    UChar *chars = NULL;
+	    long chars_len = 0;
+	    bool need_free = false;
+
+	    rb_str_get_uchars(str, &chars, &chars_len, &need_free);
+
+	    for (long i = 0; i < chars_len; i++) {
+		UChar c = chars[i];
+		if (c == ' ' || c == '\t' || c == '\n') {
+		    VALUE substr = rstr_substr(str, beg, i - beg);
+		    str_strip(substr, 0);
+		    if (rb_str_chars_len(substr) > 0) {
+			rb_ary_push(result, substr); 
+		    }
+		    beg = i + 1;
+		}
+		if (limit != Qnil && --lim <= 0) {
+		    break;
+		}
+	    }
+
+	    if (need_free) {
+		free(chars);
+	    }
 	}
     }
     else {
