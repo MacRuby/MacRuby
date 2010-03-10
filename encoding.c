@@ -69,6 +69,18 @@ mr_enc_s_aliases(VALUE klass, SEL sel)
 }
 
 static VALUE
+mr_enc_s_find(VALUE klass, SEL sel, VALUE name)
+{
+    StringValue(name);
+    rb_encoding_t *enc = rb_enc_find(RSTRING_PTR(name));
+    if (enc == NULL) {
+	rb_raise(rb_eArgError, "unknown encoding name - %s",
+		RSTRING_PTR(name));
+    }
+    return (VALUE)enc;
+}
+
+static VALUE
 mr_enc_s_default_internal(VALUE klass, SEL sel)
 {
     return (VALUE)default_internal;
@@ -260,22 +272,22 @@ Init_Encoding(void)
     rb_objc_define_method(rb_cEncoding, "dummy?", mr_enc_dummy_p, 0);
     rb_objc_define_method(rb_cEncoding, "ascii_compatible?",
 	    mr_enc_ascii_compatible_p, 0);
-    rb_objc_define_method(CLASS_OF(rb_cEncoding), "list", mr_enc_s_list, 0);
-    rb_objc_define_method(CLASS_OF(rb_cEncoding), "name_list",
+    rb_objc_define_method(*(VALUE *)rb_cEncoding, "list", mr_enc_s_list, 0);
+    rb_objc_define_method(*(VALUE *)rb_cEncoding, "name_list",
 	    mr_enc_s_name_list, 0);
-    rb_objc_define_method(CLASS_OF(rb_cEncoding), "aliases",
+    rb_objc_define_method(*(VALUE *)rb_cEncoding, "aliases",
 	    mr_enc_s_aliases, 0);
-    //rb_define_singleton_method(rb_cEncoding, "find", enc_find, 1);
-    rb_objc_define_method(CLASS_OF(rb_cEncoding), "compatible?",
+    rb_objc_define_method(*(VALUE *)rb_cEncoding, "find", mr_enc_s_find, 1);
+    rb_objc_define_method(*(VALUE *)rb_cEncoding, "compatible?",
 	    mr_enc_s_is_compatible, 2); // in string.c
 
     //rb_define_method(rb_cEncoding, "_dump", enc_dump, -1);
     //rb_define_singleton_method(rb_cEncoding, "_load", enc_load, 1);
 
-    rb_objc_define_method(CLASS_OF(rb_cEncoding), "default_external",
+    rb_objc_define_method(*(VALUE *)rb_cEncoding, "default_external",
 	    mr_enc_s_default_external, 0);
     //rb_define_singleton_method(rb_cEncoding, "default_external=", set_default_external, 1);
-    rb_objc_define_method(CLASS_OF(rb_cEncoding), "default_internal",
+    rb_objc_define_method(*(VALUE *)rb_cEncoding, "default_internal",
 	    mr_enc_s_default_internal, 0);
     //rb_define_singleton_method(rb_cEncoding, "default_internal=", set_default_internal, 1);
     //rb_define_singleton_method(rb_cEncoding, "locale_charmap", rb_locale_charmap, 0);
