@@ -45,19 +45,11 @@ rary_reserve(VALUE ary, size_t newlen)
 	    if (rary->cap > 0) {
 		newlen *= 2;
 	    }
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-	    VALUE *new_elements = (VALUE *)xmalloc(sizeof(VALUE) * newlen);
-	    for (size_t i = 0; i < rary->len; i++) {
-		GC_WB(&new_elements[i], rary->elements[i]);
-	    }
-	    GC_WB(&ary->elements, new_elements);
-#else
 	    VALUE *new_elements = xrealloc(rary->elements,
 		    sizeof(VALUE) * newlen);
 	    if (new_elements != rary->elements) {
 		GC_WB(&rary->elements, new_elements);
 	    }
-#endif
 	    rary->cap = newlen;
 	}
     }
