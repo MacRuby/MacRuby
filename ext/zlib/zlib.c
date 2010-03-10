@@ -552,11 +552,11 @@ static void
 zstream_discard_input(struct zstream *z, unsigned int len)
 {
     if (NIL_P(z->input) || BSTRING_LEN(z->input) <= len) {
-	    z->input = Qnil;
+	z->input = Qnil;
     } else {
-        UInt8 *buf = BSTRING_PTR(z->input);
-        memmove(buf, buf+len, BSTRING_LEN(z->input) - len);
-	    rb_bstr_resize(z->input, BSTRING_LEN(z->input) - len);
+	UInt8 *buf = BSTRING_PTR(z->input);
+	memmove(buf, buf+len, BSTRING_LEN(z->input) - len);
+	rb_bstr_resize(z->input, BSTRING_LEN(z->input) - len);
     }
 }
 
