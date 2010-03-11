@@ -36,7 +36,7 @@ typedef struct rb_regexp {
 typedef struct rb_match {
     struct RBasic basic;
     rb_regexp_t *regexp;
-    UnicodeString *unistr;
+    VALUE str;
     rb_match_result_t *results;
     int results_count;
 } rb_match_t;
@@ -60,20 +60,22 @@ match_alloc(VALUE klass, SEL sel)
     NEWOBJ(match, struct rb_match);
     OBJSETUP(match, klass, T_MATCH);
     match->regexp = NULL;
-    match->unistr = NULL;
+    match->str = 0;
+    match->results = NULL;
+    match->results_count = 0;
     return match;
 }
 
 static void
 regexp_finalize(rb_regexp_t *regexp)
 {
-    if (regexp->unistr != NULL) {
-	delete regexp->unistr;
-	regexp->unistr = NULL;
-    }
     if (regexp->pattern != NULL) {
 	delete regexp->pattern;
 	regexp->pattern = NULL;
+    }
+    if (regexp->unistr != NULL) {
+	delete regexp->unistr;
+	regexp->unistr = NULL;
     }
 }
 
@@ -88,26 +90,6 @@ regexp_finalize_imp(void *rcv, SEL sel)
     }
 }
 
-static void
-match_finalize(rb_match_t *match)
-{
-    if (match->unistr != NULL) {
-	delete match->unistr;
-	match->unistr = NULL;
-    }
-}
-
-static IMP match_finalize_imp_super = NULL; 
-
-static void
-match_finalize_imp(void *rcv, SEL sel)
-{
-    match_finalize(RMATCH(rcv));
-    if (match_finalize_imp_super != NULL) {
-	((void(*)(void *, SEL))match_finalize_imp_super)(rcv, sel);
-    }
-}
-
 static UnicodeString *
 str_to_unistr(VALUE str)
 {
@@ -117,22 +99,12 @@ str_to_unistr(VALUE str)
 
     rb_str_get_uchars(str, &chars, &chars_len, &need_free);
 
-    UnicodeString *unistr = new UnicodeString(chars, chars_len);
+    UnicodeString *unistr = new UnicodeString((const UChar *)chars, chars_len);
 
-    if (need_free && chars != NULL) {
+    if (need_free) {
 	free(chars);
     }
     return unistr;
-}
-
-static VALUE
-unistr_subseq(UnicodeString *unistr, int beg, int len)
-{
-    assert(unistr != NULL);
-    assert(beg + len <= unistr->length());
-
-    const UChar *chars = unistr->getBuffer();
-    return rb_unicode_str_new(&chars[beg], len);
 }
 
 static void
@@ -570,20 +542,56 @@ rb_reg_search(VALUE re, VALUE str, int pos, bool reverse)
     RegexMatcher *matcher = RREGEXP(re)->pattern->matcher(*unistr, status);
 
     if (matcher == NULL) {
+	delete unistr;
 	rb_raise(rb_eRegexpError, "can't create matcher: %s",
 		u_errorName(status));
     }
 
     if (!matcher->find(pos, status)) {
-	delete unistr;
-	delete matcher;
+	// No match.
 	rb_backref_set(Qnil);
+	delete matcher;
+	delete unistr;
 	return -1;
     }
 
+    // Match found.
     const int res_count = 1 + matcher->groupCount();
-    rb_match_result_t *res =
-	(rb_match_result_t *)xmalloc(sizeof(rb_match_result_t) * res_count);
+    rb_match_result_t *res = NULL;
+
+    VALUE match = rb_backref_get();
+    if (NIL_P(match) || FL_TEST(match, MATCH_BUSY)) {
+	// Creating a new Match object.
+	match = (VALUE)match_alloc(rb_cMatch, 0);
+	rb_backref_set(match);
+	res = (rb_match_result_t *)xmalloc(sizeof(rb_match_result_t)
+		* res_count);
+	GC_WB(&RMATCH(match)->results, res);
+	GC_WB(&RMATCH(match)->str, rb_str_new(NULL, 0));
+    }
+    else {
+	// Reusing the previous Match object.
+	assert(RMATCH(match)->results != NULL);
+	if (res_count > RMATCH(match)->results_count) {
+	    res = (rb_match_result_t *)xrealloc(RMATCH(match)->results,
+		    sizeof(rb_match_result_t) * res_count);
+	    if (res != RMATCH(match)->results) {
+		GC_WB(&RMATCH(match)->results, res);
+	    }
+	}
+	else {
+	    res = RMATCH(match)->results;
+	    memset(res, 0, sizeof(rb_match_result_t) * res_count);
+	}
+	assert(RMATCH(match)->str != 0);
+    }
+
+    RMATCH(match)->results_count = res_count;
+    GC_WB(&RMATCH(match)->regexp, re);
+
+    rb_str_set_len(RMATCH(match)->str, 0);
+    rb_str_append_uchars(RMATCH(match)->str, unistr->getBuffer(),
+	    unistr->length());
 
     res[0].beg = matcher->start(status);
     res[0].end = matcher->end(status);
@@ -594,18 +602,7 @@ rb_reg_search(VALUE re, VALUE str, int pos, bool reverse)
     }
 
     delete matcher;
-
-    VALUE match = rb_backref_get();
-    if (NIL_P(match) || FL_TEST(match, MATCH_BUSY)) {
-	match = (VALUE)match_alloc(rb_cMatch, 0);
-	rb_backref_set(match);
-    }
-
-    match_finalize(RMATCH(match));
-    GC_WB(&RMATCH(match)->regexp, re);
-    RMATCH(match)->unistr = unistr;
-    GC_WB(&RMATCH(match)->results, res);
-    RMATCH(match)->results_count = res_count;
+    delete unistr;
 
     return res[0].beg;
 }
@@ -750,7 +747,7 @@ regexp_eqq(VALUE rcv, SEL sel, VALUE str)
 	rb_backref_set(Qnil);
 	return Qfalse;
     }
-    const long start = rb_reg_search(rcv, str, 0, 0);
+    const long start = rb_reg_search(rcv, str, 0, false);
     if (start < 0) {
 	return Qfalse;
     }
@@ -1098,9 +1095,7 @@ match_initialize_copy(VALUE rcv, SEL sel, VALUE other)
 	rb_raise(rb_eTypeError, "wrong argument type");
     }
 
-    match_finalize(RMATCH(rcv));
-
-    RMATCH(rcv)->unistr = new UnicodeString(*RMATCH(other)->unistr);
+    GC_WB(&RMATCH(rcv)->str, RMATCH(other)->str);
     GC_WB(&RMATCH(rcv)->regexp, RMATCH(other)->regexp);
 
     const long len = sizeof(rb_match_result_t) * RMATCH(other)->results_count;
@@ -1424,7 +1419,7 @@ match_pre(VALUE rcv, SEL sel)
 {
     assert(RMATCH(rcv)->results_count > 0);
 
-    VALUE str = unistr_subseq(RMATCH(rcv)->unistr, 0,
+    VALUE str = rb_str_substr(RMATCH(rcv)->str, 0,
 	    RMATCH(rcv)->results[0].beg);
 
     if (OBJ_TAINTED(rcv)) {
@@ -1459,8 +1454,8 @@ match_post(VALUE rcv, SEL sel)
     assert(RMATCH(rcv)->results_count > 0);
 
     const int pos = RMATCH(rcv)->results[0].end;
-    VALUE str = unistr_subseq(RMATCH(rcv)->unistr, pos,
-	    RMATCH(rcv)->unistr->length() - pos);
+    VALUE str = rb_str_substr(RMATCH(rcv)->str, pos,
+	    rb_str_chars_len(RMATCH(rcv)->str) - pos);
 
     if (OBJ_TAINTED(rcv)) {
 	OBJ_TAINT(str);
@@ -1539,7 +1534,7 @@ rb_reg_nth_match(int nth, VALUE match)
 	return Qnil;
     }
 
-    return unistr_subseq(RMATCH(match)->unistr, beg, end - beg);
+    return rb_str_substr(RMATCH(match)->str, beg, end - beg);
 }
 
 VALUE
@@ -1585,9 +1580,8 @@ match_inspect(VALUE rcv, SEL sel)
 static VALUE
 match_string(VALUE rcv, SEL sel)
 {
-    UnicodeString *unistr = RMATCH(rcv)->unistr;
-    assert(unistr != NULL);
-    VALUE str = rb_unicode_str_new(unistr->getBuffer(), unistr->length());
+    assert(RMATCH(rcv)->str != 0);
+    VALUE str = rb_str_dup(RMATCH(rcv)->str);
     OBJ_FREEZE(str);
     return str;
 }
@@ -1653,9 +1647,6 @@ Init_Match(void)
     rb_objc_define_method(rb_cMatch, "to_s", (void *)match_to_s, 0);
     rb_objc_define_method(rb_cMatch, "string", (void *)match_string, 0);
     rb_objc_define_method(rb_cMatch, "inspect", (void *)match_inspect, 0);
-
-    match_finalize_imp_super = rb_objc_install_method2((Class)rb_cMatch,
-	    "finalize", (IMP)match_finalize_imp);
 }
 
 // Compiler primitives.
