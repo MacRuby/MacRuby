@@ -99,7 +99,7 @@ str_to_unistr(VALUE str)
 
     rb_str_get_uchars(str, &chars, &chars_len, &need_free);
 
-    UnicodeString *unistr = new UnicodeString(false, (const UChar *)chars, chars_len);
+    UnicodeString *unistr = new UnicodeString((const UChar *)chars, chars_len);
 
     if (need_free) {
 	free(chars);
@@ -132,8 +132,9 @@ init_from_string(rb_regexp_t *regexp, VALUE str, int option, VALUE *excp)
 
     sanitize_regexp_string(unistr);
 
+    UParseError pe;
     UErrorCode status = U_ZERO_ERROR;
-    RegexPattern *pattern = RegexPattern::compile(*unistr, option, status);
+    RegexPattern *pattern = RegexPattern::compile(*unistr, option, pe, status);
 
     if (pattern == NULL) {
 	delete unistr;
@@ -149,6 +150,7 @@ init_from_string(rb_regexp_t *regexp, VALUE str, int option, VALUE *excp)
     regexp_finalize(regexp);
     regexp->pattern = pattern;
     regexp->unistr = unistr;
+
     return true;
 }
 
@@ -561,11 +563,11 @@ rb_reg_search(VALUE re, VALUE str, int pos, bool reverse)
     if (NIL_P(match) || FL_TEST(match, MATCH_BUSY)) {
 	// Creating a new Match object.
 	match = (VALUE)match_alloc(rb_cMatch, 0);
+	rb_backref_set(match);
 	res = (rb_match_result_t *)xmalloc(sizeof(rb_match_result_t)
 		* res_count);
 	GC_WB(&RMATCH(match)->results, res);
 	GC_WB(&RMATCH(match)->str, rb_str_new(NULL, 0));
-	rb_backref_set(match);
     }
     else {
 	// Reusing the previous Match object.
