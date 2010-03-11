@@ -2647,6 +2647,7 @@ rstr_scan(VALUE self, SEL sel, VALUE pat)
 	}
 
 	if (block_given) {
+	    rb_match_busy(match);
 	    rb_yield(scan_result);
 	    rb_backref_set(match);
 	    RETURN_IF_BROKEN();
@@ -3294,7 +3295,8 @@ rstr_sub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 
 	if (block_given || !NIL_P(hash)) {
             if (block_given) {
-                repl = rb_obj_as_string(rb_yield(rb_reg_nth_match(0, match)));
+		rb_match_busy(match);
+		repl = rb_obj_as_string(rb_yield(rb_reg_nth_match(0, match)));
             }
             else {
                 repl = rb_hash_aref(hash, rstr_substr(str, results[0].beg,
@@ -3304,6 +3306,7 @@ rstr_sub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 	    rstr_frozen_check(str);
 	    if (block_given) {
 		rb_backref_set(match);
+		RETURN_IF_BROKEN();
 	    }
 	}
 	else {
@@ -3429,7 +3432,8 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 	VALUE val;
 	if (block_given || !NIL_P(hash)) {
             if (block_given) {
-                val = rb_obj_as_string(rb_yield(rb_reg_nth_match(0, match)));
+		rb_match_busy(match);
+		val = rb_obj_as_string(rb_yield(rb_reg_nth_match(0, match)));
             }
             else {
                 val = rb_hash_aref(hash, rstr_substr(str, results[0].beg,
@@ -3439,6 +3443,7 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 	    rstr_frozen_check(str);
 	    if (block_given) {
 		rb_backref_set(match);
+		RETURN_IF_BROKEN();
 	    }
 	}
 	else {
@@ -3460,6 +3465,8 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 	if (results[0].beg == offset) {
 	    offset++;
 	}
+
+	rb_backref_set(match);
     }
 
     if (bang) {
