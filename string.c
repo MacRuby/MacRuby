@@ -3032,7 +3032,7 @@ rstr_chomp_bang(VALUE str, SEL sel, int argc, VALUE *argv)
     }
     StringValue(rs);
 
-    const long len = str_length(RSTR(str), false);
+    const long len = rb_str_chars_len(str);
     if (len == 0) {
 	return Qnil;
     }
@@ -3046,7 +3046,7 @@ rstr_chomp_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 	UChar c = str_get_uchar(RSTR(str), len - 1, false);
 	if (c == '\n') {
 	    to_del++;
-	    c = str_get_uchar(RSTR(str), len - 2, false);
+	    c = len > 1 ? str_get_uchar(RSTR(str), len - 2, false) : 0;
 	}
 	if (c == '\r' && (rslen > 0 || to_del != 0)) {
 	    to_del++;
