@@ -3093,8 +3093,8 @@ Init_Object(void)
 
     rb_objc_define_method(rb_mKernel, "__native__?", rb_obj_is_native, 0);
 
-    rb_objc_define_module_function(rb_mKernel, "sprintf", rb_f_sprintf_imp, -1); /* in sprintf.cpp */
-    rb_objc_define_module_function(rb_mKernel, "format", rb_f_sprintf_imp, -1);  /* in sprintf.cpp */
+    rb_objc_define_module_function(rb_mKernel, "sprintf", rb_f_sprintf_imp, -1); /* in sprintf.c */
+    rb_objc_define_module_function(rb_mKernel, "format", rb_f_sprintf_imp, -1);  /* in sprintf.c */
 
     rb_objc_define_module_function(rb_mKernel, "Integer", rb_f_integer, -1);
     rb_objc_define_module_function(rb_mKernel, "Float", rb_f_float, 1);
