@@ -2655,6 +2655,8 @@ rstr_scan(VALUE self, SEL sel, VALUE pat)
 	else {
 	    rb_ary_push(ary, scan_result);
 	}
+
+	rb_backref_set(match);
     }
 
     return block_given ? self : ary;
@@ -4238,7 +4240,8 @@ rstr_succ(VALUE str, SEL sel)
 		"cannot make receiver data as Unicode characters");
     }
 
-    UChar *chars_buf = (UChar *)malloc(RSTR(str)->length_in_bytes);
+    UChar *chars_buf = (UChar *)malloc(RSTR(str)->length_in_bytes
+	    + sizeof(UChar));
     UChar *chars_ptr = &chars_buf[1];
 
     memcpy(chars_ptr, RSTR(str)->data.uchars, RSTR(str)->length_in_bytes);
