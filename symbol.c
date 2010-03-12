@@ -607,6 +607,20 @@ rsym_empty(VALUE sym, SEL sel)
     return rb_str_chars_len(RSYM(sym)->str) == 0 ? Qtrue : Qfalse;
 }
 
+/*
+ * call-seq:
+ *   sym[idx]      => char
+ *   sym[b, n]     => char
+ *
+ * Returns <code>sym.to_s[]</code>.
+ */
+
+static VALUE
+rsym_aref(VALUE sym, SEL sel, int argc, VALUE *argv)
+{
+    return rstr_aref(RSYM(sym)->str, sel, argc, argv);
+}
+
 static CFIndex
 rsym_imp_length(void *rcv, SEL sel)
 {
@@ -643,6 +657,7 @@ Init_Symbol(void)
     rb_objc_define_method(rb_cSymbol, "intern", rsym_to_sym, 0);
     rb_objc_define_method(rb_cSymbol, "to_sym", rsym_to_sym, 0);
     rb_objc_define_method(rb_cSymbol, "empty?", rsym_empty, 0);
+    rb_objc_define_method(rb_cSymbol, "[]", rsym_aref, -1);
 
     // Cocoa primitives.
     rb_objc_install_method2((Class)rb_cSymbol, "length",

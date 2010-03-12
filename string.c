@@ -1640,7 +1640,7 @@ rb_str_subpat(VALUE str, VALUE re, int nth)
     return Qnil;
 }
 
-static VALUE
+VALUE
 rstr_aref(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     if (argc == 2) {
