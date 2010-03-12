@@ -1110,7 +1110,6 @@ rb_deflate_s_deflate(VALUE klass, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "11", &src, &level);
 
     lev = ARG_LEVEL(level);
-    CFShow((CFStringRef)src);
     StringValue(src);
     src = rb_str_bstr(src);
     zstream_init_deflate(z);
