@@ -121,7 +121,7 @@ OSSL_IMPL_SK2ARY(x509crl, X509_CRL)
 VALUE
 ossl_buf2str(char *buf, int len)
 {
-    return rb_bytestring_new_with_data((UInt8 *)buf, len);
+    return rb_bstr_new_with_data((UInt8 *)buf, len);
 }
 
 /*

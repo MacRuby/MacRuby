@@ -100,9 +100,10 @@ rb_any_cmp(VALUE a, VALUE b)
 		return a != b;
 	    }
 	    break;
-    }
 
-    // XXX optimize for string
+	case T_STRING:
+	    return rb_str_cmp(a, b);
+    }
 
     return !rb_eql(a, b);
 }
@@ -120,7 +121,7 @@ rb_any_hash(VALUE a)
 	    return (int)a;
 
 	case T_STRING:
-	    return CFHash((CFTypeRef)a);
+	    return (int)rb_str_hash(a);
     }
 
     return (int)FIX2LONG(rb_hash(a));

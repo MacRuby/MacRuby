@@ -745,18 +745,9 @@ ruby_getcwd(void)
     if (getcwd(buf, sizeof buf) == NULL) {
 	rb_sys_fail("getcwd");
     }
-
-    CFStringRef tmp = CFStringCreateWithFileSystemRepresentation(NULL, buf);
-    assert(tmp != NULL);
-
-    CFMutableStringRef str = CFStringCreateMutableCopy(NULL, 0, tmp);
-    assert(str != NULL);
-    CFRelease(tmp);
-    CFMakeCollectable(str);
-    CFStringNormalize(str, kCFStringNormalizationFormC);
-
+    VALUE str = rb_str_new2(buf);
     OBJ_TAINT(str); 
-    return (VALUE)str;
+    return str;
 }
 
 /****************************************************************

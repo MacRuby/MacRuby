@@ -234,6 +234,8 @@ rb_ocid_to_rval(id obj)
 #define RB2OC(obj) (rb_rval_to_ocid((VALUE)obj))
 #define OC2RB(obj) (rb_ocid_to_rval((id)obj))
 
+void rb_objc_exception_raise(const char *name, const char *message);
+
 #if defined(__cplusplus)
 }
 #endif

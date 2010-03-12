@@ -197,32 +197,35 @@ rb_file_expand_path(VALUE fname, VALUE dname)
     NSString *res = (NSString *)FilePathValue(fname);
 
     if ([res isAbsolutePath]) {
-      NSString *tmp = [res stringByResolvingSymlinksInPath];
-      // Make sure we don't have an invalid user path.
-      if ([res hasPrefix:@"~"] && [tmp isEqualTo:res]) {
-        NSString *user = [[[res pathComponents] objectAtIndex:0] substringFromIndex:1];
-        rb_raise(rb_eArgError, "user %s doesn't exist", [user UTF8String]);
-      }
-      res = tmp;
+	NSString *tmp = [res stringByResolvingSymlinksInPath];
+	// Make sure we don't have an invalid user path.
+	if ([res hasPrefix:@"~"] && [tmp isEqualTo:res]) {
+	    NSString *user = [[[res pathComponents] objectAtIndex:0]
+		substringFromIndex:1];
+	    rb_raise(rb_eArgError, "user %s doesn't exist", [user UTF8String]);
+	}
+	res = tmp;
     }
     else {
-      NSString *dir = dname != Qnil ?
-        (NSString *)FilePathValue(dname) : [[NSFileManager defaultManager] currentDirectoryPath];
+	NSString *dir = dname != Qnil
+	    ? (NSString *)FilePathValue(dname)
+	    : [[NSFileManager defaultManager] currentDirectoryPath];
 
-      if (![dir isAbsolutePath]) {
-        dir = (NSString *)rb_file_expand_path((VALUE)dir, Qnil);
-      }
+	if (![dir isAbsolutePath]) {
+	    dir = (NSString *)rb_file_expand_path((VALUE)dir, Qnil);
+	}
 
-      // stringByStandardizingPath does not expand "/." to "/".
-      if ([res isEqualTo:@"."] && [dir isEqualTo:@"/"]) {
-        res = @"/";
-      }
-      else {
-        res = [[dir stringByAppendingPathComponent:res] stringByStandardizingPath];
-      }
+	// stringByStandardizingPath does not expand "/." to "/".
+	if ([res isEqualTo:@"."] && [dir isEqualTo:@"/"]) {
+	    res = @"/";
+	}
+	else {
+	    res = [[dir stringByAppendingPathComponent:res]
+		stringByStandardizingPath];
+	}
     }
 
-    return (VALUE)[res mutableCopy];
+    return rb_str_new2([res fileSystemRepresentation]);
 }
 
 static VALUE
@@ -603,6 +606,14 @@ rb_oc2rb_exception(id exc)
     snprintf(buf, sizeof buf, "%s: %s", [[exc name] UTF8String],
 	    [[exc reason] UTF8String]);
     return rb_exc_new2(rb_eRuntimeError, buf);
+}
+
+void
+rb_objc_exception_raise(const char *name, const char *message)
+{
+    assert(name != NULL && message != NULL);
+    [[NSException exceptionWithName:[NSString stringWithUTF8String:name]
+	reason:[NSString stringWithUTF8String:message] userInfo:nil] raise];
 }
 
 size_t

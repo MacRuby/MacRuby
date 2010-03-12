@@ -175,17 +175,15 @@ ossl_digest_finish(VALUE self, SEL sel, int argc, VALUE *argv)
     GetDigest(self, ctx);
 
     if (NIL_P(str)) {
-        str = rb_bytestring_new();
+        str = rb_bstr_new();
     }
     else {
         StringValue(str);
-	if (CLASS_OF(str) != rb_cByteString) {
-	    rb_raise(rb_eArgError, "expected ByteString object");
-	}
+	str = rb_str_bstr(str);
     }
-    rb_bytestring_resize(str, EVP_MD_CTX_size(ctx));
+    rb_bstr_resize(str, EVP_MD_CTX_size(ctx));
 
-    EVP_DigestFinal_ex(ctx, rb_bytestring_byte_pointer(str), NULL);
+    EVP_DigestFinal_ex(ctx, rb_bstr_bytes(str), NULL);
 
     return str;
 }

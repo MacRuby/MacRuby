@@ -157,12 +157,7 @@ rb_yaml_parser_set_input(VALUE self, SEL sel, VALUE input)
 
     if (!NIL_P(input)) {
 	assert(parser != NULL);
-	if (CLASS_OF(input) == rb_cByteString) {
-	    yaml_parser_set_input_string(parser,
-		    (const unsigned char *)rb_bytestring_byte_pointer(input),
-		    rb_bytestring_length(input));
-	}
-	else if (TYPE(input) == T_STRING) {
+	if (TYPE(input) == T_STRING) {
 	    const char * instring = RSTRING_PTR(input);
 	    yaml_parser_set_input_string(parser,
 		    (const unsigned char *)(instring),
@@ -524,10 +519,7 @@ handle_scalar(rb_yaml_parser_t *parser)
 	tag = "tag:yaml.org,2002:str";
     }
     VALUE handler = handler_for_tag(parser, (yaml_char_t *)tag);
-    VALUE scalarval = (VALUE)CFStringCreateWithBytes(NULL, (const UInt8 *)val,
-	    parser->event.data.scalar.length,
-	    kCFStringEncodingUTF8, true);
-    CFMakeCollectable((CFTypeRef)scalarval);
+    VALUE scalarval = rb_str_new(val, parser->event.data.scalar.length);
     return interpret_value(parser, scalarval, handler);
 }
 
@@ -635,9 +627,7 @@ make_yaml_node(char * tag, VALUE value)
 {
     VALUE argv[2];
 
-    argv[0] = (VALUE)CFStringCreateWithBytes(NULL, (const UInt8 *)tag,
-					     strlen(tag),
-					     kCFStringEncodingUTF8, true);
+    argv[0] = rb_str_new2(tag);
     argv[1] = value;
 
     return rb_class_new_instance(2, argv, rb_cYamlNode);
@@ -655,9 +645,7 @@ parse_scalar(rb_yaml_parser_t *parser)
     if (tag == NULL) {
 	tag = "str";
     }
-    VALUE scalarval = (VALUE)CFStringCreateWithBytes(NULL, (const UInt8 *)val,
-	    parser->event.data.scalar.length,
-	    kCFStringEncodingUTF8, true);
+    VALUE scalarval = rb_str_new(val, parser->event.data.scalar.length);
     return make_yaml_node(tag, scalarval);
 }
 
@@ -848,10 +836,9 @@ rb_yaml_emitter_alloc(VALUE klass, SEL sel)
 }
 
 static int
-rb_yaml_bytestring_output_handler(void *bs, unsigned char *buffer, size_t size)
+rb_yaml_str_output_handler(void *str, unsigned char *buffer, size_t size)
 {
-    CFMutableDataRef data = rb_bytestring_wrapped_data((VALUE)bs);
-    CFDataAppendBytes(data, (const UInt8*)buffer, (CFIndex)size);
+    rb_str_cat((VALUE)str, (char *)buffer, size);
     return 1;
 }
 
@@ -870,18 +857,21 @@ rb_yaml_emitter_set_output(VALUE self, SEL sel, VALUE output)
     GC_WB(&remitter->output, output);
     yaml_emitter_t *emitter = &remitter->emitter;
     if (!NIL_P(output)) {
-	if (CLASS_OF(output) == rb_cByteString) {
-	    yaml_emitter_set_output(emitter, rb_yaml_bytestring_output_handler,
-		    (void *)output);
-	}
-	else if (TYPE(output) == T_FILE) {
-	    yaml_emitter_set_output(emitter, rb_yaml_io_output_handler,
-		    (void *)output);
-	}
-	else {
-	    rb_raise(rb_eArgError, "unsupported YAML output type %s",
-		    rb_obj_classname(output));
-	}
+	switch (TYPE(output)) {
+	    case T_FILE:
+		yaml_emitter_set_output(emitter, rb_yaml_io_output_handler,
+			(void *)output);
+		break;
+
+	    case T_STRING:
+		yaml_emitter_set_output(emitter, rb_yaml_str_output_handler,
+			(void *)output);
+		break;
+
+	    default:
+		rb_raise(rb_eArgError, "unsupported YAML output type %s",
+			rb_obj_classname(output));
+	}	
     }
     return output;
 }
@@ -892,7 +882,7 @@ rb_yaml_emitter_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
     VALUE output = Qnil;
     rb_scan_args(argc, argv, "01", &output);
     if (NIL_P(output)) {
-	output = rb_bytestring_new();
+	output = rb_str_new(NULL, 0);
     }
     rb_yaml_emitter_set_output(self, 0, output);
     return self;
@@ -991,8 +981,7 @@ rb_yaml_emitter_scalar(VALUE self, SEL sel, VALUE taguri, VALUE val,
     yaml_event_t ev;
     yaml_emitter_t *emitter = &RYAMLEmitter(self)->emitter;
     yaml_char_t *output = (yaml_char_t *)RSTRING_PTR(val);
-    const size_t length = *(VALUE *)val == rb_cByteString
-	? RSTRING_LEN(val) : strlen((const char *)output);
+    const size_t length = RSTRING_LEN(val);
 
     int can_omit_tag = 0;
     int string_tag   = 0;

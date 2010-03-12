@@ -71,6 +71,7 @@ extern SEL selASET;
 extern SEL selLength;
 extern SEL selSucc;
 extern SEL selNot;
+extern SEL selNot2;
 extern SEL selAlloc;
 extern SEL selAllocWithZone;
 extern SEL selCopyWithZone;

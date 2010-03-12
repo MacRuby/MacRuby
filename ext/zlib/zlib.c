@@ -187,9 +187,9 @@ static VALUE rb_gzreader_readlines _((VALUE, SEL, int, VALUE*));
 
 void Init_zlib _((void));
 
-#define BSTRING_LEN(s) rb_bytestring_length(s)
-#define BSTRING_PTR(s) (rb_bytestring_byte_pointer(s))
-#define BSTRING_PTR_BYTEF(s) ((Bytef*)rb_bytestring_byte_pointer(s))
+#define BSTRING_LEN(s) rb_bstr_length(s)
+#define BSTRING_PTR(s) (rb_bstr_bytes(s))
+#define BSTRING_PTR_BYTEF(s) ((Bytef*)rb_bstr_bytes(s))
 
 
 /*--------- Exceptions --------*/
@@ -403,8 +403,8 @@ zstream_expand_buffer(struct zstream *z)
     long inc;
 
     if (NIL_P(z->buf)) {
-        GC_WB(&z->buf, rb_bytestring_new());
-        rb_bytestring_resize(z->buf, ZSTREAM_INITIAL_BUFSIZE);
+        GC_WB(&z->buf, rb_bstr_new());
+        rb_bstr_resize(z->buf, ZSTREAM_INITIAL_BUFSIZE);
         z->buf_filled = 0;
         z->stream.next_out = BSTRING_PTR_BYTEF(z->buf);
         z->stream.avail_out = ZSTREAM_INITIAL_BUFSIZE;
@@ -419,7 +419,7 @@ zstream_expand_buffer(struct zstream *z)
         if (inc < ZSTREAM_AVAIL_OUT_STEP_MIN) {
             inc = ZSTREAM_AVAIL_OUT_STEP_MIN;
         }
-        rb_bytestring_resize(z->buf, z->buf_filled + inc);
+        rb_bstr_resize(z->buf, z->buf_filled + inc);
         z->stream.avail_out = (inc < ZSTREAM_AVAIL_OUT_STEP_MAX) ?
             inc : ZSTREAM_AVAIL_OUT_STEP_MAX;
     }
@@ -430,13 +430,13 @@ static void
 zstream_expand_buffer_into(struct zstream *z, int size)
 {
     if (NIL_P(z->buf)) {
-        GC_WB(&z->buf, rb_bytestring_new());
+        GC_WB(&z->buf, rb_bstr_new());
         z->buf_filled = 0;
         z->stream.next_out = BSTRING_PTR_BYTEF(z->buf);
         z->stream.avail_out = size;
     }
     else if (z->stream.avail_out != size) {
-        rb_bytestring_resize(z->buf, z->buf_filled + size);
+        rb_bstr_resize(z->buf, z->buf_filled + size);
         z->stream.next_out = BSTRING_PTR_BYTEF(z->buf) + z->buf_filled;
         z->stream.avail_out = size;
     }
@@ -446,30 +446,29 @@ static void
 zstream_append_buffer(struct zstream *z, const Bytef *src, int len)
 {
     if (NIL_P(z->buf)) {
-	GC_WB(&z->buf, rb_bytestring_new_with_data((UInt8*)src, len));
+	GC_WB(&z->buf, rb_bstr_new_with_data((UInt8*)src, len));
 	z->buf_filled = len;
 	z->stream.next_out = BSTRING_PTR_BYTEF(z->buf);
 	z->stream.avail_out = 0;
 	return;
     }
     
-    CFMutableDataRef data = rb_bytestring_wrapped_data(z->buf);
-    if (CFDataGetLength(data) < (z->buf_filled + len)) {
-	CFDataSetLength(data, z->buf_filled + len);
+    if (rb_bstr_length(z->buf) < (z->buf_filled + len)) {
+	rb_bstr_resize(z->buf, z->buf_filled + len);
 	z->stream.avail_out = 0;
     } else if (z->stream.avail_out >= len) {
         z->stream.avail_out -= len;
     } else {
         z->stream.avail_out = 0;
     }
-    
-    CFDataAppendBytes(data, (const UInt8*)src, len);
+
+    rb_bstr_concat(z->buf, (const UInt8 *)src, len);
     z->buf_filled += len;
     z->stream.next_out = BSTRING_PTR_BYTEF(z->buf) + z->buf_filled;
 }
 
 #define zstream_append_buffer2(z,v) \
-    zstream_append_buffer((z),(Bytef*)rb_bytestring_byte_pointer(v),rb_bytestring_length(v))
+    zstream_append_buffer((z),(Bytef*)rb_bstr_bytes(v),rb_bstr_length(v))
 
 static VALUE
 zstream_detach_buffer(struct zstream *z)
@@ -477,11 +476,11 @@ zstream_detach_buffer(struct zstream *z)
     VALUE dst;
 
     if (NIL_P(z->buf)) {
-        dst = rb_bytestring_new();
+        dst = rb_bstr_new();
     }
     else {
         dst = z->buf;
-        rb_bytestring_resize(dst, z->buf_filled);
+        rb_bstr_resize(dst, z->buf_filled);
     }
 
     z->buf = Qnil;
@@ -500,7 +499,7 @@ zstream_shift_buffer(struct zstream *z, int len)
         return zstream_detach_buffer(z);
     }
 
-    rb_bytestring_resize(z->buf, len);
+    rb_bstr_resize(z->buf, len);
     dst = z->buf;
     z->buf_filled -= len;
     UInt8 *buf = BSTRING_PTR(z->buf);
@@ -536,17 +535,15 @@ zstream_append_input(struct zstream *z, const Bytef *src, unsigned int len)
     if (len <= 0) return;
 
     if (NIL_P(z->input)) {
-	GC_WB(&z->input, rb_bytestring_new_with_data((UInt8*)src, len));
+	GC_WB(&z->input, rb_bstr_new_with_data((UInt8*)src, len));
     } else {
-	rb_bytestring_append_bytes(z->input, (const UInt8*)src, len);
+	rb_bstr_concat(z->input, (const UInt8*)src, len);
     }
 }
 
 #define zstream_append_input2(z,v) \
     do { \
-	if (*(VALUE *)v != rb_cByteString) { \
-	    v = rb_coerce_to_bytestring(v); \
-	} \
+	v = rb_str_bstr(v); \
 	zstream_append_input((z), BSTRING_PTR_BYTEF(v), BSTRING_LEN(v)); \
     } \
     while(0)
@@ -555,11 +552,11 @@ static void
 zstream_discard_input(struct zstream *z, unsigned int len)
 {
     if (NIL_P(z->input) || BSTRING_LEN(z->input) <= len) {
-	    z->input = Qnil;
+	z->input = Qnil;
     } else {
-        UInt8 *buf = BSTRING_PTR(z->input);
-        memmove(buf, buf+len, BSTRING_LEN(z->input) - len);
-	    rb_bytestring_resize(z->input, BSTRING_LEN(z->input) - len);
+	UInt8 *buf = BSTRING_PTR(z->input);
+	memmove(buf, buf+len, BSTRING_LEN(z->input) - len);
+	rb_bstr_resize(z->input, BSTRING_LEN(z->input) - len);
     }
 }
 
@@ -584,9 +581,9 @@ zstream_detach_input(struct zstream *z)
     VALUE dst;
 
     if (NIL_P(z->input)) {
-        dst = rb_bytestring_new();
+        dst = rb_bstr_new();
     } else {
-	    dst = z->input;
+	dst = z->input;
     }
     z->input = Qnil;
     return dst;
@@ -1113,11 +1110,8 @@ rb_deflate_s_deflate(VALUE klass, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "11", &src, &level);
 
     lev = ARG_LEVEL(level);
-    CFShow((CFStringRef)src);
     StringValue(src);
-    if (CLASS_OF(src) != rb_cByteString) {
-        src = rb_coerce_to_bytestring(src);
-    }
+    src = rb_str_bstr(src);
     zstream_init_deflate(z);
     err = deflateInit(&z->stream, lev);
     if (err != Z_OK) {
@@ -1141,9 +1135,7 @@ do_deflate(struct zstream *z, VALUE src, int flush)
 	return;
     }
     StringValue(src);
-    if (CLASS_OF(src) != rb_cByteString) {
-        src = rb_coerce_to_bytestring(src);
-    }
+    src = rb_str_bstr(src);
     if (flush != Z_NO_FLUSH || BSTRING_LEN(src) > 0) { /* prevent BUF_ERROR */
 	zstream_run(z, BSTRING_PTR_BYTEF(src), BSTRING_LEN(src), flush);
     }
@@ -1270,9 +1262,7 @@ rb_deflate_set_dictionary(VALUE obj, SEL sel, VALUE dic)
 
     OBJ_INFECT(obj, dic);
     StringValue(src);
-    if (CLASS_OF(src) != rb_cByteString) {
-        src = rb_coerce_to_bytestring(src);
-    }
+    src = rb_str_bstr(src);
     err = deflateSetDictionary(&z->stream,
 			       BSTRING_PTR(src), BSTRING_LEN(src));
     if (err != Z_OK) {
@@ -1421,11 +1411,9 @@ rb_inflate_inflate(VALUE obj, SEL sel, VALUE src)
 	}
 	else {
 	    StringValue(src);
-	    if (CLASS_OF(src) != rb_cByteString) {
-            src = rb_coerce_to_bytestring(src);
-	    }
+	    src = rb_str_bstr(src);
 	    zstream_append_buffer2(z, src);
-	    dst = rb_bytestring_new(0, 0);
+	    dst = rb_bstr_new();
 	}
     }
     else {
@@ -2000,7 +1988,7 @@ gzfile_read(struct gzfile *gz, int len)
     if (len < 0)
         rb_raise(rb_eArgError, "negative length %d given", len);
     if (len == 0)
-	return rb_bytestring_new(0, 0);
+	return rb_bstr_new();
     while (!ZSTREAM_IS_FINISHED(&gz->z) && gz->z.buf_filled < len) {
 	gzfile_read_more(gz);
     }
@@ -2031,9 +2019,9 @@ gzfile_readpartial(struct gzfile *gz, int len, VALUE outbuf)
 
     if (len == 0) {
         if (NIL_P(outbuf))
-            return rb_bytestring_new(0, 0);
+            return rb_bstr_new();
         else {
-            rb_bytestring_resize(outbuf, 0);
+            rb_bstr_resize(outbuf, 0);
             return outbuf;
         }
     }
@@ -2057,7 +2045,7 @@ gzfile_readpartial(struct gzfile *gz, int len, VALUE outbuf)
         return dst;
     }
     else {
-        rb_bytestring_resize(outbuf, BSTRING_LEN(dst));
+        rb_bstr_resize(outbuf, BSTRING_LEN(dst));
         UInt8 *buf = BSTRING_PTR(outbuf);
         memcpy(buf, BSTRING_PTR(dst), BSTRING_LEN(dst));
         return outbuf;
@@ -2076,7 +2064,7 @@ gzfile_read_all(struct gzfile *gz)
 	if (!(gz->z.flags & GZFILE_FLAG_FOOTER_FINISHED)) {
 	    gzfile_check_footer(gz);
 	}
-	return rb_bytestring_new(0, 0);
+	return rb_bstr_new();
     }
 
     dst = zstream_detach_buffer(&gz->z);
@@ -2623,12 +2611,8 @@ rb_gzwriter_write(VALUE obj, SEL sel, VALUE str)
 {
     struct gzfile *gz = get_gzfile(obj);
 
-    if (TYPE(str) != T_STRING) {
-	str = rb_obj_as_string(str);
-    }
-    if (CLASS_OF(str) != rb_cByteString) {
-        str = rb_coerce_to_bytestring(str);
-    }
+    StringValue(str);
+    str = rb_str_bstr(str);
     gzfile_write(gz, BSTRING_PTR_BYTEF(str), BSTRING_LEN(str));
     return INT2FIX(BSTRING_LEN(str));
 }

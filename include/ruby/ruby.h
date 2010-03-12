@@ -249,7 +249,8 @@ VALUE rb_ull2inum(unsigned LONG_LONG);
 #else
 // voodoo_float must be a function
 // because the parameter must be converted to float
-static inline VALUE voodoo_float(float f)
+static inline VALUE
+voodoo_float(float f)
 {
     return *(VALUE *)(&f);
 }
@@ -258,15 +259,9 @@ static inline VALUE voodoo_float(float f)
 #define FIXFLOAT_P(v)  (((VALUE)v & IMMEDIATE_MASK) == FIXFLOAT_FLAG)
 #define FIXFLOAT2DBL(v) coerce_ptr_to_double((VALUE)v)
 
-#if WITH_OBJC
-# define SYMBOL_P(x) (TYPE(x) == T_SYMBOL)
-# define ID2SYM(x) (rb_id2str((ID)x))
-# define SYM2ID(x) (RSYMBOL(x)->id)
-#else
-# define SYMBOL_P(x) (((VALUE)(x)&~(~(VALUE)0<<RUBY_SPECIAL_SHIFT))==SYMBOL_FLAG)
-# define ID2SYM(x) (((VALUE)(x)<<RUBY_SPECIAL_SHIFT)|SYMBOL_FLAG)
-# define SYM2ID(x) RSHIFT((unsigned long)x,RUBY_SPECIAL_SHIFT)
-#endif
+#define SYMBOL_P(x) (TYPE(x) == T_SYMBOL)
+#define ID2SYM(x) (rb_id2str((ID)x))
+#define SYM2ID(x) (rb_sym2id((VALUE)x))
 
 /* special contants - i.e. non-zero and non-fixnum constants */
 enum ruby_special_consts {
@@ -395,18 +390,6 @@ char *rb_string_value_cstr(volatile VALUE*);
 #define StringValue(v) rb_string_value(&(v))
 #define StringValuePtr(v) rb_string_value_ptr(&(v))
 #define StringValueCStr(v) rb_string_value_cstr(&(v))
-
-VALUE rb_bytestring_new();
-VALUE rb_bytestring_new_with_data(const UInt8 *buf, long size);
-VALUE rb_bytestring_new_with_cfdata(CFMutableDataRef data);
-VALUE rb_bytestring_copy(VALUE str);
-CFMutableDataRef rb_bytestring_wrapped_data(VALUE);
-CFStringRef rb_bytestring_resolve_cfstring(VALUE str);
-UInt8 *rb_bytestring_byte_pointer(VALUE);
-VALUE rb_coerce_to_bytestring(VALUE);
-long rb_bytestring_length(VALUE str);
-void rb_bytestring_resize(VALUE str, long newsize);
-void rb_bytestring_append_bytes(VALUE str, const UInt8* bytes, long len);
 
 void rb_check_safe_obj(VALUE);
 void rb_check_safe_str(VALUE);
@@ -658,13 +641,6 @@ const VALUE *rb_ary_ptr(VALUE);
 # define RARRAY_PTR(a) (rb_ary_ptr((VALUE)a)) 
 #endif
 
-struct RRegexp {
-    struct RBasic basic;
-    struct re_pattern_buffer *ptr;
-    long len;
-    char *str;
-};
-
 #if !WITH_OBJC
 struct RHash {
     struct RBasic basic;
@@ -795,16 +771,6 @@ struct RBignum {
 #define RFLOAT(obj)  (R_CAST(RFloat)(obj))
 #if WITH_OBJC
 # define RFIXNUM(obj) (R_CAST(RFixnum)(obj))
-# define RSYMBOL(obj) (R_CAST(RSymbol)(obj))
-#endif
-#define RSTRING(obj) (R_CAST(RString)(obj))
-#define RREGEXP(obj) (R_CAST(RRegexp)(obj))
-#if !WITH_OBJC
-# define RCLASS(obj)  (R_CAST(RClass)(obj))
-# define RMODULE(obj) RCLASS(obj)
-# define RSTRING(obj) (R_CAST(RString)(obj))
-# define RARRAY(obj)  (R_CAST(RArray)(obj))
-# define RHASH(obj)   (R_CAST(RHash)(obj))
 #endif
 #define RDATA(obj)   (R_CAST(RData)(obj))
 #define RSTRUCT(obj) (R_CAST(RStruct)(obj))
@@ -939,33 +905,17 @@ ID rb_intern(const char*);
 ID rb_intern2(const char*, long);
 ID rb_intern_str(VALUE str);
 ID rb_to_id(VALUE);
+ID rb_sym2id(VALUE sym);
 VALUE rb_id2str(ID);
 VALUE rb_name2sym(const char *);
-#if WITH_OBJC
-# define rb_sym2name(sym) (RSYMBOL(sym)->str)
+const char *rb_sym2name(VALUE sym);
+
 static inline
 const char *rb_id2name(ID val)
 {
     VALUE s = rb_id2str(val);
     return s == 0 ? NULL : rb_sym2name(s);
 }
-#else
-const char *rb_id2name(ID);
-#endif
-
-#ifdef __GNUC__
-/* __builtin_constant_p and statement expression is available
- * since gcc-2.7.2.3 at least. */
-#define rb_intern(str) \
-    (__builtin_constant_p(str) ? \
-        ({ \
-            static ID rb_intern_id_cache; \
-            if (!rb_intern_id_cache) \
-                rb_intern_id_cache = rb_intern(str); \
-            rb_intern_id_cache; \
-        }) : \
-        rb_intern(str))
-#endif
 
 const char *rb_class2name(VALUE);
 const char *rb_obj_classname(VALUE);
@@ -1120,7 +1070,6 @@ RUBY_EXTERN VALUE rb_cRegexp;
 RUBY_EXTERN VALUE rb_cSet;
 RUBY_EXTERN VALUE rb_cStat;
 RUBY_EXTERN VALUE rb_cString;
-RUBY_EXTERN VALUE rb_cByteString;
 RUBY_EXTERN VALUE rb_cStruct;
 RUBY_EXTERN VALUE rb_cSymbol;
 RUBY_EXTERN VALUE rb_cThread;
@@ -1134,9 +1083,9 @@ RUBY_EXTERN VALUE rb_cEnv;
 RUBY_EXTERN VALUE rb_cRandom;
 
 #if WITH_OBJC
-RUBY_EXTERN VALUE rb_cCFString;
 RUBY_EXTERN VALUE rb_cNSString;
 RUBY_EXTERN VALUE rb_cNSMutableString;
+RUBY_EXTERN VALUE rb_cRubyString;
 RUBY_EXTERN VALUE rb_cNSArray;
 RUBY_EXTERN VALUE rb_cNSMutableArray;
 RUBY_EXTERN VALUE rb_cRubyArray;
@@ -1147,11 +1096,6 @@ RUBY_EXTERN VALUE rb_cCFNumber;
 RUBY_EXTERN VALUE rb_cBoxed;
 RUBY_EXTERN VALUE rb_cPointer;
 RUBY_EXTERN VALUE rb_cTopLevel;
-
-bool __CFStringIsMutable(void *);
-#define RSTRING_IMMUTABLE(o) \
-    (*(VALUE *)o == rb_cCFString ? !__CFStringIsMutable((void *)o) : false)
-
 #endif
 
 RUBY_EXTERN VALUE rb_eException;
@@ -1257,7 +1201,7 @@ rb_type(VALUE obj)
     }
 #if WITH_OBJC
     else if ((k = *(Class *)obj) != NULL) {
-	if (k == (Class)rb_cCFString) {
+	if (k == (Class)rb_cRubyString) {
 	    return T_STRING;
 	}
 	if (k == (Class)rb_cRubyArray) {
@@ -1413,20 +1357,20 @@ int rb_remove_event_hook(rb_event_hook_func_t func);
 /* locale insensitive functions */
 
 #define rb_isascii(c) ((unsigned long)(c) < 128)
-int rb_isalnum(int c);
-int rb_isalpha(int c);
-int rb_isblank(int c);
-int rb_iscntrl(int c);
-int rb_isdigit(int c);
-int rb_isgraph(int c);
-int rb_islower(int c);
-int rb_isprint(int c);
-int rb_ispunct(int c);
-int rb_isspace(int c);
-int rb_isupper(int c);
-int rb_isxdigit(int c);
-int rb_tolower(int c);
-int rb_toupper(int c);
+#define rb_isalnum(c) (rb_isascii(c) && isalnum(c))
+#define rb_isalpha(c) (rb_isascii(c) && isalpha(c))
+#define rb_isblank(c) (rb_isascii(c) && isblank(c))
+#define rb_iscntrl(c) (rb_isascii(c) && iscntrl(c))
+#define rb_isdigit(c) (rb_isascii(c) && isdigit(c))
+#define rb_isgraph(c) (rb_isascii(c) && isgraph(c))
+#define rb_islower(c) (rb_isascii(c) && islower(c))
+#define rb_isprint(c) (rb_isascii(c) && isprint(c))
+#define rb_ispunct(c) (rb_isascii(c) && ispunct(c))
+#define rb_isspace(c) (rb_isascii(c) && isspace(c))
+#define rb_isupper(c) (rb_isascii(c) && isupper(c))
+#define rb_isxdigit(c) (rb_isascii(c) && isxdigit(c))
+#define rb_tolower(c) (rb_isascii(c) && tolower(c))
+#define rb_toupper(c) (rb_isascii(c) && toupper(c))
 
 #ifndef ISPRINT
 #define ISASCII(c) rb_isascii((unsigned char)(c))

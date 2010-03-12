@@ -16,6 +16,8 @@
 #include "dtrace.h"
 #include "array.h"
 #include "hash.h"
+#include "encoding.h"
+#include "re.h"
 
 #include <execinfo.h>
 #include <dlfcn.h>
@@ -838,10 +840,6 @@ dispatch:
 	    if (self == Qfalse) {
 		return rb_cFalseClass;
 	    }
-	    if (klass == (Class)rb_cCFString) {
-		return RSTRING_IMMUTABLE(self)
-		    ? rb_cNSString : rb_cNSMutableString;
-	    }
 	    return rb_class_real((VALUE)klass);
 	}
 
@@ -1243,7 +1241,23 @@ rb_vm_fast_eq(struct mcache *cache, VALUE self, VALUE other)
 	    return self == other ? Qtrue : Qfalse;
 
 	case T_STRING:
+	    if (self == other) {
+		return Qtrue;
+	    }
+	    if (TYPE(other) != self_type) {
+		return Qfalse;
+	    }
+	    return rb_str_equal(self, other);
+
 	case T_ARRAY:
+	    if (self == other) {
+		return Qtrue;
+	    }
+	    if (TYPE(other) != self_type) {
+		return Qfalse;
+	    }
+	    return rb_ary_equal(self, other);
+
 	case T_HASH:
 	    if (self == other) {
 		return Qtrue;
@@ -1251,14 +1265,7 @@ rb_vm_fast_eq(struct mcache *cache, VALUE self, VALUE other)
 	    if (TYPE(other) != self_type) {
 		return Qfalse;
 	    }
-	    if (self_type == T_ARRAY) {
-		return rb_ary_equal(self, other);
-	    }
-	    if (self_type == T_HASH) {
-		return rb_hash_equal(self, other);
-	    }
-	    return CFEqual((CFTypeRef)self, (CFTypeRef)other)
-		? Qtrue : Qfalse;
+	    return rb_hash_equal(self, other);
 
 	case T_BIGNUM:
 	    return rb_big_eq(self, other);
@@ -1287,7 +1294,7 @@ rb_vm_fast_eqq(struct mcache *cache, VALUE self, VALUE other)
 	    return rb_str_equal(self, other);
 
 	case T_REGEXP:
-	    return rb_reg_eqq(self, selEqq, other);
+	    return regexp_eqq(self, selEqq, other);
 
 	case T_SYMBOL:
 	    return (self == other ? Qtrue : Qfalse);
@@ -1344,12 +1351,14 @@ rb_vm_fast_shift(VALUE obj, VALUE other, struct mcache *cache,
 		}
 		break;
 
+#if 0 // TODO
 	    case T_STRING:
 		if (*(VALUE *)obj == rb_cCFString) {
 		    rb_str_concat(obj, other);
 		    return obj;
 		}
 		break;
+#endif
 	}
     }
     return __rb_vm_dispatch(GET_VM(), cache, 0, obj, NULL, selLTLT, NULL, 0, 1,

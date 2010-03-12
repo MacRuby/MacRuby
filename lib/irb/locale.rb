@@ -12,6 +12,9 @@ module IRB
   class Locale
     @RCS_ID='-$Id: locale.rb 20889 2008-12-20 02:02:48Z yugui $-'
 
+    LOCALE_NAME_RE = //
+=begin
+    # This regexp can't compile on MacRuby because of named captures.
     LOCALE_NAME_RE = %r[
       (?<language>[[:alpha:]]{2})
       (?:_
@@ -24,6 +27,7 @@ module IRB
        (?<modifier>.*)
       )?
     ]x
+=end
     LOCALE_DIR = "/lc/"
 
     @@legacy_encoding_alias_map = {}.freeze
@@ -31,6 +35,7 @@ module IRB
     def initialize(locale = nil)
       @lang = @territory = @encoding_name = @modifier = nil
       @locale = locale || ENV["IRB_LANG"] || ENV["LC_MESSAGES"] || ENV["LC_ALL"] || ENV["LANG"] || "C" 
+=begin
       if m = LOCALE_NAME_RE.match(@locale)
 	@lang, @territory, @encoding_name, @modifier = m[:language], m[:territory], m[:codeset], m[:modifier]
 
@@ -42,6 +47,7 @@ module IRB
 	  @encoding = Encoding.find(@encoding_name) rescue nil
 	end
       end
+=end
       @encoding ||= (Encoding.find('locale') rescue Encoding::ASCII_8BIT)
     end
 

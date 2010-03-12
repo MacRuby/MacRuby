@@ -19,6 +19,7 @@
 #include "dln.h"
 #include "objc.h"
 #include "vm.h"
+#include "encoding.h"
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -113,26 +114,11 @@ rb_get_path_check(VALUE obj, int check)
 	tmp = obj;
     }
   exit:
-    if (CLASS_OF(tmp) == rb_cByteString) {
-	const long len = rb_bytestring_length(tmp);
-	char *buf = (char *)alloca(len + 1);
-	memcpy(buf, (const char *)rb_bytestring_byte_pointer(tmp), len); 
-	buf[len] = '\0';
-	CFStringRef str = CFStringCreateWithFileSystemRepresentation(NULL,
-		buf);
-	if (str == NULL) {
-	    rb_raise(rb_eRuntimeError,
-		    "can't convert given ByteString to path");
-	}
-	return (VALUE)CFMakeCollectable(str);
+    StringValueCStr(tmp);
+    if (check && obj != tmp) {
+	rb_check_safe_obj(tmp);
     }
-    else {
-	StringValueCStr(tmp);
-	if (check && obj != tmp) {
-	    rb_check_safe_obj(tmp);
-	}
-	return rb_str_new4(tmp);
-    }
+    return rb_str_new4(tmp);
 }
 
 VALUE
@@ -183,7 +169,7 @@ static VALUE
 rb_file_path(VALUE obj, SEL sel)
 {
     rb_io_t *io = ExtractIOStruct(obj);
-    return io->path == NULL ? Qnil : (VALUE)io->path;
+    return io->path == 0 ? Qnil : io->path;
 }
 
 static VALUE
@@ -840,7 +826,7 @@ rb_file_lstat(VALUE obj, SEL sel)
 
     rb_secure(2);
     GetOpenFile(obj, fptr);
-    if (fptr->path == NULL) {
+    if (fptr->path == 0) {
 	return Qnil;
     }
     if (lstat(RSTRING_PTR(fptr->path), &st) == -1) {
@@ -2582,7 +2568,8 @@ static VALUE
 rb_file_s_split(VALUE klass, SEL sel, VALUE path)
 {
     FilePathStringValue(path);		/* get rid of converting twice */
-    return rb_assoc_new(rb_file_s_dirname(Qnil, 0, path), rb_file_s_basename(0,0,1,&path));
+    return rb_assoc_new(rb_file_s_dirname(Qnil, 0, path),
+	    rb_file_s_basename(0,0,1,&path));
 }
 
 static VALUE separator;
@@ -2590,51 +2577,42 @@ static VALUE separator;
 static VALUE
 rb_file_join(VALUE ary, VALUE sep)
 {
-    CFMutableStringRef res = CFStringCreateMutable(NULL, 0);
-    CFStringRef sep_cf = (CFStringRef)sep;
+    assert(rb_str_chars_len(sep) == 1);
+    UChar sep_char = rb_str_get_uchar(sep, 0);
+    VALUE res = rb_str_new(NULL, 0);
 
-    const long count = RARRAY_LEN(ary);
-    if (count > 0) {
-	long i;
-	for (i = 0; i < count; i++) {
-	    VALUE tmp = RARRAY_AT(ary, i);
-	    switch (TYPE(tmp)) {
-		case T_STRING:
-		    if (*(VALUE *)tmp == rb_cByteString) {
-			tmp = (VALUE)rb_bytestring_resolve_cfstring(tmp);
-		    }
-		    break;
+    for (long i = 0, count = RARRAY_LEN(ary); i < count; i++) {
+	VALUE tmp = RARRAY_AT(ary, i);
+	switch (TYPE(tmp)) {
+	    case T_STRING:
+		break;
 
-		case T_ARRAY:
-		    tmp = rb_file_join(tmp, sep);
-		    break;
+	    case T_ARRAY:
+		tmp = rb_file_join(tmp, sep);
+		break;
 
-		default:
-		    FilePathStringValue(tmp);
-	    }
-
-	    CFStringRef tmp_cf = (CFStringRef)tmp;
-
-	    if (i > 0) {
-		if (CFStringHasSuffix(res, sep_cf)) {
-		    if (CFStringHasPrefix(tmp_cf, sep_cf)) {
-			// Remove trailing slash from res if tmp starts with a
-			// slash.
-			CFStringDelete(res,
-				CFRangeMake(CFStringGetLength(res) - 1, 1));
-		    }
-		}
-		else if (!CFStringHasPrefix(tmp_cf, sep_cf)) {
-		    CFStringAppend(res, sep_cf);
-		}
-	    }
-
-	    CFStringAppend(res, tmp_cf);
+	    default:
+		FilePathStringValue(tmp);
 	}
-    }
 
-    CFMakeCollectable(res);
-    return (VALUE)res;
+	if (i > 0 && !NIL_P(sep)) {
+	    const long res_len = rb_str_chars_len(res);
+	    const long tmp_len = rb_str_chars_len(tmp);
+
+	    if (res_len > 0
+		    && rb_str_get_uchar(res, res_len - 1) == sep_char) {
+		if (tmp_len > 0 && rb_str_get_uchar(tmp, 0) == sep_char) {
+		    rb_str_delete(res, res_len - 1, 1);
+		}
+	    }
+	    else if (tmp_len == 0
+		    || rb_str_get_uchar(tmp, 0) != sep_char) {
+		rb_str_concat(res, sep);
+	    } 
+	}
+	rb_str_concat(res, tmp);
+    }
+    return res;
 }
 
 /*

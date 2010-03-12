@@ -52,7 +52,7 @@ hexencode_str_new(VALUE str_digest)
     }
 
     const size_t p_len = digest_len * 2;
-    p = (UInt8 *)alloca(p_len + 1);
+    p = (UInt8 *)malloc(p_len + 1);
 
     for (i = 0; i < digest_len; i++) {
         unsigned char byte = digest[i];
@@ -61,7 +61,9 @@ hexencode_str_new(VALUE str_digest)
         p[i + i + 1] = hex[byte & 0x0f];
     }
 
-    return rb_bytestring_new_with_data(p, p_len);
+    VALUE bstr = rb_bstr_new_with_data(p, p_len);
+    free(p);
+    return bstr;
 }
 
 /*
@@ -539,8 +541,10 @@ rb_digest_base_finish(VALUE self, SEL sel)
 
     Data_Get_Struct(self, void, pctx);
 
-    str = rb_str_new(0, algo->digest_len);
-    algo->finish_func(pctx, (unsigned char *)RSTRING_PTR(str));
+    str = rb_bstr_new();
+    rb_bstr_resize(str, algo->digest_len);
+    rb_bstr_set_length(str, algo->digest_len);
+    algo->finish_func(pctx, rb_bstr_bytes(str));
 
     /* avoid potential coredump caused by use of a finished context */
     algo->init_func(pctx);

@@ -1,5 +1,5 @@
 /* 
- * MacRuby implementation of Ruby 1.9's encoding.c.
+ * MacRuby implementation of Ruby 1.9 String.
  *
  * This file is covered by the Ruby license. See COPYING for more details.
  * 
@@ -9,594 +9,388 @@
  * Copyright (C) 2000 Information-technology Promotion Agency, Japan
  */
 
-#include "ruby/ruby.h"
-#include "ruby/encoding.h"
-#include "regenc.h"
-#include <ctype.h>
-#ifdef HAVE_LANGINFO_H
-#include <langinfo.h>
-#endif
+#include <string.h>
 
-static ID id_encoding, id_base_encoding;
+#include "ruby.h"
+#include "ruby/encoding.h"
+#include "encoding.h"
+
 VALUE rb_cEncoding;
 
-static CFMutableDictionaryRef __encodings = NULL;
+static rb_encoding_t *default_internal = NULL;
+static rb_encoding_t *default_external = NULL;
+rb_encoding_t *rb_encodings[ENCODINGS_COUNT];
+
+static void str_undefined_update_flags(rb_str_t *self) { abort(); }
+static void str_undefined_make_data_binary(rb_str_t *self) { abort(); }
+static bool str_undefined_try_making_data_uchars(rb_str_t *self) { abort(); }
+static long str_undefined_length(rb_str_t *self, bool ucs2_mode) { abort(); }
+static long str_undefined_bytesize(rb_str_t *self) { abort(); }
+static character_boundaries_t str_undefined_get_character_boundaries(rb_str_t *self, long index, bool ucs2_mode) { abort(); }
+static long str_undefined_offset_in_bytes_to_index(rb_str_t *self, long offset_in_bytes, bool ucs2_mode) { abort(); }
 
 static VALUE
-enc_new(const CFStringEncoding *enc)
+mr_enc_s_list(VALUE klass, SEL sel)
 {
-    return Data_Wrap_Struct(rb_cEncoding, NULL, NULL, (void *)enc);
+    VALUE ary = rb_ary_new2(ENCODINGS_COUNT);
+    for (unsigned int i = 0; i < ENCODINGS_COUNT; ++i) {
+	rb_ary_push(ary, (VALUE)rb_encodings[i]);
+    }
+    return ary;
+}
+
+static VALUE
+mr_enc_s_name_list(VALUE klass, SEL sel)
+{
+    VALUE ary = rb_ary_new();
+    for (unsigned int i = 0; i < ENCODINGS_COUNT; ++i) {
+	rb_encoding_t *encoding = RENC(rb_encodings[i]);
+	// TODO: use US-ASCII strings
+	rb_ary_push(ary, rb_usascii_str_new2(encoding->public_name));
+	for (unsigned int j = 0; j < encoding->aliases_count; ++j) {
+	    rb_ary_push(ary, rb_usascii_str_new2(encoding->aliases[j]));
+	}
+    }
+    return ary;
+}
+
+static VALUE
+mr_enc_s_aliases(VALUE klass, SEL sel)
+{
+    VALUE hash = rb_hash_new();
+    for (unsigned int i = 0; i < ENCODINGS_COUNT; ++i) {
+	rb_encoding_t *encoding = RENC(rb_encodings[i]);
+	for (unsigned int j = 0; j < encoding->aliases_count; ++j) {
+	    rb_hash_aset(hash, rb_usascii_str_new2(encoding->aliases[j]),
+		    rb_usascii_str_new2(encoding->public_name));
+	}
+    }
+    return hash;
+}
+
+static VALUE
+mr_enc_s_find(VALUE klass, SEL sel, VALUE name)
+{
+    StringValue(name);
+    rb_encoding_t *enc = rb_enc_find(RSTRING_PTR(name));
+    if (enc == NULL) {
+	rb_raise(rb_eArgError, "unknown encoding name - %s",
+		RSTRING_PTR(name));
+    }
+    return (VALUE)enc;
+}
+
+static VALUE
+mr_enc_s_default_internal(VALUE klass, SEL sel)
+{
+    return (VALUE)default_internal;
+}
+
+static VALUE
+mr_enc_s_default_external(VALUE klass, SEL sel)
+{
+    return (VALUE)default_external;
+}
+
+static VALUE
+mr_enc_name(VALUE self, SEL sel)
+{
+    return rb_usascii_str_new2(RENC(self)->public_name);
+}
+
+static VALUE
+mr_enc_inspect(VALUE self, SEL sel)
+{
+    return rb_sprintf("#<%s:%s>", rb_obj_classname(self),
+	    RENC(self)->public_name);
+}
+
+static VALUE
+mr_enc_names(VALUE self, SEL sel)
+{
+    rb_encoding_t *encoding = RENC(self);
+
+    VALUE ary = rb_ary_new2(encoding->aliases_count + 1);
+    rb_ary_push(ary, rb_usascii_str_new2(encoding->public_name));
+    for (unsigned int i = 0; i < encoding->aliases_count; ++i) {
+	rb_ary_push(ary, rb_usascii_str_new2(encoding->aliases[i]));
+    }
+    return ary;
+}
+
+static VALUE
+mr_enc_ascii_compatible_p(VALUE self, SEL sel)
+{
+    return RENC(self)->ascii_compatible ? Qtrue : Qfalse;
+}
+
+static VALUE
+mr_enc_dummy_p(VALUE self, SEL sel)
+{
+    return Qfalse;
 }
 
 static void
-enc_init_db(void)
+define_encoding_constant(const char *name, rb_encoding_t *encoding)
 {
-    const CFStringEncoding *e;
-
-    __encodings = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
-    
-    /* XXX CFStringGetListOfAvailableEncodings() is a costly call and should
-     * be called on demand and not by default when the interpreter starts.
-     */
-    e = CFStringGetListOfAvailableEncodings();
-    while (e != NULL && *e != kCFStringEncodingInvalidId) {
-	VALUE iana;
-	VALUE encoding;
-
-	encoding = enc_new(e);
-
-	iana = (VALUE)CFStringConvertEncodingToIANACharSetName(*e);
-	if (iana != 0) {
-	    const char *name;
-
-	    name = RSTRING_PTR(iana);
-
-	    // new_name = name.gsub(/-/, '_').upcase
-	    char *new_name = alloca(strlen(name));
-	    strcpy(new_name, name);
-	    char *p = strchr(name, '-');
-	    if (p != NULL) {
-		p = new_name + (p - name);
-		do {
-		    *p = '_';
-		    p++;
-		    p = strchr(p, '-');	
-		}
-		while (p != NULL);
-	    }
-	    p = new_name;
-	    while (*p != '\0') {
-		if (islower(*p)) {
-		    *p = toupper(*p);
-		}
-		p++;
-	    }
-
-	    ID encoding_id = rb_intern(new_name);
-	    if (!rb_const_defined(rb_cEncoding, encoding_id)) {
-		rb_const_set(rb_cEncoding, encoding_id, encoding);
-	    }
-	}
-	CFDictionarySetValue(__encodings, (const void *)iana, 
-	    (const void *)encoding);
-	e++;
+    char c = name[0];
+    if ((c >= '0') && (c <= '9')) {
+	// constants can't start with a number
+	return;
     }
 
-    assert(CFDictionaryGetCount((CFDictionaryRef)__encodings) > 0);
-
-    // Define shortcuts.
-    rb_define_const(rb_cEncoding, "ASCII_8BIT",
-	    rb_const_get(rb_cEncoding, rb_intern("US_ASCII")));
-    rb_define_const(rb_cEncoding, "BINARY",
-	    rb_const_get(rb_cEncoding, rb_intern("US_ASCII")));
-}
-
-static VALUE
-enc_make(const CFStringEncoding *enc)
-{
-    VALUE iana, v;
-
-    assert(enc != NULL);
-    iana = (VALUE)CFStringConvertEncodingToIANACharSetName(*enc);
-    v = (VALUE)CFDictionaryGetValue((CFDictionaryRef)__encodings, 
-	(const void *)iana);
-    assert(v != 0);
-    return v;
-}
-
-VALUE
-rb_enc_from_encoding(rb_encoding *enc)
-{
-    return enc_make(enc);
-}
-
-static inline CFStringEncoding
-rb_enc_to_enc(VALUE v)
-{
-    return *(CFStringEncoding *)DATA_PTR(v);
-}
-
-static inline CFStringEncoding *
-rb_enc_to_enc_ptr(VALUE v)
-{
-    return (CFStringEncoding *)DATA_PTR(v);
-}
-
-rb_encoding *
-rb_to_encoding(VALUE v)
-{
-    if (TYPE(v) == T_STRING)
-	return rb_enc_find2(v);
-    return rb_enc_to_enc_ptr(v);
-}
-
-/*
- * call-seq:
- *   enc.dummy? => true or false
- *
- * Returns true for dummy encodings.
- * A dummy encoding is an encoding for which character handling is not properly
- * implemented.
- * It is used for stateful encodings.
- *
- *   Encoding::ISO_2022_JP.dummy?       #=> true
- *   Encoding::UTF_8.dummy?             #=> false
- *
- */
-static VALUE
-enc_dummy_p(VALUE enc, SEL sel)
-{
-    return rb_enc_dummy_p(rb_to_encoding(enc)) ? Qtrue : Qfalse;
-}
-
-ID
-rb_id_encoding(void)
-{
-    if (!id_encoding) {
-	id_encoding = rb_intern("encoding");
-    }
-    return id_encoding;
-}
-
-rb_encoding*
-rb_enc_compatible(VALUE str1, VALUE str2)
-{
-    /* TODO */
-    rb_encoding *enc = rb_enc_get(str1);
-    if (enc == rb_enc_get(str2))
-	return enc;
-    return NULL;
-}
-
-/*
- *  call-seq:
- *     obj.encoding   => encoding
- *
- *  Returns the Encoding object that represents the encoding of obj.
- */
-
-VALUE
-rb_obj_encoding(VALUE obj, SEL sel)
-{
-    rb_encoding *enc = rb_enc_get(obj);
-    if (!enc) {
-	rb_raise(rb_eTypeError, "unknown encoding");
-    }
-    return rb_enc_from_encoding(enc);
-}
-
-/*
- * call-seq:
- *   enc.inspect => string
- *
- * Returns a string which represents the encoding for programmers.
- *
- *   Encoding::UTF_8.inspect       #=> "#<Encoding:UTF-8>"
- *   Encoding::ISO_2022_JP.inspect #=> "#<Encoding:ISO-2022-JP (dummy)>"
- */
-static VALUE
-enc_inspect(VALUE self, SEL sel)
-{
-    char buffer[512];
-    VALUE enc_name;
-    long n;
-
-    enc_name = (VALUE)CFStringGetNameOfEncoding(rb_enc_to_enc(self));
-    
-    n = snprintf(buffer, sizeof buffer, "#<%s:%s>", rb_obj_classname(self),
-	RSTRING_PTR(enc_name));
-
-    return rb_str_new(buffer, n);
-}
-
-/*
- * call-seq:
- *   enc.name => string
- *
- * Returns the name of the encoding.
- *
- *   Encoding::UTF_8.name       => "UTF-8"
- */
-static VALUE
-enc_name(VALUE self, SEL sel)
-{
-    return rb_enc_name2(rb_enc_to_enc_ptr(self));
-}
-
-static VALUE
-enc_base_encoding(VALUE self, SEL sel)
-{
-    return rb_attr_get(self, id_base_encoding);
-}
-
-/*
- * call-seq:
- *   Encoding.list => [enc1, enc2, ...]
- *
- * Returns the list of loaded encodings.
- *
- *   Encoding.list
- *   => [#<Encoding:ASCII-8BIT>, #<Encoding:UTF-8>,
- *       #<Encoding:ISO-2022-JP (dummy)>]
- *
- *   Encoding.find("US-ASCII")
- *   => #<Encoding:US-ASCII>
- *
- *   Encoding.list
- *   => [#<Encoding:ASCII-8BIT>, #<Encoding:UTF-8>,
- *       #<Encoding:US-ASCII>, #<Encoding:ISO-2022-JP (dummy)>]
- *
- */
-static VALUE
-enc_list(VALUE klass, SEL sel)
-{
-    VALUE ary;
-    const CFStringEncoding *e;
-
-    ary = rb_ary_new();
-    e = CFStringGetListOfAvailableEncodings();
-    while (e != NULL && *e != kCFStringEncodingInvalidId) {
-	rb_ary_push(ary, enc_make(e));
-	e++;
-    }
-    return ary;
-}
-
-/*
- * call-seq:
- *   Encoding.find(string) => enc
- *   Encoding.find(symbol) => enc
- *
- * Search the encoding with specified <i>name</i>.
- * <i>name</i> should be a string or symbol.
- *
- *   Encoding.find("US-ASCII")  => #<Encoding:US-ASCII>
- *   Encoding.find(:Shift_JIS)  => #<Encoding:Shift_JIS>
- *
- */
-static VALUE
-enc_find2(VALUE enc)
-{
-    CFStringRef str;
-    CFStringEncoding e;
-
-    str = (CFStringRef)StringValue(enc);
-    if (CFStringCompare(str, CFSTR("ASCII-8BIT"), 
-			kCFCompareCaseInsensitive) == 0) {
-	str = CFSTR("ASCII");
-    }
-    else if (CFStringCompare(str, CFSTR("SJIS"), 
-	     kCFCompareCaseInsensitive) == 0) {
-	str = CFSTR("Shift-JIS");
+    char *name_copy = strdup(name);
+    if ((c >= 'a') && (c <= 'z')) {
+	// the first character must be upper case
+	name_copy[0] = c - ('a' - 'A');
     }
 
-    e = CFStringConvertIANACharSetNameToEncoding(str);
-    if (e == kCFStringEncodingInvalidId)
-	return Qnil;
-    return enc_make(&e);
-}
-
-static VALUE
-enc_find(VALUE klass, SEL sel, VALUE enc)
-{
-    VALUE e = enc_find2(enc);
-    if (e == Qnil) {
-	rb_raise(rb_eArgError, "unknown encoding name - %s", RSTRING_PTR(enc));
-    }
-    return e;
-}
-
-/*
- * call-seq:
- *   Encoding.compatible?(str1, str2) => enc or nil
- *
- * Checks the compatibility of two strings.
- * If they are compatible, means concatenatable, 
- * returns an encoding which the concatinated string will be.
- * If they are not compatible, nil is returned.
- *
- *   Encoding.compatible?("\xa1".force_encoding("iso-8859-1"), "b")
- *   => #<Encoding:ISO-8859-1>
- *
- *   Encoding.compatible?(
- *     "\xa1".force_encoding("iso-8859-1"),
- *     "\xa1\xa1".force_encoding("euc-jp"))
- *   => nil
- *
- */
-static VALUE
-enc_compatible_p(VALUE klass, SEL sel, VALUE str1, VALUE str2)
-{
-    rb_encoding *enc = rb_enc_compatible(str1, str2);
-    VALUE encoding = Qnil;
-    if (!enc || !(encoding = rb_enc_from_encoding(enc)))
-	encoding = Qnil;
-    return encoding;
-}
-
-/* :nodoc: */
-static VALUE
-enc_dump(VALUE self, SEL sel, int argc, VALUE *argv)
-{
-    rb_scan_args(argc, argv, "01", 0);
-    return enc_name(self, 0);
-}
-
-/* :nodoc: */
-static VALUE
-enc_load(VALUE klass, SEL sel, VALUE str)
-{
-    return enc_find(klass, 0, str);
-}
-
-static rb_encoding *default_external;
-    
-rb_encoding *
-rb_default_external_encoding(void)
-{
-    return default_external;
-}
-
-VALUE
-rb_enc_default_external(void)
-{
-    return enc_make(default_external);
-}
-
-/*
- * call-seq:
- *   Encoding.default_external => enc
- *
- * Returns default external encoding.
- *
- * It is initialized by the locale or -E option.
- */
-static VALUE
-get_default_external(VALUE klass, SEL sel)
-{
-    return rb_enc_default_external();
-}
-
-static VALUE
-set_default_external(VALUE klass, SEL sel, VALUE enc)
-{
-    // TODO
-    return enc;
-}
-
-void
-rb_enc_set_default_external(VALUE encoding)
-{
-    default_external = rb_enc_to_enc_ptr(encoding);
-}
-
-/*
- * call-seq:
- *   Encoding.locale_charmap => string
- *
- * Returns the locale charmap name.
- *
- *   Debian GNU/Linux
- *     LANG=C
- *       Encoding.locale_charmap  => "ANSI_X3.4-1968"
- *     LANG=ja_JP.EUC-JP
- *       Encoding.locale_charmap  => "EUC-JP"
- *
- *   SunOS 5
- *     LANG=C
- *       Encoding.locale_charmap  => "646"
- *     LANG=ja
- *       Encoding.locale_charmap  => "eucJP"
- *
- */
-static VALUE
-rb_locale_charmap(VALUE klass, SEL sel)
-{
-    CFStringEncoding enc = CFStringGetSystemEncoding();
-    return (VALUE)CFStringConvertEncodingToIANACharSetName(enc);
-}
-
-/*
- * call-seq:
- *   Encoding.name_list => ["enc1", "enc2", ...]
- *
- * Returns the list of available encoding names.
- *
- *   Encoding.name_list
- *   => ["US-ASCII", "ASCII-8BIT", "UTF-8",
- *       "ISO-8859-1", "Shift_JIS", "EUC-JP",
- *       "Windows-31J",
- *       "BINARY", "CP932", "eucJP"]
- *
- * This list doesn't include dummy encodings.
- *
- */
-
-static VALUE
-rb_enc_name_list(VALUE klass, SEL sel)
-{
-    VALUE ary, list;
-    long i, count;
-
-    ary = rb_ary_new();
-    list = enc_list(klass, 0);
-    for (i = 0, count = RARRAY_LEN(list); i < count; i++) {
-	rb_ary_push(ary, enc_name(RARRAY_AT(list, i), 0));
-    }
-    return ary;
-}
-
-/*
- * call-seq:
- *   Encoding.aliases => {"alias1" => "orig1", "alias2" => "orig2", ...}
- *
- * Returns the hash of available encoding alias and original encoding name.
- *
- *   Encoding.aliases
- *   => {"BINARY"=>"ASCII-8BIT", "ASCII"=>"US-ASCII", "ANSI_X3.4-1986"=>"US-ASCII",
- *       "SJIS"=>"Shift_JIS", "eucJP"=>"EUC-JP", "CP932"=>"Windows-31J"}
- *
- */
-
-static VALUE
-rb_enc_aliases(VALUE klass, SEL sel)
-{
-    /* TODO: the CFString IANA <-> charset code does support aliases, we should
-     * find a way to return them here. 
-     */
-    return rb_hash_new();
-}
-
-VALUE
-rb_enc_name2(rb_encoding *enc)
-{
-    if (enc != NULL) {
-	CFStringRef str = CFStringConvertEncodingToIANACharSetName(*enc);
-	if (str != NULL) {
-	    VALUE name = rb_str_dup((VALUE)str);
-	    CFStringUppercase((CFMutableStringRef)name, NULL);
-	    return name;
+    // '.' and '-' must be transformed into '_'
+    for (int i = 0; name_copy[i]; ++i) {
+	if ((name_copy[i] == '.') || (name_copy[i] == '-')) {
+	    name_copy[i] = '_';
 	}
     }
-    return Qnil;
+    rb_define_const(rb_cEncoding, name_copy, (VALUE)encoding);
+    free(name_copy);
 }
 
-const char *
-rb_enc_name(rb_encoding *enc)
-{
-    VALUE str = rb_enc_name2(enc);
-    return str == Qnil ? NULL : RSTRING_PTR(str);
-}
+extern void enc_init_ucnv_encoding(rb_encoding_t *encoding);
 
-long 
-rb_enc_mbminlen(rb_encoding *enc)
-{
-    return rb_enc_mbmaxlen(enc);
-}
+enum {
+    ENCODING_TYPE_SPECIAL = 0,
+    ENCODING_TYPE_UCNV
+};
 
-long
-rb_enc_mbmaxlen(rb_encoding *enc)
+static void
+add_encoding(
+	unsigned int encoding_index, // index of the encoding in the encodings
+				     // array
+	unsigned int rb_encoding_type,
+	const char *public_name, // public name for the encoding
+	unsigned char min_char_size,
+	bool single_byte_encoding, // in the encoding a character takes only
+				   // one byte
+	bool ascii_compatible, // is the encoding ASCII compatible or not
+	... // aliases for the encoding (should no include the public name)
+	    // - must end with a NULL
+	)
 {
-    return enc == NULL
-	? 1 : CFStringGetMaximumSizeForEncoding(1, *enc);
-}
+    assert(encoding_index < ENCODINGS_COUNT);
 
-rb_encoding *
-rb_enc_find(const char *name)
-{
-    return rb_enc_find2(rb_str_new2(name));
-}
+    // create an array for the aliases
+    unsigned int aliases_count = 0;
+    va_list va_aliases;
+    va_start(va_aliases, ascii_compatible);
+    while (va_arg(va_aliases, const char *) != NULL) {
+	++aliases_count;
+    }
+    va_end(va_aliases);
+    const char **aliases = (const char **)
+	malloc(sizeof(const char *) * aliases_count);
+    va_start(va_aliases, ascii_compatible);
+    for (unsigned int i = 0; i < aliases_count; ++i) {
+	aliases[i] = va_arg(va_aliases, const char *);
+    }
+    va_end(va_aliases);
 
-rb_encoding *
-rb_enc_find2(VALUE name)
-{
-    VALUE e = enc_find2(name);
-    return e == Qnil ? NULL : rb_enc_to_enc_ptr(e);
-}
+    // create the MacRuby object
+    NEWOBJ(encoding, rb_encoding_t);
+    encoding->basic.flags = 0;
+    encoding->basic.klass = rb_cEncoding;
+    rb_encodings[encoding_index] = encoding;
+    GC_RETAIN(encoding); // it should never be deallocated
 
-rb_encoding *
-rb_enc_get(VALUE obj)
-{
-    CFStringEncoding enc = kCFStringEncodingInvalidId;
+    // fill the fields
+    encoding->index = encoding_index;
+    encoding->public_name = public_name;
+    encoding->min_char_size = min_char_size;
+    encoding->single_byte_encoding = single_byte_encoding;
+    encoding->ascii_compatible = ascii_compatible;
+    encoding->aliases_count = aliases_count;
+    encoding->aliases = aliases;
 
-    switch (TYPE(obj)) {
-	case T_STRING:
-	    enc = *(VALUE *)obj == rb_cByteString
-		? kCFStringEncodingASCII
-		: CFStringGetFastestEncoding((CFStringRef)obj);
+    // fill the default implementations with aborts
+    encoding->methods.update_flags = str_undefined_update_flags;
+    encoding->methods.make_data_binary = str_undefined_make_data_binary;
+    encoding->methods.try_making_data_uchars =
+	str_undefined_try_making_data_uchars;
+    encoding->methods.length = str_undefined_length;
+    encoding->methods.bytesize = str_undefined_bytesize;
+    encoding->methods.get_character_boundaries =
+	str_undefined_get_character_boundaries;
+    encoding->methods.offset_in_bytes_to_index =
+	str_undefined_offset_in_bytes_to_index;
+
+    switch (rb_encoding_type) {
+	case ENCODING_TYPE_SPECIAL:
 	    break;
+	case ENCODING_TYPE_UCNV:
+	    enc_init_ucnv_encoding(encoding);
+	    break;
+	default:
+	    abort();
     }
-
-    if (enc == kCFStringEncodingInvalidId) {
-	return NULL;
-    }
-    return rb_enc_to_enc_ptr(enc_make(&enc));
 }
 
-rb_encoding *
-rb_locale_encoding(void)
+// This Init function is called very early. Do not use any runtime method
+// because things may not be initialized properly yet.
+void
+Init_PreEncoding(void)
 {
-    CFStringEncoding enc = CFStringGetSystemEncoding();
-    return rb_enc_to_enc_ptr(enc_make(&enc));
+    add_encoding(ENCODING_BINARY,    ENCODING_TYPE_SPECIAL, "ASCII-8BIT",  1, true,  true,  "BINARY", NULL);
+    add_encoding(ENCODING_ASCII,     ENCODING_TYPE_UCNV,    "US-ASCII",    1, true,  true,  "ASCII", "ANSI_X3.4-1968", "646", NULL);
+    add_encoding(ENCODING_UTF8,      ENCODING_TYPE_UCNV,    "UTF-8",       1, false, true,  "CP65001", NULL);
+    add_encoding(ENCODING_UTF16BE,   ENCODING_TYPE_UCNV,    "UTF-16BE",    2, false, false, NULL);
+    add_encoding(ENCODING_UTF16LE,   ENCODING_TYPE_UCNV,    "UTF-16LE",    2, false, false, NULL);
+    add_encoding(ENCODING_UTF32BE,   ENCODING_TYPE_UCNV,    "UTF-32BE",    4, false, false, "UCS-4BE", NULL);
+    add_encoding(ENCODING_UTF32LE,   ENCODING_TYPE_UCNV,    "UTF-32LE",    4, false, false, "UCS-4LE", NULL);
+    add_encoding(ENCODING_ISO8859_1, ENCODING_TYPE_UCNV,    "ISO-8859-1",  1, true,  true,  "ISO8859-1", NULL);
+    add_encoding(ENCODING_MACROMAN,  ENCODING_TYPE_UCNV,    "macRoman",    1, true,  true,  NULL);
+    // FIXME: the ICU conversion tables do not seem to match Ruby's Japanese conversion tables
+    //add_encoding(ENCODING_EUCJP,     ENCODING_TYPE_RUBY, "EUC-JP",      1, false, true,  "eucJP", NULL);
+    //add_encoding(ENCODING_SJIS,      ENCODING_TYPE_RUBY, "Shift_JIS",   1, false, true, "SJIS", NULL);
+    //add_encoding(ENCODING_CP932,     ENCODING_TYPE_RUBY, "Windows-31J", 1, false, true, "CP932", "csWindows31J", NULL);
+
+    default_external = rb_encodings[ENCODING_UTF8];
+    default_internal = rb_encodings[ENCODING_UTF8];
 }
 
 void
 Init_Encoding(void)
 {
-    id_base_encoding = rb_intern("#base_encoding");
+    // rb_cEncoding is defined earlier in Init_PreVM().
+    rb_set_class_path(rb_cEncoding, rb_cObject, "Encoding");
+    rb_const_set(rb_cObject, rb_intern("Encoding"), rb_cEncoding);
 
-    rb_cEncoding = rb_define_class("Encoding", rb_cObject);
     rb_undef_alloc_func(rb_cEncoding);
-    rb_objc_define_method(rb_cEncoding, "to_s", enc_name, 0);
-    rb_objc_define_method(rb_cEncoding, "inspect", enc_inspect, 0);
-    rb_objc_define_method(rb_cEncoding, "name", enc_name, 0);
-    rb_objc_define_method(rb_cEncoding, "base_encoding", enc_base_encoding, 0);
-    rb_objc_define_method(rb_cEncoding, "dummy?", enc_dummy_p, 0);
-    rb_objc_define_method(*(VALUE *)rb_cEncoding, "list", enc_list, 0);
-    rb_objc_define_method(*(VALUE *)rb_cEncoding, "name_list", rb_enc_name_list, 0);
-    rb_objc_define_method(*(VALUE *)rb_cEncoding, "aliases", rb_enc_aliases, 0);
-    rb_objc_define_method(*(VALUE *)rb_cEncoding, "find", enc_find, 1);
-    rb_objc_define_method(*(VALUE *)rb_cEncoding, "compatible?", enc_compatible_p, 2);
 
-    rb_objc_define_method(rb_cEncoding, "_dump", enc_dump, -1);
-    rb_objc_define_method(*(VALUE *)rb_cEncoding, "_load", enc_load, 1);
+    rb_objc_define_method(rb_cEncoding, "to_s", mr_enc_name, 0);
+    rb_objc_define_method(rb_cEncoding, "inspect", mr_enc_inspect, 0);
+    rb_objc_define_method(rb_cEncoding, "name", mr_enc_name, 0);
+    rb_objc_define_method(rb_cEncoding, "names", mr_enc_names, 0);
+    rb_objc_define_method(rb_cEncoding, "dummy?", mr_enc_dummy_p, 0);
+    rb_objc_define_method(rb_cEncoding, "ascii_compatible?",
+	    mr_enc_ascii_compatible_p, 0);
+    rb_objc_define_method(*(VALUE *)rb_cEncoding, "list", mr_enc_s_list, 0);
+    rb_objc_define_method(*(VALUE *)rb_cEncoding, "name_list",
+	    mr_enc_s_name_list, 0);
+    rb_objc_define_method(*(VALUE *)rb_cEncoding, "aliases",
+	    mr_enc_s_aliases, 0);
+    rb_objc_define_method(*(VALUE *)rb_cEncoding, "find", mr_enc_s_find, 1);
+    rb_objc_define_method(*(VALUE *)rb_cEncoding, "compatible?",
+	    mr_enc_s_is_compatible, 2); // in string.c
 
-    rb_objc_define_method(*(VALUE *)rb_cEncoding, "default_external", get_default_external, 0);
-    rb_objc_define_method(*(VALUE *)rb_cEncoding, "default_external=", set_default_external, 1);
-    rb_objc_define_method(*(VALUE *)rb_cEncoding, "default_internal", get_default_external, 0); // TODO
-    rb_objc_define_method(*(VALUE *)rb_cEncoding, "default_internal=", set_default_external, 1); // TODO
-    rb_objc_define_method(*(VALUE *)rb_cEncoding, "locale_charmap", rb_locale_charmap, 0);
+    //rb_define_method(rb_cEncoding, "_dump", enc_dump, -1);
+    //rb_define_singleton_method(rb_cEncoding, "_load", enc_load, 1);
 
-    enc_init_db();
+    rb_objc_define_method(*(VALUE *)rb_cEncoding, "default_external",
+	    mr_enc_s_default_external, 0);
+    //rb_define_singleton_method(rb_cEncoding, "default_external=", set_default_external, 1);
+    rb_objc_define_method(*(VALUE *)rb_cEncoding, "default_internal",
+	    mr_enc_s_default_internal, 0);
+    //rb_define_singleton_method(rb_cEncoding, "default_internal=", set_default_internal, 1);
+    //rb_define_singleton_method(rb_cEncoding, "locale_charmap", rb_locale_charmap, 0);
+
+    // Create constants.
+    for (unsigned int i = 0; i < ENCODINGS_COUNT; i++) {
+	rb_encoding_t *enc = rb_encodings[i];
+	define_encoding_constant(enc->public_name, enc);
+	for (unsigned int j = 0; j < enc->aliases_count; j++) {
+	    define_encoding_constant(enc->aliases[j], enc);
+	}
+    }
 }
 
-/* locale insensitive functions */
+// MRI C-API compatibility.
 
-#define ctype_test(c, ctype) \
-    (rb_isascii(c) && ONIGENC_IS_ASCII_CODE_CTYPE((c), ctype))
-
-int rb_isalnum(int c) { return ctype_test(c, ONIGENC_CTYPE_ALNUM); }
-int rb_isalpha(int c) { return ctype_test(c, ONIGENC_CTYPE_ALPHA); }
-int rb_isblank(int c) { return ctype_test(c, ONIGENC_CTYPE_BLANK); }
-int rb_iscntrl(int c) { return ctype_test(c, ONIGENC_CTYPE_CNTRL); }
-int rb_isdigit(int c) { return ctype_test(c, ONIGENC_CTYPE_DIGIT); }
-int rb_isgraph(int c) { return ctype_test(c, ONIGENC_CTYPE_GRAPH); }
-int rb_islower(int c) { return ctype_test(c, ONIGENC_CTYPE_LOWER); }
-int rb_isprint(int c) { return ctype_test(c, ONIGENC_CTYPE_PRINT); }
-int rb_ispunct(int c) { return ctype_test(c, ONIGENC_CTYPE_PUNCT); }
-int rb_isspace(int c) { return ctype_test(c, ONIGENC_CTYPE_SPACE); }
-int rb_isupper(int c) { return ctype_test(c, ONIGENC_CTYPE_UPPER); }
-int rb_isxdigit(int c) { return ctype_test(c, ONIGENC_CTYPE_XDIGIT); }
-
-int
-rb_tolower(int c)
+rb_encoding_t *
+rb_enc_find(const char *name)
 {
-    return rb_isascii(c) ? ONIGENC_ASCII_CODE_TO_LOWER_CASE(c) : c;
+    for (unsigned int i = 0; i < ENCODINGS_COUNT; i++) {
+	rb_encoding_t *enc = rb_encodings[i];
+	if (strcasecmp(enc->public_name, name) == 0) {
+	    return enc;
+	}
+	for (unsigned int j = 0; j < enc->aliases_count; j++) {
+	    const char *alias = enc->aliases[j];
+	    if (strcasecmp(alias, name) == 0) {
+		return enc;
+	    }
+	}
+    }
+    return NULL;
 }
 
-int
-rb_toupper(int c)
+VALUE
+rb_enc_from_encoding(rb_encoding_t *enc)
 {
-    return rb_isascii(c) ? ONIGENC_ASCII_CODE_TO_UPPER_CASE(c) : c;
+    return (VALUE)enc;
+}
+
+rb_encoding_t *
+rb_enc_get(VALUE obj)
+{
+    if (IS_RSTR(obj)) {
+	return RSTR(obj)->encoding;
+    }
+    // TODO support symbols
+    return NULL;
+}
+
+rb_encoding_t *
+rb_to_encoding(VALUE obj)
+{
+    rb_encoding_t *enc;
+    if (CLASS_OF(obj) == rb_cEncoding) {
+	enc = RENC(obj);
+    }
+    else {
+	StringValue(obj);
+	enc = rb_enc_find(RSTRING_PTR(obj));
+	if (enc == NULL) {
+	    rb_raise(rb_eArgError, "unknown encoding name - %s",
+		    RSTRING_PTR(obj));
+	}
+    }
+    return enc;
+}
+
+const char *
+rb_enc_name(rb_encoding_t *enc)
+{
+    return RENC(enc)->public_name;
+}
+
+VALUE
+rb_enc_name2(rb_encoding_t *enc)
+{
+    return rb_usascii_str_new2(rb_enc_name(enc));
+}
+
+long
+rb_enc_mbminlen(rb_encoding_t *enc)
+{
+    return enc->min_char_size;    
+}
+
+long
+rb_enc_mbmaxlen(rb_encoding_t *enc)
+{
+    return enc->single_byte_encoding ? 1 : 10; // XXX 10?
+}
+
+rb_encoding_t *
+rb_locale_encoding(void)
+{
+    // XXX
+    return rb_encodings[ENCODING_UTF8];
+}
+
+void
+rb_enc_set_default_external(VALUE encoding)
+{
+    assert(CLASS_OF(encoding) == rb_cEncoding);
+    default_external = RENC(encoding); 
 }
 

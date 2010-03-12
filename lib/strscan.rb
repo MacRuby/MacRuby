@@ -299,11 +299,6 @@ class StringScanner
   #   s.getch           # => "a"
   #   s.getch           # => "b"
   #   s.getch           # => nil
-  #    
-  #   # encoding: EUC-JP
-  #   s = StringScanner.new("\244\242")
-  #   s.getch           # => "あ"
-  #   s.getch           # => nil
   #
   def getch
     scan(/./m)

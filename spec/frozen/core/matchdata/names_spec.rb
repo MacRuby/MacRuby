@@ -1,3 +1,4 @@
 require File.dirname(__FILE__) + '/../../spec_helper'
 
-language_version __FILE__, "names"
+# MacRuby does not support named captures yet.
+#language_version __FILE__, "names"

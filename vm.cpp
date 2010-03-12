@@ -174,7 +174,7 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 	    return mm->getGOTBase();
 	}
 
-#if LLVM_TOT
+#if defined(LLVM_TOT) || defined(LLVM_PRE_TOT)
 	void SetDlsymTable(void *ptr) {
 	    mm->SetDlsymTable(ptr);
 	}
@@ -2856,8 +2856,8 @@ rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv)
 
     int n = 0;
     VALUE args[3];
-    args[n++] = rb_funcall(rb_cNameErrorMesg, '!', 3, rb_str_new2(format),
-	    obj, meth);
+    VALUE not_args[3] = {rb_str_new2(format), obj, meth};
+    args[n++] = rb_vm_call(rb_cNameErrorMesg, selNot2, 3, not_args, false);
     args[n++] = meth;
     if (exc == rb_eNoMethodError) {
 	args[n++] = rb_ary_new4(argc - 1, argv + 1);
@@ -3374,9 +3374,6 @@ class_respond_to(Class klass, SEL sel)
 }
 #endif
 
-extern "C" VALUE rb_reg_match_pre(VALUE match, SEL sel);
-extern "C" VALUE rb_reg_match_post(VALUE match, SEL sel);
-
 extern "C"
 VALUE
 rb_vm_get_special(char code)
@@ -3392,10 +3389,10 @@ rb_vm_get_special(char code)
 	    val = rb_reg_last_match(backref);
 	    break;
 	case '`':
-	    val = rb_reg_match_pre(backref, 0);
+	    val = rb_reg_match_pre(backref);
 	    break;
 	case '\'':
-	    val = rb_reg_match_post(backref, 0);
+	    val = rb_reg_match_post(backref);
 	    break;
 	case '+':
 	    val = rb_reg_match_last(backref);
@@ -4955,6 +4952,14 @@ Init_PreVM(void)
     assert(m != NULL);
     old_resolveInstanceMethod_imp = method_getImplementation(m);
     method_setImplementation(m, (IMP)resolveInstanceMethod_imp);
+
+    // Early define some classes.
+    rb_cSymbol = rb_objc_create_class("Symbol",
+	    (VALUE)objc_getClass("NSString"));
+    rb_cEncoding = rb_objc_create_class("Encoding",
+	    (VALUE)objc_getClass("NSObject"));
+    rb_cRubyString = rb_objc_create_class("String",
+	    (VALUE)objc_getClass("NSMutableString"));
 }
 
 static VALUE

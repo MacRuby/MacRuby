@@ -40,7 +40,7 @@ bubblebabble_str_new(VALUE str_digest)
     }
 
     const size_t p_len = (digest_len | 1) * 3 + 2;
-    p = (UInt8 *)alloca(p_len + 1);
+    p = (UInt8 *)malloc(p_len + 1);
 
     i = j = 0;
     p[j++] = 'x';
@@ -74,7 +74,9 @@ bubblebabble_str_new(VALUE str_digest)
 
     p[j] = 'x';
 
-    return rb_bytestring_new_with_data(p, p_len);
+    VALUE bstr = rb_bstr_new_with_data(p, p_len);
+    free(p);
+    return bstr;
 }
 
 /*

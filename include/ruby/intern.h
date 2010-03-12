@@ -505,18 +505,22 @@ int rb_range_values(VALUE range, VALUE *begp, VALUE *endp, int *exclp);
 unsigned int rb_genrand_int32(void);
 double rb_genrand_real(void);
 /* re.c */
+VALUE rb_reg_compile(VALUE str, int options);
+VALUE rb_reg_check_preprocess(VALUE);
+void rb_match_busy(VALUE match);
 #define rb_memcmp memcmp
 int rb_memcicmp(const void*,const void*,long);
 VALUE rb_reg_nth_defined(int, VALUE);
 VALUE rb_reg_nth_match(int, VALUE);
 VALUE rb_reg_last_match(VALUE);
 VALUE rb_reg_match_last(VALUE);
+VALUE rb_reg_match_pre(VALUE);
+VALUE rb_reg_match_post(VALUE);
 #define HAVE_RB_REG_NEW_STR 1
 VALUE rb_reg_new_str(VALUE, int);
 VALUE rb_reg_new(const char *, long, int);
 VALUE rb_reg_match(VALUE, VALUE);
 int rb_reg_options(VALUE);
-VALUE rb_reg_eqq(VALUE, SEL, VALUE);
 void rb_set_kcode(const char*);
 const char* rb_get_kcode(void);
 /* ruby.c */
@@ -583,22 +587,39 @@ VALUE rb_str_cat2(VALUE, const char*);
 VALUE rb_str_append(VALUE, VALUE);
 VALUE rb_str_concat(VALUE, VALUE);
 VALUE rb_str_plus(VALUE str1, VALUE str2);
-int rb_memhash(const void *ptr, long len);
-int rb_str_hash(VALUE);
+long rb_memhash(const void *ptr, long len);
+unsigned long rb_str_hash(VALUE);
 int rb_str_hash_cmp(VALUE,VALUE);
 int rb_str_comparable(VALUE, VALUE);
 int rb_str_cmp(VALUE, VALUE);
+int rb_str_casecmp(VALUE, VALUE);
 VALUE rb_str_equal(VALUE str1, VALUE str2);
 void rb_str_update(VALUE, long, long, VALUE);
+void rb_str_delete(VALUE str, long beg, long len);
 VALUE rb_str_split(VALUE, const char*);
 void rb_str_associate(VALUE, VALUE);
 VALUE rb_str_associated(VALUE);
 void rb_str_setter(VALUE, ID, VALUE*);
 VALUE rb_sym_to_s(VALUE);
 VALUE rb_str_length(VALUE);
+VALUE rb_str_inspect(VALUE);
 #if WITH_OBJC
 bool rb_objc_str_is_pure(VALUE);
 #endif
+
+// Return a string object appropriate for bstr_ calls. This does nothing for
+// data/binary RubyStrings.
+VALUE rb_str_bstr(VALUE str);
+
+// Byte strings APIs. Use this only when dealing with raw data.
+VALUE rb_bstr_new(void);
+VALUE rb_bstr_new_with_data(const uint8_t *bytes, long len);
+uint8_t *rb_bstr_bytes(VALUE str);
+void rb_bstr_concat(VALUE str, const uint8_t *bytes, long len);
+long rb_bstr_length(VALUE str);
+void rb_bstr_set_length(VALUE str, long len);
+void rb_bstr_resize(VALUE str, long capa);
+
 /* struct.c */
 VALUE rb_struct_new(VALUE, ...);
 VALUE rb_struct_define(const char*, ...);

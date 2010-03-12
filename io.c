@@ -16,6 +16,7 @@
 #include "vm.h"
 #include "objc.h"
 #include "id.h"
+#include "encoding.h"
 
 #include <errno.h>
 #include <paths.h>
@@ -407,36 +408,24 @@ prep_io(int fd, int mode, VALUE klass)
  */
 
 static VALUE
-io_write(VALUE io, SEL sel, VALUE to_write)
+io_write(VALUE io, SEL sel, VALUE data)
 {
     rb_secure(4);
 
     VALUE tmp = rb_io_check_io(io);
     if (NIL_P(tmp)) {
 	// receiver is not IO, dispatch the write method on it
-	return rb_vm_call(io, selWrite, 1, &to_write, false);
+	return rb_vm_call(io, selWrite, 1, &data, false);
     }
     io = tmp;
     
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_writable(io_struct);
-    to_write = rb_obj_as_string(to_write);
+    data = rb_obj_as_string(data);
 
-    UInt8 *buffer;
-    size_t length;
-    if (CLASS_OF(to_write) == rb_cByteString) {
-	CFMutableDataRef data = rb_bytestring_wrapped_data(to_write);
-	buffer = CFDataGetMutableBytePtr(data);
-	length = CFDataGetLength(data);
-    }
-    else {
-	buffer = (UInt8 *)RSTRING_PTR(to_write);
-	if (buffer == NULL) {
-	    rb_raise(rb_eRuntimeError,
-		    "could not extract a string from the read data.");
-	}
-	length = strlen((char *)buffer);
-    }
+    data = rb_str_bstr(data);
+    const uint8_t *buffer = rb_bstr_bytes(data);
+    const long length = rb_bstr_length(data);
 
     if (length == 0) {
         return INT2FIX(0);
@@ -860,15 +849,21 @@ static VALUE
 rb_io_inspect(VALUE io, SEL sel)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
-    if ((io_struct == NULL) || (io_struct->path == NULL)) {
+    if (io_struct == NULL || io_struct->path == 0) {
         return rb_any_to_s(io);
     }
-    const char *status = (rb_io_is_open(io_struct) ? "" : " (closed)");
 
-    CFStringRef s = CFStringCreateWithFormat(NULL, NULL, CFSTR("#<%s:%@%s>"),
-	    rb_obj_classname(io), io_struct->path, status);
-    CFMakeCollectable(s);
-    return (VALUE)s;
+    VALUE str = rb_str_new2("#<");
+    rb_str_cat2(str, rb_obj_classname(io));
+    rb_str_cat2(str, ":");
+    rb_str_concat(str, io_struct->path);
+    if (!rb_io_is_open(io_struct)) {
+	rb_str_cat2(str, " (closed)>");
+    }
+    else {
+	rb_str_cat2(str, ">");
+    }
+    return str;
 }
 
 /*
@@ -987,24 +982,26 @@ rb_io_read_internal(rb_io_t *io_struct, UInt8 *buffer, long len)
 }
 
 static VALUE 
-rb_io_read_all(rb_io_t *io_struct, VALUE bytestring_buffer) 
+rb_io_read_all(rb_io_t *io_struct, VALUE outbuf) 
 {
+    outbuf = rb_str_bstr(outbuf);
+
     const long BUFSIZE = 512;
-    CFMutableDataRef data = rb_bytestring_wrapped_data(bytestring_buffer);
     long bytes_read = 0;
-    const long original_position = (long)CFDataGetLength(data);
-    for (;;) {
-        CFDataIncreaseLength(data, BUFSIZE);
-        UInt8 *b = CFDataGetMutableBytePtr(data) + original_position
-	    + bytes_read;
-        const long last_read = rb_io_read_internal(io_struct, b, BUFSIZE);
+    const long original_position = rb_bstr_length(outbuf);
+
+    while (true) {
+	rb_bstr_resize(outbuf, original_position + bytes_read + BUFSIZE);
+	uint8_t *bytes = rb_bstr_bytes(outbuf) + original_position + bytes_read;
+        const long last_read = rb_io_read_internal(io_struct, bytes, BUFSIZE);
         bytes_read += last_read;
 	if (last_read == 0) {
 	    break;
 	}
     }
-    CFDataSetLength(data, original_position + bytes_read);
-    return bytestring_buffer; 
+
+    rb_bstr_set_length(outbuf, original_position + bytes_read);
+    return outbuf; 
 }
 
 long
@@ -1122,12 +1119,7 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
     rb_io_assert_readable(io_struct);
 
     if (NIL_P(outbuf)) {
-	outbuf = rb_bytestring_new();
-    }
-    else if (CLASS_OF(outbuf) != rb_cByteString) {
-	// TODO: Get the magical pointer incantations right.
-	rb_raise(rb_eIOError,
-		"writing to non-bytestrings is not supported at this time.");
+	outbuf = rb_bstr_new();
     }
 
     if (NIL_P(len)) {
@@ -1146,15 +1138,15 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
 	rb_raise(rb_eArgError, "given size `%ld' is too big", size);
     }
 
-    CFMutableDataRef data = rb_bytestring_wrapped_data(outbuf);
-    CFDataIncreaseLength(data, size);
-    UInt8 *buf = CFDataGetMutableBytePtr(data);
+    outbuf = rb_str_bstr(outbuf);
+    rb_bstr_resize(outbuf, size);
+    uint8_t *bytes = rb_bstr_bytes(outbuf);
 
-    const long data_read = rb_io_read_internal(io_struct, buf, size);
+    const long data_read = rb_io_read_internal(io_struct, bytes, size);
     if (data_read == 0) {
 	return Qnil;
     }
-    CFDataSetLength(data, data_read);
+    rb_bstr_set_length(outbuf, data_read);
 
     return outbuf;
 }
@@ -1288,24 +1280,25 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 	}
     }
     const long line_limit = NIL_P(limit) ? -1 : FIX2LONG(limit);
-    // now that we've got our parameters, let's get down to business.
 
-    VALUE bstr = rb_bytestring_new();
-    CFMutableDataRef data = rb_bytestring_wrapped_data(bstr);
+    VALUE bstr = rb_bstr_new();
     if (line_limit != -1) {
-	CFDataIncreaseLength(data, line_limit);
-	UInt8 *b = CFDataGetMutableBytePtr(data);
-	rb_io_read_internal(io_struct, b, line_limit);
+	rb_bstr_resize(bstr, line_limit);
+	uint8_t *bytes = rb_bstr_bytes(bstr);
+	rb_io_read_internal(io_struct, bytes, line_limit);
+#if 0 // TODO
 	CFRange r = CFStringFind((CFStringRef)bstr, (CFStringRef)sep, 0);
 	if (r.location != kCFNotFound) {
 	    CFDataSetLength(data, r.location);
 	}
+#endif
     }
     else {
 	const char *sepstr = RSTRING_PTR(sep);
 	const long seplen = RSTRING_LEN(sep);
 	assert(seplen > 0);
 
+#if 0 // TODO
 	// Pre-cache if possible.
 	rb_io_read_internal(io_struct, NULL, 0);
 	if (io_struct->buf != NULL && CFDataGetLength(io_struct->buf) > 0) {
@@ -1335,23 +1328,24 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 	    CFDataAppendBytes(data, cache, data_read);
 	    rb_io_read_update(io_struct, data_read);
 	}
-	else {
+	else 
+#endif
+	{
 	    // Read from IO (slow).
 	    long s = 512;
 	    long data_read = 0;
-	    CFDataSetLength(data, s);
+	    rb_bstr_resize(bstr, s);
 
-	    UInt8 *buf = CFDataGetMutableBytePtr(data);
-	    UInt8 *tmp_buf = alloca(seplen);
-
+	    uint8_t *buf = rb_bstr_bytes(bstr);
+	    uint8_t *tmp_buf = (uint8_t *)malloc(seplen);
 	    while (true) {
 		if (rb_io_read_internal(io_struct, tmp_buf, seplen) != seplen) {
 		    break;
 		}
 		if (data_read >= s) {
 		    s += s;
-		    CFDataSetLength(data, s);
-		    buf = CFDataGetMutableBytePtr(data);
+		    rb_bstr_resize(bstr, s);
+		    buf = rb_bstr_bytes(bstr);
 		}
 		memcpy(&buf[data_read], tmp_buf, seplen);
 		data_read += seplen;
@@ -1360,10 +1354,12 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 		    break;
 		}
 	    }
+	    free(tmp_buf);
+
 	    if (data_read == 0) {
 		return Qnil;
 	    }
-	    CFDataSetLength(data, data_read);
+	    rb_bstr_set_length(bstr, data_read);
 	}
     }
     OBJ_TAINT(bstr);
@@ -3347,11 +3343,11 @@ rb_f_backquote(VALUE obj, SEL sel, VALUE str)
 	io_s->pid = -1;
     }
 
-    VALUE bstr = rb_bytestring_new();
-    rb_io_read_all(ExtractIOStruct(io), bstr);
+    VALUE outbuf = rb_bstr_new();
+    rb_io_read_all(ExtractIOStruct(io), outbuf);
     rb_io_close(io);
 
-    return bstr;
+    return outbuf;
 }
 
 /*
@@ -3843,9 +3839,9 @@ rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
 	}
     }
 
-    CFMutableDataRef data = rb_bytestring_wrapped_data(outbuf);
-    UInt8 *buf = CFDataGetMutableBytePtr(data);
-    const long length = CFDataGetLength(data);
+    outbuf = rb_str_bstr(outbuf);
+    uint8_t *bytes = rb_bstr_bytes(outbuf);
+    const long length = rb_bstr_length(outbuf);
 
     VALUE ary = rb_ary_new();
 
@@ -3854,9 +3850,9 @@ rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
 
 	long pos = 0;
 	void *ptr;
-	while ((ptr = memchr(&buf[pos], byte, length - pos)) != NULL) {
-	    const long s =  (long)ptr - (long)&buf[pos] + 1;
-	    rb_ary_push(ary, rb_bytestring_new_with_data(&buf[pos], s));
+	while ((ptr = memchr(&bytes[pos], byte, length - pos)) != NULL) {
+	    const long s = (long)ptr - (long)&bytes[pos] + 1;
+	    rb_ary_push(ary, rb_bstr_new_with_data(&bytes[pos], s));
 	    pos += s; 
 	}
     }
@@ -3975,7 +3971,7 @@ static VALUE
 rb_io_external_encoding(VALUE io, SEL sel)
 {
     // TODO
-    return Qnil;
+    return (VALUE)rb_locale_encoding();
 }
 
 /*
@@ -3990,7 +3986,7 @@ static VALUE
 rb_io_internal_encoding(VALUE io, SEL sel)
 {
     // TODO
-    return Qnil;
+    return (VALUE)rb_locale_encoding();
 }
 
 /*

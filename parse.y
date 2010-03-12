@@ -21,8 +21,10 @@
 #include "ruby/node.h"
 #include "ruby/st.h"
 #include "ruby/encoding.h"
+#include "encoding.h"
+#include "symbol.h"
 #include "id.h"
-#include "regenc.h"
+#include "re.h"
 #include <stdio.h>
 #include <errno.h>
 #include <ctype.h>
@@ -32,35 +34,11 @@
 #define YYCALLOC(nelem, size)	rb_parser_calloc(parser, nelem, size)
 #define YYFREE(ptr)		rb_parser_free(parser, ptr)
 static inline void *orig_malloc(size_t l) { return malloc(l); }
+static inline void orig_free(void *ptr) { free(ptr); }
 #define malloc	YYMALLOC
 #define realloc	YYREALLOC
 #define calloc	YYCALLOC
 #define free	YYFREE
-
-#define ID_SCOPE_SHIFT 3
-#define ID_SCOPE_MASK 0x07
-#define ID_LOCAL      0x00
-#define ID_INSTANCE   0x01
-#define ID_GLOBAL     0x03
-#define ID_ATTRSET    0x04
-#define ID_CONST      0x05
-#define ID_CLASS      0x06
-#define ID_JUNK       0x07
-#define ID_INTERNAL   ID_JUNK
-
-#define is_notop_id(id) ((id)>tLAST_TOKEN)
-#define is_local_id(id) (is_notop_id(id)&&((id)&ID_SCOPE_MASK)==ID_LOCAL)
-#define is_global_id(id) (is_notop_id(id)&&((id)&ID_SCOPE_MASK)==ID_GLOBAL)
-#define is_instance_id(id) (is_notop_id(id)&&((id)&ID_SCOPE_MASK)==ID_INSTANCE)
-#define is_attrset_id(id) (is_notop_id(id)&&((id)&ID_SCOPE_MASK)==ID_ATTRSET)
-#define is_const_id(id) (is_notop_id(id)&&((id)&ID_SCOPE_MASK)==ID_CONST)
-#define is_class_id(id) (is_notop_id(id)&&((id)&ID_SCOPE_MASK)==ID_CLASS)
-#define is_junk_id(id) (is_notop_id(id)&&((id)&ID_SCOPE_MASK)==ID_JUNK)
-
-#define is_asgn_or_id(id) ((is_notop_id(id)) && \
-	(((id)&ID_SCOPE_MASK) == ID_GLOBAL || \
-	 ((id)&ID_SCOPE_MASK) == ID_INSTANCE || \
-	 ((id)&ID_SCOPE_MASK) == ID_CLASS))
 
 enum lex_state_e {
     EXPR_BEG,			/* ignore newline, +/- is a sign. */
@@ -289,23 +267,10 @@ struct parser_params {
 };
 
 #if WITH_OBJC
+// TODO: we should probably mimic what 1.9 does here and use the right/given
+// encoding instead of always UTF8.
 # define UTF8_ENC() (NULL)
-static inline VALUE
-__new_tmp_str(const char *ptr, const size_t len)
-{
-    if (ptr != NULL) {
-	CFStringRef str = CFStringCreateWithBytes(NULL, (UInt8 *)ptr, len,
-		kCFStringEncodingUTF8, false);
-	if (str != NULL) {
-	    CFMutableStringRef str2 =
-		CFStringCreateMutableCopy(NULL, 0, str);
-	    assert(str2 != NULL);
-	    CFRelease(str);
-	    return (VALUE)CFMakeCollectable(str2);
-	}
-    }
-    return rb_usascii_str_new(ptr, len);
-}
+# define __new_tmp_str(p, n) (rb_str_new(p, n))
 # define STR_NEW(p,n) __new_tmp_str(p, n)
 # define STR_NEW0() __new_tmp_str(0, 0)
 # define STR_NEW2(p) __new_tmp_str(p, strlen(p))
@@ -319,7 +284,7 @@ __new_tmp_str(const char *ptr, const size_t len)
 # define STR_NEW3(p,n,e,func) parser_str_new((p),(n),(e),(func),parser->enc)
 #endif
 #if WITH_OBJC
-# define STR_ENC(m) (parser->enc)
+# define STR_ENC(m) (NULL)
 # define ENC_SINGLE(cr) (1)
 #else
 # define STR_ENC(m) ((m)?parser->enc:rb_usascii_encoding())
@@ -510,7 +475,6 @@ static void reg_fragment_check_gen(struct parser_params*, VALUE, int);
 #define reg_fragment_check(str,options) reg_fragment_check_gen(parser, str, options)
 static NODE *reg_named_capture_assign_gen(struct parser_params* parser, VALUE regexp, NODE *match);
 #define reg_named_capture_assign(regexp,match) reg_named_capture_assign_gen(parser,regexp,match)
-int rb_enc_symname2_p(const char *, int, rb_encoding *);
 #else
 #define remove_begin(node) (node)
 #endif /* !RIPPER */
@@ -4911,10 +4875,6 @@ ripper_dispatch_delayed_token(struct parser_params *parser, int t)
 # define SIGN_EXTEND_CHAR(c) ((((unsigned char)(c)) ^ 128) - 128)
 #endif
 
-#if !WITH_OBJC
-#define parser_mbclen()  mbclen((lex_p-1),lex_pend,parser->enc)
-#define parser_precise_mbclen()  rb_enc_precise_mbclen((lex_p-1),lex_pend,parser->enc)
-#endif
 #define is_identchar(p,e,enc) (rb_enc_isalnum(*p,enc) || (*p) == '_' || !ISASCII(*p))
 #define parser_is_identchar() (!parser->eofp && is_identchar((lex_p-1),lex_pend,parser->enc))
 
@@ -5066,62 +5026,34 @@ yycompile(struct parser_params *parser, const char *f, int line)
 }
 #endif /* !RIPPER */
 
-#ifndef RIPPER
-static VALUE
-lex_get_bstr(struct parser_params *parser, VALUE s)
-{
-    long beg = 0; 
-    const long n = rb_bytestring_length(s);
-    if (lex_gets_ptr > 0) {
-	if (n == lex_gets_ptr) {
-	    return Qnil;
-	}
-	beg += lex_gets_ptr;
-    }
-
-    const UInt8 *data = rb_bytestring_byte_pointer(s);
-    UInt8 *pos = memchr(data + beg, '\n', n - beg);
-    if (pos != NULL) {
-	lex_gets_ptr = pos - data + 1;
-    }
-    else {
-	lex_gets_ptr = n;
-    }
-
-    return rb_bytestring_new_with_data(data + beg, lex_gets_ptr - beg);
-}
-#endif
+struct lex_get_str_context {
+    VALUE str;
+    UChar *chars;
+    long chars_len;
+};
 
 static VALUE
 lex_get_str(struct parser_params *parser, VALUE s)
 {
-    long beg = 0, len; 
-    const long n = CFStringGetLength((CFStringRef)s);
+    struct lex_get_str_context *ctx = (struct lex_get_str_context *)s;
+
+    long beg = 0;
     if (lex_gets_ptr > 0) {
-	if (n == lex_gets_ptr) {
+	if (ctx->chars_len == lex_gets_ptr) {
 	    return Qnil;
 	}
 	beg += lex_gets_ptr;
     }
 
-    CFRange search_range;  
-    if (CFStringFindCharacterFromSet((CFStringRef)s, 
-		CFCharacterSetGetPredefined(kCFCharacterSetNewline),
-		CFRangeMake(beg, n - beg),
-		0,
-		&search_range)) {
-	lex_gets_ptr = search_range.location + 1;
-	len = search_range.location - beg;
-    }
-    else {
-	lex_gets_ptr = n;
-	len = lex_gets_ptr - beg;	
+    lex_gets_ptr = ctx->chars_len;
+    for (long i = beg; i < ctx->chars_len; i++) {
+	if (ctx->chars[i] == '\n') {
+	    lex_gets_ptr = i + 1;
+	    break;
+	}
     }
 
-    CFStringRef subs = CFStringCreateWithSubstring(NULL, (CFStringRef)s, 
-	    CFRangeMake(beg, lex_gets_ptr - beg));
-    CFMakeCollectable(subs);
-    return (VALUE)subs;
+    return rb_unicode_str_new(&ctx->chars[beg], lex_gets_ptr - beg);
 }
 
 static VALUE
@@ -5143,19 +5075,37 @@ rb_compile_string(const char *f, VALUE s, int line)
     return rb_parser_compile_string(rb_parser_new(), f, s, line);
 }
 
-NODE*
+NODE *
 rb_parser_compile_string(VALUE vparser, const char *f, VALUE s, int line)
 {
     struct parser_params *parser;
     Data_Get_Struct(vparser, struct parser_params, parser);
 
-    lex_gets = CLASS_OF(s) == rb_cByteString ? lex_get_bstr : lex_get_str;
+    UChar *chars = NULL;
+    long chars_len = 0;
+    bool need_free = false;
+    rb_str_get_uchars(s, &chars, &chars_len, &need_free);
+
+    struct lex_get_str_context *ctx = (struct lex_get_str_context *)
+	xmalloc(sizeof(struct lex_get_str_context));
+    GC_WB(&ctx->str, s);
+    ctx->chars = chars;
+    ctx->chars_len = chars_len;
+
+    lex_gets = lex_get_str;
     lex_gets_ptr = 0;
-    GC_WB(&lex_input, s);
+    GC_WB(&lex_input, ctx);
     lex_pbeg = lex_p = lex_pend = 0;
     compile_for_eval = rb_parse_in_eval();
 
-    return yycompile(parser, f, line);
+    NODE *node = yycompile(parser, f, line);
+
+    if (need_free && chars != NULL) {
+	orig_free(chars);
+	chars = NULL;
+    }
+
+    return node;
 }
 
 NODE*
@@ -5652,23 +5602,19 @@ parser_tokadd_escape(struct parser_params *parser, rb_encoding **encp)
     return 0;
 }
 
-extern int rb_char_to_option_kcode(int c, int *option, int *kcode);
-
 static int
 parser_regx_options(struct parser_params *parser)
 {
-    int kcode = 0;
     int options = 0;
-    int c, opt, kc;
+    int c, opt;
 
     newtok();
     while (c = nextc(), ISALPHA(c)) {
         if (c == 'o') {
             options |= RE_OPTION_ONCE;
         }
-        else if (rb_char_to_option_kcode(c, &opt, &kc)) {
+	else if (rb_char_to_icu_option(c, &opt)) {
             options |= opt;
-	    if (kc >= 0) kcode = c;
         }
         else {
 	    tokadd(c);
@@ -5680,7 +5626,7 @@ parser_regx_options(struct parser_params *parser)
 	compile_error(PARSER_ARG "unknown regexp option%s - %s",
 		      toklen() > 1 ? "s" : "", tok());
     }
-    return options | RE_OPTION_ENCODING(kcode);
+    return options;
 }
 
 static void
@@ -6126,6 +6072,7 @@ lvar_defined_gen(struct parser_params *parser, ID id)
 static int
 parser_encode_length(struct parser_params *parser, const char *name, int len)
 {
+#if 0
     int nlen;
 
     if (len > 5 && name[nlen = len - 5] == '-') {
@@ -6138,6 +6085,7 @@ parser_encode_length(struct parser_params *parser, const char *name, int len)
 	if (rb_memcicmp(name + nlen + 1, "mac", 3) == 0)
 	    return nlen;
     }
+#endif
     return len;
 }
 
@@ -8182,14 +8130,6 @@ block_dup_check_gen(struct parser_params *parser, NODE *node1, NODE *node2)
     }
 }
 
-ID
-rb_id_attrset(ID id)
-{
-    id &= ~ID_SCOPE_MASK;
-    id |= ID_ATTRSET;
-    return id;
-}
-
 static NODE *
 attrset_gen(struct parser_params *parser, NODE *recv, ID id)
 {
@@ -9034,9 +8974,6 @@ dvar_curr_gen(struct parser_params *parser, ID id)
 	    vtable_included(lvtbl->vars, id));
 }
 
-VALUE rb_reg_compile(VALUE str, int options);
-VALUE rb_reg_check_preprocess(VALUE);
-
 static void
 reg_fragment_setenc_gen(struct parser_params* parser, VALUE str, int options)
 {
@@ -9093,6 +9030,7 @@ reg_fragment_check_gen(struct parser_params* parser, VALUE str, int options)
     }
 }
 
+#if 0
 typedef struct {
     struct parser_params* parser;
     rb_encoding *enc;
@@ -9139,10 +9077,14 @@ reg_named_capture_assign_iter(const OnigUChar *name, const OnigUChar *name_end,
         newline_node(node_assign(assignable(var,0), NEW_LIT(Qnil))));
     return ST_CONTINUE;
 }
+#endif
 
 static NODE *
 reg_named_capture_assign_gen(struct parser_params* parser, VALUE regexp, NODE *match)
 {
+    // TODO
+    return match;
+#if 0
     reg_named_capture_assign_t arg;
 
     arg.parser = parser;
@@ -9170,6 +9112,7 @@ reg_named_capture_assign_gen(struct parser_params* parser, VALUE regexp, NODE *m
                     newline_node(arg.fail_block),
                     newline_node(
                         NEW_LIT(Qnil)))));
+#endif
 }
 
 static VALUE
@@ -9274,533 +9217,52 @@ rb_parser_while_loop(VALUE vparser, NODE *node, int chop, int split)
     return scope;
 }
 
-static const struct {
-    ID token;
-    const char *name;
-} op_tbl[] = {
-    {tDOT2,	".."},
-    {tDOT3,	"..."},
-    {'+',	"+"},
-    {'-',	"-"},
-    {'+',	"+(binary)"},
-    {'-',	"-(binary)"},
-    {'*',	"*"},
-    {'/',	"/"},
-    {'%',	"%"},
-    {tPOW,	"**"},
-    {tUPLUS,	"+@"},
-    {tUMINUS,	"-@"},
-    {'|',	"|"},
-    {'^',	"^"},
-    {'&',	"&"},
-    {'!',	"!"},
-    {tCMP,	"<=>"},
-    {'>',	">"},
-    {tGEQ,	">="},
-    {'<',	"<"},
-    {tLEQ,	"<="},
-    {tEQ,	"=="},
-    {tEQQ,	"==="},
-    {tNEQ,	"!="},
-    {tMATCH,	"=~"},
-    {tNMATCH,	"!~"},
-    {'~',	"~"},
-    {'!',	"!"},
-    {tAREF,	"[]"},
-    {tASET,	"[]="},
-    {tLSHFT,	"<<"},
-    {tRSHFT,	">>"},
-    {tCOLON2,	"::"},
-    {'`',	"`"},
-    {0,	0}
-};
-
-static struct symbols {
-    ID last_id;
-#if WITH_OBJC
-    CFMutableDictionaryRef sym_id;
-    CFMutableDictionaryRef id_str;
-#else
-    st_table *sym_id;
-    st_table *id_str;
-#endif
-    VALUE op_sym[tLAST_TOKEN];
-} global_symbols = {tLAST_TOKEN >> ID_SCOPE_SHIFT};
-
-static const struct st_hash_type symhash = {
-    rb_str_hash_cmp,
-    rb_str_hash,
-};
-
-struct ivar2_key {
-    ID id;
-    VALUE klass;
-};
-
-static int
-ivar2_cmp(struct ivar2_key *key1, struct ivar2_key *key2)
-{
-    if (key1->id == key2->id && key1->klass == key2->klass) {
-	return 0;
-    }
-    return 1;
-}
-
-static int
-ivar2_hash(struct ivar2_key *key)
-{
-    return (key->id << 8) ^ (key->klass >> 2);
-}
-
-static const struct st_hash_type ivar2_hash_type = {
-    ivar2_cmp,
-    ivar2_hash,
-};
-
-void
-Init_sym(void)
-{
-#if WITH_OBJC
-    global_symbols.sym_id = CFDictionaryCreateMutable(NULL,
-	0, NULL, NULL);
-    GC_ROOT(&global_symbols.sym_id);
-    global_symbols.id_str = CFDictionaryCreateMutable(NULL,
-	0, NULL, NULL);
-    GC_ROOT(&global_symbols.id_str);
-    rb_cSymbol = rb_objc_create_class("Symbol", (VALUE)objc_getClass("NSString"));
-#else
-    global_symbols.sym_id = st_init_table_with_size(&symhash, 1000);
-    global_symbols.id_str = st_init_numtable_with_size(1000);
-#endif
-    rb_intern2("", 0);
-}
-
-#if !WITH_OBJC 
-void
-rb_gc_mark_symbols(void)
-{
-    rb_mark_tbl(global_symbols.id_str);
-    rb_gc_mark_locations(global_symbols.op_sym,
-			 global_symbols.op_sym + tLAST_TOKEN);
-}
-#endif
-
 // XXX not thread-safe
 static long internal_count = 0;
 
 static ID
 internal_id_gen(struct parser_params *parser)
 {
-#if 1
     char buf[100];
     snprintf(buf, sizeof buf, "__internal_id_tmp_%ld__", internal_count++);
     return rb_intern(buf);
-#else
-    ID id = (ID)vtable_size(lvtbl->args) + (ID)vtable_size(lvtbl->vars);
-    id += ((tLAST_TOKEN - ID_INTERNAL) >> ID_SCOPE_SHIFT) + 1;
-    return ID_INTERNAL | (id << ID_SCOPE_SHIFT);
-#endif
 }
 
-static int
-is_special_global_name(const char *m, const char *e, rb_encoding *enc)
-{
-    int mb = 0;
-
-    if (m >= e) return 0;
-    switch (*m) {
-      case '~': case '*': case '$': case '?': case '!': case '@':
-      case '/': case '\\': case ';': case ',': case '.': case '=':
-      case ':': case '<': case '>': case '\"':
-      case '&': case '`': case '\'': case '+':
-      case '0':
-	++m;
-	break;
-      case '-':
-	++m;
-	if (m < e && is_identchar(m, e, enc)) {
-	    if (!ISASCII(*m)) mb = 1;
-#if WITH_OBJC
-	    m += 1;
-#else
-	    m += rb_enc_mbclen(m, e, enc);
-#endif
-	}
-	break;
-      default:
-	if (!rb_enc_isdigit(*m, enc)) return 0;
-	do {
-	    if (!ISASCII(*m)) mb = 1;
-	    ++m;
-	} while (rb_enc_isdigit(*m, enc));
-    }
-    return m == e ? mb + 1 : 0;
-}
-
-int
-rb_symname_p(const char *name)
-{
-#if WITH_OBJC
-    return rb_enc_symname_p(name, NULL);
-#else
-    return rb_enc_symname_p(name, rb_ascii8bit_encoding());
-#endif
-}
-
-int
-rb_enc_symname_p(const char *name, rb_encoding *enc)
-{
-    return rb_enc_symname2_p(name, strlen(name), enc);
-}
-
-int
-rb_enc_symname2_p(const char *name, int len, rb_encoding *enc)
-{
-    const char *m = name;
-    const char *e = m + len;
-    int localid = Qfalse;
-
-    if (!m) return Qfalse;
-    switch (*m) {
-      case '\0':
-	return Qfalse;
-
-      case '$':
-	if (is_special_global_name(++m, e, enc)) return Qtrue;
-	goto id;
-
-      case '@':
-	if (*++m == '@') ++m;
-	goto id;
-
-      case '<':
-	switch (*++m) {
-	  case '<': ++m; break;
-	  case '=': if (*++m == '>') ++m; break;
-	  default: break;
-	}
-	break;
-
-      case '>':
-	switch (*++m) {
-	  case '>': case '=': ++m; break;
-	}
-	break;
-
-      case '=':
-	switch (*++m) {
-	  case '~': ++m; break;
-	  case '=': if (*++m == '=') ++m; break;
-	  default: return Qfalse;
-	}
-	break;
-
-      case '*':
-	if (*++m == '*') ++m;
-	break;
-
-      case '+': case '-':
-	if (*++m == '@') ++m;
-	break;
-
-      case '|': case '^': case '&': case '/': case '%': case '~': case '`':
-	++m;
-	break;
-
-      case '[':
-	if (*++m != ']') return Qfalse;
-	if (*++m == '=') ++m;
-	break;
-
-      case '!':
-	switch (*++m) {
-	  case '\0': return Qtrue;
-	  case '=': case '~': ++m; break;
-	  default: return Qfalse;
-	}
-	break;
-	    
-      default:
-	localid = !rb_enc_isupper(*m, enc);
-      id:
-	if (m >= e || (*m != '_' && !rb_enc_isalpha(*m, enc) && ISASCII(*m)))
-	    return Qfalse;
-#if WITH_OBJC
-	while (m < e && is_identchar(m, e, enc)) m += 1;
-#else
-	while (m < e && is_identchar(m, e, enc)) m += rb_enc_mbclen(m, e, enc);
-#endif
-	if (localid) {
-	    switch (*m) {
-	      case '!': case '?': case '=': ++m;
-	    }
-	}
-	break;
-    }
-    return *m ? Qfalse : Qtrue;
-}
-
-#if WITH_OBJC
-static inline VALUE
-rsymbol_new(const char *name, const int len, ID id)
-{
-    VALUE sym;
-
-    sym = (VALUE)orig_malloc(sizeof(struct RSymbol));
-    RSYMBOL(sym)->str = orig_malloc(len + 1);
-    RSYMBOL(sym)->klass = rb_cSymbol;
-    strcpy(RSYMBOL(sym)->str, name);
-    RSYMBOL(sym)->len = len;
-    RSYMBOL(sym)->id = id;
-    
-    return sym;
-}
-#endif
-
-ID
-rb_intern3(const char *name, long len, rb_encoding *enc)
-{
-    const char *m = name;
-    const char *e = m + len;
-    VALUE str;
-    ID id;
-    int last;
-    int mb;
-#if !WITH_OBJC
-    struct RString fake_str;
-    fake_str.basic.isa = NULL;
-    fake_str.basic.flags = T_STRING|RSTRING_NOEMBED|FL_FREEZE;
-    fake_str.basic.klass = rb_cString;
-    fake_str.as.heap.len = len;
-    fake_str.as.heap.ptr = (char *)name;
-    fake_str.as.heap.aux.capa = len;
-    str = (VALUE)&fake_str;
-    rb_enc_associate(str, enc);
-
-    if (st_lookup(global_symbols.sym_id, str, (st_data_t *)&id))
-	return id;
-#else
-    long sname = strlen(name);
-    assert(len <= sname);
-    if (sname != len) {
-	char *tmp = (char *)alloca(len + 1);
-	memcpy(tmp, name, len);
-	tmp[len] = '\0';
-	m = name = tmp;
-	e = m + len;
-    }
-    SEL name_hash = sel_registerName(name);
-    if (name_hash == sel_ignored) {
-	if (strcmp(name, "retain") == 0) {
-	    name_hash = (SEL)0x1000;
-	}
-	else if (strcmp(name, "release") == 0) {
-	    name_hash = (SEL)0x2000;
-	}
-	else if (strcmp(name, "retainCount") == 0) {
-	    name_hash = (SEL)0x3000;
-	}
-	else if (strcmp(name, "autorelease") == 0) {
-	    name_hash = (SEL)0x4000;
-	}
-	else if (strcmp(name, "dealloc") == 0) {
-	    name_hash = (SEL)0x5000;
-	}
-	else {
-	    printf("unrecognized ignored sel %s\n", name);
-	    abort();
-	}
-    }
-    id = (ID)CFDictionaryGetValue((CFDictionaryRef)global_symbols.sym_id, 
-	(const void *)name_hash);
-    if (id != 0)
-	return id; 
-#endif
-
-    last = len-1;
-    id = 0;
-    switch (*m) {
-      case '$':
-	id |= ID_GLOBAL;
-	if ((mb = is_special_global_name(++m, e, enc)) != 0) {
-	    if (!--mb) {
-#if WITH_OBJC
-		enc = NULL;
-#else
-		enc = rb_ascii8bit_encoding();
-#endif
-	    }
-	    goto new_id;
-	}
-	break;
-      case '@':
-	if (m[1] == '@') {
-	    m++;
-	    id |= ID_CLASS;
-	}
-	else {
-	    id |= ID_INSTANCE;
-	}
-	m++;
-	break;
-      default:
-	if (m[0] != '_' && rb_enc_isascii((unsigned char)m[0], enc)
-	    && !rb_enc_isalnum(m[0], enc)) {
-	    /* operators */
-	    int i;
-
-	    for (i=0; op_tbl[i].token; i++) {
-		if (*op_tbl[i].name == *m &&
-		    strcmp(op_tbl[i].name, m) == 0) {
-		    id = op_tbl[i].token;
-		    goto id_register;
-		}
-	    }
-	}
-
-	if (m[last] == '=') {
-	    /* attribute assignment */
-	    id = rb_intern3(name, last, enc);
-	    if (id > tLAST_TOKEN && !is_attrset_id(id)) {
-		enc = rb_enc_get(rb_id2str(id));
-		id = rb_id_attrset(id);
-		goto id_register;
-	    }
-	    id = ID_ATTRSET;
-	}
-	else if (rb_enc_isupper(m[0], enc)) {
-	    id = ID_CONST;
-        }
-	else {
-	    id = ID_LOCAL;
-	}
-	break;
-    }
-    mb = 0;
-    if (!rb_enc_isdigit(*m, enc)) {
-	while (m <= name + last && is_identchar(m, e, enc)) {
-	    if (ISASCII(*m)) {
-		m++;
-	    }
-	    else {
-		mb = 1;
-#if WITH_OBJC
-		m += 1;
-#else
-		m += rb_enc_mbclen(m, e, enc);
-#endif
-	    }
-	}
-    }
-    if (m - name < len) id = ID_JUNK;
-#if !WITH_OBJC
-    if (enc != rb_usascii_encoding()) {
-	/*
-	 * this clause makes sense only when called from other than
-	 * rb_intern_str() taking care of code-range.
-	 */
-	if (!mb) {
-	    for (; m <= name + len; ++m) {
-		if (!ISASCII(*m)) goto mbstr;
-	    }
-	    enc = rb_usascii_encoding();
-	}
-      mbstr:;
-    }
-#endif
-  new_id:
-    id |= ++global_symbols.last_id << ID_SCOPE_SHIFT;
-  id_register:
-    str = rsymbol_new(name, len, id);
-#if WITH_OBJC
-    CFDictionarySetValue(global_symbols.sym_id, (const void *)name_hash, 
-	(const void *)id);
-    CFDictionarySetValue(global_symbols.id_str, (const void *)id,
-	(const void *)str);
-#else
-    st_add_direct(global_symbols.sym_id, (st_data_t)str, id);
-    st_add_direct(global_symbols.id_str, id, (st_data_t)str);
-#endif
-    return id;
-}
-
-ID
-rb_intern2(const char *name, long len)
-{
-#if WITH_OBJC
-    return rb_intern3(name, len, NULL);
-#else
-    return rb_intern3(name, len, rb_usascii_encoding());
-#endif
-}
-
-#undef rb_intern
-ID
-rb_intern(const char *name)
-{
-    return rb_intern2(name, strlen(name));
-}
-
-ID
-rb_intern_str(VALUE str)
-{
-    const char *s = RSTRING_PTR(str);
-    return rb_intern3(s, strlen(s), NULL);
-}
-
-VALUE
-rb_id2str(ID id)
-{
-    st_data_t data;
-
-    if (id < tLAST_TOKEN) {
-	int i = 0;
-
-	for (i=0; op_tbl[i].token; i++) {
-	    if (op_tbl[i].token == id) {
-		VALUE str = global_symbols.op_sym[i];
-		if (!str) {
-		    str = rsymbol_new(op_tbl[i].name, strlen(op_tbl[i].name), op_tbl[i].token);
-		    global_symbols.op_sym[i] = str;
-		}
-		return str;
-	    }
-	}
-    }
-
-    data = (VALUE)CFDictionaryGetValue(
-	(CFDictionaryRef)global_symbols.id_str,
-	(const void *)id);
-    if (data != 0) {
-	return data;
-    }
-
-    if (is_attrset_id(id)) {
-	ID id2 = (id & ~ID_SCOPE_MASK) | ID_LOCAL;
-	VALUE str;
-
-	while (!(str = rb_id2str(id2))) {
-	    if (!is_local_id(id2)) return 0;
-	    id2 = (id & ~ID_SCOPE_MASK) | ID_CONST;
-	}
-	str = rb_str_dup(str);
-	rb_str_cat(str, "=", 1);
-	rb_intern_str(str);
-	data = (VALUE)CFDictionaryGetValue(
-	    (CFDictionaryRef)global_symbols.id_str,
-	    (const void *)id);
-	if (data != 0) {
-	    return data;
-	}
-    }
-    return 0;
-}
-
-VALUE
-rb_name2sym(const char *name)
-{
-    return rb_id2str(rb_intern(name));
-}
+struct rb_op_tbl_entry rb_op_tbl[] = {
+    {'+',       "+"},
+    {'-',       "-"},
+    {'*',       "*"},
+    {'/',       "/"},
+    {'%',       "%"},
+    {'|',       "|"},
+    {'^',       "^"},
+    {'&',       "&"},
+    {'!',       "!"},
+    {'>',       ">"},
+    {'<',       "<"},
+    {'~',       "~"},
+    {'!',       "!"},
+    {'`',       "`"},
+    {tDOT2,     ".."},
+    {tDOT3,     "..."},
+    {tPOW,      "**"},
+    {tUPLUS,    "+@"},
+    {tUMINUS,   "-@"},
+    {tCMP,      "<=>"},
+    {tGEQ,      ">="},
+    {tLEQ,      "<="},
+    {tEQ,       "=="},
+    {tEQQ,      "==="},
+    {tNEQ,      "!="},
+    {tMATCH,    "=~"},
+    {tNMATCH,   "!~"},
+    {tAREF,     "[]"},
+    {tASET,     "[]="},
+    {tLSHFT,    "<<"},
+    {tRSHFT,    ">>"},
+    {tCOLON2,   "::"},
+    {0,         NULL}
+};
 
 const char *
 ruby_node_name(int node)
@@ -9811,40 +9273,6 @@ ruby_node_name(int node)
 	    rb_bug("unknown node (%d)", node);
 	    return 0;
     }
-}
- 
-/*
- *  call-seq:
- *     Symbol.all_symbols    => array
- *
- *  Returns an array of all the symbols currently in Ruby's symbol
- *  table.
- *
- *     Symbol.all_symbols.size    #=> 903
- *     Symbol.all_symbols[1,20]   #=> [:floor, :ARGV, :Binding, :symlink,
- *                                     :chown, :EOFError, :$;, :String,
- *                                     :LOCK_SH, :"setuid?", :$<,
- *                                     :default_proc, :compact, :extend,
- *                                     :Tms, :getwd, :$=, :ThreadGroup,
- *                                     :wait2, :$>]
- */
-
-VALUE
-rb_sym_all_symbols(void)
-{
-    const void **values;
-    long count;
-    VALUE ary;
-
-    ary = rb_ary_new();
-    count = CFDictionaryGetCount(global_symbols.id_str);
-    if (count == 0) {
-	return ary;
-    }
-    values = alloca(sizeof(void *) * count);
-    CFDictionaryGetKeysAndValues(global_symbols.id_str, NULL, values);
-    CFArrayReplaceValues((CFMutableArrayRef)ary, CFRangeMake(0, 0), values, count);   
-    return ary;
 }
 
 int
@@ -9880,6 +9308,14 @@ rb_is_junk_id(ID id)
 {
     if (is_junk_id(id)) return Qtrue;
     return Qfalse;
+}
+
+ID
+rb_id_attrset(ID id)
+{
+    id &= ~ID_SCOPE_MASK;
+    id |= ID_ATTRSET;
+    return id;
 }
 
 #endif /* !RIPPER */

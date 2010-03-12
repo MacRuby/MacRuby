@@ -18,12 +18,13 @@
 #include "ruby/ruby.h"
 #include "ruby/encoding.h"
 #include "ruby/node.h"
-#include "ruby/re.h"
 #include "id.h"
 #include "vm.h"
 #include "compiler.h"
 #include "objc.h"
 #include "version.h"
+#include "encoding.h"
+#include "re.h"
 
 extern "C" const char *ruby_node_name(int node);
 
@@ -502,9 +503,11 @@ RoxorCompiler::compile_when_splat(Value *comparedToVal, Value *splatVal)
 
 GlobalVariable *
 RoxorCompiler::compile_const_global_ustring(const UniChar *str,
-	const size_t len, CFHashCode hash)
+	const size_t len)
 {
     assert(len > 0);
+
+    const unsigned long hash = rb_str_hash_uchars(str, len);
 
     std::map<CFHashCode, GlobalVariable *>::iterator iter =
 	static_ustrings.find(hash);
@@ -2795,8 +2798,7 @@ RoxorCompiler::compile_literal(VALUE val)
 	//
 	//	10.times { s = 'foo'; s << 'bar' }
 	//
-	const size_t str_len = RSTRING_LEN(val);
-	if (str_len == 0) {
+	if (rb_str_chars_len(val) == 0) {
 	    if (newString3Func == NULL) {	
 		newString3Func = cast<Function>(
 			module->getOrInsertFunction(
@@ -2805,22 +2807,19 @@ RoxorCompiler::compile_literal(VALUE val)
 	    return CallInst::Create(newString3Func, "", bb);
 	}
 	else {
-	    UniChar *buf = (UniChar *)CFStringGetCharactersPtr(
-		    (CFStringRef)val);
-	    bool free_buf = false;
-	    if (buf == NULL) {
-		buf = (UniChar *)malloc(sizeof(UniChar) * str_len);
-		CFStringGetCharacters((CFStringRef)val,
-			CFRangeMake(0, str_len), buf);
-		free_buf = true;
-	    }
+	    UChar *chars = NULL;
+	    long chars_len = 0;
+	    bool need_free = false;
 
-	    GlobalVariable *str_gvar = compile_const_global_ustring(buf,
-		    str_len, CFHash((CFTypeRef)val));
+	    rb_str_get_uchars(val, &chars, &chars_len, &need_free);
+	    assert(chars_len > 0);
 
-	    if (free_buf) {
-		free(buf);
-		buf = NULL;
+	    GlobalVariable *str_gvar = compile_const_global_ustring(chars,
+		    chars_len);
+
+	    if (need_free) {
+		free(chars);
+		chars = NULL;
 	    }
 
 	    std::vector<Value *> idxs;
@@ -2839,7 +2838,7 @@ RoxorCompiler::compile_literal(VALUE val)
 
 	    std::vector<Value *> params;
 	    params.push_back(load);
-	    params.push_back(ConstantInt::get(Int32Ty, str_len));
+	    params.push_back(ConstantInt::get(Int32Ty, chars_len));
 
 	    return CallInst::Create(newString2Func, params.begin(),
 		    params.end(), "", bb);
@@ -4681,11 +4680,18 @@ rescan_args:
 				NULL));
 		}
 
-		std::vector<Value *> params;
+		assert(nd_type(node->u1.node) == NODE_LIT);
+		assert(nd_type(node->u2.node) == NODE_LIT);
+		assert(TYPE(node->u1.node->nd_lit) == T_SYMBOL);
+		assert(TYPE(node->u2.node->nd_lit) == T_SYMBOL);
 
+		ID from = SYM2ID(node->u1.node->nd_lit);
+		ID to = SYM2ID(node->u2.node->nd_lit);
+
+		std::vector<Value *> params;
 		params.push_back(compile_current_class());
-		params.push_back(compile_id(node->u1.node->u1.node->u2.id));
-		params.push_back(compile_id(node->u2.node->u1.node->u2.id));
+		params.push_back(compile_id(from));
+		params.push_back(compile_id(to));
 		params.push_back(ConstantInt::get(Int8Ty,
 			    dynamic_class ? 1 : 0));
 
@@ -5622,8 +5628,10 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 		    RubyObjTy, PtrTy, NULL));
 
     Function *newRegexp2Func =
-	cast<Function>(module->getOrInsertFunction("rb_reg_new_retained",
-		    RubyObjTy, PtrTy, Int32Ty, Int32Ty, NULL));
+	cast<Function>(module->getOrInsertFunction(
+		    "rb_unicode_regex_new_retained",
+		    RubyObjTy, PointerType::getUnqual(Int16Ty), Int32Ty,
+		    Int32Ty, NULL));
 
     Function *newBignumFunc =
 	cast<Function>(module->getOrInsertFunction("rb_bignum_new_retained",
@@ -5670,28 +5678,32 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 
 	    case T_REGEXP:
 		{
-		    struct RRegexp *re = (struct RRegexp *)val;
+		    const UChar *chars = NULL;
+		    long chars_len = 0;
+
+		    regexp_get_uchars(val, &chars, &chars_len);
 
 		    Value *re_str;
-		    if (re->len == 0) {
-			re_str = compile_const_pointer(NULL, NULL);
+		    if (chars_len == 0) {
+			re_str = ConstantPointerNull::get(
+				PointerType::getUnqual(Int16Ty));
 		    }
 		    else {
-			GlobalVariable *rename_gvar =
-			    compile_const_global_string(re->str, re->len);
+			GlobalVariable *re_name_gvar =
+			    compile_const_global_ustring(chars, chars_len);
 
 			std::vector<Value *> idxs;
 			idxs.push_back(ConstantInt::get(Int32Ty, 0));
 			idxs.push_back(ConstantInt::get(Int32Ty, 0));
-			re_str = GetElementPtrInst::Create(rename_gvar,
+			re_str = GetElementPtrInst::Create(re_name_gvar,
 				idxs.begin(), idxs.end(), "");
 		    }
 
 		    std::vector<Value *> params;
 		    params.push_back(re_str);
-		    params.push_back(ConstantInt::get(Int32Ty, re->len));
+		    params.push_back(ConstantInt::get(Int32Ty, chars_len));
 		    params.push_back(ConstantInt::get(Int32Ty,
-				re->ptr->options));
+				rb_reg_options(val)));
 
 		    Instruction *call = CallInst::Create(newRegexp2Func,
 			    params.begin(), params.end(), "");

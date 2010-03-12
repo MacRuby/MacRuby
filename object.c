@@ -21,6 +21,7 @@
 #include <float.h>
 #include "objc.h"
 #include "vm.h"
+#include "encoding.h"
 #include "array.h"
 #include "hash.h"
 
@@ -163,11 +164,11 @@ rb_class_real(VALUE cl)
     while (RCLASS_SINGLETON(cl)) {
 	cl = RCLASS_SUPER(cl);
     }
-    if (cl == rb_cCFString) {
-	return rb_cNSMutableString;
-    }
     if (!RCLASS_RUBY(cl)) {
 	const long v = RCLASS_VERSION(cl);
+	if (v & RCLASS_IS_STRING_SUBCLASS) {
+	    return rb_cRubyString;
+	}
 	if (v & RCLASS_IS_HASH_SUBCLASS) {
 	    return rb_cRubyHash;
 	}
@@ -814,7 +815,7 @@ rb_obj_tainted_p(VALUE obj, SEL sel)
 		}
 		// fall through
 	    case T_STRING:
-		if (*(VALUE *)obj == rb_cByteString) {
+		if (rb_klass_is_rstr(*(VALUE *)obj)) {
 		    return RBASIC(obj)->flags & FL_TAINT ? Qtrue : Qfalse;
 		}
 		// fall through
@@ -867,7 +868,7 @@ rb_obj_taint_m(VALUE obj, SEL sel)
 		}
 		// fall through
 	    case T_STRING:
-		if (*(VALUE *)obj == rb_cByteString) {
+		if (rb_klass_is_rstr(*(VALUE *)obj)) {
 		    RBASIC(obj)->flags |= FL_TAINT;
 		    break;
 		}
@@ -921,7 +922,7 @@ rb_obj_untaint_m(VALUE obj, SEL sel)
 		}	
 		// fall through
 	    case T_STRING:
-		if (*(VALUE *)obj == rb_cByteString) {
+		if (rb_klass_is_rstr(*(VALUE *)obj)) {
 		    RBASIC(obj)->flags &= ~FL_TAINT;
 		    break;
 		}
@@ -965,7 +966,7 @@ rb_obj_untrusted_imp(VALUE obj, SEL sel)
 		}
 		// fall through
 	    case T_STRING:
-		if (*(VALUE *)obj == rb_cByteString) {
+		if (rb_klass_is_rstr(*(VALUE *)obj)) {
 		    return RBASIC(obj)->flags & FL_UNTRUSTED ? Qtrue : Qfalse;
 		}
 		// fall through
@@ -1005,7 +1006,7 @@ rb_obj_trust_imp(VALUE obj, SEL sel)
 		}
 		// fall through
 	    case T_STRING:
-		if (*(VALUE *)obj == rb_cByteString) {
+		if (rb_klass_is_rstr(*(VALUE *)obj)) {
 		    RBASIC(obj)->flags &= ~FL_UNTRUSTED;
 		    break;
 		}
@@ -1051,7 +1052,7 @@ rb_obj_untrust_imp(VALUE obj, SEL sel)
 		}
 		// fall through
 	    case T_STRING:
-		if (*(VALUE *)obj == rb_cByteString) {
+		if (rb_klass_is_rstr(*(VALUE *)obj)) {
 		    RBASIC(obj)->flags |= FL_UNTRUSTED;
 		    break;
 		}
@@ -1136,7 +1137,7 @@ immediate:
 		    }
 		    // fall through
 		case T_STRING:
-		    if (*(VALUE *)obj == rb_cByteString) {
+		    if (rb_klass_is_rstr(*(VALUE *)obj)) {
 			RBASIC(obj)->flags |= FL_FREEZE;
 			break;
 		    }
@@ -1200,7 +1201,7 @@ immediate:
 	    }
 	    // fall through
 	case T_STRING:
-	    if (*(VALUE *)obj == rb_cByteString) {
+	    if (rb_klass_is_rstr(*(VALUE *)obj)) {
 		return RBASIC(obj)->flags & FL_FREEZE ? Qtrue : Qfalse;
 	    }
 	    // fall through
@@ -3094,8 +3095,8 @@ Init_Object(void)
 
     rb_objc_define_method(rb_mKernel, "__native__?", rb_obj_is_native, 0);
 
-    rb_objc_define_module_function(rb_mKernel, "sprintf", rb_f_sprintf_imp, -1); /* in sprintf.cpp */
-    rb_objc_define_module_function(rb_mKernel, "format", rb_f_sprintf_imp, -1);  /* in sprintf.cpp */
+    rb_objc_define_module_function(rb_mKernel, "sprintf", rb_f_sprintf_imp, -1); /* in sprintf.c */
+    rb_objc_define_module_function(rb_mKernel, "format", rb_f_sprintf_imp, -1);  /* in sprintf.c */
 
     rb_objc_define_module_function(rb_mKernel, "Integer", rb_f_integer, -1);
     rb_objc_define_module_function(rb_mKernel, "Float", rb_f_float, 1);

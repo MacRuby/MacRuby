@@ -212,15 +212,13 @@ rb_json_encoder_encode(VALUE self, SEL sel, VALUE obj)
     const unsigned char* buffer;
     unsigned int len;
     rb_json_generator_t* gen = RJSONGenerator(self);
-    
+
     json_encode_part(gen, obj);
     yajl_gen_get_buf(gen->generator, &buffer, &len);
-    
-    VALUE resultBuf = (VALUE)CFStringCreateWithBytes(NULL, (const UInt8*)buffer, len, kCFStringEncodingUTF8, false);
-    CFMakeCollectable((CFTypeRef)resultBuf);
+
+    VALUE res = rb_str_new((const char *)buffer, len);
     yajl_gen_clear(gen->generator);
-    
-    return resultBuf;
+    return res;
 }
 
 static void
@@ -320,8 +318,7 @@ yajl_handle_number(void* ctx, const char* value, unsigned int len)
 static int
 yajl_handle_string(void* ctx, const unsigned char* value, unsigned int len)
 {
-    VALUE str = (VALUE)CFStringCreateWithBytes(NULL, (const UInt8*)value, len, kCFStringEncodingUTF8, false);
-    CFMakeCollectable((CFTypeRef)str);
+    VALUE str = rb_str_new((const char *)value, len);
     yajl_set_static_value(ctx, str);
     return 1;
 }
@@ -330,12 +327,11 @@ static int
 yajl_handle_hash_key(void* ctx, const unsigned char* value, unsigned int len)
 {
     rb_json_parser_t* parser = RJSONParser(ctx);
-    
-    VALUE keyStr = (VALUE)CFStringCreateWithBytes(NULL, (const UInt8*)value, len, kCFStringEncodingUTF8, false);
-    CFMakeCollectable((CFTypeRef)keyStr);
-    
+
+    VALUE keyStr = rb_str_new((const char *)value, len); 
+
     if (parser->symbolizeKeys) {
-        ID key = rb_intern(RSTRING_PTR(keyStr));
+        ID key = rb_intern_str(keyStr);
         yajl_set_static_value(ctx, ID2SYM(key));
     }
     else {
@@ -521,15 +517,11 @@ rb_to_json(VALUE self, SEL sel, int argc, VALUE* argv)
 static VALUE
 rb_object_to_json(VALUE self, SEL sel, int argc, VALUE* argv)
 {
-    VALUE buf, str;
-    
-    str = rb_vm_call_with_cache(to_s_cache, self, sel_to_s, 0, 0);
-    
-    buf = (VALUE)CFStringCreateMutable(NULL, 0);
-    CFMakeCollectable((CFTypeRef)buf);
-    CFStringAppendCString((CFMutableStringRef)buf, "\"", kCFStringEncodingUTF8);
-    CFStringAppend((CFMutableStringRef)buf, (CFStringRef)str);
-    CFStringAppendCString((CFMutableStringRef)buf, "\"", kCFStringEncodingUTF8);
+    VALUE str = rb_vm_call_with_cache(to_s_cache, self, sel_to_s, 0, 0);
+
+    VALUE buf = rb_str_new2("\"");
+    rb_str_concat(buf, str);
+    rb_str_cat2(buf, "\"");
     return buf;
 }
 

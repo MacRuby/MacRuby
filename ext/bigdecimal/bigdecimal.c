@@ -2523,9 +2523,7 @@ VpAlloc(U_LONG mx, const char *szVal)
 
     /* Skip all '_' after digit: 2006-6-30 */
     ni = 0;
-    VALUE bstr = rb_bytestring_new();
-    rb_bytestring_resize(bstr, strlen(szVal)+1);
-    psz = (char *)rb_bytestring_byte_pointer(bstr);
+    psz = (char *)xmalloc(strlen(szVal)+1);
     i   = 0;
     ipn = 0;
     while((psz[i]=szVal[ipn])!=0) {

@@ -11,30 +11,19 @@
 
 **********************************************************************/
 
+#include <stdio.h>
+#include <sys/types.h>
+#include <ctype.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/param.h>
+
 #include "ruby/ruby.h"
 #include "ruby/node.h"
 #include "ruby/encoding.h"
 #include "dln.h"
-#include <stdio.h>
-#include <sys/types.h>
-#include <ctype.h>
 #include "vm.h"
-
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>
-#endif
-#if defined(HAVE_FCNTL_H)
-#include <fcntl.h>
-#elif defined(HAVE_SYS_FCNTL_H)
-#include <sys/fcntl.h>
-#endif
-#ifdef HAVE_SYS_PARAM_H
-# include <sys/param.h>
-#endif
-#ifndef MAXPATHLEN
-# define MAXPATHLEN 1024
-#endif
-
+#include "encoding.h"
 #include "ruby/util.h"
 
 #ifndef HAVE_STDLIB_H
@@ -564,17 +553,19 @@ proc_options(int argc, char **argv, struct cmdline_options *opt)
 
 	  case 'e':
 	    forbid_setid("-e");
-	    if (!*++s) {
+	    if (*++s == '\0') {
 		s = argv[1];
-		argc--, argv++;
+		argc--;
+		argv++;
 	    }
-	    if (!s) {
+	    if (s == NULL) {
 		rb_raise(rb_eRuntimeError, "no code specified for -e");
 	    }
-	    if (!opt->e_script) {
-		opt->e_script = rb_str_new(0, 0);
-		if (opt->script == 0)
+	    if (opt->e_script == 0) {
+		opt->e_script = rb_str_new(NULL, 0);
+		if (opt->script == NULL) {
 		    opt->script = "-e";
+		}
 	    }
 	    rb_str_cat2(opt->e_script, s);
 	    rb_str_cat2(opt->e_script, "\n");
@@ -582,12 +573,13 @@ proc_options(int argc, char **argv, struct cmdline_options *opt)
 
 	  case 'r':
 	    forbid_setid("-r");
-	    if (*++s) {
+	    if (*++s != '\0') {
 		add_modules(s);
 	    }
 	    else if (argv[1]) {
 		add_modules(argv[1]);
-		argc--, argv++;
+		argc--;
+		argv++;
 	    }
 	    break;
 
@@ -832,7 +824,7 @@ ruby_init_gems(int enable)
 static rb_encoding *
 opt_enc_find(VALUE enc_name)
 {
-    rb_encoding *enc = rb_enc_find2(enc_name);
+    rb_encoding *enc = rb_enc_find(RSTRING_PTR(enc_name));
     if (enc == NULL) {
 	rb_raise(rb_eRuntimeError, "unknown encoding name - %s", 
 	    RSTRING_PTR(enc_name));
@@ -840,7 +832,7 @@ opt_enc_find(VALUE enc_name)
     return enc;
 }
 
-VALUE rb_progname;
+VALUE rb_progname = Qnil;
 VALUE rb_argv0;
 
 static rb_encoding *src_encoding;
@@ -1093,16 +1085,15 @@ load_file(VALUE parser, const char *fname, int script,
 		if (NIL_P(line)) {
 		    return 0;
 		}
-		assert(*(VALUE *)line == rb_cByteString);
-
 		if ((p = strstr(RSTRING_PTR(line), "ruby")) == 0) {
 		    /* not ruby script, kick the program */
 		    char **argv;
 		    char *path;
 		    char *pend;
 
-		    p = (char *)rb_bytestring_byte_pointer(line);
-		    pend = p + rb_bytestring_length(line);
+		    line = rb_str_bstr(line);
+		    p = (char *)rb_bstr_bytes(line);
+		    pend = p + rb_bstr_length(line);
 
 		    if (pend[-1] == '\n') {
 			pend--;	/* chomp line */
@@ -1136,8 +1127,8 @@ load_file(VALUE parser, const char *fname, int script,
 	      start_read:
 		p += 4;
 
-		char *linebuf = (char *)rb_bytestring_byte_pointer(line);
-		long linebuflen = rb_bytestring_length(line);
+		char *linebuf = (char *)rb_bstr_bytes(line);
+		const long linebuflen = rb_bstr_length(line);
 
 		linebuf[linebuflen - 1] = '\0';
 		if (linebuf[linebuflen - 2] == '\r') {
@@ -1285,14 +1276,18 @@ set_arg0(VALUE val, ID id)
 	}
     }
 #endif
+    GC_RELEASE(rb_progname);
     rb_progname = rb_tainted_str_new(s, i);
+    GC_RETAIN(rb_progname);
 }
 
 void
 ruby_script(const char *name)
 {
-    if (name) {
+    if (name != NULL) {
+	GC_RELEASE(rb_progname);
 	rb_progname = rb_tainted_str_new2(name);
+	GC_RETAIN(rb_progname);
     }
 }
 
@@ -1359,7 +1354,6 @@ ruby_prog_init(void)
 
     rb_define_hooked_variable("$0", &rb_progname, 0, set_arg0);
     rb_define_hooked_variable("$PROGRAM_NAME", &rb_progname, 0, set_arg0);
-    GC_ROOT(&rb_progname);
 
     rb_define_global_const("ARGV", rb_argv);
     rb_global_variable(&rb_argv0);

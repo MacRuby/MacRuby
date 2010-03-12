@@ -32,7 +32,8 @@ llvm_default_path = '/usr/local'
 if `sw_vers -productVersion`.strip.to_f >= 10.7 and File.exist?('/AppleInternal')
   $stderr.puts "Welcome bleeding-edge adventurer!"
   llvm_default_path = '/Developer/usr/local'
-  ENV['LLVM_TOT'] = '1'
+  #ENV['LLVM_TOT'] = '1'
+  ENV['LLVM_PRE_TOT'] = '1'
 end
 
 RUBY_INSTALL_NAME       = b.option('ruby_install_name', 'macruby')
@@ -100,27 +101,36 @@ INSTALL_NAME = File.join(FRAMEWORK_USR_LIB, 'lib' + RUBY_SO_NAME + '.dylib')
 ARCHFLAGS = ARCHS.map { |a| '-arch ' + a }.join(' ')
 LLVM_MODULES = "core jit nativecodegen bitwriter"
 
-CC = '/usr/bin/gcc'
-CXX = '/usr/bin/g++'
-CFLAGS = "-I. -I./include -I./onig -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -O3 -g -Wall -fexceptions"
+CC = '/usr/bin/gcc-4.2'
+CXX = '/usr/bin/g++-4.2'
+CFLAGS = "-I. -I./include -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -O3 -g -Wall -fexceptions"
 CFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
 OBJC_CFLAGS = CFLAGS + " -fobjc-gc-only"
 CXXFLAGS = `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.sub(/-DNDEBUG/, '').sub(/-fno-exceptions/, '').strip
 CXXFLAGS << " -I. -I./include -g -Wall #{ARCHFLAGS}"
 CXXFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
 CXXFLAGS << " -DLLVM_TOT" if ENV['LLVM_TOT']
+CXXFLAGS << " -DLLVM_PRE_TOT" if ENV['LLVM_PRE_TOT']
 LDFLAGS = `#{LLVM_CONFIG} --ldflags --libs #{LLVM_MODULES}`.strip.gsub(/\n/, '')
-LDFLAGS << " -lpthread -ldl -lxml2 -lobjc -lauto -framework Foundation"
+LDFLAGS << " -lpthread -ldl -lxml2 -lobjc -lauto -licucore -framework Foundation"
 DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION}"
 DLDFLAGS << " -unexported_symbols_list #{UNEXPORTED_SYMBOLS_LIST}" if UNEXPORTED_SYMBOLS_LIST
 CFLAGS << " -std=c99" # we add this one later to not conflict with C++ flags
 OBJC_CFLAGS << " -std=c99"
 
+if `sw_vers -productVersion`.to_f <= 10.6
+  CFLAGS << " -I./icu-1060"
+  CXXFLAGS << " -I./icu-1060"
+else
+  if !File.exist?('/usr/local/include/unicode')
+    $stderr.puts "Cannot locate ICU headers for this version of Mac OS X."
+    exit 1
+  end
+end
+
 OBJS_CFLAGS = {
   # Make sure everything gets inlined properly + compile as Objective-C++.
   'dispatcher' => '--param inline-unit-growth=10000 --param large-function-growth=10000 -x objective-c++',
-  # Disable optimizations to work around a silly bug.
-  're' => '-O0'
 }
 
 # We monkey-patch the method that Rake uses to display the tasks so we can add

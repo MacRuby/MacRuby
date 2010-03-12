@@ -52,7 +52,7 @@ class StringIO
   #
   # Creates new StringIO instance from with _string_ and _mode_.
   #
-  def initialize(string = ByteString.new, mode = nil)
+  def initialize(string = String.new, mode = nil)
     @string = string.to_str  
     @pos = 0
     @lineno = 0
@@ -127,7 +127,7 @@ class StringIO
   #
   # See IO#read.
   #
-  def read(length = nil, buffer = ByteString.new)
+  def read(length = nil, buffer = String.new)
     raise IOError, "not opened for reading" unless @readable
     raise TypeError unless buffer.respond_to?(:to_str)
     buffer = buffer.to_str      
@@ -152,7 +152,7 @@ class StringIO
   #
   # Similar to #read, but raises +EOFError+ at end of string instead of
   # returning +nil+, as well as IO#sysread does.
-  def sysread(length = nil, buffer = ByteString.new)
+  def sysread(length = nil, buffer = String.new)
     val = read(length, buffer)
     ( buffer.clear && raise(IO::EOFError, "end of file reached")) if val == nil
     val
@@ -329,7 +329,7 @@ class StringIO
   #   strio.getc   -> string or nil
   #
   # Gets the next character from io.
-  # Returns nil if called at end of ﬁle
+  # Returns nil if called at end of file
   def getc
     return nil if eof?
     result = string[pos]

@@ -14,6 +14,7 @@
 #include "ruby/st.h"
 #include "ruby/util.h"
 #include "ruby/encoding.h"
+#include "encoding.h"
 #include "id.h"
 
 #include <math.h>
@@ -83,7 +84,15 @@ static ID s_dump, s_load, s_mdump, s_mload;
 static ID s_dump_data, s_load_data, s_alloc;
 static ID s_getbyte, s_read, s_write, s_binmode;
 
-ID rb_id_encoding(void);
+static ID
+rb_id_encoding(void)
+{
+    static ID id = 0;
+    if (id == 0) {
+	id = rb_intern("encoding");
+    }
+    return id;
+}
 
 typedef struct {
     VALUE newclass;
@@ -210,12 +219,16 @@ static void
 w_nbyte(const char *s, int n, struct dump_arg *arg)
 {
     VALUE buf = arg->str;
-    rb_str_buf_cat(buf, s, n);
+    rb_bstr_concat(buf, (const uint8_t *)s, n);
+#if 0 // unused
     if (arg->dest && RSTRING_LEN(buf) >= BUFSIZ) {
-	if (arg->taint) OBJ_TAINT(buf);
+	if (arg->taint) {
+	    OBJ_TAINT(buf);
+	}
 	rb_io_write(arg->dest, 0, buf);
 	rb_str_resize(buf, 0);
     }
+#endif
 }
 
 static void
@@ -773,8 +786,9 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	  case T_REGEXP:
 	    w_uclass(obj, rb_cRegexp, arg);
 	    w_byte(TYPE_REGEXP, arg);
-	    w_bytes(RREGEXP(obj)->str, RREGEXP(obj)->len, arg);
-	    w_byte((char)rb_reg_options(obj), arg);
+	    // TODO    
+	    //w_bytes(RREGEXP(obj)->str, RREGEXP(obj)->len, arg);
+	    //w_byte((char)rb_reg_options(obj), arg);
 	    break;
 
 	  case T_ARRAY:
@@ -886,10 +900,12 @@ static VALUE
 dump(struct dump_call_arg *arg)
 {
     w_object(arg->obj, arg->arg, arg->limit);
+#if 0 // unused
     if (arg->arg->dest) {
 	rb_io_write(arg->arg->dest, 0, arg->arg->str);
-	rb_str_resize(arg->arg->str, 0);
+	rb_bstr_resize(arg->arg->str, 0);
     }
+#endif
     return 0;
 }
 
@@ -967,19 +983,23 @@ marshal_dump(VALUE self, SEL sel, int argc, VALUE *argv)
 	}
     }
     arg->dest = 0;
+    bool got_io = false;
     if (!NIL_P(port)) {
 	if (!rb_obj_respond_to(port, s_write, Qtrue)) {
 type_error:
 	    rb_raise(rb_eTypeError, "instance of IO needed");
 	}
-	GC_WB(&arg->str, rb_bytestring_new());
+	GC_WB(&arg->str, rb_bstr_new());
+#if 0 // unused
 	GC_WB(&arg->dest, port);
+#endif
 	if (rb_obj_respond_to(port, s_binmode, Qtrue)) {
 	    rb_funcall2(port, s_binmode, 0, 0);
 	}
+	got_io = true;
     }
     else {
-	port = rb_bytestring_new();
+	port = rb_bstr_new();
 	GC_WB(&arg->str, port);
     }
 
@@ -997,6 +1017,12 @@ type_error:
     w_byte(MARSHAL_MINOR, arg);
 
     rb_ensure(dump, (VALUE)c_arg, dump_ensure, (VALUE)arg);
+
+    // If we got an IO object as the port, make sure to write the bytestring
+    // to it before leaving!
+    if (got_io) {
+	rb_io_write(port, 0, arg->str);	
+    }
 
     return port;
 }
@@ -1111,9 +1137,9 @@ r_bytes0(long len, struct load_arg *arg)
     }
     if (TYPE(arg->src) == T_STRING) {
 	if (RSTRING_LEN(arg->src) - arg->offset >= len) {
-	    str = rb_bytestring_new();
-	    rb_bytestring_resize(str, len + 1);
-	    UInt8 *data = rb_bytestring_byte_pointer(str);
+	    str = rb_bstr_new();
+	    rb_bstr_resize(str, len + 1);
+	    uint8_t *data = rb_bstr_bytes(str);
 	    memcpy(data, (UInt8 *)RSTRING_PTR(arg->src) + arg->offset, len);
 	    data[len] = '\0';
 	    arg->offset += len;
@@ -1733,17 +1759,7 @@ marshal_load(VALUE self, SEL sel, int argc, VALUE *argv)
     v = rb_check_string_type(port);
     if (!NIL_P(v)) {
 	arg->taint = OBJ_TAINTED(port); /* original taintedness */
-	if (*(VALUE *)v != rb_cByteString) {
-	    // Given string is not a ByteString, let's create one based on every
-	    // character. This sucks but this is how life is.
-	    const long n = RSTRING_LEN(v);
-	    UInt8 *bytes = alloca(n + 1);
-	    for (long i = 0; i < n; i++) {
-		UniChar c = CFStringGetCharacterAtIndex((CFStringRef)v, i);
-		bytes[i] = (char)c;
-	    }
-	    v = rb_bytestring_new_with_data(bytes, n);
-	}
+	v = rb_str_bstr(v);
 	port = v;
     }
     else if (rb_obj_respond_to(port, s_getbyte, Qtrue)

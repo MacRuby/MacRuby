@@ -36,7 +36,8 @@ void Init_Numeric(void);
 void Init_Object(void);
 void Init_pack(void);
 void Init_Precision(void);
-void Init_sym(void);
+void Init_Symbol(void);
+void Init_PreSymbol(void);
 void Init_id(void);
 void Init_process(void);
 void Init_Random(void);
@@ -63,7 +64,7 @@ void Init_PostVM(void);
 void
 rb_call_inits()
 {
-    Init_sym();
+    Init_PreSymbol();
     Init_id();
     Init_var_tables();
     Init_Object();
@@ -73,6 +74,7 @@ rb_call_inits()
     Init_Enumerable();
     Init_Precision();
     Init_String();
+    Init_Symbol();
     Init_Exception();
     Init_eval();
     Init_jump();
