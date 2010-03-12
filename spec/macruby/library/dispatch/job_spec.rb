@@ -84,6 +84,7 @@ if MACOSX_VERSION >= 10.6
         @value = 0
         q = Dispatch::Queue.for(@value)
         @job.value(q) {|v| @value = v}
+        @job.join
         q.sync { }
         @value.should == 2**5
       end
