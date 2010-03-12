@@ -639,15 +639,15 @@ static VALUE ossl_ec_key_dh_compute_key(VALUE self, VALUE pubkey)
 
 /* BUG: need a way to figure out the maximum string size */
     buf_len = 1024;
-    str = rb_bytestring_new();
-    rb_bytestring_resize(str, buf_len);
+    str = rb_bstr_new();
+    rb_bstr_resize(str, buf_len);
 /* BUG: take KDF as a block */
-    buf_len = ECDH_compute_key(rb_bytestring_byte_pointer(str), buf_len,
+    buf_len = ECDH_compute_key(rb_bstr_bytes(str), buf_len,
 	    point, ec, NULL);
     if (buf_len < 0)
          ossl_raise(eECError, "ECDH_compute_key");
 
-    rb_bytestring_resize(str, buf_len);
+    rb_bstr_resize(str, buf_len);
 
     return str;
 }
