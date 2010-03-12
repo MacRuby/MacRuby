@@ -329,7 +329,7 @@ class StringIO
   #   strio.getc   -> string or nil
   #
   # Gets the next character from io.
-  # Returns nil if called at end of ﬁle
+  # Returns nil if called at end of file
   def getc
     return nil if eof?
     result = string[pos]
