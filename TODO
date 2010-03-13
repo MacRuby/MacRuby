@@ -6,6 +6,7 @@ For 0.6:
   [X] Hash
   [X] Array
   [ ] String
+[ ] implement basic Numeric methods on NSNumber  
 [/] debugger
   [/] command-line tool
   [ ] Xcode plugin
