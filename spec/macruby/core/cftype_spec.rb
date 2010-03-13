@@ -20,14 +20,14 @@ describe "A CoreFoundation type" do
 
   it "toll-free bridged to an Objective-C type behaves like the Objective-C version" do
     s = CFStringCreateWithCString(nil, "foo", KCFStringEncodingUTF8)
-    s.class.should == NSString
+    s.class.should == String
     s.should == 'foo'
     CFRelease(s)
   end
 
   it "can be substitued with the toll-free bridged equivalent" do
     s = CFStringCreateMutableCopy(nil, 0, "foo")
-    s.class.should == NSMutableString
+    s.class.should == String
     s.should == 'foo'
     CFRelease(s)
   end

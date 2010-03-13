@@ -1,8 +1,9 @@
 require File.dirname(__FILE__) + "/../spec_helper"
 
 describe "The String class" do
-  it "is an alias to NSMutableString" do
-    String.should == NSMutableString
+  it "is a direct subclass of NSMutableString" do
+    String.class.should == Class
+    String.superclass.should == NSMutableString
   end
 
   it "can be subclassed and later instantiated" do
