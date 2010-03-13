@@ -4860,7 +4860,6 @@ ripper_dispatch_delayed_token(struct parser_params *parser, int t)
 }
 #endif /* RIPPER */
 
-#include "ruby/regex.h"
 #include "ruby/util.h"
 
 /* We remove any previous definition of `SIGN_EXTEND_CHAR',
