@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <wctype.h>
+#include <unistd.h>
 
 #include "ruby.h"
 #include "ruby/encoding.h"
