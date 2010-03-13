@@ -691,3 +691,14 @@ describe "A pure MacRuby method" do
     @um.canUndo.should == false
   end
 end
+
+describe "An Obj-C object" do
+  before :each do
+    @o = TestMethod.new
+  end
+
+  it "allows the use of #[] and #[]= as respective shortcuts to objectForKey: and setObject:forKey:" do
+    @o['foo'] = 'ok'
+    @o['foo'].should == 'ok'
+  end
+end

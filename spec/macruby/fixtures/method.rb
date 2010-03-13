@@ -69,16 +69,3 @@ class TestInformalProtocolMethod
     x + x2 == 42
   end
 end
-
-require File.dirname(__FILE__) + "/../spec_helper"
-
-describe "An Obj-C object" do
-  before :each do
-    @o = TestMethod.new
-  end
-
-  it "allows the use of #[] and #[]= as respective shortcuts to objectForKey: and setObject:forKey:" do
-    @o['foo'] = 'ok'
-    @o['foo'].should == 'ok'
-  end
-end
