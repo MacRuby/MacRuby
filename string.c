@@ -5432,11 +5432,28 @@ rb_objc_install_string_primitives(Class klass)
 VALUE
 rb_str_bstr(VALUE str)
 {
-    if (IS_RSTR(str)) {
-	str_make_data_binary(RSTR(str));
-	return str;
+    if (!IS_RSTR(str)) {
+	const char *cptr = CFStringGetCStringPtr((CFStringRef)str,
+		kCFStringEncodingUTF8);
+	if (cptr != NULL) {
+	    str = rb_str_new2(cptr);
+	}
+	else {
+	    const long max = CFStringGetMaximumSizeForEncoding(
+		    CFStringGetLength((CFStringRef)str), kCFStringEncodingUTF8);
+	    assert(max > 0);
+	    char *buf = (char *)malloc(max + 1);
+	    if (!CFStringGetCString((CFStringRef)str, buf, max,
+			kCFStringEncodingUTF8)) {
+		free(buf);
+		rb_raise(rb_eArgError,
+			"cannot coerce NSString %p as UTF-8 data", (void *)str);
+	    }
+	    str = rb_str_new2(buf);
+	}
     }
-    abort(); // TODO
+    str_make_data_binary(RSTR(str));
+    return str;
 }
 
 uint8_t *
