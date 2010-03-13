@@ -93,34 +93,6 @@ VALUE rb_cFixnum;
 VALUE rb_eZeroDivError;
 VALUE rb_eFloatDomainError;
 
-static VALUE
-rb_box_fixfloat0(double value)
-{
-    CFNumberRef number = CFNumberCreate(NULL, kCFNumberDoubleType, &value);
-    CFMakeCollectable(number);
-    return (VALUE)number;
-}
-
-VALUE
-rb_box_fixfloat(VALUE fixfloat)
-{
-    return rb_box_fixfloat0(NUM2DBL(fixfloat));
-}
-
-static VALUE
-rb_box_fixnum0(long value)
-{
-    CFNumberRef number = CFNumberCreate(NULL, kCFNumberLongType, &value);
-    CFMakeCollectable(number);
-    return (VALUE)number;
-}
-
-VALUE
-rb_box_fixnum(VALUE fixnum)
-{
-    return rb_box_fixnum0(FIX2LONG(fixnum));
-}
-
 void
 rb_num_zerodiv(void)
 {

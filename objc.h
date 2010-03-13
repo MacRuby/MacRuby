@@ -167,9 +167,6 @@ TypeArity(const char *type)
     return arity;
 }
 
-VALUE rb_box_fixnum(VALUE);
-VALUE rb_box_fixfloat(VALUE);
-
 static inline id
 rb_rval_to_ocid(VALUE obj)
 {
@@ -184,10 +181,17 @@ rb_rval_to_ocid(VALUE obj)
             return (id)kCFNull;
         }
 	if (FIXNUM_P(obj)) {
-	    return (id)rb_box_fixnum(obj);
+	    long val = FIX2LONG(obj);
+	    CFNumberRef number = CFNumberCreate(NULL, kCFNumberLongType, &val);
+	    CFMakeCollectable(number);
+	    return (id)number;
 	}
 	if (FIXFLOAT_P(obj)) {
-	    return (id)rb_box_fixfloat(obj);
+	    double val = NUM2DBL(obj);
+	    CFNumberRef number = CFNumberCreate(NULL, kCFNumberDoubleType,
+		    &val);
+	    CFMakeCollectable(number);
+	    return (id)number;
 	}
     }
     return (id)obj;
