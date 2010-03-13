@@ -5047,19 +5047,6 @@ rstr_sum(VALUE str, SEL sel, int argc, VALUE *argv)
 }
 
 /*
- * call-seq:
- *    str.hash   => fixnum
- *
- * Return a hash based on the string's length and content.
- */
-
-static VALUE
-rstr_hash(VALUE str, SEL sel)
-{
-    return LONG2NUM(rb_str_hash(str));
-}
-
-/*
  *  call-seq:
  *     str.partition(sep)              => [head, sep, tail]
  *  
@@ -5364,7 +5351,6 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "tr_s", rstr_tr_s, 2);
     rb_objc_define_method(rb_cRubyString, "tr_s!", rstr_tr_s_bang, 2);
     rb_objc_define_method(rb_cRubyString, "sum", rstr_sum, -1);
-    rb_objc_define_method(rb_cRubyString, "hash", rstr_hash, 0);
     rb_objc_define_method(rb_cRubyString, "partition", rstr_partition, 1);
     rb_objc_define_method(rb_cRubyString, "rpartition", rstr_rpartition, 1);
     rb_objc_define_method(rb_cRubyString, "crypt", rstr_crypt, 1);
