@@ -586,6 +586,9 @@ rb_obj_is_kind_of(VALUE obj, VALUE c)
     }
 
     const long v = RCLASS_VERSION(cl);
+    if (c == rb_cRubyString && (v & RCLASS_IS_STRING_SUBCLASS)) {
+	return Qtrue;
+    }
     if (c == rb_cRubyArray && (v & RCLASS_IS_ARRAY_SUBCLASS)) {
 	return Qtrue;
     }
