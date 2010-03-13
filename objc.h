@@ -205,28 +205,28 @@ rb_ocid_to_rval(id obj)
     if (obj == (id)kCFNull || obj == nil) {
 	return Qnil;
     }
-    if (*(Class *)obj == (Class)rb_cFixnum) {
-	return LONG2FIX(RFIXNUM(obj)->value);
-    }
-#if 0 // XXX this does not seem to be needed
-    if (*(Class *)obj == (Class)rb_cFloat) {
-	extern VALUE rb_float_new(double);
-	return rb_float_new(RFLOAT(obj)->float_value);
-    }
-#endif
-    if (*(Class *)obj == (Class)rb_cCFNumber) {
-	/* TODO NSNumber should implement the Numeric primitive methods */
-	if (CFNumberIsFloatType((CFNumberRef)obj)) {
-	    double v;
-	    assert(CFNumberGetValue((CFNumberRef)obj, kCFNumberDoubleType, &v));
-	    extern VALUE rb_float_new(double);
-	    return rb_float_new(v);
+    if (((unsigned long)obj & 0x1) == 0x1) {
+	// An Objective-C immediate! We only recognize NSNumbers for now.
+	Class k = object_getClass(obj);
+	while (k != NULL) {
+	    if (k == (Class)rb_cNSNumber) {
+		if (CFNumberIsFloatType((CFNumberRef)obj)) {
+		    // Will likely not happen, but just in case...	
+		    double v;
+		    assert(CFNumberGetValue((CFNumberRef)obj,
+				kCFNumberDoubleType, &v));
+		    return DOUBLE2NUM(v);
+		}
+		else {
+		    long v;
+		    assert(CFNumberGetValue((CFNumberRef)obj,
+				kCFNumberLongType, &v));
+		    return LONG2FIX(v);
+		}
+	    }
+	    k = class_getSuperclass(k);
 	}
-	else {
-	    long v;
-	    assert(CFNumberGetValue((CFNumberRef)obj, kCFNumberLongType, &v));
-	    return LONG2FIX(v);
-	}
+	rb_bug("unknown Objective-C immediate: %p\n", obj);
     }
     return (VALUE)obj;
 }
