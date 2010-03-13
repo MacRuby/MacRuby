@@ -79,15 +79,9 @@ rb_obj_imp_copyWithZone(void *rcv, SEL sel, void *zone)
 static BOOL
 rb_obj_imp_isEqual(void *rcv, SEL sel, void *obj)
 {
-    if (obj == NULL)
+    if (obj == NULL) {
 	return false;
-
-    if (*(Class *)rcv == (Class)rb_cFixnum 
-	&& *(Class *)obj == (Class)rb_cFixnum) {
-	/* XXX check if Numeric#== is not overriden */
-	return RFIXNUM(rcv)->value == RFIXNUM(obj)->value;
     }
-
     VALUE arg = OC2RB(obj);
     return rb_vm_call((VALUE)rcv, selEq, 1, &arg, false) == Qtrue;
 }

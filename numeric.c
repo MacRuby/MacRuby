@@ -93,15 +93,12 @@ VALUE rb_cFixnum;
 VALUE rb_eZeroDivError;
 VALUE rb_eFloatDomainError;
 
-static CFMutableDictionaryRef fixnum_cache = NULL;
-
-static inline VALUE
-rb_box_fixfloat0(double v)
+static VALUE
+rb_box_fixfloat0(double value)
 {
-    NEWOBJ(val, struct RFloat);
-    OBJSETUP(val, rb_cFloat, T_FLOAT);
-    val->float_value = v;
-    return (VALUE)val;
+    CFNumberRef number = CFNumberCreate(NULL, kCFNumberDoubleType, &value);
+    CFMakeCollectable(number);
+    return (VALUE)number;
 }
 
 VALUE
@@ -110,25 +107,12 @@ rb_box_fixfloat(VALUE fixfloat)
     return rb_box_fixfloat0(NUM2DBL(fixfloat));
 }
 
-static inline VALUE
+static VALUE
 rb_box_fixnum0(long value)
 {
-    if (fixnum_cache == NULL) {
-	fixnum_cache = CFDictionaryCreateMutable(NULL, 0, NULL,
-		&kCFTypeDictionaryValueCallBacks);
-    }
-
-    struct RFixnum *val = (struct RFixnum *)CFDictionaryGetValue(fixnum_cache,
-	    (const void *)value);
-    if (val == NULL) {
-	NEWOBJ(fixval, struct RFixnum);
-	fixval->klass = rb_cFixnum;
-	fixval->value = value;
-	val = fixval;
-	CFDictionarySetValue(fixnum_cache, (const void *)value, val);
-    }
-
-    return (VALUE)val;
+    CFNumberRef number = CFNumberCreate(NULL, kCFNumberLongType, &value);
+    CFMakeCollectable(number);
+    return (VALUE)number;
 }
 
 VALUE
@@ -3298,58 +3282,6 @@ fix_even_p(VALUE num, SEL sel)
     return Qtrue;
 }
 
-static VALUE
-imp_rb_float_copyWithZone(void *rcv, SEL sel, void *zone)
-{
-    // XXX honor zone?
-    return rb_box_fixfloat0(RFLOAT_VALUE(rcv));
-}
-
-static VALUE
-imp_rb_fixnum_copyWithZone(void *rcv, SEL sel, void *zone)
-{
-    // XXX honor zone?
-    return rb_box_fixnum0(RFIXNUM(rcv)->value);
-}
-
-static const char *
-imp_rb_float_objCType(void *rcv, SEL sel)
-{
-    return "d";
-}
-
-static const char *
-imp_rb_fixnum_objCType(void *rcv, SEL sel)
-{
-    return "l";
-}
-
-static void
-imp_rb_float_getValue(void *rcv, SEL sel, void *buffer)
-{
-    double v = RFLOAT_VALUE(rcv);
-    *(double *)buffer = v;
-}
-
-static void
-imp_rb_fixnum_getValue(void *rcv, SEL sel, void *buffer)
-{
-    long v = RFIXNUM(rcv)->value;
-    *(long *)buffer = v;
-}
-
-static double
-imp_rb_float_doubleValue(void *rcv, SEL sel)
-{
-    return RFLOAT_VALUE(rcv);
-}
-
-static long long
-imp_rb_fixnum_longValue(void *rcv, SEL sel)
-{
-    return RFIXNUM(rcv)->value;
-}
-
 static void *
 imp_nsnumber_to_int(void *rcv, SEL sel)
 {
@@ -3364,37 +3296,6 @@ imp_nsnumber_to_int(void *rcv, SEL sel)
     CFMakeCollectable(new_num);
     return (void *)new_num;
 }
-
-static void
-rb_install_nsnumber_primitives(void)
-{
-    Class klass;
-  
-    klass = (Class)rb_cFloat;
-    rb_objc_install_method2(klass, "copyWithZone:",
-	    (IMP)imp_rb_float_copyWithZone);
-    rb_objc_install_method2(klass, "objCType", (IMP)imp_rb_float_objCType);
-    rb_objc_install_method2(klass, "getValue:", (IMP)imp_rb_float_getValue);
-    rb_objc_install_method2(klass, "doubleValue", 
-	    (IMP)imp_rb_float_doubleValue);
-
-    klass = (Class)rb_cFixnum;
-    rb_objc_install_method2(klass, "copyWithZone:",
-	    (IMP)imp_rb_fixnum_copyWithZone);
-    rb_objc_install_method2(klass, "objCType", (IMP)imp_rb_fixnum_objCType);
-    rb_objc_install_method2(klass, "getValue:", (IMP)imp_rb_fixnum_getValue);
-    rb_objc_install_method2(klass, "longValue", (IMP)imp_rb_fixnum_longValue);
-
-    klass = (Class)rb_cNSNumber;
-    class_replaceMethod(klass, sel_registerName("to_int"),
-	    (IMP)imp_nsnumber_to_int, "@@:");
-}
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-# define NSCFNUMBER_CNAME "NSCFNumber"
-#else
-# define NSCFNUMBER_CNAME "__NSCFNumber"
-#endif
 
 void
 Init_Numeric(void)
@@ -3577,6 +3478,7 @@ Init_Numeric(void)
     rb_objc_define_method(rb_cFloat, "nan?",      flo_is_nan_p, 0);
     rb_objc_define_method(rb_cFloat, "infinite?", flo_is_infinite_p, 0);
     rb_objc_define_method(rb_cFloat, "finite?",   flo_is_finite_p, 0);
-	
-    rb_install_nsnumber_primitives();
+
+    class_replaceMethod((Class)rb_cNSNumber, sel_registerName("to_int"),
+	    (IMP)imp_nsnumber_to_int, "@@:");
 }

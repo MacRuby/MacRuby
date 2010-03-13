@@ -551,33 +551,9 @@ CFMutableDictionaryRef rb_class_ivar_dict_or_create(VALUE);
 void rb_class_ivar_set_dict(VALUE, CFMutableDictionaryRef);
 #endif
 
-struct RFloat {
-    struct RBasic basic;
-    double float_value;
-};
-
-static inline double
-__rb_float_value(VALUE v)
-{
-    return FIXFLOAT_P(v) ? FIXFLOAT2DBL(v) : ((struct RFloat *)v)->float_value;
-}
-#define RFLOAT_VALUE(v) (__rb_float_value((VALUE)v))
+#define RFLOAT_VALUE(v) FIXFLOAT2DBL(v)
 #define DOUBLE2NUM(dbl)  rb_float_new(dbl)
 #define DBL2NUM DOUBLE2NUM
-
-#if WITH_OBJC
-struct RFixnum {
-    VALUE klass;
-    long value;
-};
-
-struct RSymbol {
-    VALUE klass;
-    char *str;
-    unsigned int len;
-    ID id;
-};
-#endif
 
 #define ELTS_SHARED FL_USER2
 
@@ -768,10 +744,6 @@ struct RBignum {
 #define R_CAST(st)   (struct st*)
 #define RBASIC(obj)  (R_CAST(RBasic)(obj))
 #define ROBJECT(obj) (R_CAST(RObject)(obj))
-#define RFLOAT(obj)  (R_CAST(RFloat)(obj))
-#if WITH_OBJC
-# define RFIXNUM(obj) (R_CAST(RFixnum)(obj))
-#endif
 #define RDATA(obj)   (R_CAST(RData)(obj))
 #define RSTRUCT(obj) (R_CAST(RStruct)(obj))
 #define RBIGNUM(obj) (R_CAST(RBignum)(obj))
