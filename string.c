@@ -5450,6 +5450,7 @@ rb_str_bstr(VALUE str)
 			"cannot coerce NSString %p as UTF-8 data", (void *)str);
 	    }
 	    str = rb_str_new2(buf);
+	    free(buf);
 	}
     }
     str_make_data_binary(RSTR(str));
