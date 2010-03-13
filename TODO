@@ -1,8 +1,9 @@
 For 0.6:
 
 [X] new Hash class, insertion ordering support, optimized for immediate types
-[/] new String class, support for 1.9 encoding semantics
-[/] refactor the Array, Hash and String models
+[/] new String and Symbol classes, support for 1.9 encoding semantics
+[/] new Regexp class, thread-safe, ICU-based
+[/] refactor the Array, Hash and String Foundation bridging models
   [X] Hash
   [X] Array
   [ ] String
