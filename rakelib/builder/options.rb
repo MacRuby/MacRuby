@@ -32,8 +32,8 @@ llvm_default_path = '/usr/local'
 if `sw_vers -productVersion`.strip.to_f >= 10.7 and File.exist?('/AppleInternal')
   $stderr.puts "Welcome bleeding-edge adventurer!"
   llvm_default_path = '/Developer/usr/local'
-  #ENV['LLVM_TOT'] = '1'
-  ENV['LLVM_PRE_TOT'] = '1'
+  ENV['LLVM_TOT'] = '1'
+  #ENV['LLVM_PRE_TOT'] = '1'
 end
 
 RUBY_INSTALL_NAME       = b.option('ruby_install_name', 'macruby')
