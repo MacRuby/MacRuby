@@ -143,15 +143,9 @@ describe "A BridgeSupport structure" do
     NSPoint.new.should_not == NSSize.new
   end
 
-  if MACOSX_VERSION <= 10.6
-    NSPOINT_CNAME = 'CGPoint'
-    NSSIZE_CNAME = 'CGSize'
-    NSRECT_CNAME = 'CGRect'
-  else
-    NSPOINT_CNAME = 'NSPoint'
-    NSSIZE_CNAME = 'NSSize'
-    NSRECT_CNAME = 'NSRect'
-  end
+  NSPOINT_CNAME = 'CGPoint'
+  NSSIZE_CNAME = 'CGSize'
+  NSRECT_CNAME = 'CGRect'
 
   it "has a nice #inspect message that lists the fields" do
     p = NSPoint.new
