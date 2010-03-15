@@ -35,9 +35,11 @@ describe "Regexps with repetition" do
     /.([0-9]){3,5}?foo/.match("9876543210foo").to_a.should == ["543210foo", "0"]
     end
   end
-  
-  it 'does not treat {m,n}+ as possessive' do
-    /foo(A{0,1}+)Abar/.match("fooAAAbar").to_a.should == ["fooAAAbar", "AA"]
+ 
+  not_compliant_on :macruby do 
+    it 'does not treat {m,n}+ as possessive' do
+      /foo(A{0,1}+)Abar/.match("fooAAAbar").to_a.should == ["fooAAAbar", "AA"]
+    end
   end
   
   it 'supports ? (0 or 1 of previous subexpression)' do
