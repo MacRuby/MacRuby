@@ -2807,20 +2807,13 @@ RoxorCompiler::compile_literal(VALUE val)
 	    return CallInst::Create(newString3Func, "", bb);
 	}
 	else {
-	    UChar *chars = NULL;
-	    long chars_len = 0;
-	    bool need_free = false;
+	    const char *cstr = RSTRING_PTR(val);
+	    const int cstr_len = RSTRING_LEN(val);
 
-	    rb_str_get_uchars(val, &chars, &chars_len, &need_free);
-	    assert(chars_len > 0);
+	    assert(cstr_len > 0);
 
-	    GlobalVariable *str_gvar = compile_const_global_ustring(chars,
-		    chars_len);
-
-	    if (need_free) {
-		free(chars);
-		chars = NULL;
-	    }
+	    GlobalVariable *str_gvar = compile_const_global_string(cstr,
+		    cstr_len);
 
 	    std::vector<Value *> idxs;
 	    idxs.push_back(ConstantInt::get(Int32Ty, 0));
@@ -2831,14 +2824,13 @@ RoxorCompiler::compile_literal(VALUE val)
 	    if (newString2Func == NULL) {	
 		newString2Func = cast<Function>(
 			module->getOrInsertFunction(
-			    "rb_unicode_str_new",
-			    RubyObjTy, PointerType::getUnqual(Int16Ty),
-			    Int32Ty, NULL));
+			    "rb_str_new",
+			    RubyObjTy, PtrTy, Int32Ty, NULL));
 	    }
 
 	    std::vector<Value *> params;
 	    params.push_back(load);
-	    params.push_back(ConstantInt::get(Int32Ty, chars_len));
+	    params.push_back(ConstantInt::get(Int32Ty, cstr_len));
 
 	    return CallInst::Create(newString2Func, params.begin(),
 		    params.end(), "", bb);
