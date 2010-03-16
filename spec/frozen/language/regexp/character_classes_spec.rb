@@ -66,7 +66,9 @@ describe "Regexp with character classes" do
 
   it 'supports [] (character class)' do
     /[a-z]+/.match("fooBAR").to_a.should == ["foo"]
-    /[\b]/.match("\b").to_a.should == ["\b"] # \b inside character class is backspace
+    not_compliant_on :macruby do
+      /[\b]/.match("\b").to_a.should == ["\b"] # \b inside character class is backspace
+    end
   end
   
   it 'supports [[:alpha:][:digit:][:etc:]] (predefined character classes)' do
@@ -86,9 +88,13 @@ describe "Regexp with character classes" do
     # Parsing
     /[[:lower:][:digit:]A-C]+/.match("a1ABCDEF").to_a.should == ["a1ABC"] # can be composed with other constructs in the character class
     /[^[:lower:]A-C]+/.match("abcABCDEF123def").to_a.should == ["DEF123"] # negated character class
-    /[:alnum:]+/.match("a:l:n:u:m").to_a.should == ["a:l:n:u:m"] # should behave like regular character class composed of the individual letters
+    not_compliant_on :macruby do
+      /[:alnum:]+/.match("a:l:n:u:m").to_a.should == ["a:l:n:u:m"] # should behave like regular character class composed of the individual letters
+    end
     /[\[:alnum:]+/.match("[:a:l:n:u:m").to_a.should == ["[:a:l:n:u:m"] # should behave like regular character class composed of the individual letters
-    lambda { eval('/[[:alpha:]-[:digit:]]/') }.should raise_error(SyntaxError) # can't use character class as a start value of range
+    not_compliant_on :macruby do
+      lambda { eval('/[[:alpha:]-[:digit:]]/') }.should raise_error(SyntaxError) # can't use character class as a start value of range
+    end
   end
 
   language_version __FILE__, "character_classes"

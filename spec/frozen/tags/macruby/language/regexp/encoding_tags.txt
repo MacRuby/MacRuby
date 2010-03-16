@@ -1,6 +1,7 @@
-fails:Regexps with encoding modifiers supports /n (Normal encoding)
+fails:Regexps with encoding modifiers supports /e (EUC encoding)
+fails:Regexps with encoding modifiers supports /e (EUC encoding) with interpolation
+fails:Regexps with encoding modifiers supports /e (EUC encoding) with interpolation /o
 fails:Regexps with encoding modifiers supports /s (Windows_31J encoding)
-fails:Regexps with encoding modifiers supports /n (No encoding)
 fails:Regexps with encoding modifiers supports /n (No encoding) with interpolation
 fails:Regexps with encoding modifiers supports /n (No encoding) with interpolation /o
 fails:Regexps with encoding modifiers supports /s (Windows_31J encoding) with interpolation
