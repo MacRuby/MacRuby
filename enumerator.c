@@ -83,7 +83,7 @@ obj_to_enum(VALUE obj, SEL sel, int argc, VALUE *argv)
 	meth = *argv++;
     }
 
-    ID meth_id = SYM2ID(meth);
+    ID meth_id = rb_to_id(meth);
     SEL enum_sel;
     if (argc > 0) {
 	char buf[100];
