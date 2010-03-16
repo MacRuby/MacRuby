@@ -312,7 +312,7 @@ rb_gc_register_address(VALUE *addr)
 void
 rb_register_mark_object(VALUE obj)
 {
-    rb_gc_register_address(&obj);
+    GC_RETAIN(obj);
 }
 
 void
