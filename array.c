@@ -896,10 +896,12 @@ rary_rindex(VALUE ary, SEL sel, int argc, VALUE *argv)
     else {
 	VALUE val;
  	rb_scan_args(argc, argv, "01", &val);
-	
-	size_t pos = rary_rindex_of_item(ary, RARY(ary)->len - 1, val);
-	if (pos != NOT_FOUND) {
-	    return LONG2NUM(pos);
+
+	if (RARY(ary)->len > 0) {
+	    size_t pos = rary_rindex_of_item(ary, RARY(ary)->len - 1, val);
+	    if (pos != NOT_FOUND) {
+		return LONG2NUM(pos);
+	    }
 	}
     }
     return Qnil;
