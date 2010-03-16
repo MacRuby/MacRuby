@@ -194,7 +194,11 @@ helper_sel(const char *p, size_t len)
     SEL new_sel = 0;
     char buf[100];
 
-    assert(len < sizeof(buf));
+    // Avoid buffer overflow
+    // len + "sel" + ':' + '\0'
+    if ((len + 5) > sizeof(buf)) {
+	return (SEL)0;
+    }
 
     if (len >= 3 && isalpha(p[len - 3]) && p[len - 2] == '='
 	&& p[len - 1] == ':') {
