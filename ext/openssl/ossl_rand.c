@@ -98,8 +98,13 @@ ossl_rand_bytes(VALUE self, SEL sel, VALUE len)
     VALUE str;
     int n = NUM2INT(len);
 
-    str = rb_str_new(0, n);
-    if (!RAND_bytes((unsigned char *)RSTRING_PTR(str), n)) {
+    if (n <= 0) {
+	rb_raise(rb_eArgError, "given length should be greater than 0");
+    }
+
+    str = rb_bstr_new();
+    rb_bstr_resize(str, n);
+    if (!RAND_bytes(rb_bstr_bytes(str), n)) {
 	ossl_raise(eRandomError, NULL);
     }
 
