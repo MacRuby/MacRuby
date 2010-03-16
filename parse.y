@@ -5508,13 +5508,20 @@ parser_read_escape(struct parser_params *parser, int flags,
     }
 }
 
+#include <unicode/utf8.h>
+
 static void
 parser_tokaddmbc(struct parser_params *parser, int c, rb_encoding *enc)
 {
 #if WITH_OBJC
-    /* FIXME */
-    char *buf = tokspace(1);
-    *(buf) = c;    
+    const int bytelen = U8_LENGTH(c);
+    uint8_t *buf = (uint8_t *)tokspace(bytelen);
+    UBool error = false;
+    int offset = 0;
+    U8_APPEND(buf, offset, bytelen, c, error);
+    if (error) {
+	rb_raise(rb_eArgError, "invalid unicode point U+%d", c);
+    }
 #else
     int len = rb_enc_codelen(c, enc);
     rb_enc_mbcput(c, tokspace(len), enc);
