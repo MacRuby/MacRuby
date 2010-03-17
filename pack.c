@@ -1019,7 +1019,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 	OBJ_TAINT(data);
     }
     else {
-	for (long i = 0; i < items; i++) {
+	for (long i = 0, count = RARRAY_LEN(ary); i < count; i++) {
 	    if (OBJ_TAINTED(RARRAY_AT(ary, i))) {
 		OBJ_TAINT(data);
 		break;
