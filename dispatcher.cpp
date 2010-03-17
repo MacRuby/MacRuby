@@ -1645,6 +1645,10 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
 {
     RoxorVM *vm = GET_VM();
     rb_vm_block_t *b = vm->current_block();
+    if (b == NULL) {
+	rb_raise(rb_eLocalJumpError, "no block given");
+    }
+
     vm->pop_current_block();
 
     VALUE old_self = b->self;
