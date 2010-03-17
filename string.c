@@ -831,10 +831,6 @@ str_concat_string(rb_str_t *self, rb_str_t *str)
     if (str->length_in_bytes == 0) {
 	return;
     }
-    if (self->length_in_bytes == 0) {
-	str_replace_with_string(self, str);
-	return;
-    }
 
     str_must_have_compatible_encoding(self, str);
     str_make_same_format(self, str);
@@ -5520,7 +5516,7 @@ rb_unicode_str_new(const UniChar *ptr, const size_t len)
 VALUE
 rb_str_new_fast(int argc, ...)
 {
-    VALUE str = (VALUE)str_alloc(rb_cRubyString);
+    VALUE str = rb_str_new(NULL, 0);
 
     if (argc > 0) {
 	va_list ar;
