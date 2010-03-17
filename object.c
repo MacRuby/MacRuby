@@ -2894,12 +2894,6 @@ boot_defclass(const char *name, VALUE super)
 }
 
 static VALUE
-rb_obj_is_native(VALUE recv, SEL sel)
-{
-    return NATIVE(recv) ? Qtrue : Qfalse;
-}
-
-static VALUE
 rb_class_is_meta(VALUE klass, SEL sel)
 {
     return RCLASS_META(klass) ? Qtrue : Qfalse;
@@ -3095,8 +3089,6 @@ Init_Object(void)
     rb_objc_define_method(rb_mKernel, "kind_of?", rb_obj_is_kind_of_imp, 1);
     rb_objc_define_method(rb_mKernel, "is_a?", rb_obj_is_kind_of_imp, 1);
     rb_objc_define_method(rb_mKernel, "tap", rb_obj_tap, 0);
-
-    rb_objc_define_method(rb_mKernel, "__native__?", rb_obj_is_native, 0);
 
     rb_objc_define_module_function(rb_mKernel, "sprintf", rb_f_sprintf_imp, -1); /* in sprintf.c */
     rb_objc_define_module_function(rb_mKernel, "format", rb_f_sprintf_imp, -1);  /* in sprintf.c */
