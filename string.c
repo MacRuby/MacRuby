@@ -1533,22 +1533,28 @@ rstr_setbyte(VALUE self, SEL sel, VALUE index, VALUE value)
  *  Changes the encoding to +encoding+ and returns self.
  */
 
+void
+rb_str_force_encoding(VALUE str, rb_encoding_t *enc)
+{
+    assert(IS_RSTR(str));
+    if (enc != RSTR(str)->encoding) {
+	str_make_data_binary(RSTR(str));
+	if (NATIVE_UTF16_ENC(RSTR(str)->encoding)) {
+	    str_set_stored_in_uchars(RSTR(str), false);
+	}
+	RSTR(str)->encoding = enc;
+	str_unset_facultative_flags(RSTR(str));
+	if (NATIVE_UTF16_ENC(RSTR(str)->encoding)) {
+	    str_set_stored_in_uchars(RSTR(str), true);
+	}
+    }
+}
+
 static VALUE
 rstr_force_encoding(VALUE self, SEL sel, VALUE encoding)
 {
     rstr_modify(self);
-    rb_encoding_t *enc = rb_to_encoding(encoding);
-    if (enc != RSTR(self)->encoding) {
-	str_make_data_binary(RSTR(self));
-	if (NATIVE_UTF16_ENC(RSTR(self)->encoding)) {
-	    str_set_stored_in_uchars(RSTR(self), false);
-	}
-	RSTR(self)->encoding = enc;
-	str_unset_facultative_flags(RSTR(self));
-	if (NATIVE_UTF16_ENC(RSTR(self)->encoding)) {
-	    str_set_stored_in_uchars(RSTR(self), true);
-	}
-    }
+    rb_str_force_encoding(self, rb_to_encoding(encoding));
     return self;
 }
 

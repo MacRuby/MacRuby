@@ -306,6 +306,7 @@ void rb_str_append_uchars(VALUE str, const UChar *chars, long len);
 unsigned long rb_str_hash_uchars(const UChar *chars, long chars_len);
 long rb_uchar_strtol(UniChar *chars, long chars_len, long pos,
 	long *end_offset);
+void rb_str_force_encoding(VALUE str, rb_encoding_t *encoding);
 
 #if defined(__cplusplus)
 } // extern "C"

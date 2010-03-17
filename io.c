@@ -1118,12 +1118,15 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_readable(io_struct);
 
+    bool outbuf_created = false;
     if (NIL_P(outbuf)) {
 	outbuf = rb_bstr_new();
+	outbuf_created = true;
     }
 
     if (NIL_P(len)) {
-        return rb_io_read_all(io_struct, outbuf);
+	rb_io_read_all(io_struct, outbuf);
+	goto bail;
     }
 
     const long size = FIX2LONG(len);
@@ -1148,6 +1151,10 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
     }
     rb_bstr_set_length(outbuf, data_read);
 
+bail:
+    if (outbuf_created) {
+	rb_str_force_encoding(outbuf, rb_encodings[ENCODING_UTF8]);
+    }
     return outbuf;
 }
 
@@ -1365,6 +1372,7 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
     OBJ_TAINT(bstr);
     io_struct->lineno += 1;
     ARGF.lineno = INT2FIX(io_struct->lineno);
+    rb_str_force_encoding(bstr, rb_encodings[ENCODING_UTF8]);
     return bstr; 
 }
 
@@ -3346,7 +3354,7 @@ rb_f_backquote(VALUE obj, SEL sel, VALUE str)
     VALUE outbuf = rb_bstr_new();
     rb_io_read_all(ExtractIOStruct(io), outbuf);
     rb_io_close(io);
-
+    rb_str_force_encoding(outbuf, rb_encodings[ENCODING_UTF8]);
     return outbuf;
 }
 
@@ -3852,7 +3860,7 @@ rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
 	void *ptr;
 	while ((ptr = memchr(&bytes[pos], byte, length - pos)) != NULL) {
 	    const long s = (long)ptr - (long)&bytes[pos] + 1;
-	    rb_ary_push(ary, rb_bstr_new_with_data(&bytes[pos], s));
+	    rb_ary_push(ary, rb_str_new((char *)&bytes[pos], s));
 	    pos += s; 
 	}
     }

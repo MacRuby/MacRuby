@@ -1023,7 +1023,9 @@ type_error:
     if (got_io) {
 	rb_io_write(port, 0, arg->str);	
     }
-
+    else {
+	rb_str_force_encoding(port, rb_encodings[ENCODING_UTF8]);
+    }
     return port;
 }
 
