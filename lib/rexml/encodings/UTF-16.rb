@@ -16,7 +16,8 @@ module REXML
     end
 
     def decode_utf16(str)
-      str = str[2..-1] if /^\376\377/n =~ str
+      # XXX macruby cannot compile this regexp
+      #str = str[2..-1] if /^\376\377/n =~ str
       array_enc=str.unpack('C*')
       array_utf8 = []
       0.step(array_enc.size-1, 2){|i| 
