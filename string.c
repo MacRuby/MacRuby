@@ -3415,6 +3415,7 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
     long offset = 0, last = 0;
     bool changed = false;
     const long len = str_length(RSTR(str), false);
+    VALUE match = Qnil;
 
     while (true) {
         const long pos = rb_reg_search(pat, str, offset, false);
@@ -3429,7 +3430,7 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 	    break;
 	}
 
-	VALUE match = rb_backref_get();
+	match = rb_backref_get();
 	int count = 0;
 	rb_match_result_t *results = rb_reg_match_results(match, &count);
 	assert(count > 0);
@@ -3455,9 +3456,9 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 	    val = rb_reg_regsub(repl, str, pat, results, count);
 	}
 
-	if (pos - offset > 0) {
+	if (pos - last > 0) {
 	    str_concat_string(RSTR(dest),
-		    RSTR(rstr_substr(str, offset, pos - offset)));
+		    RSTR(rstr_substr(str, last, pos - last)));
 	}
 	str_concat_string(RSTR(dest), str_need_string(val));
 
@@ -3470,9 +3471,9 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 	if (results[0].beg == offset) {
 	    offset++;
 	}
-
-	rb_backref_set(match);
     }
+
+    rb_backref_set(match);
 
     if (bang) {
 	rstr_modify(str);
