@@ -74,7 +74,7 @@ bubblebabble_str_new(VALUE str_digest)
 
     p[j] = 'x';
 
-    VALUE bstr = rb_bstr_new_with_data(p, p_len);
+    VALUE bstr = rb_str_new(p, p_len);
     free(p);
     return bstr;
 }
