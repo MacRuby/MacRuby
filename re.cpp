@@ -448,6 +448,26 @@ regexp_initialize_copy(VALUE rcv, SEL sel, VALUE other)
 }
 
 /*
+ * call-seq:
+ *   rxp.hash   => fixnum
+ *
+ * Produce a hash based on the text and options of this regular expression.
+ */
+
+static VALUE
+regexp_hash(VALUE rcv, SEL sel)
+{
+    UnicodeString *unistr = RREGEXP(rcv)->unistr;
+    assert(unistr != NULL);
+
+    unsigned long code = rb_str_hash_uchars(unistr->getBuffer(),
+	    unistr->length());
+    code += rb_reg_options(rcv);
+
+    return LONG2NUM(code);
+}
+
+/*
  *  call-seq:
  *     rxp == other_rxp      => true or false
  *     rxp.eql?(other_rxp)   => true or false
@@ -1058,7 +1078,7 @@ Init_Regexp(void)
 	    (void *)regexp_initialize, -1);
     rb_objc_define_method(rb_cRegexp, "initialize_copy",
 	    (void *)regexp_initialize_copy, 1);
-    //rb_objc_define_method(rb_cRegexp, "hash", rb_reg_hash, 0);
+    rb_objc_define_method(rb_cRegexp, "hash", (void *)regexp_hash, 0);
     rb_objc_define_method(rb_cRegexp, "eql?", (void *)regexp_equal, 1);
     rb_objc_define_method(rb_cRegexp, "==", (void *)regexp_equal, 1);
     rb_objc_define_method(rb_cRegexp, "=~", (void *)regexp_match, 1);
