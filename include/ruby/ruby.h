@@ -1341,12 +1341,10 @@ int rb_remove_event_hook(rb_event_hook_func_t func);
 #define rb_isspace(c) (rb_isascii(c) && isspace(c))
 #define rb_isupper(c) (rb_isascii(c) && isupper(c))
 #define rb_isxdigit(c) (rb_isascii(c) && isxdigit(c))
-#define rb_tolower(c) (rb_isascii(c) && tolower(c))
-#define rb_toupper(c) (rb_isascii(c) && toupper(c))
+#define rb_tolower(c) (rb_isascii(c) ? tolower(c) : (c))
+#define rb_toupper(c) (rb_isascii(c) ? toupper(c) : (c))
 
-#ifndef ISPRINT
 #define ISASCII(c) rb_isascii((unsigned char)(c))
-#undef ISPRINT
 #define ISPRINT(c) rb_isprint((unsigned char)(c))
 #define ISSPACE(c) rb_isspace((unsigned char)(c))
 #define ISUPPER(c) rb_isupper((unsigned char)(c))
@@ -1355,7 +1353,6 @@ int rb_remove_event_hook(rb_event_hook_func_t func);
 #define ISALPHA(c) rb_isalpha((unsigned char)(c))
 #define ISDIGIT(c) rb_isdigit((unsigned char)(c))
 #define ISXDIGIT(c) rb_isxdigit((unsigned char)(c))
-#endif
 #define TOUPPER(c) rb_toupper((unsigned char)(c))
 #define TOLOWER(c) rb_tolower((unsigned char)(c))
 
