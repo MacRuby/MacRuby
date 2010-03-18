@@ -2766,66 +2766,67 @@ fs_set:
 	}
     }
 
+    const int lim_orig = lim;
     long beg = 0;
-    if (awk_split || spat_string) {
-	if (spat != Qnil) {
-	    if (spat_len == 0) {
-		do {
-		    VALUE substr = rstr_substr(str, beg, 1);
-		    rb_ary_push(result, substr);
-		    beg++;
-		    if (beg >= len) {
-			break;
-		    }
+    if (awk_split) {
+	UChar *chars = NULL;
+	long chars_len = 0;
+	bool need_free = false;
+
+	rb_str_get_uchars(str, &chars, &chars_len, &need_free);
+
+	for (long i = 0; i < chars_len; i++) {
+	    UChar c = chars[i];
+	    if (c == ' ' || c == '\t' || c == '\n' || c == '\v') {
+		VALUE substr = rstr_substr(str, beg, i - beg);
+		str_strip(substr, 0);
+		if (rb_str_chars_len(substr) > 0) {
+		    rb_ary_push(result, substr); 
 		}
-		while (limit == Qnil || --lim > 1);
+		beg = i + 1;
 	    }
-	    else {
-		rb_str_t *spat_str = str_need_string(spat);
-		do {
-		    const long pos = str_index_for_string(RSTR(str), spat_str,
-			    beg, -1, false, false);
-		    if (pos == -1) {
-			break;
-		    }
-		    rb_ary_push(result, rstr_substr(str, beg, pos - beg));
-		    beg = pos + 1;
-		}
-		while (limit == Qnil || --lim > 1);
+	    if (limit != Qnil && --lim <= 0) {
+		break;
 	    }
 	}
-	else {
-	    UChar *chars = NULL;
-	    long chars_len = 0;
-	    bool need_free = false;
 
-	    rb_str_get_uchars(str, &chars, &chars_len, &need_free);
-
-	    for (long i = 0; i < chars_len; i++) {
-		UChar c = chars[i];
-		if (c == ' ' || c == '\t' || c == '\n') {
-		    VALUE substr = rstr_substr(str, beg, i - beg);
-		    str_strip(substr, 0);
-		    if (rb_str_chars_len(substr) > 0) {
-			rb_ary_push(result, substr); 
-		    }
-		    beg = i + 1;
-		}
-		if (limit != Qnil && --lim <= 0) {
+	if (need_free) {
+	    free(chars);
+	}
+    }
+    else if (spat_string) {
+	if (spat_len == 0) {
+	    do {
+		VALUE substr = rstr_substr(str, beg, 1);
+		rb_ary_push(result, substr);
+		beg++;
+		if (beg >= len) {
 		    break;
 		}
 	    }
-
-	    if (need_free) {
-		free(chars);
+	    while (limit == Qnil || --lim > 1);
+	}
+	else {
+	    rb_str_t *spat_str = str_need_string(spat);
+	    const long spat_len = str_length(spat_str, false);
+	    do {
+		const long pos = str_index_for_string(RSTR(str), spat_str,
+			beg, -1, false, false);
+		if (pos == -1) {
+		    break;
+		}
+		rb_ary_push(result, rstr_substr(str, beg, pos - beg));
+		beg = pos + spat_len;
 	    }
+	    while (limit == Qnil || --lim > 1);
 	}
     }
     else {
 	long start = beg;
 	bool last_null = false;
+again:
 	do {
-	    const long pos = rb_reg_search(spat, str, beg, false);
+	    const long pos = rb_reg_search(spat, str, start, false);
 	    if (pos < 0) {
 		break;
 	    }
@@ -2835,38 +2836,51 @@ fs_set:
 	    rb_match_result_t *results = rb_reg_match_results(match, &count);
 	    assert(count > 0);
 
-	    if (beg == pos && results[0].beg == results[0].end) {
+	    if (start == pos && results[0].beg == results[0].end) {
 		if (last_null) {
+		    VALUE substr;
 		    if (beg + 1 <= len) {
-			rb_ary_push(result, rstr_substr(str, beg, 1));
+			substr = rstr_substr(str, beg, 1);
 		    }
+		    else {
+			substr = rb_str_new(NULL, 0);
+		    }
+		    rb_ary_push(result, substr);
 		    beg = start;
 		}
 		else {
 		    start++;
 		    last_null = true;
-		    continue;
+		    goto again;
 		}
 	    }
 	    else {
 		rb_ary_push(result, rstr_substr(str, beg, pos - beg));
-		beg = results[0].end;
+		beg = start = results[0].end;
 	    }
 	    last_null = false;
 
 	    for (int i = 1; i < count; i++) {
-		VALUE match_str = rb_reg_nth_match(i, match);
-		if (match_str != Qnil) {
-		    rb_ary_push(result, rb_reg_nth_match(i, match));
+		if (results[i].beg == -1 || results[i].end == -1) {
+		    continue;
 		}
+		VALUE substr;
+		if (results[i].beg == results[i].end) {
+		    substr = rb_str_new(NULL, 0);
+		}
+		else {
+		    substr = rstr_substr(str, results[i].beg,
+			    results[i].end - results[i].beg);
+		}
+		rb_ary_push(result, substr);
 	    }
 	}
 	while (limit == Qnil || --lim > 1);
     }
 
-    if (len > 0 && (!NIL_P(limit) || len > beg || lim < 0)) {
+    if (len > 0 && (!NIL_P(limit) || len > beg || lim_orig < 0)) {
 	VALUE tmp;
-	if (len == beg) {
+	if (beg >= len) {
 	    tmp = rb_str_new(NULL, 0);
 	}
 	else {
@@ -2875,7 +2889,7 @@ fs_set:
 	rb_ary_push(result, tmp);
     }
 
-    if (NIL_P(limit) && lim == 0) {
+    if (NIL_P(limit) && lim_orig == 0) {
 	while (true) {
 	    const long n = RARRAY_LEN(result);
 	    if (n > 0 && rb_str_chars_len(RARRAY_AT(result, n - 1)) == 0) {
@@ -2884,6 +2898,12 @@ fs_set:
 	    else {
 		break;
 	    }
+	}
+    }
+
+    if (OBJ_TAINTED(str)) {
+	for (int i = 0, count = RARRAY_LEN(result); i < count; i++) {
+	    OBJ_TAINT(RARRAY_AT(result, i));
 	}
     }
 
