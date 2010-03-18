@@ -1245,18 +1245,12 @@ rstr_append(VALUE str, VALUE substr)
 VALUE
 mr_enc_s_is_compatible(VALUE klass, SEL sel, VALUE str1, VALUE str2)
 {
-    if (SPECIAL_CONST_P(str1) || SPECIAL_CONST_P(str2)) {
-	return Qnil;
-    }
-    assert(IS_RSTR(str1)); // TODO
-    assert(IS_RSTR(str2)); // TODO
-    rb_encoding_t *encoding = str_compatible_encoding(RSTR(str1), RSTR(str2));
+    rb_encoding_t *encoding = str_compatible_encoding(RSTR(str1),
+	    str_need_string(str2));
     if (encoding == NULL) {
 	return Qnil;
     }
-    else {
-	return (VALUE)encoding;
-    }
+    return (VALUE)encoding;
 }
 
 static VALUE
