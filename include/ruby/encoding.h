@@ -126,8 +126,6 @@ VALUE rb_enc_default_external(void);
 void rb_enc_set_default_external(VALUE encoding);
 long rb_memsearch(const void*,long,const void*,long,rb_encoding*);
 
-VALUE rb_num_to_chr(VALUE, rb_encoding *);
-	
 RUBY_EXTERN VALUE rb_cEncoding;
 
 static inline int

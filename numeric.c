@@ -19,6 +19,9 @@
 #include <ruby/node.h>
 #include "vm.h"
 #include "id.h"
+#include "encoding.h"
+
+#include <unicode/utf8.h>
 
 #ifdef HAVE_FLOAT_H
 #include <float.h>
@@ -1919,29 +1922,6 @@ int_pred(VALUE num, SEL sel)
     return rb_vm_call(num, selMINUS, 1, &one, false);
 }
 
-VALUE
-rb_num_to_chr(VALUE num, rb_encoding *enc)
-{
-    // XXX completely broken
-    long i = NUM2LONG(num);
-    char c[2] = {i, '\0'};
-    
-    if (enc) {
-	return rb_enc_str_new(c, 1, enc);
-    } 
-    else {
-	if (i < 0 || 0xff < i) {
-	    rb_raise(rb_eRangeError, "%"PRIdVALUE " out of char range", i);
-	}
-	if (i < 0x80) {
-	    return rb_usascii_str_new(c, 1);
-	} 
-	else {
-	    return rb_str_new(c, 1);
-	}
-    }
-}
-
 /*
  *  call-seq:
  *     int.chr([encoding])    => string
@@ -1957,10 +1937,79 @@ rb_num_to_chr(VALUE num, rb_encoding *enc)
 static VALUE
 int_chr(VALUE num, SEL sel, int argc, VALUE *argv)
 {
-    if (argc > 1) {
-	rb_raise(rb_eArgError, "wrong number of arguments (%d for 0 or 1)", argc);
+    long i = NUM2LONG(num);
+    rb_encoding_t *enc = NULL;
+
+    switch (argc) {
+	case 0:
+	    if (i < 0) {
+out_of_range:
+		rb_raise(rb_eRangeError, "%"PRIdVALUE " out of char range", i);
+	    }
+	    if (0xff < i) {
+		goto decode;
+	    }
+	    else {
+		char c = (char)i;
+		if (i < 0x80) {
+		    return rb_usascii_str_new(&c, 1);
+		}
+		return rb_bstr_new_with_data((uint8_t *)&c, 1);
+	    }
+	    break;
+
+	case 1:
+	    break;
+
+	default:
+	    rb_raise(rb_eArgError, "wrong number of arguments (%d for 0 or 1)",
+		    argc);
     }
-    return rb_num_to_chr(num, (argc ? rb_to_encoding(argv[0]) : NULL));
+
+    enc = rb_to_encoding(argv[0]);
+
+decode:
+    if (i < 0 || i > UINT_MAX) {
+	goto out_of_range;
+    }
+
+    if (enc == NULL) {
+	enc = rb_encodings[ENCODING_BINARY];
+    }
+
+    if (enc == rb_encodings[ENCODING_BINARY]) {
+	uint8_t c = (uint8_t)i;
+	return rb_bstr_new_with_data(&c, 1);
+    }
+
+    if (enc == rb_encodings[ENCODING_ASCII]) {
+	if (i >= 0x80) {
+	    goto out_of_range;
+	}
+	char c = (char)i;
+	return rb_enc_str_new(&c, 1, enc);	
+    }
+
+    if (enc == rb_encodings[ENCODING_UTF8]) {
+	const int bytelen = U8_LENGTH(i);
+	if (bytelen <= 0) {
+	    goto out_of_range;
+	}
+	uint8_t *buf = (uint8_t *)malloc(bytelen);
+	int offset = 0;
+	UBool error = false;
+	U8_APPEND(buf, offset, bytelen, i, error);
+	if (error) {
+	    free(buf);
+	    goto out_of_range;
+	}
+	VALUE str = rb_enc_str_new((char *)buf, bytelen, enc);
+	free(buf);
+	return str;
+    }
+
+    rb_raise(rb_eArgError, "encoding `%s' not supported yet",
+	    RSTRING_PTR(rb_inspect((VALUE)enc)));
 }
 
 static VALUE

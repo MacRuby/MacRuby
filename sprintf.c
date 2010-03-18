@@ -628,9 +628,13 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 			arg = rb_str_substr(arg, 0, 1);
 		    }
 		    else {
-			// rb_num_to_chr is broken so leave out the
-			// enc or we don't get range checking
-			arg = rb_num_to_chr(arg, NULL /*rb_enc_get(fmt)*/);
+			long num = NUM2LONG(arg);
+			if (num < 0 || i > 0xff) {
+			    rb_raise(rb_eRangeError, "%ld out of char range",
+				    num);
+			}
+			char c = (char)num;
+			arg = rb_str_new(&c, 1);
 		    }
 		    complete = true;
 		    break;
