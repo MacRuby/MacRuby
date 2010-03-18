@@ -789,17 +789,22 @@ regexp_eqq(VALUE rcv, SEL sel, VALUE str)
  *
  */
 
+VALUE
+rb_regexp_source(VALUE re)
+{
+    assert(RREGEXP(re)->unistr != NULL);
+
+    const UChar *chars = RREGEXP(re)->unistr->getBuffer();
+    const int32_t chars_len = RREGEXP(re)->unistr->length();
+    assert(chars_len >= 0);
+
+    return rb_unicode_str_new(chars, chars_len);
+}
+
 static VALUE
 regexp_source(VALUE rcv, SEL sel)
 {
-    assert(RREGEXP(rcv)->unistr != NULL);
-
-    const UChar *chars = RREGEXP(rcv)->unistr->getBuffer();
-    const int32_t chars_len = RREGEXP(rcv)->unistr->length();
-    assert(chars_len >= 0);
-
-    VALUE str = rb_unicode_str_new(chars, chars_len);
-
+    VALUE str = rb_regexp_source(rcv);
     if (OBJ_TAINTED(rcv)) {
 	OBJ_TAINT(str);
     }
@@ -1822,6 +1827,38 @@ void
 rb_match_busy(VALUE match)
 {
     FL_SET(match, MATCH_BUSY);
+}
+
+int
+rb_reg_options_from_mri(int mri_opt)
+{
+    int opt = 0;
+    if (mri_opt & 1) {
+	opt |= REGEXP_OPT_IGNORECASE;
+    }
+    if (mri_opt & 2) {
+	opt |= REGEXP_OPT_EXTENDED;
+    }
+    if (mri_opt & 4) {
+	opt |= REGEXP_OPT_MULTILINE;
+    }
+    return opt;
+}
+
+int
+rb_reg_options_to_mri(int opt)
+{
+    int mri_opt = 0;
+    if (opt & REGEXP_OPT_IGNORECASE) {
+	mri_opt |= 1;
+    }
+    if (opt & REGEXP_OPT_EXTENDED) {
+	mri_opt |= 2;
+    }
+    if (opt & REGEXP_OPT_MULTILINE) {
+	mri_opt |= 4;
+    }
+    return mri_opt;
 }
 
 } // extern "C"

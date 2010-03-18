@@ -16,6 +16,7 @@
 #include "ruby/encoding.h"
 #include "encoding.h"
 #include "id.h"
+#include "re.h"
 
 #include <math.h>
 #ifdef HAVE_FLOAT_H
@@ -786,9 +787,9 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	  case T_REGEXP:
 	    w_uclass(obj, rb_cRegexp, arg);
 	    w_byte(TYPE_REGEXP, arg);
-	    // TODO    
-	    //w_bytes(RREGEXP(obj)->str, RREGEXP(obj)->len, arg);
-	    //w_byte((char)rb_reg_options(obj), arg);
+	    VALUE re_str = rb_regexp_source(obj);
+	    w_bytes(RSTRING_PTR(re_str), RSTRING_LEN(re_str), arg);
+	    w_byte(rb_reg_options_to_mri(rb_reg_options(obj)), arg);
 	    break;
 
 	  case T_ARRAY:
@@ -1499,7 +1500,7 @@ format_error:
 	{
 	    volatile VALUE str = r_bytes(arg);
 	    const char *cstr = RSTRING_PTR(str);
-	    const int options = r_byte(arg);
+	    const int options = rb_reg_options_from_mri(r_byte(arg));
 	    v = r_entry(rb_reg_new(cstr, strlen(cstr), options), arg);
             v = r_leave(v, arg);
 	}

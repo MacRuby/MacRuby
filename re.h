@@ -22,6 +22,10 @@ VALUE regexp_match2(VALUE rcv, SEL sel, int argc, VALUE *argv);
 VALUE rb_reg_quote(VALUE pat);
 VALUE rb_reg_regcomp(VALUE str);
 int rb_reg_search(VALUE re, VALUE str, int pos, bool reverse);
+VALUE rb_regexp_source(VALUE re);
+
+int rb_reg_options_to_mri(int opt);
+int rb_reg_options_from_mri(int mri_opt);
 
 void regexp_get_uchars(VALUE re, const UChar **chars_p, long *chars_len_p);
 
