@@ -24,6 +24,7 @@ typedef struct rb_regexp {
     struct RBasic basic;
     UnicodeString *unistr;
     RegexPattern *pattern;
+    bool fixed_encoding;
 } rb_regexp_t;
 
 #define RREGEXP(o) ((rb_regexp_t *)o)
@@ -51,6 +52,7 @@ regexp_alloc(VALUE klass, SEL sel)
     OBJSETUP(re, klass, T_REGEXP);
     re->unistr = NULL;
     re->pattern = NULL;
+    re->fixed_encoding = false;
     return re;
 }
 
@@ -148,9 +150,15 @@ init_from_string(rb_regexp_t *regexp, VALUE str, int option, VALUE *excp)
 	return false;
     }
 
+    bool fixed_encoding = false;
+    if (IS_RSTR(str) && !str_is_ruby_ascii_only(RSTR(str))) {
+	fixed_encoding = true;
+    }
+
     regexp_finalize(regexp);
     regexp->pattern = pattern;
     regexp->unistr = unistr;
+    regexp->fixed_encoding = fixed_encoding;
 
     return true;
 }
@@ -961,6 +969,41 @@ regexp_options(VALUE rcv, SEL sel)
     return INT2FIX(rb_reg_options(rcv));
 }
 
+/*
+ *  call-seq:
+ *     rxp.fixed_encoding?   => true or false
+ *
+ *  Returns false if rxp is applicable to
+ *  a string with any ASCII compatible encoding.
+ *  Returns true otherwise.
+ *
+ *      r = /a/
+ *      r.fixed_encoding?                               #=> false
+ *      r =~ "\u{6666} a"                               #=> 2
+ *      r =~ "\xa1\xa2 a".force_encoding("euc-jp")      #=> 2
+ *      r =~ "abc".force_encoding("euc-jp")             #=> 0
+ *      r =~ "\u{6666} a"                               #=> 2
+ *      r =~ "\xa1\xa2".force_encoding("euc-jp")        #=> ArgumentError
+ *      r =~ "abc".force_encoding("euc-jp")             #=> 0
+ *
+ *      r = /\u{6666}/
+ *      r.fixed_encoding?                               #=> true
+ *      r.encoding                                      #=> #<Encoding:UTF-8>
+ *      r =~ "\u{6666} a"                               #=> 0
+ *      r =~ "\xa1\xa2".force_encoding("euc-jp")        #=> ArgumentError
+ *      r =~ "abc".force_encoding("euc-jp")             #=> nil
+ *
+ *      r = /a/u
+ *      r.fixed_encoding?                               #=> true
+ *      r.encoding                                      #=> #<Encoding:UTF-8>
+ */
+
+static VALUE
+regexp_fixed_encoding(VALUE rcv, SEL sel)
+{
+    return RREGEXP(rcv)->fixed_encoding ? Qtrue : Qfalse;
+}
+
 static VALUE
 match_getter(void)
 {
@@ -1093,10 +1136,10 @@ Init_Regexp(void)
     rb_objc_define_method(rb_cRegexp, "source", (void *)regexp_source, 0);
     rb_objc_define_method(rb_cRegexp, "casefold?", (void *)regexp_casefold, 0);
     rb_objc_define_method(rb_cRegexp, "options", (void *)regexp_options, 0);
+    rb_objc_define_method(rb_cRegexp, "fixed_encoding?",
+	    (void *)regexp_fixed_encoding, 0);
 #if 0
     rb_objc_define_method(rb_cRegexp, "encoding", rb_reg_encoding, 0);
-    rb_objc_define_method(rb_cRegexp, "fixed_encoding?",
-	    rb_reg_fixed_encoding_p, 0);
     rb_objc_define_method(rb_cRegexp, "names", rb_reg_names, 0);
     rb_objc_define_method(rb_cRegexp, "named_captures",
 	    rb_reg_named_captures, 0);
