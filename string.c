@@ -3232,8 +3232,10 @@ rb_reg_regsub(VALUE str, VALUE src, VALUE regexp, rb_match_result_t *results,
 		}
 		break;
 
-	    case '\\':
 	    default:
+		str_append_uchar(RSTR(val), '\\');
+		// fall through
+	    case '\\':
 		str_append_uchar(RSTR(val), c);
 		break;
 	}
