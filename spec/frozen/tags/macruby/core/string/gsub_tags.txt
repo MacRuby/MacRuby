@@ -8,3 +8,4 @@ fails:String#gsub with pattern and Hash untrusts the result if a hash value is u
 fails:String#gsub with pattern and Hash raises a TypeError if the hash has a default proc
 fails:String#gsub! with pattern and replacement raises a RuntimeError when self is frozen
 fails:String#gsub! with pattern and block raises a RuntimeError when self is frozen
+fails:String#gsub with pattern and replacement supports \G which matches at the beginning of the remaining (non-matched) string
