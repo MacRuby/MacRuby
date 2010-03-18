@@ -3187,6 +3187,9 @@ rb_reg_regsub(VALUE str, VALUE src, VALUE regexp, rb_match_result_t *results,
 	if (c != '\\') {
 	    continue;
 	}
+	if (i + 1 == str_chars_len) {
+	    break;
+	}
 
 	if (val == 0) {
 	    val = rb_unicode_str_new(NULL, 0);
@@ -3194,9 +3197,6 @@ rb_reg_regsub(VALUE str, VALUE src, VALUE regexp, rb_match_result_t *results,
 	str_concat_uchars(RSTR(val), &str_chars[pos], i - pos);
 
 	i++;
-	if (i == str_chars_len) {
-	    break;
-	}
 	pos = i + 1;
 
 	int no = -1;
