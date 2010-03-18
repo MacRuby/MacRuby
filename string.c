@@ -1887,7 +1887,7 @@ rstr_index(VALUE self, SEL sel, int argc, VALUE *argv)
 	if (pos < 0) {
 	    pos += len;
 	}
-	if (pos < 0 || pos >= len) {
+	if (pos < 0) {
 	    if (TYPE(sub) == T_REGEXP) {
 		rb_backref_set(Qnil);
 	    }
@@ -1900,6 +1900,9 @@ rstr_index(VALUE self, SEL sel, int argc, VALUE *argv)
 
     switch (TYPE(sub)) {
 	case T_REGEXP:
+	    if (pos > len) {
+		return Qnil;
+	    }
 	    pos = rb_reg_search(sub, self, pos, false);
 	    break;
 
@@ -1907,8 +1910,13 @@ rstr_index(VALUE self, SEL sel, int argc, VALUE *argv)
 	    StringValue(sub);
 	    // fall through
 	case T_STRING:
-	    pos = str_index_for_string(RSTR(self), str_need_string(sub),
-		    pos, -1, false, true);
+	    if (pos == len && rb_str_chars_len(sub) == 0) {
+		// Do nothing... RubySpec compliance...
+	    }
+	    else {
+		pos = str_index_for_string(RSTR(self), str_need_string(sub),
+			pos, -1, false, true);
+	    }
 	    break;
     }
 
