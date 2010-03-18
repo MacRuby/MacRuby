@@ -1245,7 +1245,7 @@ rstr_append(VALUE str, VALUE substr)
 VALUE
 mr_enc_s_is_compatible(VALUE klass, SEL sel, VALUE str1, VALUE str2)
 {
-    rb_encoding_t *encoding = str_compatible_encoding(RSTR(str1),
+    rb_encoding_t *encoding = str_compatible_encoding(str_need_string(str1),
 	    str_need_string(str2));
     if (encoding == NULL) {
 	return Qnil;
