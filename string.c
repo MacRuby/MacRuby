@@ -2617,15 +2617,17 @@ rstr_scan(VALUE self, SEL sel, VALUE pat)
     const bool block_given = rb_block_given_p();
 
     pat = get_pat(pat, true);
-    long start = 0;
+    const bool tainted = OBJ_TAINTED(self) || OBJ_TAINTED(pat);
 
     VALUE ary = 0;
     if (!block_given) {
 	ary = rb_ary_new();
     }
 
+    VALUE match = Qnil;
+    long start = 0;
     while (rb_reg_search(pat, self, start, false) >= 0) {
-	VALUE match = rb_backref_get();
+	match = rb_backref_get();
 
 	int count = 0;
 	rb_match_result_t *results = rb_reg_match_results(match, &count);
@@ -2641,11 +2643,18 @@ rstr_scan(VALUE self, SEL sel, VALUE pat)
 	VALUE scan_result;
 	if (count == 1) {
 	    scan_result = rb_reg_nth_match(0, match);
+	    if (tainted) {
+		OBJ_TAINT(scan_result);
+	    }
 	}
 	else {
 	    scan_result = rb_ary_new2(count);
 	    for (int i = 1; i < count; i++) {
-		rb_ary_push(scan_result, rb_reg_nth_match(i, match));
+		VALUE substr = rb_reg_nth_match(i, match);
+		if (tainted) {
+		    OBJ_TAINT(tainted);
+		}
+		rb_ary_push(scan_result, substr);
 	    }
 	}
 
@@ -2658,9 +2667,9 @@ rstr_scan(VALUE self, SEL sel, VALUE pat)
 	else {
 	    rb_ary_push(ary, scan_result);
 	}
-
-	rb_backref_set(match);
     }
+
+    rb_backref_set(match);
 
     return block_given ? self : ary;
 }
