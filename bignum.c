@@ -105,9 +105,15 @@ rb_big_realloc(VALUE big, long len)
 	    }
 	}
 	else {
-	    RBIGNUM(big)->as.heap.digits = NULL;
-	    GC_WB(&RBIGNUM(big)->as.heap.digits, ALLOC_N(BDIGIT, len));
-	    RBIGNUM_SET_LEN(big, len);
+	    if (RBIGNUM_LEN(big) == 0) {
+		GC_WB(&RBIGNUM(big)->as.heap.digits, ALLOC_N(BDIGIT, len));
+	    }
+	    else {
+		void *tmp = ruby_xrealloc(RBIGNUM(big)->as.heap.digits, sizeof(BDIGIT) * len);
+		if (tmp != RBIGNUM(big)->as.heap.digits) {
+		    GC_WB(&RBIGNUM(big)->as.heap.digits, tmp);
+		}
+	    }
 	}
     }
 }
