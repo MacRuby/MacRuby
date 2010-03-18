@@ -1,4 +1,1 @@
-fails:String#index with String behaves the same as String#index(char) for one-character strings
-fails:String#index with String returns the index of the first occurrence of the given substring
-fails:String#index with String starts the search at the given offset
-fails:String#index with Regexp behaves the same as String#index(string) for escaped string regexps
+fails:String#index with Regexp supports \G which matches at the given start offset
