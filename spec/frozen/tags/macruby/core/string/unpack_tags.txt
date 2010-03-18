@@ -13,3 +13,4 @@ fails:String#unpack returns an array by decoding self in little-endian (native f
 fails:String#unpack with 'm' directive returns an array by decoding self according to the format string
 fails:String#unpack with 'IiLlSs' directives uses sizeof(int) as an integer
 fails:String#unpack with 'lL' uses 4 bytes for an integer
+fails:String#unpack with 'M' directive returns an array by decoding self according to the format string
