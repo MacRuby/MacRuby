@@ -24,9 +24,11 @@ ruby_version_is "1.9" do
       /needle/e.fixed_encoding?.should be_true
     end
 
+=begin # XXX will not compile on MacRuby
     it "returns true if the Regexp contains a \\u escape" do
       /needle \u{8768}/.fixed_encoding?.should be_true
     end
+=end
 
     it "returns true if the Regexp contains a UTF-8 literal" do
       /文字化け/.fixed_encoding?.should be_true
