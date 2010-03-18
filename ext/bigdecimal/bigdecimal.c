@@ -2020,7 +2020,7 @@ static int gnAlloc=0; /* Memory allocation counter */
 VP_EXPORT void *
 VpMemAlloc(U_LONG mb)
 {
-    void *p = xmalloc((unsigned int)mb);
+    void *p = xmalloc(mb);
     if(!p) {
         VpException(VP_EXCEPTION_MEMORY,"failed to allocate memory",1);
     }
