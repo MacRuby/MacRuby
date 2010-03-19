@@ -473,7 +473,11 @@ retry:
 static VALUE
 limited_big_rand(struct MT *mt, struct RBignum *limit)
 {
+#if SIZEOF_BDIGITS < 8
     const long len = (RBIGNUM_LEN(limit) * SIZEOF_BDIGITS + 3) / 4;
+#else
+    const long len = (RBIGNUM_LEN(limit) * SIZEOF_BDIGITS + 3) / 8;
+#endif
     struct RBignum *val = (struct RBignum *)rb_big_clone((VALUE)limit);
     RBIGNUM_SET_SIGN(val, 1);
 #if SIZEOF_BDIGITS == 2
