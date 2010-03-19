@@ -553,10 +553,6 @@ regexp_equal(VALUE rcv, SEL sel, VALUE other)
 int
 rb_reg_search(VALUE re, VALUE str, int pos, bool reverse)
 {
-    if (reverse) {
-	rb_raise(rb_eRuntimeError, "reverse searching is not implemented yet");
-    }
-
     const long len = rb_str_chars_len(str);
     if (pos > len || pos < 0) {
 	rb_backref_set(Qnil);
@@ -576,8 +572,24 @@ rb_reg_search(VALUE re, VALUE str, int pos, bool reverse)
 		u_errorName(status));
     }
 
-    if (!matcher->find(pos, status)) {
+    if (reverse) {
+	const int orig = pos;
+	while (pos >= 0) {
+	    if (matcher->find(pos, status)) {
+		if (matcher->start(status) <= orig) {
+		    break;
+		}
+	    }
+	    pos--;
+	}
+	if (pos < 0) {
+	    // No match.
+	    goto no_match;
+	}
+    }
+    else if (!matcher->find(pos, status)) {
 	// No match.
+no_match:
 	rb_backref_set(Qnil);
 	delete matcher;
 	delete unistr;
