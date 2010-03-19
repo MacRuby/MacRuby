@@ -264,10 +264,12 @@ str_replace_with_string(rb_str_t *self, rb_str_t *source)
     self->flags = source->flags;
 }
 
+static bool str_try_making_data_uchars(rb_str_t *self);
+
 static void
 str_append_uchar(rb_str_t *self, UChar c)
 {
-    assert(str_is_stored_in_uchars(self));
+    assert(str_try_making_data_uchars(self));
     const long uchar_cap = BYTES_TO_UCHARS(self->capacity_in_bytes);
     const long uchar_len = BYTES_TO_UCHARS(self->length_in_bytes);
     if (uchar_len + 1 >= uchar_cap) {
