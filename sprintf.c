@@ -435,7 +435,8 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 	    continue;
 	}
 	if (format_str[i + 1] == '%') {
-	    cstr_update(&format_str, &format_str_capa, i, 1, 0);
+	    num = cstr_update(&format_str, &format_str_capa, i, 1, 0);
+	    format_len += num;
 	    continue;
 	}
 
@@ -747,23 +748,25 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 
 		arg = rb_big2str(num, base);
 		if (!sign_pad && IS_NEG(num) && negative_pad != 0) {
-		    break; // TODO
-#if 0
-		    UChar neg = CFStringGetCharacterAtIndex(negative_pad, 0);
-		    char *str_ptr = (char *)RSTRING_PTR(arg) + 1;
+		    UChar neg = rb_str_get_uchar(negative_pad, 0);
 		    if (base == 8) {
-			*str_ptr |= ((~0 << 3) >> ((3 * strlen(str_ptr)) %
-				(sizeof(BDIGIT) * 8))) & ~(~0 << 3);
+			UChar c = rb_str_get_uchar(arg, 1);
+			const long len = rb_str_chars_len(arg) - 1;
+			c |= ((~0 << 3) >> ((3 * len)
+				    % (sizeof(BDIGIT) * 8))) & ~(~0 << 3);
+			rb_str_update(arg, 1, 1, rb_unicode_str_new(&c, 1));
 		    }
-		    while (*str_ptr++ == neg) {
+		    for (int i = 1, count = rb_str_chars_len(arg); i < count;
+			    i++) {
+			if (rb_str_get_uchar(arg, i) != neg) {
+			    break;
+			}
 			num_index++;
 		    }
-		    rb_str_update(arg, 0, num_index, (VALUE)negative_pad);
-		    rb_str_update(arg, 0, 0, (VALUE)CFSTR(".."));
+		    rb_str_update(arg, 0, num_index, negative_pad);
+		    rb_str_update(arg, 0, 0, rb_str_new2(".."));
 		    num_index = 2;
-#endif
 		}
-
 		if (precision_flag) {
 		    pad_format_value(arg, num_index,
 			    precision + (IS_NEG(num)
