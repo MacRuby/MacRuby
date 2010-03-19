@@ -95,19 +95,17 @@ ossl_rand_write_file(VALUE self, SEL sel, VALUE filename)
 static VALUE
 ossl_rand_bytes(VALUE self, SEL sel, VALUE len)
 {
-    VALUE str;
-    int n = NUM2INT(len);
-
-    if (n <= 0) {
-	rb_raise(rb_eArgError, "given length should be greater than 0");
+    VALUE str = rb_bstr_new();
+    const int n = NUM2INT(len);
+    if (n < 0) {
+	rb_raise(rb_eArgError, "negative length");
     }
-
-    str = rb_bstr_new();
-    rb_bstr_resize(str, n);
-    if (!RAND_bytes(rb_bstr_bytes(str), n)) {
-	ossl_raise(eRandomError, NULL);
+    if (n > 0) {
+	rb_bstr_resize(str, n);
+	if (!RAND_bytes(rb_bstr_bytes(str), n)) {
+	    ossl_raise(eRandomError, NULL);
+	}
     }
-
     return str;
 }
 
