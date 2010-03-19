@@ -2104,9 +2104,32 @@ rstr_concat(VALUE self, SEL sel, VALUE other)
 	    return self;
     }
 
-    // TODO: handle codepoint
+    if (RSTR(self)->encoding == rb_encodings[ENCODING_UTF8]) {
+	const int bytelen = U8_LENGTH(codepoint);
+	if (bytelen <= 0) {
+	    goto out_of_range;
+	}
+	uint8_t *buf = (uint8_t *)malloc(bytelen);
+	int offset = 0;
+	UBool error = false;
+	U8_APPEND(buf, offset, bytelen, codepoint, error);
+	if (error) {
+	    free(buf);
+	    goto out_of_range;
+	}
+	str_concat_bytes(RSTR(self), (const char *)buf, bytelen);
+	free(buf);
+    }
+    else {
+	rb_raise(rb_eArgError,
+		"receiver encoding `%s' not supported for codepoint insertion",
+		RSTRING_PTR(rb_inspect((VALUE)RSTR(self)->encoding)));
+    }
 
     return self;
+
+out_of_range:
+    rb_raise(rb_eArgError, "codepoint %ld out of range", codepoint);
 }
 
 /*
