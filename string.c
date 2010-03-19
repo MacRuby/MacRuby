@@ -3179,8 +3179,8 @@ rstr_chomp_bang(VALUE str, SEL sel, int argc, VALUE *argv)
     long to_del = 0;
 
     if (rs == rb_default_rs
-	|| rslen == 0
 	|| (rslen == 1 && rb_str_get_uchar(rs, 0) == '\n')) {
+	// Remove trailing carriage return.
 	UChar c = str_get_uchar(RSTR(str), len - 1, false);
 	if (c == '\n') {
 	    to_del++;
@@ -3190,7 +3190,22 @@ rstr_chomp_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 	    to_del++;
 	}
     }
+    else if (rslen == 0) {
+	// Remove all trailing carriage returns.
+	for (int i = len - 1; i >= 0; i--) {
+	    UChar c = str_get_uchar(RSTR(str), i, false);
+	    if (c != '\n') {
+		break;
+	    }
+	    to_del++;
+	    if (i > 0 && str_get_uchar(RSTR(str), i - 1, false) == '\r') {
+		to_del++;
+		i--;
+	    }
+	}
+    }
     else if (rslen <= len) {
+	// Remove trailing substring.
 	if (str_index_for_string(RSTR(str), str_need_string(rs),
 		    len - rslen, -1, false, false) >= 0) {
 	    to_del += rslen;
@@ -3428,6 +3443,11 @@ rstr_sub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 	rb_raise(rb_eArgError, "wrong number of arguments (%d for 2)", argc);
     }
 
+    if (!block_given) {
+	// RubySpec compliance...
+	rstr_modify(str);
+    }
+
     VALUE pat = get_pat(argv[0], true);
     if (rb_reg_search(pat, str, 0, false) >= 0) {
 	VALUE match = rb_backref_get();
@@ -3438,7 +3458,11 @@ rstr_sub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 	if (block_given || !NIL_P(hash)) {
             if (block_given) {
 		rb_match_busy(match);
+		const unsigned long hash = rb_str_hash(str);
 		repl = rb_obj_as_string(rb_yield(rb_reg_nth_match(0, match)));
+		if (rb_str_hash(str) != hash) {
+		    rb_raise(rb_eRuntimeError, "string modified");
+		}
             }
             else {
                 repl = rb_hash_aref(hash, rstr_substr(str, results[0].beg,
@@ -3554,6 +3578,11 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
     const long len = str_length(RSTR(str), false);
     VALUE match = Qnil;
 
+    if (bang) {
+	// RubySpec compliance...
+	rstr_modify(str);
+    }
+
     while (true) {
         const long pos = rb_reg_search(pat, str, offset, false);
 	if (pos < 0) {
@@ -3613,7 +3642,6 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
     rb_backref_set(match);
 
     if (bang) {
-	rstr_modify(str);
 	str_replace(RSTR(str), dest);
     }
     else {
@@ -4051,7 +4079,8 @@ str_strip(VALUE str, int direction)
 	// Strip right side.
 	long pos = len - 1;
 	while (pos >= 0) {
-	    if (!iswspace(rb_str_get_uchar(str, pos))) {
+	    UChar c = rb_str_get_uchar(str, pos);
+	    if (!iswspace(c) && c != '\0') {
 		break;
 	    }
 	    pos--;
