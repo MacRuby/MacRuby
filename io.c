@@ -1344,9 +1344,9 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 	    rb_bstr_resize(bstr, s);
 
 	    uint8_t *buf = rb_bstr_bytes(bstr);
-	    uint8_t *tmp_buf = (uint8_t *)malloc(seplen);
 	    while (true) {
-		if (rb_io_read_internal(io_struct, tmp_buf, seplen) != seplen) {
+		uint8_t c = 0;
+		if (rb_io_read_internal(io_struct, &c, 1) != 1) {
 		    break;
 		}
 		if (data_read >= s) {
@@ -1354,14 +1354,15 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 		    rb_bstr_resize(bstr, s);
 		    buf = rb_bstr_bytes(bstr);
 		}
-		memcpy(&buf[data_read], tmp_buf, seplen);
-		data_read += seplen;
+		buf[data_read] = c;
+		data_read += 1;
 
-		if (memcmp(tmp_buf, sepstr, seplen) == 0) {
+		if (data_read >= seplen
+			&& memcmp(&buf[data_read - seplen], sepstr,
+			    seplen) == 0) {
 		    break;
 		}
 	    }
-	    free(tmp_buf);
 
 	    if (data_read == 0) {
 		return Qnil;
