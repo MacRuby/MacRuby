@@ -1956,7 +1956,15 @@ RoxorCore::respond_to(VALUE obj, VALUE klass, SEL sel, bool priv,
 	int n = 0;
 	args[n++] = ID2SYM(rb_intern(sel_getName(sel)));
 	if (priv) {
-	    args[n++] = Qtrue;
+	    rb_vm_method_node_t *node = method_node_get(imp);
+	    if (node != NULL
+		    && (2 < node->arity.min
+			|| (node->arity.max != -1 && 2 > node->arity.max))) {
+		// Do nothing, custom respond_to? method incompatible arity.
+	    }
+	    else {
+		args[n++] = Qtrue;
+	    }
 	}
 	return rb_vm_call(obj, selRespondTo, n, args, false) == Qtrue;
     }
