@@ -1179,9 +1179,6 @@ rstr_substr(VALUE str, long beg, long len)
     if (len < 0) {
 	return Qnil;
     }
-    if (len == 0) {
-	return str_new();
-    }	
 
     const long n = str_length(RSTR(str), false);
     if (beg < 0) {
@@ -1189,6 +1186,9 @@ rstr_substr(VALUE str, long beg, long len)
     }
     if (beg > n || beg < 0) {
 	return Qnil;
+    }
+    if (len == 0 || beg == n) {
+	return str_new();
     }
     if (beg + len > n) {
 	len = n - beg;
@@ -1642,11 +1642,17 @@ rb_str_subpat(VALUE str, VALUE re, int nth)
 VALUE
 rstr_aref(VALUE str, SEL sel, int argc, VALUE *argv)
 {
+    VALUE result = Qnil;
+    bool tainted = OBJ_TAINTED(str);
+
     if (argc == 2) {
 	if (TYPE(argv[0]) == T_REGEXP) {
-	    return rb_str_subpat(str, argv[0], NUM2INT(argv[1]));
+	    result = rb_str_subpat(str, argv[0], NUM2INT(argv[1]));
 	}
-	return rstr_substr(str, NUM2LONG(argv[0]), NUM2LONG(argv[1]));
+	else {
+	    result = rstr_substr(str, NUM2LONG(argv[0]), NUM2LONG(argv[1]));
+	}
+	goto bail;
     }
 
     if (argc != 1) {
@@ -1656,21 +1662,24 @@ rstr_aref(VALUE str, SEL sel, int argc, VALUE *argv)
     VALUE indx = argv[0];
     switch (TYPE(indx)) {
 	case T_FIXNUM:
-	    str = rstr_substr(str, FIX2LONG(indx), 1);
-	    if (!NIL_P(str) && str_length(RSTR(str), true) == 0) {
+	    result = rstr_substr(str, FIX2LONG(indx), 1);
+	    if (NIL_P(result) || rb_str_chars_len(result) == 0) {
 		return Qnil;
 	    }
-	    return str;
+	    break;
 
 	case T_REGEXP:
-	    return rb_str_subpat(str, indx, 0);
+	    result = rb_str_subpat(str, indx, 0);
+	    break;
 
 	case T_STRING:
 	    {
+		tainted = false;
 		if (IS_RSTR(indx)) {
 		    rb_str_t *searched = RSTR(indx);
 		    if (str_include_string(RSTR(str), searched)) {
-			return (VALUE)str_dup(searched);
+			result = (VALUE)str_dup(searched);
+			goto bail;
 		    }
 		}
 		else {
@@ -1679,7 +1688,8 @@ rstr_aref(VALUE str, SEL sel, int argc, VALUE *argv)
 		    if (str_include_string(RSTR(str), searched)) {
 			// no need to duplicate the string as we just
 			// created it
-			return (VALUE)searched;
+			result = (VALUE)searched;
+			goto bail;
 		    }
 		}
 		return Qnil;
@@ -1695,15 +1705,30 @@ rstr_aref(VALUE str, SEL sel, int argc, VALUE *argv)
 		    case Qnil:
 			return Qnil;
 		    default:
-			return rstr_substr(str, beg, len);
+			result = rstr_substr(str, beg, len);
+			goto bail;
 		}
-		str = rstr_substr(str, NUM2LONG(indx), 1);
-		if (!NIL_P(str) && str_length(RSTR(str), true) == 0) {
+		result = rstr_substr(str, NUM2LONG(indx), 1);
+		if (NIL_P(result) || rb_str_chars_len(result) == 0) {
 		    return Qnil;
 		}
-		return str;
+		break;
 	    }
     }
+
+bail:
+    if (!tainted) {
+	for (int i = 0; i < argc; i++) {
+	    if (OBJ_TAINTED(argv[i])) {
+		tainted = true;
+		break;
+	    }
+	}
+    }
+    if (tainted) {
+	OBJ_TAINT(result);
+    }
+    return result;
 }
 
 /*
@@ -1817,6 +1842,48 @@ num_index:
 	    pos = NUM2LONG(indx);
 	    goto num_index;
     }
+}
+
+/*
+ *  call-seq:
+ *     str.slice!(fixnum)           => fixnum or nil
+ *     str.slice!(fixnum, fixnum)   => new_str or nil
+ *     str.slice!(range)            => new_str or nil
+ *     str.slice!(regexp)           => new_str or nil
+ *     str.slice!(other_str)        => new_str or nil
+ *
+ *  Deletes the specified portion from <i>str</i>, and returns the portion
+ *  deleted.
+ *
+ *     string = "this is a string"
+ *     string.slice!(2)        #=> "i"
+ *     string.slice!(3..6)     #=> " is "
+ *     string.slice!(/s.*t/)   #=> "sa st"
+ *     string.slice!("r")      #=> "r"
+ *     string                  #=> "thing"
+ */
+
+static VALUE
+rstr_slice_bang(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    if (argc < 1 || 2 < argc) {
+        rb_raise(rb_eArgError, "wrong number of arguments (%d for 1)", argc);
+    }
+
+    rstr_modify(str);
+
+    int i;
+    VALUE buf[3];
+    for (i=0; i < argc; i++) {
+        buf[i] = argv[i];
+    }
+    buf[i] = rb_str_new(NULL, 0);
+
+    VALUE result = rstr_aref(str, 0, argc, buf);
+    if (!NIL_P(result)) {
+        rstr_aset(str, 0, argc + 1, buf);
+    }
+    return result;
 }
 
 /*
@@ -5344,6 +5411,7 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "[]", rstr_aref, -1);
     rb_objc_define_method(rb_cRubyString, "[]=", rstr_aset, -1);
     rb_objc_define_method(rb_cRubyString, "slice", rstr_aref, -1);
+    rb_objc_define_method(rb_cRubyString, "slice!", rstr_slice_bang, -1);
     rb_objc_define_method(rb_cRubyString, "insert", rstr_insert, 2);
     rb_objc_define_method(rb_cRubyString, "index", rstr_index, -1);
     rb_objc_define_method(rb_cRubyString, "rindex", rstr_rindex, -1);
