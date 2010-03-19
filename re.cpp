@@ -846,9 +846,21 @@ regexp_source(VALUE rcv, SEL sel)
 static VALUE
 regexp_inspect(VALUE rcv, SEL sel)
 {
-    VALUE str = rb_str_new2("/");
-    rb_str_concat(str, regexp_source(rcv, 0));
-    rb_str_cat2(str, "/");
+    VALUE str = rb_unicode_str_new(NULL, 0);
+    rb_str_append_uchar(str, '/');
+
+    assert(RREGEXP(rcv)->unistr != NULL);
+    const UChar *chars = RREGEXP(rcv)->unistr->getBuffer();
+    const int32_t chars_len = RREGEXP(rcv)->unistr->length();
+    for (int i = 0; i < chars_len; i++) {
+	UChar c = chars[i];
+	if (c == '/') {
+	    rb_str_append_uchar(str, '\\');
+	}
+	rb_str_append_uchar(str, c);
+    }
+
+    rb_str_append_uchar(str, '/');
 
     const uint32_t options = rb_reg_options(rcv);
     const bool mode_m = options & REGEXP_OPT_MULTILINE;
