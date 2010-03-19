@@ -594,7 +594,7 @@ class StringIO
       char = obj[0]
     else
       raise TypeError unless obj.respond_to?(:to_int)  
-      char = obj.to_int
+      char = obj.to_int % 256
     end
 
     if @append || pos == string.length
