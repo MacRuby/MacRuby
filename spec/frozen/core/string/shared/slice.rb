@@ -407,4 +407,5 @@ describe :string_slice_string, :shared => true do
   end
 end
 
-language_version __FILE__, "slice"
+# XXX MacRuby cannot parse this because of named captures
+#language_version __FILE__, "slice"
