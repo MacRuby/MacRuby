@@ -2005,7 +2005,17 @@ static VALUE
 rstr_plus(VALUE self, SEL sel, VALUE other)
 {
     rb_str_t *newstr = str_dup(RSTR(self));
-    str_concat_string(newstr, str_need_string(other));
+    rb_str_t *otherstr = str_need_string(other);
+    // if other cannot be concatenated to self
+    // but self is ASCII-only and the encodings of both string are ASCII-compatible
+    // then the new string takes the encoding of other
+    if ((str_compatible_encoding(newstr, otherstr) == NULL)
+	    && newstr->encoding->ascii_compatible
+	    && otherstr->encoding->ascii_compatible
+	    && str_is_ruby_ascii_only(newstr)) {
+	newstr->encoding = otherstr->encoding;
+    }
+    str_concat_string(newstr, otherstr);
     if (OBJ_TAINTED(self) || OBJ_TAINTED(other)) {
 	OBJ_TAINT(newstr);
     }
