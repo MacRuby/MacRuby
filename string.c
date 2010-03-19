@@ -1003,7 +1003,7 @@ str_offset_in_bytes_for_string(rb_str_t *self, rb_str_t *searched,
 	return 0;
     }
     if (searched->length_in_bytes == 0) {
-	return start_offset_in_bytes;
+	return backward_search ? end_offset_in_bytes : start_offset_in_bytes;
     }
     str_must_have_compatible_encoding(self, searched);
     str_make_same_format(self, searched);
@@ -1020,12 +1020,12 @@ str_offset_in_bytes_for_string(rb_str_t *self, rb_str_t *searched,
     }
 
     if (backward_search) {
-	for (long offset_in_bytes = end_offset_in_bytes;
-		offset_in_bytes >= start_offset_in_bytes;
-		offset_in_bytes -= increment) {
-	    if (memcmp(self->data.bytes+offset_in_bytes, searched->data.bytes,
+	for (long offset = end_offset_in_bytes - increment;
+		offset >= start_offset_in_bytes;
+		offset -= increment) {
+	    if (memcmp(self->data.bytes + offset, searched->data.bytes,
 			searched->length_in_bytes) == 0) {
-		return offset_in_bytes;
+		return offset;
 	    }
 	}
     }
@@ -1033,12 +1033,12 @@ str_offset_in_bytes_for_string(rb_str_t *self, rb_str_t *searched,
 	const long max_offset_in_bytes = end_offset_in_bytes
 	    - searched->length_in_bytes + 1;
 
-	for (long offset_in_bytes = start_offset_in_bytes;
-		offset_in_bytes < max_offset_in_bytes;
-		offset_in_bytes += increment) {
-	    if (memcmp(self->data.bytes+offset_in_bytes, searched->data.bytes,
+	for (long offset = start_offset_in_bytes;
+		offset < max_offset_in_bytes;
+		offset += increment) {
+	    if (memcmp(self->data.bytes + offset, searched->data.bytes,
 			searched->length_in_bytes) == 0) {
-		return offset_in_bytes;
+		return offset;
 	    }
 	}
     }
@@ -1956,11 +1956,11 @@ rstr_rindex(VALUE self, SEL sel, int argc, VALUE *argv)
 	    }
 	}
 	if (pos >= len) {
-	    pos = len - 1;
+	    pos = len;
 	}
     }
     else {
-	pos = len - 1;
+	pos = len;
     }
 
     switch (TYPE(sub)) {
@@ -1972,8 +1972,10 @@ rstr_rindex(VALUE self, SEL sel, int argc, VALUE *argv)
 	    StringValue(sub);
 	    // fall through
 	case T_STRING:
-	    pos = str_index_for_string(RSTR(self), str_need_string(sub),
-		    0, pos - 1, true, true);
+	    if (rb_str_chars_len(sub) > 0) {
+		pos = str_index_for_string(RSTR(self), str_need_string(sub),
+			0, pos, true, true);
+	    }
 	    break;
     }
 
