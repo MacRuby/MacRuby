@@ -621,6 +621,58 @@ rsym_aref(VALUE sym, SEL sel, int argc, VALUE *argv)
     return rstr_aref(RSYM(sym)->str, sel, argc, argv);
 }
 
+/*
+ * call-seq:
+ *   sym.upcase    => symbol
+ *
+ * Same as <code>sym.to_s.upcase.intern</code>.
+ */
+
+static VALUE
+rsym_upcase(VALUE sym, SEL sel)
+{
+    return ID2SYM(rb_intern_str(rstr_upcase(RSYM(sym)->str, sel)));
+}
+
+/*
+ * call-seq:
+ *   sym.downcase    => symbol
+ *
+ * Same as <code>sym.to_s.downcase.intern</code>.
+ */
+
+static VALUE
+rsym_downcase(VALUE sym, SEL sel)
+{
+    return ID2SYM(rb_intern_str(rstr_downcase(RSYM(sym)->str, sel)));
+}
+
+/*
+ * call-seq:
+ *   sym.capitalize  => symbol
+ *
+ * Same as <code>sym.to_s.capitalize.intern</code>.
+ */
+
+static VALUE
+rsym_capitalize(VALUE sym, SEL sel)
+{
+    return ID2SYM(rb_intern_str(rstr_capitalize(RSYM(sym)->str, sel)));
+}
+
+/*
+ * call-seq:
+ *   sym.swapcase  => symbol
+ *
+ * Same as <code>sym.to_s.swapcase.intern</code>.
+ */
+
+static VALUE
+rsym_swapcase(VALUE sym, SEL sel)
+{
+    return ID2SYM(rb_intern_str(rstr_swapcase(RSYM(sym)->str, sel)));
+}
+
 static CFIndex
 rsym_imp_length(void *rcv, SEL sel)
 {
@@ -658,6 +710,10 @@ Init_Symbol(void)
     rb_objc_define_method(rb_cSymbol, "to_sym", rsym_to_sym, 0);
     rb_objc_define_method(rb_cSymbol, "empty?", rsym_empty, 0);
     rb_objc_define_method(rb_cSymbol, "[]", rsym_aref, -1);
+    rb_objc_define_method(rb_cSymbol, "upcase", rsym_upcase, 0);
+    rb_objc_define_method(rb_cSymbol, "downcase", rsym_downcase, 0);
+    rb_objc_define_method(rb_cSymbol, "swapcase", rsym_swapcase, 0);
+    rb_objc_define_method(rb_cSymbol, "capitalize", rsym_capitalize, 0);
 
     // Cocoa primitives.
     rb_objc_install_method2((Class)rb_cSymbol, "length",

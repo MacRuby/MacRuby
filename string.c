@@ -3762,7 +3762,7 @@ rstr_downcase_bang(VALUE str, SEL sel)
  *     "hEllO".downcase   #=> "hello"
  */
 
-static VALUE
+VALUE
 rstr_downcase(VALUE str, SEL sel)
 {
     str = rb_str_new3(str);
@@ -3806,7 +3806,7 @@ rstr_upcase_bang(VALUE str, SEL sel)
  *     "hEllO".upcase   #=> "HELLO"
  */
 
-static VALUE
+VALUE
 rstr_upcase(VALUE str, SEL sel)
 {
     str = rb_str_new3(str);
@@ -3854,7 +3854,7 @@ rstr_swapcase_bang(VALUE str, SEL sel)
  *     "cYbEr_PuNk11".swapcase   #=> "CyBeR_pUnK11"
  */
 
-static VALUE
+VALUE
 rstr_swapcase(VALUE str, SEL sel)
 {
     str = rb_str_new3(str);
@@ -3910,7 +3910,7 @@ rstr_capitalize_bang(VALUE str, SEL sel)
  *     "123ABC".capitalize   #=> "123abc"
  */
 
-static VALUE
+VALUE
 rstr_capitalize(VALUE str, SEL sel)
 {
     str = rb_str_new3(str);
