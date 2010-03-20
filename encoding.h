@@ -292,6 +292,10 @@ str_set_valid_encoding(rb_str_t *self, bool status)
 VALUE mr_enc_s_is_compatible(VALUE klass, SEL sel, VALUE str1, VALUE str2);
 VALUE rb_str_intern_fast(VALUE str);
 VALUE rstr_aref(VALUE str, SEL sel, int argc, VALUE *argv);
+VALUE rstr_swapcase(VALUE str, SEL sel);
+VALUE rstr_capitalize(VALUE str, SEL sel);
+VALUE rstr_upcase(VALUE str, SEL sel);
+VALUE rstr_downcase(VALUE str, SEL sel);
 
 // The following functions should always been prefered over anything else,
 // especially if this "else" is RSTRING_PTR and RSTRING_LEN.
