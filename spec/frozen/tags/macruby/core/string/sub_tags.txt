@@ -1,3 +1,0 @@
-fails:String#sub! with pattern, replacement raises a TypeError when self is frozen
-fails:String#sub! with pattern and block raises a RuntimeError if the string is modified while substituting
-fails:String#sub! with pattern, replacement raises a RuntimeError when self is frozen

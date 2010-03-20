@@ -1,2 +1,0 @@
-fails:String#include? with Fixnum returns true if self contains the given char
-fails:String#include? with Fixnum uses fixnum % 256

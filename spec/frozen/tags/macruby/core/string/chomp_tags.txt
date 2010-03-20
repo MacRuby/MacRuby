@@ -1,2 +1,0 @@
-fails:String#chomp with separator removes carriage return (except \r) chars multiple times when separator is an empty string
-fails:String#chomp! with separator modifies self in place and returns self

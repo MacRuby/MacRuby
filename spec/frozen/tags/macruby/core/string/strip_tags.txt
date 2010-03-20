@@ -1,1 +1,0 @@
-fails:String#strip returns a new string with leading and trailing whitespace removed

@@ -1,1 +1,0 @@
-fails:String#lstrip! modifies self in place and returns self
