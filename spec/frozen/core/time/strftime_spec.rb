@@ -165,29 +165,31 @@ describe "Time#strftime" do
   end
 
   ruby_version_is '1.9' do
-    it "supports GNU modificators" do
-      time = Time.local(2001, 2, 3, 4, 5, 6)
-
-      time.strftime('%^h').should == 'FEB'
-      time.strftime('%^_5h').should == '  FEB'
-      time.strftime('%0^5h').should == '00FEB'
-      time.strftime('%04H').should == '0004'
-      time.strftime('%0-^5h').should == 'FEB'
-      time.strftime('%_-^5h').should == 'FEB'
-      time.strftime('%^ha').should == 'FEBa'
-
-      expected = {
-        "%10h" => '       Feb',
-        "%^10h" => '       FEB',
-        "%_10h" => '       Feb',
-        "%_010h" => '0000000Feb',
-        "%0_10h" => '       Feb',
-        "%0_-10h" => 'Feb',
-        "%0-_10h" => 'Feb'
-      }
-
-      ["%10h","%^10h","%_10h","%_010h","%0_10h","%0_-10h","%0-_10h"].each do |format|
-        time.strftime(format).should == expected[format]
+    not_compliant_on :macruby do
+      it "supports GNU modificators" do
+        time = Time.local(2001, 2, 3, 4, 5, 6)
+  
+        time.strftime('%^h').should == 'FEB'
+        time.strftime('%^_5h').should == '  FEB'
+        time.strftime('%0^5h').should == '00FEB'
+        time.strftime('%04H').should == '0004'
+        time.strftime('%0-^5h').should == 'FEB'
+        time.strftime('%_-^5h').should == 'FEB'
+        time.strftime('%^ha').should == 'FEBa'
+  
+        expected = {
+          "%10h" => '       Feb',
+          "%^10h" => '       FEB',
+          "%_10h" => '       Feb',
+          "%_010h" => '0000000Feb',
+          "%0_10h" => '       Feb',
+          "%0_-10h" => 'Feb',
+          "%0-_10h" => 'Feb'
+        }
+  
+        ["%10h","%^10h","%_10h","%_010h","%0_10h","%0_-10h","%0-_10h"].each do |format|
+          time.strftime(format).should == expected[format]
+        end
       end
     end
   end
