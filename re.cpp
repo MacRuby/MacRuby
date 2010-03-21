@@ -1704,6 +1704,43 @@ match_to_s(VALUE rcv, SEL sel)
 }
 
 /*
+ * call-seq:
+ *    mtch == mtch2   => true or false
+ *
+ *  Equality---Two matchdata are equal if their target strings,
+ *  patterns, and matched positions are identical.
+ */
+
+static VALUE
+match_equal(VALUE rcv, SEL sel, VALUE other)
+{
+    if (rcv == other) {
+	return Qtrue;
+    }
+    if (TYPE(other) != T_MATCH) {
+	return Qfalse;
+    }
+    if (regexp_equal((VALUE)RMATCH(rcv)->regexp, 0,
+		(VALUE)RMATCH(other)->regexp) != Qtrue) {
+	return Qfalse;
+    }
+    if (rb_str_equal(RMATCH(rcv)->str, RMATCH(other)->str) != Qtrue) {
+	return Qfalse;
+    }
+    if (RMATCH(rcv)->results_count != RMATCH(other)->results_count) {
+	return Qfalse;
+    }
+    for (int i = 0; i < RMATCH(rcv)->results_count; i++) {
+	rb_match_result_t *res1 = RMATCH(rcv)->results;
+	rb_match_result_t *res2 = RMATCH(other)->results;
+	if (res1[i].beg != res2[i].beg || res1[i].end != res2[i].end) {
+	    return Qfalse;
+	}
+    }
+    return Qtrue;
+}
+
+/*
  *  Document-class: MatchData
  *
  *  <code>MatchData</code> is the type of the special variable <code>$~</code>,
@@ -1740,6 +1777,8 @@ Init_Match(void)
     rb_objc_define_method(rb_cMatch, "to_s", (void *)match_to_s, 0);
     rb_objc_define_method(rb_cMatch, "string", (void *)match_string, 0);
     rb_objc_define_method(rb_cMatch, "inspect", (void *)match_inspect, 0);
+    rb_objc_define_method(rb_cMatch, "eql?", (void *)match_equal, 1);
+    rb_objc_define_method(rb_cMatch, "==", (void *)match_equal, 1);
 }
 
 // Compiler primitives.

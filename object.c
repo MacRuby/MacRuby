@@ -2833,7 +2833,6 @@ rb_String(VALUE val)
     return rb_convert_type(val, T_STRING, "String", "to_s");
 }
 
-
 /*
  *  call-seq:
  *     String(arg)   => string
