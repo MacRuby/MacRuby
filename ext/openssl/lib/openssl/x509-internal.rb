@@ -70,7 +70,7 @@ module OpenSSL
         QuoteChar = /[^\\"]/
         AttributeType = /[a-zA-Z][0-9a-zA-Z]*|[0-9]+(?:\.[0-9]+)*/
         AttributeValue = /
-          (?!["#])((?:#{StringChar}|#{Pair})*)|
+          (?!["\#])((?:#{StringChar}|#{Pair})*)|
           \#(#{HexString})|
           "((?:#{QuoteChar}|#{Pair})*)"
         /x
