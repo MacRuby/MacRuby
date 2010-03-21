@@ -1,1 +1,0 @@
-critical:Kernel#p is not affected by setting $\, $/ or $,
