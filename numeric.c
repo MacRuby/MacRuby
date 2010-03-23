@@ -3323,9 +3323,14 @@ Init_Numeric(void)
     rb_cNumeric = rb_define_class("Numeric", rb_cNSNumber);
     RCLASS_SET_VERSION_FLAG(rb_cNumeric, RCLASS_IS_OBJECT_SUBCLASS);
     rb_define_object_special_methods(rb_cNumeric);
-    /* overriding NSObject methods */
+
+    // Override NSObject methods.
     rb_objc_define_method(rb_cNumeric, "class", rb_obj_class, 0);
     rb_objc_define_method(rb_cNumeric, "dup", rb_obj_dup, 0);
+
+    // Undefine methods defined on NSNumber.
+    rb_undef_method(rb_cNumeric, "to_i");
+    rb_undef_method(rb_cNumeric, "to_f");
 
     rb_objc_define_method(rb_cNumeric, "singleton_method_added", num_sadded, 1);
     rb_include_module(rb_cNumeric, rb_mComparable);
