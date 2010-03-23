@@ -436,6 +436,7 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
   unsigned int i;
 #define MAX_ARGS 128
   bs_element_arg_t args[MAX_ARGS];
+  bs_element_arg_t fptr_args[MAX_ARGS];
   char *protocol_name = NULL;
   int func_ptr_arg_depth;
   bs_element_function_pointer_t *func_ptr;
@@ -855,7 +856,9 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
                      "for method '%s'", MAX_ARGS, (char *)method->name);
             } 
 
-            bs_arg = &args[(*argc)++];
+	    bs_element_arg_t *args_from =
+		(func_ptr == NULL ? args : fptr_args);
+	    bs_arg = &args_from[(*argc)++];
 
             if (method != NULL && func_ptr == NULL) {
               char *index = get_attribute(reader, "index");
@@ -1056,21 +1059,49 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
         {
           if (func_ptr != NULL 
               && func_ptr_arg_depth == xmlTextReaderDepth(reader)) {
+
+	      char tmp_type[1026]; // 2 less to fit <, and >
+	      char new_type[1028];
+
+	      // return type
+	      strlcpy(tmp_type, func_ptr->retval->type, sizeof(tmp_type));
+	      free(func_ptr->retval->type);
+	      // args
+	      for (i = 0; i < func_ptr->args_count; i++) {
+		  strlcat(tmp_type, fptr_args[i].type, sizeof(tmp_type));
+		  free(fptr_args[i].type);
+	      }
+	      snprintf(new_type, sizeof(new_type),
+		       "%c%s%c", _C_FPTR_B, tmp_type, _C_FPTR_E);
+
+	      if (atom->val == BS_XML_RETVAL) {
+		  bs_element_retval_t *retval =
+		      func != NULL ? func->retval : method->retval;
+		  free(retval->type);
+		  retval->type = strdup(new_type);
+	      }
+	      else {
+		  unsigned args_count = 
+		      func != NULL ? func->args_count : method->args_count;
+		  bs_element_arg_t *arg = &args[args_count - 1];
+		  free(arg->type);
+		  arg->type = strdup(new_type);
+	      }
             
-            if (func_ptr->args_count > 0) {
-              size_t len;
+	      if (func_ptr->args_count > 0) {
+		  size_t len;
       
-              len = sizeof(bs_element_arg_t) * func_ptr->args_count;
-              func_ptr->args = (bs_element_arg_t *)malloc(len);
-              ASSERT_ALLOC(func_ptr->args);
-              memcpy(func_ptr->args, args, len);
-            }
-            else {
-              func_ptr->args = NULL;
-            }
+		  len = sizeof(bs_element_arg_t) * func_ptr->args_count;
+		  func_ptr->args = (bs_element_arg_t *)malloc(len);
+		  ASSERT_ALLOC(func_ptr->args);
+		  memcpy(func_ptr->args, fptr_args, len);
+	      }
+	      else {
+		  func_ptr->args = NULL;
+	      }
                         
-            func_ptr = NULL;
-            func_ptr_arg_depth = -1;
+	      func_ptr = NULL;
+	      func_ptr_arg_depth = -1;
           }
           break;
         }

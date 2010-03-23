@@ -83,8 +83,8 @@ SubtypeUntil(const char *type, char end)
 
 	switch (*type)
 	{
-	    case ']': case '}': case ')': level--; break;
-	    case '[': case '{': case '(': level += 1; break;
+	    case ']': case '}': case ')': case '>': level--; break;
+	    case '[': case '{': case '(': case '<': level += 1; break;
 	}
 
 	type += 1;
@@ -148,6 +148,10 @@ SkipFirstType(const char *type)
                 /* unions */
             case '(':
                 return type + SubtypeUntil (type, ')') + 1;
+
+                /* Function pointers */
+            case '<':
+                return type + SubtypeUntil (type, '>') + 1;
 
                 /* basic types */
             default:

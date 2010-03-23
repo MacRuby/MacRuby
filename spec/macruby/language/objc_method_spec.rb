@@ -702,3 +702,31 @@ describe "An Obj-C object" do
     @o['foo'].should == 'ok'
   end
 end
+
+describe "A Proc object" do
+  it "can be used when a BridgeSupport Obj-C method takes a function pointer as an argument" do
+    framework 'Foundation'
+
+    array = [1, 42, 6, 2, 3]
+    proc = Proc.new { |a, b, _| a <=> b }
+    too_few_args_proc = Proc.new { |a| a <=> b }
+    too_many_args_proc = Proc.new { |a, b, c, d| a <=> b }
+
+    array.sortedArrayUsingFunction(proc, context:nil).should == [1, 2, 3, 6, 42]
+    
+    lambda { array.sortedArrayUsingFunction(1, context:nil) }.should raise_error(TypeError)
+    
+    lambda { array.sortedArrayUsingFunction(too_few_args_proc, context:nil) }.should raise_error(ArgumentError)
+    lambda { array.sortedArrayUsingFunction(too_many_args_proc, context:nil) }.should raise_error(ArgumentError)
+  end
+
+  it "can be used when a BridgeSupport C function takes a function pointer as an argument" do
+    functionMultiplicatingByTwoViaFctPtr(42, Proc.new { |x| x * 2 }).should == 84
+    functionMultiplicatingByTwoViaFctPtr(42, ->(x) { x * 2 }).should == 84
+
+    lambda { functionMultiplicatingByTwoViaFctPtr(42, 1) }.should raise_error(TypeError)
+
+    lambda { functionMultiplicatingByTwoViaFctPtr(42, Proc.new { 1 }) }.should raise_error(ArgumentError)
+    lambda { functionMultiplicatingByTwoViaFctPtr(42, Proc.new { |x, y| x * y }) }.should raise_error(ArgumentError)
+  end
+end

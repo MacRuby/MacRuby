@@ -740,6 +740,11 @@ extern id objc_msgSend(id self, SEL op, ...);
 
 @end
 
+CFNumberRef functionMultiplicatingByTwoViaFctPtr(CFNumberRef nb, CFNumberRef (*multiplier)(CFNumberRef))
+{
+    return (*multiplier)(nb);
+}
+
 void
 Init_method(void)
 {

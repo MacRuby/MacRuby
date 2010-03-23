@@ -451,6 +451,25 @@ rb_proc_call2(VALUE self, int argc, VALUE *argv)
     return proc_call(self, 0, argc, argv);
 }
 
+VALUE
+rb_proc_check_and_call(VALUE proc, int argc, VALUE *argv)
+{
+    VALUE tmp = rb_check_convert_type(proc, T_DATA, "Proc", "to_proc");
+    if (NIL_P(tmp)) {
+        rb_raise(rb_eTypeError,
+		"wrong type %s (expected Proc)",
+		rb_obj_classname(proc));
+    }
+    proc = tmp;
+
+    const int arity = rb_proc_arity(proc);
+    if (arity != argc) {
+	rb_raise(rb_eArgError, "expected Proc with %d arguments (got %d)",
+		argc, arity);
+    }
+    return proc_call(proc, 0, argc, argv);
+}
+
 /*
  *  call-seq:
  *     prc.arity -> fixnum

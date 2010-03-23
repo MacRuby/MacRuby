@@ -25,6 +25,7 @@
 #include "version.h"
 #include "encoding.h"
 #include "re.h"
+#include "bs.h"
 
 extern "C" const char *ruby_node_name(int node);
 
@@ -6492,6 +6493,91 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 	    }
 	    break;
 
+        case _C_FPTR_B:
+	    {
+		GlobalVariable *proc_gvar = new GlobalVariable(*RoxorCompiler::module,
+			RubyObjTy, false, GlobalValue::InternalLinkage, nilVal, "");
+		new StoreInst(val, proc_gvar, bb);
+
+		char buf[100];
+		const char *p = GetFirstType(type + 1, buf, sizeof(buf));
+		const Type *ret_type = convert_type(buf);
+		int argc = 0;
+
+		std::vector<std::string> arg_ctypes;
+		std::vector<const Type *> arg_types;
+		while (*p != _C_FPTR_E) {
+		    p = GetFirstType(p, buf, sizeof(buf));
+		    arg_ctypes.push_back(std::string(buf));
+		    arg_types.push_back(convert_type(buf));
+		    argc++;
+		}
+		FunctionType *ft = FunctionType::get(ret_type, arg_types,
+			false);
+
+		// ret_type stub(arg1, arg2, ...)
+		// {
+		//     VALUE *argv = alloc(argc);
+		//     argv[0] = arg1;
+		//     argv[1] = arg2;
+		//     return rb_proc_check_and_call(procval, argc, argv);
+		// }
+		Function *f = cast<Function>(module->getOrInsertFunction("",
+			ft));
+
+		BasicBlock *oldbb = bb;
+		bb = BasicBlock::Create(context, "EntryBlock", f);
+
+		Function::arg_iterator arg = f->arg_begin();
+
+		Value *argv;
+		if (argc == 0) {
+		    argv = new BitCastInst(compile_const_pointer(NULL),
+			RubyObjPtrTy, "", bb);
+		}
+		else {
+		    argv = new AllocaInst(RubyObjTy,
+			ConstantInt::get(Int32Ty, argc), "", bb);
+		    for (int i = 0; i < argc; i++) {
+			Value *index = ConstantInt::get(Int32Ty, i);
+			Value *aslot = GetElementPtrInst::Create(argv, index,
+				"", bb);
+			Value *rval = compile_conversion_to_ruby(
+				arg_ctypes[i].c_str(), arg_types[i], arg++);
+			new StoreInst(rval, aslot, "", bb);
+		    }
+		}
+
+		// VALUE rb_proc_check_and_call(
+		//	VALUE self, int argc, VALUE *argv
+		// )
+		Function *proc_call_f =
+			cast<Function>(module->getOrInsertFunction(
+				"rb_proc_check_and_call",
+				RubyObjTy,
+				RubyObjTy, Int32Ty, RubyObjPtrTy, NULL));
+		std::vector<Value *> params;
+		params.push_back(new LoadInst(proc_gvar, "", bb));
+		params.push_back(ConstantInt::get(Int32Ty, argc));
+		params.push_back(argv);
+		Value *ret_val = compile_protected_call(proc_call_f, params);
+
+		if (ret_type != VoidTy) {
+		    GetFirstType(type + 1, buf, sizeof(buf));
+		    ret_val = compile_conversion_to_c(buf, ret_val,
+			new AllocaInst(ret_type, "", bb));
+		    ReturnInst::Create(context, ret_val, bb);
+		}
+		else {
+		    ReturnInst::Create(context, bb);
+		}
+		bb = oldbb;
+		Value *ret = new BitCastInst(f, PtrTy, "", bb);
+
+		return ret;
+	    }
+	    break;
+
 	case _C_PTR:
 	    {
 		rb_vm_bs_boxed_t *bs_boxed = GET_CORE()->find_bs_opaque(type);
@@ -6867,6 +6953,9 @@ RoxorCompiler::convert_type(const char *type)
 	case _C_LNG_LNG:
 	case _C_ULNG_LNG:
 	    return Int64Ty;
+
+	case _C_FPTR_B:
+	    return PtrTy;
 
 	case _C_STRUCT_B:
 	    rb_vm_bs_boxed_t *bs_boxed = GET_CORE()->find_bs_struct(type);

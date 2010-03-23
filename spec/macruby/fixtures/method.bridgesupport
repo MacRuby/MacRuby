@@ -28,4 +28,12 @@
     <method type="i@:i" selector="informalProtocolMethod1:"/>
     <method type="B@:ii" selector="informalProtocolMethod2:withValue:"/>
   </informal_protocol>
+  <function name="functionMultiplicatingByTwoViaFctPtr">
+    <arg name="number" declared_type="CFNumberRef" type="^{__CFNumber=}"/>
+    <arg name="multiplier" function_pointer="true" type="^?" type_modifier="n">
+      <arg declared_type="CFNumberRef" type="^{__CFNumber=}"/>
+      <retval declared_type="CFNumberRef" type="^{__CFNumber=}"/>
+    </arg>
+    <retval declared_type="CFNumberRef" type="^{__CFNumber=}"/>
+  </function>
 </signatures>
