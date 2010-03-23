@@ -88,7 +88,6 @@ static SEL sel_coerce, selDiv, selDivmod, selExp;
 static ID id_to_i, id_eq;
 
 VALUE rb_cNumeric;
-VALUE rb_cNSNumber;
 VALUE rb_cFloat;
 VALUE rb_cInteger;
 VALUE rb_cFixnum;
@@ -3304,24 +3303,13 @@ fix_even_p(VALUE num, SEL sel)
     return Qtrue;
 }
 
-static void *
-imp_nsnumber_to_int(void *rcv, SEL sel)
-{
-    // This is because some NSNumber subclasses must be converted to real
-    // CFNumber objects, in order to be coerced into Fixnum objects.
-    long val = 0;
-    if (!CFNumberGetValue((CFNumberRef)rcv, kCFNumberLongType, &val)) {
-	rb_raise(rb_eTypeError, "cannot get 'long' value out of NSNumber %p",
-		rcv);
-    }
-    CFNumberRef new_num = CFNumberCreate(NULL, kCFNumberLongType, &val);
-    CFMakeCollectable(new_num);
-    return (void *)new_num;
-}
+void Init_NSNumber(void);
 
 void
 Init_Numeric(void)
 {
+    Init_NSNumber();
+
     sel_coerce = sel_registerName("coerce:");
     selDiv = sel_registerName("div:");
     selDivmod = sel_registerName("divmod:");
@@ -3332,7 +3320,6 @@ Init_Numeric(void)
 
     rb_eZeroDivError = rb_define_class("ZeroDivisionError", rb_eStandardError);
     rb_eFloatDomainError = rb_define_class("FloatDomainError", rb_eRangeError);
-    rb_cNSNumber = (VALUE)objc_getClass("NSNumber");
     rb_cNumeric = rb_define_class("Numeric", rb_cNSNumber);
     RCLASS_SET_VERSION_FLAG(rb_cNumeric, RCLASS_IS_OBJECT_SUBCLASS);
     rb_define_object_special_methods(rb_cNumeric);
@@ -3500,7 +3487,4 @@ Init_Numeric(void)
     rb_objc_define_method(rb_cFloat, "nan?",      flo_is_nan_p, 0);
     rb_objc_define_method(rb_cFloat, "infinite?", flo_is_infinite_p, 0);
     rb_objc_define_method(rb_cFloat, "finite?",   flo_is_finite_p, 0);
-
-    class_replaceMethod((Class)rb_cNSNumber, sel_registerName("to_int"),
-	    (IMP)imp_nsnumber_to_int, "@@:");
 }

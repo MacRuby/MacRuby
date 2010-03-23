@@ -26,9 +26,6 @@
 #include <unicode/unum.h>
 #include <unicode/utrans.h>
 
-VALUE rb_cString;
-VALUE rb_cNSString;
-VALUE rb_cNSMutableString;
 VALUE rb_cRubyString;
 
 VALUE rb_fs;
@@ -5402,16 +5399,12 @@ nsdata_to_str(VALUE data, SEL sel)
 	    CFDataGetLength(dataref));
 }
 
+void Init_NSString(void);
+
 void
 Init_String(void)
 {
-    // TODO create NSString.m
-    rb_cNSString = (VALUE)objc_getClass("NSString");
-    assert(rb_cNSString != 0);
-    rb_cString = rb_cNSString;
-    rb_include_module(rb_cString, rb_mComparable);
-    rb_cNSMutableString = (VALUE)objc_getClass("NSMutableString");
-    assert(rb_cNSMutableString != 0);
+    Init_NSString();
 
     // rb_cRubyString is defined earlier in Init_PreVM().
     rb_set_class_path(rb_cRubyString, rb_cObject, "String");

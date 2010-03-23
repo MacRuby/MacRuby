@@ -7,6 +7,7 @@ OBJS = %w{
   util variable version thread id objc bs ucnv encoding main dln dmyext marshal
   gcd vm_eval prelude miniprelude gc-stub bridgesupport compiler dispatcher vm
   symbol debugger MacRuby MacRubyDebuggerConnector NSArray NSDictionary
+  NSString NSNumber
 }
 
 EXTENSIONS = %w{
