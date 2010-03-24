@@ -3,6 +3,11 @@
 require 'dispatch'
 require 'benchmark'
 
+$max_tasks = 256
+$reps = 1024
+$folds = 32
+$results = nil#[]
+
 class Benchmark
   def self.repeat(count, label="", &block)
     raise "count: #{count} < 1" if count < 1
@@ -11,18 +16,6 @@ class Benchmark
     Tms.new(*t.to_a[1..-1], label)
   end
 end
-
-$max_tasks = 256
-$reps = 1024
-$folds = 32
-$results = nil#[]
-
-METHODS = %w(iter p_iter apply concur serial nqueue njobs)
-
-puts "GCD BENCHMARKS"
-puts "MaxTasks\t#{$max_tasks}\tFolds\t#{$folds}\tReps\t#{$reps}"
-#puts METHODS
-puts "METHOD\tTASKS\tTIME µsec"
 
 def work_function(i)
     x = 1.0+i*i
@@ -73,14 +66,21 @@ end
 
 def bench(method, count=1)
   proc = Proc.new { send(method.to_sym, count) }
-  t = Benchmark.repeat($reps, "%6s" % method, &proc)
-  puts "#{method}\t#{count}\t%6.2f" % (t.real*1e6/count)
+  Benchmark.repeat($reps, "%6s" % method, &proc).real*1e6/count
 end
 
-n = 1
-while n <= $max_tasks do
-  METHODS.each { |method| bench(method, n) }
-  n *= 2
+METHODS = %w(iter p_iter apply concur serial nqueue njobs)
+TASKS = [t = 1]
+TASKS << t *= 2 while t < $max_tasks
+
+print "GCD BENCHMARKS\tMaxTask\t#{$max_tasks}\tFolds\t#{$folds}\tReps\t#{$reps}\n"
+print "T µsec\t#{TASKS.join("\t   ")}"
+
+METHODS.each do |method|
+  print "\n#{method}"
+  TASKS.each do |n|
+      print "\t%6.2f" % bench(method, n)
+   end
 end
 
-puts "Results: #{$results}" if not $results.nil?
+print "Results: #{$results.join("\t")}" if not $results.nil?
