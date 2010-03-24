@@ -18,15 +18,15 @@ Dispatch::Queue:: The basic unit for organizing blocks. Several queues are creat
 
 Dispatch::Group:: Allows applications to track the progress of blocks submitted to queues and take action when the blocks complete.
 
-Source:: Monitors and coalesces low-level system events so that they can be responded to asynchronously via simple event handlers.
+Dispatch::Source:: Monitors and coalesces low-level system events so that they can be responded to asynchronously via simple event handlers.
 
-Semaphore:: Synchronizes threads via a combination of waiting and signalling.
+Dispatch::Semaphore:: Synchronizes threads via a combination of waiting and signalling.
 
-In addition, MacRuby 0.6 provides additional, higher-level abstractions and convenience APIs such as +Job+ and +Proxy+ via the "dispatch" library (i.e., +require 'dispatch'+).
+In addition, MacRuby 0.6 provides additional, higher-level abstractions and convenience APIs such as +Job+ and +Proxy+ via the "dispatch" library (i.e., +require 'dispatch'+). As the MacRuby 0.6 features help reduce the learning curve for GCD, we will assume those for the remainder of this article. 
 
 === What You Need
 
-As the MacRuby 0.6 features help reduce the learning curve for GCD, we will assume those for the remainder of this article.  Note that MacRuby 0.6 is currently (as of Feb 2010) only available via the source[http://www.macruby.org/source.html] or the {nightly builds}[http://www.icoretech.org/2009/09/macruby-nightlies/]. The examples all assume you  run the latest macirb and require the +dispatch+ library:
+Note that MacRuby 0.6 is currently (as of March 2010) only available as source[http://www.macruby.org/source.html] or via the {nightly builds}[http://www.icoretech.org/2009/09/macruby-nightlies/]. The examples all assume you run the latest macirb and require the +dispatch+ library:
 
 	$ macirb
 	require 'dispatch'	
@@ -508,26 +508,13 @@ This +add+-style event is similar to the above, but waits until a +write+ buffer
 
 In this case we play it safe by only writing out a single character at a time, to avoid risk of blocking (and simplify our algorithm).
 
----
-= UNDER CONSTRUCTION = 
+= What's Next?
 
-== Semaphores 
+This concludes our introduction to the high-level wrappers available as part of +require 'dispatch'+ in MacRuby 0.6.  These allow you to easily write concurrent, asynchronous code using simple Ruby idioms. For additional performance and fine-grained control, you may want to dive down into directly using Queues, Groups, and Semaphores. At the moment, this is best done by reading the {existing C documentation for GCD}[http://developer.apple.com/mac/articles/cocoa/introblocksgcd.html] and comparing to the relevant RubyDoc
 
-
-
-Finally, GCD has an efficient, general-purpose signaling mechanism known as dispatch semaphores.  These are most commonly used to throttle usage of scarce resources, but can also help track completed work:  
-
-
-	dispatch_semaphore_t sema = dispatch_semaphore_create(0);
-	dispatch_async(a_queue, ^{ some_work(); dispatch_semaphore_signal(sema); });
-	more_work(); 
-	dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
-	dispatch_release(sema);
-	do_this_when_all_done();
-
-Like other GCD objects, dispatch semaphores usually don’t need to call into the kernel, making them much faster than regular semaphores when there is no need to wait.
-
-= Conclusion
-
-Grand Central Dispatch is a new approach to building software for multicore systems, one in which the operating system takes responsibility for the kinds of thread management tasks that traditionally have been the job of application developers. Because it is built into Mac OS X at the most fundamental level, GCD can not only simplify how developers build their code to take advantage of multicore, but also deliver better performance and efficiency than traditional approaches such as threads.  With GCD, Snow Leopard delivers a new foundation on which Apple and third party developers can innovate and realize the enormous power of both today’s hardware and tomorrow’s. 
-
+	$ macri Dispatch
+	$ macri Dispatch::Queue
+	$ macri Dispatch::Group
+	$ macri Dispatch::Semaphore
+		
+However, feel free to {file bugs}[https://www.macruby.org/auth/login/?next=/trac/newticket] about additional documentation you would like to see.
