@@ -246,13 +246,13 @@ Passes each object and returns nil if none match. Similar to +find+, it returns 
 
 == Sources: Asynchronous Events
 
-In addition to scheduling blocks directly, GCD makes it easy to run a block in response to various system events via a Source, which supports:
+In addition to scheduling blocks directly, GCD makes it easy to run a block in response to various system events via a Dispatch::Source, which can be a:
 
-* Timers
-* Custom events
-* Signals
-* File descriptors and sockets
-* Process state changes
+* Timer
+* Custom event
+* Signal
+* File descriptor (file or socket)
+* Process state change
 	
 When the source “fires,” GCD will schedule the _handler_ block on the specific queue if it is not currently running, or -- more importantly -- coalesce pending events if it is. This provides excellent responsiveness without the expense of either polling or binding a thread to the event source.  Plus, since the handler is never run more than once at a time, the block doesn’t even need to be reentrant -- and thus you don't need to +synchronize+ any variables that are only used there.
 
@@ -263,7 +263,7 @@ We'll start with a simple example: a +periodic+ timer that runs every 0.9 second
 	timer = Source.periodic(0.9) { |src| puts src.data }
 	sleep 2 # => 1 1 ...
 	
-If you're familiar with the C API for GCD, be aware that a +Dispatch::Source+ is fully configured at the time of instantiation, and does not need to be +resume+d.
+If you're familiar with the C API for GCD, be aware that a +Dispatch::Source+ is fully configured at the time of instantiation, and does not need to be +resume+d. Also, times are in seconds, not nanoseconds.
 
 === Source#data
 
@@ -297,11 +297,11 @@ Cancellation is particularly significant in MacRuby's implementation of GCD, sin
 
 === Custom Sources
 
-Next up are _custom_ or _application-specific_ sources, which are fired explicitly by the developer instead of in response to an external event.  These simple behaviors are the primitive upon which other sources are built.
+Next up are _custom_ or _application-specific_ sources, which are fired explicitly by the developer instead of in response to an external event.  These simple behaviors are the primitives upon which other sources are built.
 
 ==== Source.add
 
-The +add+ source accumulates the sum of the event data (e.g., for numbers):
+The +add+ source accumulates the sum of the event data (e.g., for numbers) in a thread-safe manner:
 
 	@sum = 0
 	adder = Dispatch::Source.add { |s| @sum += s.data;  }
@@ -322,7 +322,7 @@ The name "merge" makes more sense when you see it coalesce multiple firings into
 	adder.resume! # => "add 8 -> 9"
 	adder.cancel!
 
-Since the source is suspended -- mimicking what would happen if your event handler was busy at the time -- GCD automatically _merges_ the results together using addition.  This is useful for tracking cumulative results across multiple threads, e.g. for a parallel progress viewer.  Notice that this is also the same event coalescing behavior used by +periodic+.
+Since the source is suspended -- mimicking what would happen if your event handler was busy at the time -- GCD automatically _merges_ the results together using addition.  This is useful for tracking cumulative results across multiple threads, e.g. for a progress meter.  Notice this is the event coalescing behavior used by +periodic+.
 
 ==== Source.or
 
@@ -337,11 +337,11 @@ Similarly, the +or+ source combines events using a logical OR (e.g, for booleans
 	puts  "%b" % @mask # => 1011
 	masker.cancel!
 
-This is primarily useful flagging what _kinds_ of events have taken place since the last time the handler fired.
+This is primarily useful for flagging what _kinds_ of events have taken place since the last time the handler fired.
 
 === Process Sources
 
-Next up are sources which deal with UNIX processes.
+Let's see how both of use are used for sources which deal with UNIX processes.
 
 ==== Source.process
 
@@ -352,13 +352,13 @@ exit::Dispatch::Source.PROC_EXIT
 fork::Dispatch::Source.PROC_FORK
 signal::Dispatch::Source.PROC_SIGNAL
 
-_[WARNING: +Thread#fork+ is currently not supported by MacRuby]_
+_[WARNING: +Thread#fork+ is not supported by MacRuby]_
 
 The underlying API expects and returns integers, e.g.:
 
 	@event = 0
 	mask = Dispatch::Source::PROC_EXIT | Dispatch::Source::PROC_SIGNAL 
-	proc = Dispatch::Source.process($$, mask) do |s|
+	proc_src = Dispatch::Source.process($$, mask) do |s|
 		@event |= s.data
 	end
 	
@@ -366,11 +366,11 @@ In this case, we are watching the current process ('$$') for +:signal+ and (less
 
 ==== Source#data2events
 	
-Alternatively, you can pass in array of names (symbols or strings) for the mask, and use +data2events+ to convert the returned data into an array of symbols
+Alternatively, you can pass in array of names (symbols or strings) for the mask, and optionally use +data2events+ to convert the returned data into an array of symbols
 
 	@events = []
 	mask2 = [:exit, :fork, :exec, signal]
-	proc2 = Dispatch::Source.process($$, mask2) do |s|
+	proc_src2 = Dispatch::Source.process($$, mask2) do |s|
 	   |s| @events << Dispatch::Source.data2events(s.data)
 	end
 
@@ -388,12 +388,12 @@ To fire the event, we can, e.g., send a un-trapped signal :
 You can check which flags were set by _and_ing against the bitmask:
 
 	result = "%b" % (@event & mask) # => 1000000000000000000000000000 # Dispatch::Source::PROC_SIGNAL
-	proc.cancel!
+	proc_src.cancel!
 
-Or equivalently, against the array:
+Or equivalently, interseting the array:
 
 	result2 = (@events & mask2) # => [:signal]
-	proc2.cancel!
+	proc_src2.cancel!
 
 ==== Source#event2num
 
@@ -401,21 +401,20 @@ You can convert from symbol to int via +event2num+:
 
 	puts result == Dispatch::Source#event2num(result2[0]) # => true
 
-==== Source#event2num
+==== Source#num2event
 
-Similarly,  use +num2event+ to turn an int into a symbol:
+Similarly, use +num2event+ to turn an int into a symbol:
 
 	put result2[0] == Dispatch::Source#num2event(result) # => true
 
 ==== Source.signal
 
-This +Source+ overlaps with the previous one, but uses +add+ to track the number of times that a specific +signal+ was fired against the *current* process:
+This +Source+ overlaps slightly with the previous one, but uses +add+ to track the number of times that a specific +signal+ was fired against the *current* process:
 
 	@count = 0
 	sig_usr2 = Signal.list["USR2"]
-
 	signal = Dispatch::Source.signal(sig_usr2) do |s|
-		@count = s.data
+		@count += s.data
 	end
 
 	signal.suspend!
@@ -424,7 +423,7 @@ This +Source+ overlaps with the previous one, but uses +add+ to track the number
 	Signal.trap(sig_usr2, "DEFAULT")
 	signal.resume!
 	puts @count # => 3
-
+	signal.cancel!
 
 === File Sources
 
@@ -432,44 +431,82 @@ Next up are sources which deal with file operations -- actually, anything that m
 
 ==== Source.file
 
-This +or+-style event.
+This +or+-style source takes and returns a mask of different events affecting the specified +file+:
+
+delete::Dispatch::Source.VNODE_DELETE
+write::Dispatch::Source.VNODE_WRITE
+extend::Dispatch::Source.VNODE_EXTEND
+attrib::Dispatch::Source.VNODE_ATTRIB
+link::Dispatch::Source.VNODE_LINK
+rename::Dispatch::Source.VNODE_RENAME
+revoke::Dispatch::Source.VNODE_REVOKE
+
+As before, the underlying API expects and returns integers, e.g.:
+
+	@fevent = 0
+	@msg = "#{$$}-#{Time.now.to_s.gsub(' ','_')}"
+    filename = "/tmp/dispatch-#{@msg}"
+	file = File.open(filename, "w")
+	fmask = Dispatch::Source::VNODE_DELETE | Dispatch::Source::Source.VNODE_WRITE
+	file_src = Dispatch::Source.file(file.fileno, fmask) do |s|
+		@fevent |= s.data
+	end
+    file.puts @msg
+    file.flush
+	file.close
+	puts @fevent & fmask # => Dispatch::Source::Source.VNODE_WRITE
+	File.delete(filename)
+	puts @fevent == fmask # => true
+	file_src.cancel!
+	
+And of course can also use symbols:
+
+	@fevent2 = []
+	file = File.open(filename, "w")
+	fmask2 = %w(delete write)
+	file_src2 = Dispatch::Source.file(file, fmask2) do |s|
+		@fevent2 << Dispatch::Source.data2events(s.data)
+	end
+    file.puts @msg
+    file.flush
+	puts @fevent2 & fmask2 # => [:write]
+	file_src2.cancel!
+	
+As a bonus, if you pass in an actual IO object (not just a file descriptor) the Dispatch library will automatically create a handler that closes the file for you when cancelled!
 
 ==== Source.read
 
-This +add+-style event.
+In contrast to the previous sources, these next two refer to internal state rather than external events. Specifically, this +add+-style source avoids blocking on a +read+ by only calling the handler when it estimates there are +s.data+ unread bytes available in the buffer:  
+
+    file = File.open(filename, "r")
+    @result = ""
+    reader = Dispatch::Source.read(file) do |s|
+ 		@result << @file.read(s.data)
+	end
+    while (@result.size < @msg.size) do; end
+    puts @result # => e.g., 489-Wed_Mar_24_15:59:00_-0700_2010
+	reader.cancel!
+
+Strictly speaking, the count returned by +s.data+ is only an estimate. It would be safer to instead call +@file.read(1)+ to avoid any risk of blocking, but that would lead to many more block invocations, which might not be a net win.
 
 ==== Source.write
 
-This +add+-style event.
+This +add+-style event is similar to the above, but waits until a +write+ buffer is available:
 
-===  Example
+    file = File.open(filename, "w")
+    @message = @msg
+    writer = Dispatch::Source.write(file) do |s|
+      if @message.size > 0 then
+        char = @message[0..0]
+        @file.write(char)
+        @message = @message[1..-1]
+      end
+    end
+    while (@message.size > 0) do; end
+    result = File.read(filename)
+    puts result # => e.g., 489-Wed_Mar_24_15:59:00_-0700_2010
 
-Here is a more sophisticated example involving reading from a file. Note the use of non-blocking I/O to avoid stalling a thread:
-
-	int fd = open(filename, O_RDONLY);
-	fcntl(fd, F_SETFL, O_NONBLOCK);  // Avoid blocking the read operation
-	dispatch_source_t reader = 
-	  dispatch_source_create(DISPATCH_SOURCE_TYPE_READ, fd, 0, q_default); 
-
-  
-We will also specify a “cancel handler” to clean up our descriptor:
-
-	dispatch_source_set_cancel_handler(reader, ^{ close(fd); } );
-
-The cancellation will be invoked from the event handler on, e.g., end of file:
-
-	typedef struct my_work {…} my_work_t;
-	dispatch_source_set_event_handler(reader, ^{ 
-		size_t estimate = dispatch_source_get_data(reader);
-		my_work_t *work = produce_work_from_input(fd, estimate);
-		if (NULL == work)
-			dispatch_source_cancel(reader);
-		else
-			dispatch_async(q_default, ^{ consume_work(work); free(work); } );
-	});
-	dispatch_resume(reader);
-
-To avoid bogging down the reads, the event handler packages up the data in a my_work_t and schedules the processing in another block.  This separation of  concerns is known as the producer/consumer pattern, and maps very naturally to Grand Central Dispatch queues.  In case of imbalance, you may need to adjust the relative priorities of the producer and consumer queues or throttle them using semaphores.
+In this case we play it safe by only writing out a single character at a time, to avoid risk of blocking (and simplify our algorithm).
 
 ---
 = UNDER CONSTRUCTION = 
