@@ -697,6 +697,10 @@ Init_Symbol(void)
     rb_objc_define_method(*(VALUE *)rb_cSymbol, "all_symbols",
 	    rsym_all_symbols, 0);
 
+    // Undefine methods defined on NSString.
+    rb_undef_method(rb_cSymbol, "to_i");
+    rb_undef_method(rb_cSymbol, "to_f");
+
     rb_objc_define_method(rb_cSymbol, "==", rsym_equal, 1);
     rb_objc_define_method(rb_cSymbol, "<=>", rsym_cmp, 1);
     rb_objc_define_method(rb_cSymbol, "casecmp", rsym_casecmp, 1);
