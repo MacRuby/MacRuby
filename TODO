@@ -1,13 +1,13 @@
 For 0.6:
 
 [X] new Hash class, insertion ordering support, optimized for immediate types
-[/] new String and Symbol classes, support for 1.9 encoding semantics
-[/] new Regexp class, thread-safe, ICU-based
-[/] refactor the Array, Hash and String Foundation bridging models
-  [X] Hash
-  [X] Array
-  [ ] String
-[ ] implement basic Numeric methods on NSNumber  
+[X] new String and Symbol classes, support for 1.9 encoding semantics
+[X] new Regexp class, thread-safe, ICU-based
+[X] refactor Foundation bridging models
+  [X] NSDictionary
+  [X] NSArray
+  [X] NSString
+  [X] NSNumber
 [/] debugger
   [/] command-line tool
   [ ] Xcode plugin
@@ -22,7 +22,7 @@ For 0.6:
   [/] hello world should work
 [ ] support Mocha
 [ ] support RSpec
-[ ] 90% (min.) of rubyspecs should pass
+[/] 90% (min.) of rubyspecs should pass
 
 Historical:
 
