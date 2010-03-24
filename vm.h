@@ -51,6 +51,8 @@ typedef struct rb_vm_block {
     struct rb_vm_block *parent_block;
     int dvars_size;
     VALUE *dvars[1];
+    // ATTENTION: do not add fields here, because it would mess with the way
+    // the structure is allocated regarding the dvars buffer!
 } rb_vm_block_t;
 
 typedef struct {
