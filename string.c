@@ -318,6 +318,9 @@ str_replace_with_cfstring(rb_str_t *self, CFStringRef source)
 	CFStringGetCharacters(source, CFRangeMake(0, len), chars);
     }
     str_replace_with_uchars(self, chars, len);
+    if (chars != NULL) {
+	free(chars);
+    }
 }
 
 static void
