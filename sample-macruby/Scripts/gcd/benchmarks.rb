@@ -8,7 +8,7 @@ class Benchmark
     raise "count: #{count} < 1" if count < 1
     block.call
     t = measure {count.times &block} / count
-    Tms.new(*t.to_a[1..-1], label).inspect
+    Tms.new(*t.to_a[1..-1], label)
   end
 end
 
@@ -17,8 +17,11 @@ $reps = 1024
 $folds = 32
 $results = nil#[]
 
-puts "GCD Benchmarks"
-puts "Tasks: #{$max_tasks}\tFolded: #{$folds}\tReps:\t#{$reps}"
+METHODS = %w(iter p_iter apply concur serial nqueue njobs)
+
+puts "GCD BENCHMARKS"
+puts "Folds,\t#{$folds},\tMaxTasks,\t#{$max_tasks},\tReps,\t#{$reps}"
+puts "TYPE,\tTASKS,\t'TIME µsec'"
 
 def work_function(i)
     x = 1.0+i*i
@@ -39,9 +42,12 @@ def apply(n)
 end
 
 def concur(n)
-  j = Dispatch::Job.new
-  n.times {|i| j.add { work_function(i) }}
-  j.join
+  g = Dispatch::Group.new
+  q = Dispatch::Queue.concurrent
+  n.times do |i|
+    q.async(g) {work_function(i)}
+  end
+  g.wait
 end
 
 def serial(n)
@@ -50,7 +56,7 @@ def serial(n)
   q.sync { } 
 end
 
-def multiq(n)
+def nqueue(n)
   g = Dispatch::Group.new
   n.times do |i|
     Dispatch::Queue.new("org.macruby.gcd.multi.#{i}").async(g) {work_function(i)}
@@ -58,19 +64,21 @@ def multiq(n)
   g.wait
 end
 
+def njobs(n)
+  j = Dispatch::Job.new
+  n.times {|i| j.add { work_function(i) }}
+  j.join
+end
+
 def bench(method, count=1)
   proc = Proc.new { send(method.to_sym, count) }
-  t = Benchmark.measure("%6s" % method, &proc)
-  t_msec = t.real*1000
-  puts "#{t.label}: %5.2f millisec (avg: %5.2f microsec)" % [t_msec, t_msec*1000/count]
+  t = Benchmark.repeat($reps, "%6s" % method, &proc)
+  puts "#{method},\t#{count},\t%6.2f" % (t.real*1e6/count)
 end
 
 n = 1
 while n <= $max_tasks do
-  puts "\n#{n} tasks"
-  %w(iter p_iter apply concur serial multiq).each do |s|
-    bench(s, n)
-  end
+  METHODS.each { |method| bench(method, n) }
   n *= 2
 end
 
