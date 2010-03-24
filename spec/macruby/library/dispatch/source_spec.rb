@@ -113,7 +113,7 @@ if MACOSX_VERSION >= 10.6
 
     describe "VNODE" do
       before :each do
-        @msg = "#{$$}-#{Time.now}"
+        @msg = "#{$$}-#{Time.now.to_s.gsub(' ','_')}"
         @filename = tmp("gcd_spec_source-#{@msg}")
         @file = nil
         @src = nil
@@ -141,18 +141,16 @@ if MACOSX_VERSION >= 10.6
       describe "write" do
         it "fires with data on writable bytes" do
           @file = File.open(@filename, "w")
-          @pos = 0
           @message = @msg
-          @src = Dispatch::Source.read(@file, @q) do |s|
-            pos = s.data
-            if not @message.nil? then
-              next_msg = @message[0..pos-1]
-              @file.write(next_msg)
-              @message = @message[pos..-1]
+          @src = Dispatch::Source.write(@file, @q) do |s|
+            if @message.size > 0 then
+              char = @message[0..0]
+              @file.write(char)
+              @message = @message[1..-1]
             end
           end
-          while (@result.size < @msg.size) do; end
-          @q.sync { }
+          while (@message.size > 0) do; end
+          result = File.read(@filename)
           @result.should == @msg
         end
       end
