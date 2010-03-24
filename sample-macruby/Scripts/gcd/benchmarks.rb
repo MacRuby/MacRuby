@@ -20,8 +20,9 @@ $results = nil#[]
 METHODS = %w(iter p_iter apply concur serial nqueue njobs)
 
 puts "GCD BENCHMARKS"
-puts "Folds,\t#{$folds},\tMaxTasks,\t#{$max_tasks},\tReps,\t#{$reps}"
-puts "TYPE,\tTASKS,\t'TIME µsec'"
+puts "MaxTasks\t#{$max_tasks}\tFolds\t#{$folds}\tReps\t#{$reps}"
+#puts METHODS
+puts "METHOD\tTASKS\tTIME µsec"
 
 def work_function(i)
     x = 1.0+i*i
@@ -73,7 +74,7 @@ end
 def bench(method, count=1)
   proc = Proc.new { send(method.to_sym, count) }
   t = Benchmark.repeat($reps, "%6s" % method, &proc)
-  puts "#{method},\t#{count},\t%6.2f" % (t.real*1e6/count)
+  puts "#{method}\t#{count}\t%6.2f" % (t.real*1e6/count)
 end
 
 n = 1
