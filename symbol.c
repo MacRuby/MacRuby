@@ -673,6 +673,14 @@ rsym_swapcase(VALUE sym, SEL sel)
     return ID2SYM(rb_intern_str(rstr_swapcase(RSYM(sym)->str, sel)));
 }
 
+// Cocoa primitives
+
+static void *
+rsym_imp_copy(void *rcv, SEL sel)
+{
+    return rcv;
+}
+
 static CFIndex
 rsym_imp_length(void *rcv, SEL sel)
 {
@@ -683,6 +691,26 @@ static UniChar
 rsym_imp_characterAtIndex(void *rcv, SEL sel, CFIndex idx)
 {
     return CFStringGetCharacterAtIndex((CFStringRef)RSYM(rcv)->str, idx);
+}
+
+#define RSYM_NSCODER_KEY "MRSymbolStr"
+
+static void
+rsym_imp_encodeWithCoder(void *rcv, SEL sel, void *coder)
+{
+    rb_str_NSCoder_encode(coder, RSYM(rcv)->str, RSYM_NSCODER_KEY);
+}
+
+static VALUE
+rsym_imp_initWithCoder(void *rcv, SEL sel, void *coder)
+{
+    return ID2SYM(rb_intern_str(rb_str_NSCoder_decode(coder, RSYM_NSCODER_KEY)));
+}
+
+static Class
+rsym_imp_classForKeyedArchiver(void *rcv, SEL sel)
+{
+    return (Class)rb_cSymbol;
 }
 
 void
@@ -720,8 +748,16 @@ Init_Symbol(void)
     rb_objc_define_method(rb_cSymbol, "capitalize", rsym_capitalize, 0);
 
     // Cocoa primitives.
+    rb_objc_install_method2((Class)rb_cSymbol, "copy",
+	    (IMP)rsym_imp_copy);
     rb_objc_install_method2((Class)rb_cSymbol, "length",
 	    (IMP)rsym_imp_length);
     rb_objc_install_method2((Class)rb_cSymbol, "characterAtIndex:",
 	    (IMP)rsym_imp_characterAtIndex);
+    rb_objc_install_method2((Class)rb_cSymbol, "encodeWithCoder:",
+	    (IMP)rsym_imp_encodeWithCoder);
+    rb_objc_install_method2((Class)rb_cSymbol, "initWithCoder:",
+	    (IMP)rsym_imp_initWithCoder);
+    rb_objc_install_method2((Class)rb_cSymbol, "classForKeyedArchiver",
+	    (IMP)rsym_imp_classForKeyedArchiver);
 }

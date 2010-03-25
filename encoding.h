@@ -289,6 +289,9 @@ str_set_valid_encoding(rb_str_t *self, bool status)
 	    STRING_VALID_ENCODING);
 }
 
+void rb_str_NSCoder_encode(void *coder, VALUE str, const char *key);
+VALUE rb_str_NSCoder_decode(void *coder, const char *key);
+
 VALUE mr_enc_s_is_compatible(VALUE klass, SEL sel, VALUE str1, VALUE str2);
 VALUE rb_str_intern_fast(VALUE str);
 VALUE rstr_aref(VALUE str, SEL sel, int argc, VALUE *argv);

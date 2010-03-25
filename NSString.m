@@ -180,6 +180,20 @@ nsstr_forward_bang(id rcv, SEL sel, int argc, VALUE *argv)
 }
 
 void
+rb_str_NSCoder_encode(void *coder, VALUE str, const char *key)
+{
+    NSString *nskey = [NSString stringWithUTF8String:key];
+    [(NSCoder *)coder encodeObject:(NSString *)str forKey:nskey];
+}
+
+VALUE
+rb_str_NSCoder_decode(void *coder, const char *key)
+{
+    NSString *nskey = [NSString stringWithUTF8String:key];
+    return OC2RB([(NSCoder *)coder decodeObjectForKey:nskey]);
+}
+
+void
 Init_NSString(void)
 {
     rb_cNSString = (VALUE)objc_getClass("NSString");
