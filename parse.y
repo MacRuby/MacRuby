@@ -5722,7 +5722,9 @@ parser_tokadd_string(struct parser_params *parser,
 	    }
 	}
 	else if (c == '\\') {
+#if 0
 	    const char *beg = lex_p - 1;
+#endif
 	    c = nextc();
 	    switch (c) {
 	      case '\n':
@@ -5743,9 +5745,11 @@ parser_tokadd_string(struct parser_params *parser,
 		parser_tokadd_utf8(parser, &enc, 1,
 				   func & STR_FUNC_SYMBOL,
                                    func & STR_FUNC_REGEXP);
+#if 0
 		if (has_nonascii && enc != *encp) {
 		    mixed_escape(beg, enc, *encp);
 		}
+#endif
 		continue;
 
 	      default:
@@ -5753,9 +5757,11 @@ parser_tokadd_string(struct parser_params *parser,
 		    pushback(c);
 		    if ((c = tokadd_escape(&enc)) < 0)
 			return -1;
+#if 0
 		    if (has_nonascii && enc != *encp) {
 			mixed_escape(beg, enc, *encp);
 		    }
+#endif
 		    continue;
 		}
 		else if (func & STR_FUNC_EXPAND) {
@@ -5773,10 +5779,12 @@ parser_tokadd_string(struct parser_params *parser,
 	}
 	else if (!parser_isascii()) {
 	    has_nonascii = 1;
+#if 0
 	    if (enc != *encp) {
 		mixed_error(enc, *encp);
 		continue;
 	    }
+#endif
 	    if (tokadd_mbchar(c) == -1) return -1;
 	    continue;
 	}
@@ -5791,10 +5799,12 @@ parser_tokadd_string(struct parser_params *parser,
 	}
         if (c & 0x80) {
             has_nonascii = 1;
+#if 0
 	    if (enc != *encp) {
 		mixed_error(enc, *encp);
 		continue;
 	    }
+#endif
         }
 	tokadd(c);
     }
