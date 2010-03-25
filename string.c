@@ -1109,7 +1109,7 @@ static bool
 str_include_string(rb_str_t *self, rb_str_t *searched)
 {
     return str_offset_in_bytes_for_string(self, searched, 0,
-	    self->length_in_bytes, false) != -1;
+	    self->length_in_bytes, true) != -1;
 }
 
 static rb_str_t *
@@ -1144,7 +1144,7 @@ rb_str_get_uchars(VALUE str, UChar **chars_p, long *chars_len_p,
     if (IS_RSTR(str)) {
 	if (str_try_making_data_uchars(RSTR(str))) {
 	    chars = RSTR(str)->data.uchars;
-	    chars_len = str_length(RSTR(str), false);
+	    chars_len = str_length(RSTR(str), true);
 	}
 	else {
 	    //assert(BINARY_ENC(RSTR(str)->encoding));
@@ -1180,7 +1180,7 @@ rstr_substr(VALUE str, long beg, long len)
 	return Qnil;
     }
 
-    const long n = str_length(RSTR(str), false);
+    const long n = str_length(RSTR(str), true);
     if (beg < 0) {
 	beg += n;
     }
@@ -1194,7 +1194,7 @@ rstr_substr(VALUE str, long beg, long len)
 	len = n - beg;
     }
 
-    rb_str_t *substr = str_get_characters(RSTR(str), beg, beg + len - 1, false);
+    rb_str_t *substr = str_get_characters(RSTR(str), beg, beg + len - 1, true);
     return substr == NULL ? Qnil : (VALUE)substr;
 }
 
@@ -1207,7 +1207,7 @@ rstr_splice(VALUE self, long beg, long len, VALUE str)
 	rb_raise(rb_eIndexError, "negative length %ld", len);
     }
 
-    const long slen = str_length(RSTR(self), false);
+    const long slen = str_length(RSTR(self), true);
     if (slen < beg) {
 out_of_range:
 	rb_raise(rb_eIndexError, "index %ld out of string", beg);
@@ -1224,7 +1224,7 @@ out_of_range:
 
     rstr_modify(self);
 
-    str_splice(RSTR(self), beg, len, strstr, false);
+    str_splice(RSTR(self), beg, len, strstr, true);
 
     if (OBJ_TAINTED(strstr)) {
 	OBJ_TAINT(self);
@@ -1698,8 +1698,8 @@ rstr_aref(VALUE str, SEL sel, int argc, VALUE *argv)
 	default:
 	    {
 		long beg = 0, len = 0;
-		switch (rb_range_beg_len(indx, &beg, &len, str_length(RSTR(str),
-				false), 0)) {
+		switch (rb_range_beg_len(indx, &beg, &len,
+			    str_length(RSTR(str), true), 0)) {
 		    case Qfalse:
 			break;
 		    case Qnil:
@@ -1941,7 +1941,7 @@ rstr_insert(VALUE str, SEL sel, VALUE idx, VALUE substr)
 static VALUE
 rstr_index(VALUE self, SEL sel, int argc, VALUE *argv)
 {
-    const long len = str_length(RSTR(self), false);
+    const long len = str_length(RSTR(self), true);
     VALUE sub, initpos;
     long pos;
 
@@ -2009,7 +2009,7 @@ rstr_index(VALUE self, SEL sel, int argc, VALUE *argv)
 static VALUE
 rstr_rindex(VALUE self, SEL sel, int argc, VALUE *argv)
 {
-    const long len = str_length(RSTR(self), false);
+    const long len = str_length(RSTR(self), true);
     VALUE sub, initpos;
     long pos;
 
@@ -2360,7 +2360,7 @@ rstr_start_with(VALUE str, SEL sel, int argc, VALUE *argv)
 	    continue;
 	}
 	const long pos = str_index_for_string(RSTR(str), str_need_string(tmp),
-		0, rb_str_chars_len(tmp), false, false);
+		0, rb_str_chars_len(tmp), false, true);
 	if (pos == 0) {
 	    return Qtrue;
 	}
@@ -2389,7 +2389,7 @@ rstr_end_with(VALUE str, SEL sel, int argc, VALUE *argv)
 	    continue;
 	}
 	const long pos = str_index_for_string(RSTR(str), str_need_string(tmp),
-		len - sublen, len, false, false);
+		len - sublen, len, false, true);
 	if (pos == len - sublen) {
 	    return Qtrue;
 	}
@@ -2730,9 +2730,11 @@ rstr_scan(VALUE self, SEL sel, VALUE pat)
 	ary = rb_ary_new();
     }
 
+    VALUE matcher = rb_reg_matcher_new(pat, self);
+
     VALUE match = Qnil;
     long start = 0;
-    while (rb_reg_search(pat, self, start, false) >= 0) {
+    while (rb_reg_matcher_search(pat, matcher, start, false) >= 0) {
 	match = rb_backref_get();
 
 	int count = 0;
@@ -2776,6 +2778,8 @@ rstr_scan(VALUE self, SEL sel, VALUE pat)
     }
 
     rb_backref_set(match);
+
+    rb_reg_matcher_destroy(matcher);
 
     return block_given ? self : ary;
 }
@@ -2827,7 +2831,7 @@ static VALUE str_strip(VALUE str, int direction);
 static VALUE
 rstr_split(VALUE str, SEL sel, int argc, VALUE *argv)
 {
-    const long len = str_length(RSTR(str), false);
+    const long len = str_length(RSTR(str), true);
     int lim = 0;
 
     VALUE spat, limit;
@@ -2914,10 +2918,10 @@ fs_set:
 	}
 	else {
 	    rb_str_t *spat_str = str_need_string(spat);
-	    const long spat_len = str_length(spat_str, false);
+	    const long spat_len = str_length(spat_str, true);
 	    do {
 		const long pos = str_index_for_string(RSTR(str), spat_str,
-			beg, -1, false, false);
+			beg, -1, false, true);
 		if (pos == -1) {
 		    break;
 		}
@@ -2930,9 +2934,10 @@ fs_set:
     else {
 	long start = beg;
 	bool last_null = false;
+	VALUE matcher = rb_reg_matcher_new(spat, str);
 again:
 	do {
-	    const long pos = rb_reg_search(spat, str, start, false);
+	    const long pos = rb_reg_matcher_search(spat, matcher, start, false);
 	    if (pos < 0) {
 		break;
 	    }
@@ -2982,6 +2987,8 @@ again:
 	    }
 	}
 	while (limit == Qnil || --lim > 1);
+
+	rb_reg_matcher_destroy(matcher);
     }
 
     if (len > 0 && (!NIL_P(limit) || len > beg || lim_orig < 0)) {
@@ -3181,10 +3188,10 @@ rstr_chomp_bang(VALUE str, SEL sel, int argc, VALUE *argv)
     if (rs == rb_default_rs
 	|| (rslen == 1 && rb_str_get_uchar(rs, 0) == '\n')) {
 	// Remove trailing carriage return.
-	UChar c = str_get_uchar(RSTR(str), len - 1, false);
+	UChar c = str_get_uchar(RSTR(str), len - 1, true);
 	if (c == '\n') {
 	    to_del++;
-	    c = len > 1 ? str_get_uchar(RSTR(str), len - 2, false) : 0;
+	    c = len > 1 ? str_get_uchar(RSTR(str), len - 2, true) : 0;
 	}
 	if (c == '\r' && (rslen > 0 || to_del != 0)) {
 	    to_del++;
@@ -3193,12 +3200,12 @@ rstr_chomp_bang(VALUE str, SEL sel, int argc, VALUE *argv)
     else if (rslen == 0) {
 	// Remove all trailing carriage returns.
 	for (int i = len - 1; i >= 0; i--) {
-	    UChar c = str_get_uchar(RSTR(str), i, false);
+	    UChar c = str_get_uchar(RSTR(str), i, true);
 	    if (c != '\n') {
 		break;
 	    }
 	    to_del++;
-	    if (i > 0 && str_get_uchar(RSTR(str), i - 1, false) == '\r') {
+	    if (i > 0 && str_get_uchar(RSTR(str), i - 1, true) == '\r') {
 		to_del++;
 		i--;
 	    }
@@ -3207,7 +3214,7 @@ rstr_chomp_bang(VALUE str, SEL sel, int argc, VALUE *argv)
     else if (rslen <= len) {
 	// Remove trailing substring.
 	if (str_index_for_string(RSTR(str), str_need_string(rs),
-		    len - rslen, -1, false, false) >= 0) {
+		    len - rslen, -1, false, true) >= 0) {
 	    to_del += rslen;
 	}
     }
@@ -3215,7 +3222,7 @@ rstr_chomp_bang(VALUE str, SEL sel, int argc, VALUE *argv)
     if (to_del == 0) {
 	return Qnil;
     }
-    str_delete(RSTR(str), len - to_del, to_del, false);
+    str_delete(RSTR(str), len - to_del, to_del, true);
     return str;
 }
 
@@ -3260,7 +3267,7 @@ rstr_chop_bang(VALUE str, SEL sel)
 {
     rstr_modify(str);
 
-    const long len = str_length(RSTR(str), false);
+    const long len = str_length(RSTR(str), true);
     if (len == 0) {
 	return Qnil;
     }
@@ -3271,7 +3278,7 @@ rstr_chop_bang(VALUE str, SEL sel)
 	to_del++;
     }
 
-    str_delete(RSTR(str), len - to_del, to_del, false);
+    str_delete(RSTR(str), len - to_del, to_del, true);
     return str;
 }
 
@@ -3481,7 +3488,7 @@ rstr_sub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 
 	rstr_modify(str);
 	str_splice(RSTR(str), results[0].beg, results[0].end - results[0].beg,
-		str_need_string(repl), false);
+		str_need_string(repl), true);
 	if (OBJ_TAINTED(repl)) {
 	    tainted = true;
 	}
@@ -3575,7 +3582,7 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
     VALUE dest = rb_str_new5(str, NULL, 0);
     long offset = 0, last = 0;
     bool changed = false;
-    const long len = str_length(RSTR(str), false);
+    const long len = str_length(RSTR(str), true);
     VALUE match = Qnil;
 
     if (bang) {
@@ -3583,10 +3590,13 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 	rstr_modify(str);
     }
 
+    VALUE matcher = rb_reg_matcher_new(pat, str);
+
     while (true) {
-        const long pos = rb_reg_search(pat, str, offset, false);
+        const long pos = rb_reg_matcher_search(pat, matcher, offset, false);
 	if (pos < 0) {
 	    if (!changed) {
+		rb_reg_matcher_destroy(matcher);
 		return bang ? Qnil : rstr_dup(str, 0);
 	    }
 	    if (last < len) {
@@ -3638,6 +3648,8 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 	    offset++;
 	}
     }
+
+    rb_reg_matcher_destroy(matcher);
 
     rb_backref_set(match);
 
@@ -3939,7 +3951,7 @@ rstr_justify_part(rb_str_t *str, rb_str_t *pad, long width, long padwidth,
 	if (padwidth > width) {
 	    pad = RSTR(rstr_substr((VALUE)pad, 0, width));
 	}
-	str_insert(str, index, pad, false);
+	str_insert(str, index, pad, true);
 	width -= padwidth;
 	index += padwidth;
     }
@@ -3960,12 +3972,12 @@ rstr_justify(int argc, VALUE *argv, VALUE str, char mode)
     }
 
     rb_str_t *padstr = str_need_string(pad);
-    const long padwidth = str_length(RSTR(padstr), false);
+    const long padwidth = str_length(RSTR(padstr), true);
     if (padwidth == 0) {
 	rb_raise(rb_eArgError, "zero width padding");
     }
 
-    const long len = str_length(RSTR(str), false);
+    const long len = str_length(RSTR(str), true);
     long width = NUM2LONG(w);
     str = rb_str_new3(str);
     if (width < 0 || width <= len) {
@@ -4051,7 +4063,7 @@ str_strip(VALUE str, int direction)
 {
     rstr_modify(str);
 
-    long len = str_length(RSTR(str), false);
+    long len = str_length(RSTR(str), true);
     if (len == 0) {
 	return Qnil;
     }
@@ -4069,7 +4081,7 @@ str_strip(VALUE str, int direction)
 	}
 
 	if (pos > 0) {
-	    str_delete(RSTR(str), 0, pos, false);
+	    str_delete(RSTR(str), 0, pos, true);
 	    len -= pos;
 	    changed = true;
 	}
@@ -4087,7 +4099,7 @@ str_strip(VALUE str, int direction)
 	}
 
 	if (pos < len - 1 && pos >= 0) {
-	    str_delete(RSTR(str), pos + 1, len - pos - 1, false);
+	    str_delete(RSTR(str), pos + 1, len - pos - 1, true);
 	    changed = true;
 	}
     }
@@ -4260,13 +4272,13 @@ rstr_each_line(VALUE str, SEL sel, int argc, VALUE *argv)
 	rs_str = str_need_string(rb_default_rs);
     }
 
-    const long len = str_length(RSTR(str), false);
+    const long len = str_length(RSTR(str), true);
     const bool tainted = OBJ_TAINTED(str);
 
     long pos = 0;
     do {
 	const long off = str_index_for_string(RSTR(str), rs_str, pos, -1,
-		false, false);
+		false, true);
 
 	long substr_len = 0;
 	if (off < 0) {
@@ -5929,7 +5941,7 @@ UChar
 rb_str_get_uchar(VALUE str, long pos)
 {
     if (RSTR(str)) {
-	return str_get_uchar(RSTR(str), pos, false);
+	return str_get_uchar(RSTR(str), pos, true);
     }
     assert(pos >= 0 && pos < CFStringGetLength((CFStringRef)str));
     return CFStringGetCharacterAtIndex((CFStringRef)str, pos);
@@ -5965,7 +5977,7 @@ long
 rb_str_chars_len(VALUE str)
 {
     if (IS_RSTR(str)) {
-	return str_length(RSTR(str), false);
+	return str_length(RSTR(str), true);
     }
     return CFStringGetLength((CFStringRef)str);
 }

@@ -21,8 +21,20 @@ VALUE regexp_match2(VALUE rcv, SEL sel, int argc, VALUE *argv);
 
 VALUE rb_reg_quote(VALUE pat);
 VALUE rb_reg_regcomp(VALUE str);
-int rb_reg_search(VALUE re, VALUE str, int pos, bool reverse);
 VALUE rb_regexp_source(VALUE re);
+
+VALUE rb_reg_matcher_new(VALUE re, VALUE str);
+void rb_reg_matcher_destroy(VALUE matcher);
+int rb_reg_matcher_search(VALUE re, VALUE matcher, int pos, bool reverse);
+
+static inline int
+rb_reg_search(VALUE re, VALUE str, int pos, bool reverse)
+{
+    VALUE matcher = rb_reg_matcher_new(re, str);
+    const int res = rb_reg_matcher_search(re, matcher, pos, reverse);
+    rb_reg_matcher_destroy(matcher);
+    return res; 
+}
 
 int rb_reg_options_to_mri(int opt);
 int rb_reg_options_from_mri(int mri_opt);
