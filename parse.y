@@ -5670,6 +5670,18 @@ parser_tokadd_string(struct parser_params *parser,
     int c;
     int has_nonascii = 0;
     rb_encoding *enc = *encp;
+
+#if 1
+# define mixed_error(enc1, enc2) yyerror("mixed error")
+# define mixed_escape(beg, enc1, enc2) \
+    do { \
+	const char *pos = lex_p; \
+	lex_p = beg; \
+	mixed_error(enc1, enc2); \
+	lex_p = pos; \
+    } \
+    while (0)
+#else
     char *errbuf = 0;
     static const char mixed_msg[] = "%s mixed within %s source";
 
@@ -5689,6 +5701,7 @@ parser_tokadd_string(struct parser_params *parser,
 	mixed_error(enc1, enc2);		\
 	lex_p = pos;				\
     } while (0)
+#endif
 
     while ((c = nextc()) != -1) {
 	if (paren && c == paren) {
