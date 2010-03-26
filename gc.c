@@ -646,11 +646,6 @@ rb_objc_recorder(task_t task, void *context, unsigned type_mask,
 	    case T_MODULE:
 		rb_bug("object %p of type %d should not be recorded", 
 		       (void *)r->address, TYPE(r->address));
-
-	    case T_NATIVE:
-		if (rb_objc_is_placeholder((void *)r->address)) {
-		    continue;
-		}
 	}
 	rb_yield((VALUE)r->address);
 	ctx->break_value = rb_vm_pop_broken_value();
@@ -862,7 +857,6 @@ id2ref(VALUE obj, SEL sel, VALUE objid)
 	auto_memory_type_t type = 
 	    auto_zone_get_layout_type(__auto_zone, p0);
 	if ((type == AUTO_OBJECT_SCANNED || type == AUTO_OBJECT_UNSCANNED)
-	    && !rb_objc_is_placeholder(p0)
 	    && (NATIVE((VALUE)p0)
 		|| (BUILTIN_TYPE(p0) < T_FIXNUM && BUILTIN_TYPE(p0) != T_ICLASS)))
 	    return (VALUE)p0;

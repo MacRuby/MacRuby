@@ -631,10 +631,6 @@ rb_objc_type_size(const char *type)
     return 0; // never reached
 }
 
-void *placeholder_String = NULL;
-void *placeholder_Dictionary = NULL;
-void *placeholder_Array = NULL;
-
 void
 Init_ObjC(void)
 {
@@ -645,10 +641,6 @@ Init_ObjC(void)
     assert(m != NULL);
     old_imp_isaForAutonotifying = method_getImplementation(m);
     method_setImplementation(m, (IMP)rb_obj_imp_isaForAutonotifying);
-
-    placeholder_String = objc_getClass("NSPlaceholderMutableString");
-    placeholder_Dictionary = objc_getClass("__NSPlaceholderDictionary");
-    placeholder_Array = objc_getClass("__NSPlaceholderArray");
 
     reload_class_constants();
 }

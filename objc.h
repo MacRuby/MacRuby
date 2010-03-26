@@ -50,18 +50,6 @@ rb_objc_is_kind_of(id object, Class klass)
     return false;
 }
 
-extern void *placeholder_String;
-extern void *placeholder_Dictionary;
-extern void *placeholder_Array;
-
-static inline bool
-rb_objc_is_placeholder(id obj)
-{
-    void *klass = *(void **)obj;
-    return klass == placeholder_String || klass == placeholder_Dictionary
-	|| klass == placeholder_Array;
-}
-
 bool rb_objc_symbolize_address(void *addr, void **start, char *name,
 	size_t name_len);
 

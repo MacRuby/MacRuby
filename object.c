@@ -1917,27 +1917,15 @@ rb_class_initialize(int argc, VALUE *argv, VALUE klass)
 static inline VALUE
 rb_obj_alloc0(VALUE klass)
 {
-#if 0
-    if (RCLASS_SUPER(klass) == 0 && klass != rb_cBasicObject && klass != rb_cObject) {
-	rb_raise(rb_eTypeError, "can't instantiate uninitialized class");
-    }
-#endif
     if (RCLASS_SINGLETON(klass)) {
 	rb_raise(rb_eTypeError, "can't create instance of singleton class");
     }
 
     if ((RCLASS_VERSION(*(void **)klass) & RCLASS_HAS_ROBJECT_ALLOC) == RCLASS_HAS_ROBJECT_ALLOC) {
+	// Fast path!
 	return rb_robject_allocate_instance(klass);
     }
-    else {
-	//obj = rb_funcall(klass, ID_ALLOCATOR, 0, 0);
-	VALUE obj = rb_vm_call_with_cache(allocCache, klass, selAlloc, 0, NULL);
-
-	if (rb_objc_is_placeholder((id)obj)) {
-	    return (VALUE)objc_msgSend((void *)obj, selInit);
-	}
-	return obj;
-    }
+    return rb_vm_call_with_cache(allocCache, klass, selAlloc, 0, NULL);
 }
 
 VALUE
