@@ -12,7 +12,10 @@ class Debugger
   def initialize(args)
     @terran_mode = args.delete('--terran')
     internal = args.delete('--internal')
-    raise "need at least one argument" if args.empty?
+    if args.empty?
+       $stderr.puts "Usage: #{__FILE__} <path-to-ruby-file> [args...]"
+       exit 1
+    end
     path = internal ? './miniruby' : File.join(RbConfig::CONFIG['bindir'],
       RbConfig::CONFIG['RUBY_INSTALL_NAME'])
     @connector = ::MacRubyDebuggerConnector.alloc.initWithInterpreterPath(path,
@@ -23,6 +26,7 @@ class Debugger
     $stdout.puts "Starting program."
     @connector.startExecution
     running = true
+    print_location = true
 
     while true do
       if @connector.location == nil and running
@@ -32,10 +36,11 @@ class Debugger
       end
 
       # Grab a command from the prompt.
-      command = prompt
+      command = prompt(print_location)
       break unless command
       command.strip!
       next if command.empty?
+      print_location = true
 
       case command
         when 'c', 'continue'
@@ -88,6 +93,27 @@ EOS
               end
             end
             $stdout.puts "Added breakpoint #{bp}."
+          else
+            $stdout.puts "Program not running."
+          end
+        when /^l(?:ist)?\s*(\d+)?/
+          if running
+            given_line = $1
+            file, line = current_file_line
+            if given_line
+              line = given_line.strip.to_i
+            end
+            lines = lines_in_file(file, line, 10)
+            if lines
+              index = line
+              lines.each do |l|
+                $stdout.puts "%d\t%s" % [index, l]
+                index += 1
+              end
+            else
+              $stdout.puts "No such line `#{line}' in file `#{file}'"
+            end
+            print_location = false
           else
             $stdout.puts "Program not running."
           end
@@ -187,6 +213,7 @@ next                       Go to the next expression.
 continue                   Continue the program's execution.
 run                        Start the program's execution.
 stop                       Stop the program's execution.
+list <line>                Print the next 10 lines at given or current line.
 backtrace                  Show current backtrace.
 backtrace full             Show a full backtrace (for every thread).
 thread <thread-id>         Switch to the given thread.
@@ -208,11 +235,36 @@ EOS
     "Commencing!",
     "Affirmative, sir."
   ]
-  def prompt
+  def prompt(print_location)
     if @terran_mode
       $stdout.puts PROMPTS.sample
     end
+    if print_location and @connector.location
+      path, line = current_file_line
+      lines = lines_in_file(path, line, 1)
+      if lines
+        $stdout.puts "%d\t%s" % [line, lines[0]]
+      end
+    end
     Readline.readline("#{@connector.location}> ", true)
+  end
+
+  def current_file_line
+    loc = @connector.location
+    path, line = loc.scan(/^(.+):(\d+)$/)[0]
+    if path == nil or path.empty? or line == nil or line.empty?
+      raise "cannot determine current file/line from location #{loc}"
+    end
+    [path, line.to_i]
+  end
+
+  def lines_in_file(path, line, count)
+    @files ||= {}
+    data = @files[path]
+    unless data
+      @files[path] = data = File.read(path).split(/\n/)
+    end
+    data[line - 1, count]
   end
 end
 
