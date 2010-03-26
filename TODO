@@ -8,9 +8,8 @@ For 0.6:
   [X] NSArray
   [X] NSString
   [X] NSNumber
-[/] debugger
-  [/] command-line tool
-  [ ] Xcode plugin
+[X] debugger
+  [X] command-line tool
 [/] MRI C extensions support
   [X] implement missing API (use nokogiri as test bed)
   [/] cleanup public headers
