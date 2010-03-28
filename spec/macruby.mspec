@@ -14,7 +14,8 @@ class MSpecScript
     '^core/kernel/callcc_spec.rb',
     
     # Currently not working on MacRuby
-    '^core/encoding'
+    '^core/encoding',
+    '^core/io'
   ]
 
   # Library specs

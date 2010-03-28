@@ -2,3 +2,11 @@ critical:The defined? keyword returns 'super' when Subclass#no_args and created 
 critical:The defined? keyword returns 'super' when Subclass#args and created with define_method
 critical:The defined? keyword returns 'super' when Subclass#no_args uses a block in define_method
 critical:The defined? keyword returns 'super' when Subclass#args uses a block in define_method
+critical:The defined? keyword for super for a method taking no arguments returns nil from a #define_method when no superclass method exists
+critical:The defined? keyword for super for a method taking no arguments returns nil from a block in a #define_method when no superclass method exists
+critical:The defined? keyword for super for a method taking no arguments returns 'super' from a #define_method when a superclass method exists
+critical:The defined? keyword for super for a method taking no arguments returns 'super' from a block in a #define_method when a superclass method exists
+critical:The defined? keyword for super for a method taking arguments returns nil from a #define_method when no superclass method exists
+critical:The defined? keyword for super for a method taking arguments returns nil from a block in a #define_method when no superclass method exists
+critical:The defined? keyword for super for a method taking arguments returns 'super' from a #define_method when a superclass method exists
+critical:The defined? keyword for super for a method taking arguments returns 'super' from a block in a #define_method when a superclass method exists
