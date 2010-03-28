@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
 require 'enumerator'
 
 describe "Enumerable#each_slice" do
@@ -50,7 +50,7 @@ describe "Enumerable#each_slice" do
   ruby_version_is '1.8.7' do
     it "returns an enumerator if no block" do 
       e = @enum.each_slice(3)
-      e.should be_kind_of(enumerator_class)
+      e.should be_an_instance_of(enumerator_class)
       e.to_a.should == @sliced
     end
   end

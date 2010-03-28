@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/../../shared/file/size'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../../../shared/file/size', __FILE__)
 
 describe "File.size?" do
   it_behaves_like :file_size,                     :size?, File
@@ -22,9 +22,11 @@ ruby_version_is "1.9" do
       @name = tmp('i_exist')
       touch(@name) { |f| f.write 'rubinius' }
       @file = File.new @name
+      @file_org = @file
     end
 
     after :each do
+      @file_org.close unless @file_org.closed?
       rm_r @name
     end
 
@@ -54,6 +56,7 @@ ruby_version_is "1.9" do
       @file = File.open(@file.path, 'w')
       @file.truncate(0)
       @file.size.should == 0
+      @file.close
     end
 
     platform_is_not :windows do
@@ -61,8 +64,14 @@ ruby_version_is "1.9" do
         ln_file = tmp('i_exist_ln')
         rm_r ln_file
 
-        File.symlink(@file.path, ln_file).should == 0
-        File.new(ln_file).size.should == 8
+        begin
+          File.symlink(@file.path, ln_file).should == 0
+          file = File.new(ln_file)
+          file.size.should == 8
+        ensure
+          file.close if file && !file.closed?
+          File.unlink(ln_file) if File.exists?(ln_file)
+        end
       end
     end
   end

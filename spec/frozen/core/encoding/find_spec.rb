@@ -1,6 +1,6 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
+require File.expand_path('../../../spec_helper', __FILE__)
 
-ruby_version_is "1.9" do
+with_feature :encoding do
   describe "Encoding.find" do
     before(:all) do
       @encodings = Encoding.aliases.to_a.flatten.uniq
@@ -18,9 +18,9 @@ ruby_version_is "1.9" do
       end
     end
 
-    it "accepts encoding names as Symbols" do
+    it "does NOT accept encoding names as Symbols" do
       @encodings.each do |enc|
-        Encoding.find(enc.to_sym).should == Encoding.find(enc)
+        lambda { Encoding.find(enc.to_sym) }.should raise_error(TypeError)
       end
     end
 

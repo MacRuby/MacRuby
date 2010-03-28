@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes.rb'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes.rb', __FILE__)
 
 describe "String#reverse" do
   it "returns a new string with the characters of self in reverse order" do
@@ -24,20 +24,25 @@ describe "String#reverse!" do
   end
 
   ruby_version_is ""..."1.9" do
-    it "raises a TypeError if self is frozen" do
-      "".freeze.reverse! # ok, no change
+    it "raises a TypeError on a frozen instance that is modified" do
       lambda { "anna".freeze.reverse!  }.should raise_error(TypeError)
       lambda { "hello".freeze.reverse! }.should raise_error(TypeError)
+    end
+
+    it "does not raise an exception on a frozen instance that would not be modified" do
+      "".freeze.reverse!.should == ""
     end
   end
 
   ruby_version_is "1.9" do
-    ruby_bug "[ruby-core:23666]", "1.9.2" do
-      it "raises a RuntimeError if self is frozen" do
-        lambda { "".freeze.reverse!      }.should raise_error(RuntimeError)
-        lambda { "anna".freeze.reverse!  }.should raise_error(RuntimeError)
-        lambda { "hello".freeze.reverse! }.should raise_error(RuntimeError)
-      end
+    it "raises a RuntimeError on a frozen instance that is modified" do
+      lambda { "anna".freeze.reverse!  }.should raise_error(RuntimeError)
+      lambda { "hello".freeze.reverse! }.should raise_error(RuntimeError)
     end
-  end  
+
+    # see [ruby-core:23666]
+    it "raises a RuntimeError on a frozen instance that would not be modified" do
+      lambda { "".freeze.reverse! }.should raise_error(RuntimeError)
+    end
+  end
 end

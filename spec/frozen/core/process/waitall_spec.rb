@@ -1,8 +1,11 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
+require File.expand_path('../../../spec_helper', __FILE__)
 
 describe "Process.waitall" do
   before :all do
-    Process.waitall
+    begin
+      Process.waitall
+    rescue NotImplementedError
+    end
   end
 
   it "returns an empty array when there are no children" do

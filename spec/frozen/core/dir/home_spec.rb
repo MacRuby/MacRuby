@@ -1,7 +1,7 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/common'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/common', __FILE__)
 
-ruby_version_is "1.9.2" do
+ruby_version_is "1.9" do
   describe "Dir.home" do
     before :all do
       DirSpecs.create_mock_dirs

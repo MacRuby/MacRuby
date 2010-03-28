@@ -1,9 +1,9 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
+require File.expand_path('../../../spec_helper', __FILE__)
 
 describe "Array#combination" do
   ruby_version_is "1.8.7" do
     it "returns an enumerator when no block is provided" do
-      [1, 2, 3, 4].combination(2).should be_kind_of(enumerator_class)
+      [1, 2, 3, 4].combination(2).should be_an_instance_of(enumerator_class)
     end
 
     it "returns self when a block is given" do

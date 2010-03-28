@@ -1,6 +1,6 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes'
-require File.dirname(__FILE__) + '/shared/slice'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
+require File.expand_path('../shared/slice', __FILE__)
 
 describe "Array#slice!" do
   it "removes and return the element at index" do
@@ -124,6 +124,14 @@ describe "Array#slice!" do
       a.slice!(8...8).should == nil
       a.should == [1, 2]
       a.slice!(10..10).should == nil
+      a.should == [1, 2]
+    end
+
+    it "does not expand array with negative indices out of bounds" do
+      a = [1, 2]
+      a.slice!(-3, 1).should == nil
+      a.should == [1, 2]
+      a.slice!(-3..2).should == nil
       a.should == [1, 2]
     end
   end

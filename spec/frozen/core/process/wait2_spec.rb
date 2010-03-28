@@ -1,10 +1,13 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
+require File.expand_path('../../../spec_helper', __FILE__)
 
 describe "Process.wait2" do
   before :all do
     # HACK: this kludge is temporarily necessary because some
     # misbehaving spec somewhere else does not clear processes
-    Process.waitall
+    begin
+      Process.waitall
+    rescue NotImplementedError
+    end
   end
 
   platform_is_not :windows do

@@ -1,8 +1,8 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
+require File.expand_path('../../../spec_helper', __FILE__)
 
 describe "File#chmod" do
   before :each do
-    @filename = tmp('i_exist')
+    @filename = tmp('i_exist.exe')
     @file = File.open(@filename, 'w')
   end
 
@@ -97,7 +97,7 @@ end
 
 describe "File.chmod" do
   before :each do
-    @file = tmp('i_exist')
+    @file = tmp('i_exist.exe')
     touch @file
     @count = File.chmod(0755, @file)
   end

@@ -1,6 +1,6 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes'
-require File.dirname(__FILE__) + '/shared/method'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
+require File.expand_path('../shared/method', __FILE__)
 
 ruby_version_is "1.9" do
   describe "Kernel#public_method" do
@@ -24,7 +24,7 @@ ruby_version_is "1.9" do
        end.should raise_error(NameError)
     end
 
-    ruby_version_is "1.9.2" do
+    ruby_version_is "1.9" do
       it "raises a NameError if we only repond_to_missing? method, true" do
         obj = KernelSpecs::RespondViaMissing.new
         lambda do

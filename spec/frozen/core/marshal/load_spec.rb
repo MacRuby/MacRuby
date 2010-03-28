@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/marshal_data'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/marshal_data', __FILE__)
 
 describe "Marshal::load" do
   it "loads a extended_struct having fields with same objects" do
@@ -110,6 +110,11 @@ describe "Marshal::load" do
     obj = 1.1867345e+22
     Marshal.load("\004\bf\0361.1867344999999999e+22\000\344@").should ==
       obj
+  end
+
+  it "raises an ArgumentError when the dumped data is truncated" do
+    obj = {:first => 1, :second => 2, :third => 3}
+    lambda { Marshal.load(Marshal.dump(obj)[0, 5]) }.should raise_error(ArgumentError)
   end
 
   ruby_version_is "1.9" do
@@ -284,6 +289,17 @@ describe "Marshal::load" do
     obj = Struct.new("Ure1", :a, :b).new
     Marshal.load("\004\bS:\021Struct::Ure1\a:\006a0:\006b0").should ==
       obj
+  end
+
+  it "preserves hash ivars when hash contains a string having ivar" do
+    s = 'string'
+    s.instance_variable_set :@string_ivar, 'string ivar'
+    h = { :key => s }
+    h.instance_variable_set :@hash_ivar, 'hash ivar'
+
+    unmarshalled = Marshal.load Marshal.dump(h)
+    unmarshalled.instance_variable_get(:@hash_ivar).should == 'hash ivar'
+    unmarshalled[:key].instance_variable_get(:@string_ivar).should == 'string ivar'
   end
 
   it "raises a TypeError with bad Marshal version" do

@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/shared/open'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../shared/open', __FILE__)
 
 describe "File.open" do
   before :all do
@@ -108,7 +108,9 @@ describe "File.open" do
     File.umask(0011)
     @fh = File.open(@file, @flags, 0755)
     @fh.should be_kind_of(File)
-    @fh.lstat.mode.to_s(8).should == "100744"
+    platform_is_not :windows do
+      @fh.lstat.mode.to_s(8).should == "100744"
+    end
     File.exist?(@file).should == true
   end
 
@@ -118,7 +120,9 @@ describe "File.open" do
     File.umask(0022)
     File.open(@file, "w", 0755){ |fh| @fd = fh.fileno }
     lambda { File.open(@fd) }.should raise_error(SystemCallError)
-    File.stat(@file).mode.to_s(8).should == "100755"
+    platform_is_not :windows do
+      File.stat(@file).mode.to_s(8).should == "100755"
+    end
     File.exist?(@file).should == true
   end
 
@@ -147,11 +151,13 @@ describe "File.open" do
     File.read(@file).should == "test\n"
   end
 
-  it "creates a new write-only file when invoked with 'w' and '0222'" do
-    File.delete(@file) if File.exists?(@file)
-    File.open(@file, 'w', 0222) {}
-    File.readable?(@file).should == false
-    File.writable?(@file).should == true
+  platform_is_not :windows do
+    it "creates a new write-only file when invoked with 'w' and '0222'" do
+      File.delete(@file) if File.exists?(@file)
+      File.open(@file, 'w', 0222) {}
+      File.readable?(@file).should == false
+      File.writable?(@file).should == true
+    end
   end
 
   it "opens the file when call with fd" do
@@ -479,10 +485,12 @@ describe "File.open" do
     end
   end
 
-  it "raises an Errno::EACCES when opening non-permitted file" do
-    @fh = File.open(@file, "w")
-    @fh.chmod(000)
-    lambda { fh1 = File.open(@file); fh1.close }.should raise_error(Errno::EACCES)
+  platform_is_not :windows do
+    it "raises an Errno::EACCES when opening non-permitted file" do
+      @fh = File.open(@file, "w")
+      @fh.chmod(000)
+      lambda { fh1 = File.open(@file); fh1.close }.should raise_error(Errno::EACCES)
+    end
   end
 
   it "raises an Errno::EACCES when opening read-only file" do

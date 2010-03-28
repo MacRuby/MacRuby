@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
 
 describe "Numeric#step with [stop, step]" do
   before(:each) do
@@ -37,14 +37,14 @@ describe "Numeric#step with [stop, step]" do
       @stop = mock("Stop value")
       @step = mock("Step value")
       
-      @obj.step(@stop, @step).should be_kind_of(enumerator_class)
+      @obj.step(@stop, @step).should be_an_instance_of(enumerator_class)
     end
 
     it "returns an Enumerator when passed no block and self < stop" do
       @stop = mock("Stop value")
       @step = mock("Step value")
       
-      @obj.step(@stop, @step).should be_kind_of(enumerator_class)
+      @obj.step(@stop, @step).should be_an_instance_of(enumerator_class)
     end
   end
   

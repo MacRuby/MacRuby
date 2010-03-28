@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
 
 describe "IO#initialize" do
   before :each do
@@ -78,7 +78,7 @@ describe "IO#initialize" do
     end
     
     it "ignores the :internal_encoding option when the same as the external encoding" do
-      io = IO.new(2, 'w', {:internal_encoding => 'UTF-8'})
+      io = IO.new(2, 'w', {:external_encoding => 'utf-8', :internal_encoding => 'utf-8'})
       io.external_encoding.to_s.should == 'UTF-8'
       io.internal_encoding.to_s.should == ''
     end

@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/common'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/common', __FILE__)
 
 describe "Dir.mkdir" do
   before :all do
@@ -47,6 +47,16 @@ describe "Dir.mkdir" do
       DirSpecs.clear_dirs
       p = mock('path')
       p.should_receive(:to_path).and_return('nonexisting')
+      Dir.mkdir(p)
+      DirSpecs.clear_dirs
+    end
+  end
+
+  ruby_version_is ""..."1.9" do
+    it "call #to_str on non-String arguments" do
+      DirSpecs.clear_dirs
+      p = mock('path')
+      p.should_receive(:to_str).and_return('nonexisting')
       Dir.mkdir(p)
       DirSpecs.clear_dirs
     end

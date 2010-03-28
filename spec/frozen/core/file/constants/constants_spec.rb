@@ -1,10 +1,10 @@
-require File.dirname(__FILE__) + '/../../../spec_helper'
+require File.expand_path('../../../../spec_helper', __FILE__)
 
 ["APPEND", "CREAT", "EXCL", "FNM_CASEFOLD",
   "FNM_DOTMATCH", "FNM_NOESCAPE", "FNM_PATHNAME",
   "FNM_SYSCASE", "LOCK_EX", "LOCK_NB", "LOCK_SH",
   "LOCK_UN", "NONBLOCK", "RDONLY",
-  "RDWR", "SYNC", "TRUNC", "WRONLY"].each do |const|
+  "RDWR", "TRUNC", "WRONLY"].each do |const|
   describe "File::Constants::#{const}" do
     it "is defined" do
       File::Constants.const_defined?(const).should be_true
@@ -21,9 +21,11 @@ platform_is :windows do
 end
 
 platform_is_not :windows do
-  describe "File::Constants::NOCTTY" do
-    it "is defined" do
-      File::Constants.const_defined?(:NOCTTY).should be_true
+  ["NOCTTY", "SYNC"].each do |const|
+    describe "File::Constants::#{const}" do
+      it "is defined" do
+        File::Constants.const_defined?(const).should be_true
+      end
     end
   end
 end

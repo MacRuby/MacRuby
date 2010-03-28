@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
+require File.expand_path('../../../spec_helper', __FILE__)
 
 describe "Process.setrlimit" do
   platform_is_not :windows do
@@ -11,8 +11,10 @@ describe "Process.setrlimit" do
 end
 
 describe "Process.getrlimit" do
-  it "requires one argument" do
-    lambda { Process.getrlimit }.should raise_error(ArgumentError)
+  platform_is_not :windows do
+    it "requires one argument" do
+      lambda { Process.getrlimit }.should raise_error(ArgumentError)
+    end
   end
 end
 

@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
 
 # On Ruby < 1.9 #methods returns an Array of Strings
 ruby_version_is ""..."1.9" do
@@ -38,6 +38,13 @@ ruby_version_is ""..."1.9" do
                            "juu_ni", "roku", "san", "shi")
 
       KernelSpecs::Methods.new.methods.should include("ku", "ni", "juu_san")
+    end
+
+    it "returns methods added to the metaclass through extend" do
+      meth = KernelSpecs::Methods.new
+      meth.methods.should_not include("peekaboo")
+      meth.extend(KernelSpecs::Methods::MetaclassMethods)
+      meth.methods.should include("peekaboo")
     end
 
     it "does not return undefined singleton methods defined by obj.meth" do
@@ -100,6 +107,13 @@ ruby_version_is "1.9" do
                            :juu_ni, :roku, :san, :shi)
 
       KernelSpecs::Methods.new.methods.should include(:ku, :ni, :juu_san)
+    end
+
+    it "returns methods added to the metaclass through extend" do
+      meth = KernelSpecs::Methods.new
+      meth.methods.should_not include(:peekaboo)
+      meth.extend(KernelSpecs::Methods::MetaclassMethods)
+      meth.methods.should include(:peekaboo)
     end
 
     it "does not return undefined singleton methods defined by obj.meth" do

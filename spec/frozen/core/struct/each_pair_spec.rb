@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
 
 describe "Struct#each_pair" do
   it "passes each key value pair to the given block" do
@@ -19,7 +19,7 @@ describe "Struct#each_pair" do
   ruby_version_is "1.8.7" do
     it "returns an Enumerator if not passed a block" do
       car = Struct::Car.new('Ford', 'Ranger')
-      car.each_pair.should be_kind_of(enumerator_class)
+      car.each_pair.should be_an_instance_of(enumerator_class)
     end
   end
 end

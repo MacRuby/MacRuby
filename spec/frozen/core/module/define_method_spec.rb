@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
 
 class DefineMethodSpecClass
 end
@@ -105,5 +105,9 @@ describe "Module#define_method" do
 
     o = DefineMethodByProcClass.new
     o.proc_test.should be_true
+  end
+
+  it "is private" do
+    Module.should have_private_instance_method(:define_method)
   end
 end

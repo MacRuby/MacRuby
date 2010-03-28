@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes.rb'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes.rb', __FILE__)
 
 describe "String#upto" do
   it "passes successive values, starting at self and ending at other_string, to the block" do
@@ -86,13 +86,13 @@ describe "String#upto" do
   end
 
   ruby_version_is '1.9' do
-    it "works with symbols" do
-      "a".upto(:c).to_a.should == ["a", "b", "c"]
+    it "does not work with symbols" do
+      lambda { "a".upto(:c).to_a }.should raise_error(TypeError)
     end
 
     it "returns an enumerator when no block given" do
       enum = "aaa".upto("baa", true)
-      enum.should be_kind_of(enumerator_class)
+      enum.should be_an_instance_of(enumerator_class)
       enum.count.should == 26**2
     end
 

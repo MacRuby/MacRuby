@@ -1,6 +1,6 @@
-# coding: utf-8
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes.rb'
+# -*- encoding: utf-8 -*-
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes.rb', __FILE__)
 
 describe "String#tr" do
   it "returns a new string with the characters from from_string replaced by the ones in to_string" do
@@ -60,7 +60,7 @@ describe "String#tr" do
     end
   end
 
-  ruby_version_is "1.9" do
+  with_feature :encoding do
     # http://redmine.ruby-lang.org/issues/show/1839
     it "can replace a 7-bit ASCII character with a multibyte one" do
       a = "uber"

@@ -1,13 +1,12 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
 
 describe "IO#reopen" do
   before :each do
     # for reading
-    @name1 = IOSpecs.gets_fixtures
-    @name2 = File.dirname(__FILE__) + '/fixtures/numbered_lines.txt'
-    @file1 = File.new(@name1)
-    @file2 = File.new(@name2)
+    @name2 = fixture __FILE__,  "numbered_lines.txt"
+    @file1 = IOSpecs.io_fixture "lines.txt"
+    @file2 = IOSpecs.io_fixture @name2
 
     # for writing
     @name1_w = tmp("IO_reopen_file1") + $$.to_s
@@ -25,9 +24,7 @@ describe "IO#reopen" do
   end
 
   it "raises IOError on closed stream" do
-    File.open(File.dirname(__FILE__) + '/fixtures/gets.txt', 'r') { |f|
-      lambda { f.reopen(IOSpecs.closed_file) }.should raise_error(IOError)
-    }
+    lambda { @file1.reopen(IOSpecs.closed_file) }.should raise_error(IOError)
   end
 
   it "raises IOError when called on closed stream" do
@@ -121,11 +118,32 @@ describe "IO#reopen" do
     File.readlines(@name2_w).should == ["line1-F2\n"]
   end
 
-  it "reassociates self with a new stream after some reads" do
+  it "reassociates self with a new stream after some reads from self" do
     @file1.reopen(@file2)
     @file1.gets
     @file1.gets
+    @file2.close
+    @file2 = IOSpecs.io_fixture @name2
     @file1.reopen(@file2).gets.should == "Line 1: One\n"
+  end
+
+  it "reassociates self with a new stream after some reads from the stream" do
+    @file2.gets
+    @file2.gets
+    @file1.reopen(@file2).gets.should == "Line 3: Three\n"
+  end
+
+  quarantine! do
+    # Access to multiple IOs that share the same fd or duplicated fd may cause
+    # bizarre behavior (see [ruby-core:28281], [ruby-core:28327]).
+    # This is inherent result of buffering.  It will not be fixed because
+    # buffering is important for performance.
+    it "reassociates self with a new stream after some reads" do
+      @file1.reopen(@file2)
+      @file1.gets
+      @file1.gets
+      @file1.reopen(@file2).gets.should == "unknown\n"
+    end
   end
 
   ruby_version_is "1.9" do

@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
+require File.expand_path('../../../spec_helper', __FILE__)
 
 describe "Float#CONSTANTS" do
   specify  "the DIG value is  15" do
@@ -50,5 +50,15 @@ describe "Float#CONSTANTS" do
 
   it "the RADIX is 2" do
     Float::RADIX.should == 2
+  end
+  
+  ruby_version_is "1.9" do
+    it "the INFINITY is the positive infinity" do
+      Float::INFINITY.infinite?.should == 1
+    end
+    
+    it "the NAN is 'not a number'" do
+      Float::NAN.nan?.should be_true
+    end
   end
 end

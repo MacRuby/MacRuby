@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
+require File.expand_path('../../../spec_helper', __FILE__)
 
 describe "File.join" do
   it "returns an empty string when given no arguments" do
@@ -100,6 +100,14 @@ describe "File.join" do
     bin.should_receive(:to_str).exactly(:twice).and_return("bin")
     File.join(bin).should == "bin"
     File.join("usr", bin).should == "usr/bin"
+  end
+
+  it "doesn't mutate the object when calling #to_str" do
+    usr = mock("usr")
+    str = "usr"
+    usr.should_receive(:to_str).and_return(str)
+    File.join(usr, "bin").should == "usr/bin"
+    str.should == "usr"
   end
 
   ruby_version_is "1.9" do

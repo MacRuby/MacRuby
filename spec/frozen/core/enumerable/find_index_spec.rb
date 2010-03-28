@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
 
 describe "Enumerable#find_index" do  
   ruby_version_is "1.8.7" do
@@ -45,7 +45,7 @@ describe "Enumerable#find_index" do
     
     ruby_version_is '1.8.7' do
       it 'returns an Enumerator if no block given' do
-        @numerous.find_index.should be_kind_of(enumerator_class)
+        @numerous.find_index.should be_an_instance_of(enumerator_class)
       end
     end
 

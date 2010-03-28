@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes.rb'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes.rb', __FILE__)
 
 describe "String#chomp with separator" do
   it "returns a new string with the given record separator removed" do
@@ -134,28 +134,37 @@ describe "String#chomp! with separator" do
     "hello".chomp!(nil).should == nil
   end
 
-  ruby_version_is ""..."1.9" do 
+  ruby_version_is ""..."1.9" do
     it "raises a TypeError when self is frozen" do
       a = "string\n\r"
       a.freeze
 
       lambda { a.chomp! }.should raise_error(TypeError)
+    end
 
-      a.chomp!(nil) # ok, no change
-      a.chomp!("x") # ok, no change
+    it "does not raise an exception when the string would not be modified" do
+      a = "string\n\r"
+      a.freeze
+
+      a.chomp!(nil).should be_nil
+      a.chomp!("x").should be_nil
     end
   end
 
-  ruby_version_is "1.9" do 
-    ruby_bug "[ruby-core:23666]", "1.9.2" do
-      it "raises a RuntimeError when self is frozen" do
-        a = "string\n\r"
-        a.freeze
+  ruby_version_is "1.9" do
+    it "raises a RuntimeError on a frozen instance when it is modified" do
+      a = "string\n\r"
+      a.freeze
 
-        lambda { a.chomp! }.should raise_error(RuntimeError)
-        lambda { a.chomp!(nil) }.should raise_error(RuntimeError)
-        lambda { a.chomp!("x") }.should raise_error(RuntimeError)
-      end
+      lambda { a.chomp! }.should raise_error(RuntimeError)
     end
-  end  
+
+    # see [ruby-core:23666]
+    it "raises a RuntimeError on a frozen instance when it would not be modified" do
+      a = "string\n\r"
+      a.freeze
+      lambda { a.chomp!(nil) }.should raise_error(RuntimeError)
+      lambda { a.chomp!("x") }.should raise_error(RuntimeError)
+    end
+  end
 end

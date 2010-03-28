@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
 
 describe "Enumerable#take_while" do
   ruby_version_is '1.8.7' do
@@ -8,7 +8,7 @@ describe "Enumerable#take_while" do
     end
 
     it 'returns an Enumerator if no block given' do
-      @enum.take_while.should be_kind_of(enumerator_class)
+      @enum.take_while.should be_an_instance_of(enumerator_class)
     end
 
     it "returns no/all elements for {true/false} block" do

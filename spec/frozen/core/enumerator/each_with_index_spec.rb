@@ -1,7 +1,7 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
+require File.expand_path('../../../spec_helper', __FILE__)
 
 ruby_version_is "1.8.7" do
-  require File.dirname(__FILE__) + '/../../shared/enumerator/with_index'
+  require File.expand_path('../../../shared/enumerator/with_index', __FILE__)
 
   describe "Enumerator#each_with_index" do
     it_behaves_like(:enum_with_index, :each_with_index)
@@ -10,6 +10,16 @@ ruby_version_is "1.8.7" do
       lambda do
         [1].to_enum.each_with_index(:glark)
       end.should raise_error(ArgumentError)
-    end    
+    end
+
+    it "passes on the given block's return value" do
+      arr = [1,2,3]
+      arr.delete_if.with_index { |a,b| false }
+      arr.should == [1,2,3]
+    end
+
+    it "returns the iterator's return value" do
+      [1,2,3].select.with_index { |a,b| false }.should == []
+    end
   end
 end

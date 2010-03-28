@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
+require File.expand_path('../../../spec_helper', __FILE__)
 
 describe "Fixnum#**" do
   it "returns self raised to the given power" do
@@ -38,7 +38,7 @@ describe "Fixnum#**" do
     end
   end
   
-  ruby_version_is '1.9.2' do
+  ruby_version_is '1.9' do
     it "returns a complex number when negative and raised to a fractional power" do
       ((-8) ** (1.0/3))      .should be_close(Complex(1, 1.73205), TOLERANCE)
       ((-8) ** Rational(1,3)).should be_close(Complex(1, 1.73205), TOLERANCE)

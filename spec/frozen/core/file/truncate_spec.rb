@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
+require File.expand_path('../../../spec_helper', __FILE__)
 
 describe "File.truncate" do
   before :each do
@@ -151,8 +151,9 @@ describe "File#truncate" do
   end
 
   it "raises an IOError if file is not opened for writing" do
-    file = File.new(@name, 'r')
-    lambda { file.truncate(42) }.should raise_error(IOError)
+    File.open(@name, 'r') do |file|
+      lambda { file.truncate(42) }.should raise_error(IOError)
+    end
   end
 
   it "raises a TypeError if not passed an Integer type for the for the argument" do

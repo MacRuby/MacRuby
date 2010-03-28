@@ -1,7 +1,19 @@
-require File.dirname(__FILE__) + '/caller_fixture1'
+require File.expand_path('../caller_fixture1', __FILE__)
 
 module KernelSpecs
+  class Method
+    def abort(*msg)
+      super
+    end
+  end
+
   class Methods
+
+    module MetaclassMethods
+      def peekaboo
+      end
+    end
+
     def self.ichi; end
     def ni; end
     class << self
@@ -143,16 +155,6 @@ module KernelSpecs
         Kernel.block_given?
       end
     end
-  end
-
-  def self.before_and_after
-    i = "before"
-    cont = callcc { |c| c }
-    if cont # nil the second time
-      i = "after"
-      cont.call
-    end
-    i
   end
 
   class IVars

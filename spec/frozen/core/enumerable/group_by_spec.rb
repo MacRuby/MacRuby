@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
 
 describe "Enumerable#group_by" do
   ruby_version_is "1.8.7" do
@@ -13,7 +13,7 @@ describe "Enumerable#group_by" do
     end
   
     it "returns an Enumerator if called without a block" do
-      EnumerableSpecs::Numerous.new.group_by.should be_kind_of(enumerator_class)
+      EnumerableSpecs::Numerous.new.group_by.should be_an_instance_of(enumerator_class)
     end
   end
 end

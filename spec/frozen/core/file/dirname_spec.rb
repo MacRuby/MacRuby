@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
+require File.expand_path('../../../spec_helper', __FILE__)
 
 describe "File.dirname" do
   it "returns all the components of filename except the last one" do
@@ -19,6 +19,10 @@ describe "File.dirname" do
     x = "/usr/bin"
     File.dirname(x)
     x.should == "/usr/bin"
+  end
+
+  it "ignores a trailing /" do
+    File.dirname("/foo/bar/").should == "/foo"
   end
 
   it "returns the return all the components of filename except the last one (unix format)" do

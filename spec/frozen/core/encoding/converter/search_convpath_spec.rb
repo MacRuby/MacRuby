@@ -1,6 +1,6 @@
-require File.dirname(__FILE__) + '/../../../spec_helper'
+require File.expand_path('../../../../spec_helper', __FILE__)
 
-ruby_version_is "1.9" do
+with_feature :encoding do
   describe "Encoding::Converter.search_convpath" do
     before(:all) do
       @perms = Encoding.name_list.permutation(2).map do |pair|

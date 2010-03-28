@@ -1,6 +1,6 @@
-require File.dirname(__FILE__) + '/../../../spec_helper'
+require File.expand_path('../../../../spec_helper', __FILE__)
 
-ruby_version_is "1.9" do
+with_feature :encoding do
   describe "Encoding::Converter.asciicompat_encoding" do
     it "accepts an encoding name as a String argument" do
       lambda { Encoding::Converter.asciicompat_encoding('UTF-8') }.

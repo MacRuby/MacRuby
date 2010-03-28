@@ -1,6 +1,6 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/shared/new'
-require File.dirname(__FILE__) + '/fixtures/classes'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../shared/new', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
 
 describe "IO.open" do
   it_behaves_like :io_new, :open
@@ -8,10 +8,10 @@ end
 
 describe "IO.open" do
   before :all do
-    @file_name = File.dirname(__FILE__) + '/fixtures/gets.txt'
+    @file_name = fixture __FILE__, "lines.txt"
   end
 
-  it "raises IOError on closed stream" do
+  it "raises an IOError on closed stream" do
     lambda { IO.open(IOSpecs.closed_file.fileno, 'w') }.should raise_error(IOError)
   end
 
@@ -50,21 +50,4 @@ describe "IO.open" do
       end
     }.should_not raise_error
   end
-
-#  before :all do
-#    @filename = "/tmp/rubinius-spec-io-new-#{$$}.txt"
-#  end
-#
-#  after :all do
-#    File.unlink @filename
-#  end
-#
-#  before :each do
-#    @file = File.open @filename, "w"
-#  end
-#
-#  after :each do
-#    # This should normally NOT be rescued
-#    @file.close unless @file.closed? rescue nil
-#  end
 end

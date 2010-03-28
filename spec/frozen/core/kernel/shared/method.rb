@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + '/../../../spec_helper'
+require File.expand_path('../../../../spec_helper', __FILE__)
 
 describe :kernel_method, :shared => true do
   it "returns a method object for a valid method" do
@@ -15,7 +15,7 @@ describe :kernel_method, :shared => true do
     m.call.should == 'class done'
   end
 
-  ruby_version_is "1.9.2" do
+  ruby_version_is "1.9" do
     it "returns a method object if we repond_to_missing? method" do
       class KernelSpecs::Foo;
         def respond_to_missing?(method, priv=false)

@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
 
 describe "Method#arity" do
   before(:each) do
@@ -12,6 +12,13 @@ describe "Method#arity" do
     @m.method(:one_req).arity.should == 1
     @m.method(:attr=).arity.should   == 1
     @m.method(:two_req).arity.should == 2
+  end
+
+  it "returns n, where n is the number of required arguments and method created via defined_method" do
+    @m.method(:zero_defined_method).arity.should    == 0
+    @m.method(:one_req_defined_method).arity.should == 1
+    @m.method(:two_req_defined_method).arity.should == 2
+    @m.method(:zero_with_splat_defined_method).arity.should == -1
   end
 
   it "returns -(n+1), where n is the number of required arguments, when there is at least one optional argument" do

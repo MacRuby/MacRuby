@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
+require File.expand_path('../../../spec_helper', __FILE__)
 
 # if run indirectly (eg via CI), kills the runner. TODO: needs guard
 describe "Process.kill" do
@@ -42,8 +42,8 @@ describe "Process.kill" do
     end
   end
 
-  it "raises an EPERM if permission is denied" do
-    if Process.uid != 0
+  if Process.uid != 0
+    it "raises an EPERM if permission is denied" do
       lambda { Process.kill(1, 1) }.should raise_error(Errno::EPERM)
     end
   end

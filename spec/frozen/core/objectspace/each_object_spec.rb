@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
+require File.expand_path('../../../spec_helper', __FILE__)
 
 describe "ObjectSpace.each_object" do
   it "calls the block once for each living, non-immediate object in the Ruby process" do
@@ -39,7 +39,7 @@ describe "ObjectSpace.each_object" do
       new_obj = ObjectSpaceSpecEachOtherObject.new
 
       counter = ObjectSpace.each_object(ObjectSpaceSpecEachOtherObject)
-      counter.should be_kind_of(enumerator_class)
+      counter.should be_an_instance_of(enumerator_class)
       counter.each{}.should == 1
       # this is needed to prevent the new_obj from being GC'd too early
       new_obj.should_not == nil

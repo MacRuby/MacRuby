@@ -1,6 +1,6 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes'
-require File.dirname(__FILE__) + '/shared/iteration'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
+require File.expand_path('../shared/iteration', __FILE__)
 
 describe "Hash#select" do
   before(:each) do
@@ -53,11 +53,11 @@ describe "Hash#select" do
 
   ruby_version_is "1.8.7" do
     it "returns an Enumerator when called on a non-empty hash without a block" do
-      @hsh.select.should be_kind_of(enumerator_class)
+      @hsh.select.should be_an_instance_of(enumerator_class)
     end
 
     it "returns an Enumerator when called on an empty hash without a block" do
-      @empty.select.should be_kind_of(enumerator_class)
+      @empty.select.should be_an_instance_of(enumerator_class)
     end
   end
 

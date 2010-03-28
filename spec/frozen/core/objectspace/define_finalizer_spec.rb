@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures', __FILE__)
 
 # NOTE: A call to define_finalizer does not guarantee that the
 # passed proc or callable will be called at any particular time.
@@ -23,34 +23,37 @@ describe "ObjectSpace.define_finalizer" do
     ObjectSpace.define_finalizer("garbage", handler).should == [0, handler]
   end
 
-  ruby_bug "#1706", "1.9.2" do
-    it "calls finalizer on process termination" do
-      rd, wr = IO.pipe
-      if Kernel::fork then
-        wr.close
-        rd.read.should == "finalized"
-        rd.close
-      else
-        rd.close
-        handler = Proc.new { wr.write "finalized"; wr.close }
-        obj = "Test"
-        ObjectSpace.define_finalizer(obj, handler)
-        exit 0
+  # see [ruby-core:24095]
+  ruby_version_is "1.9" do
+    with_feature :fork do
+      it "calls finalizer on process termination" do
+        rd, wr = IO.pipe
+        if Kernel::fork then
+          wr.close
+          rd.read.should == "finalized"
+          rd.close
+        else
+          rd.close
+          handler = ObjectSpaceFixtures.scoped(wr)
+          obj = "Test"
+          ObjectSpace.define_finalizer(obj, handler)
+          exit 0
+        end
       end
-    end
 
-    it "doesn't call self-referencing finalizers" do
-      rd, wr = IO.pipe
-      if Kernel::fork then
-        wr.close
-        rd.read.should_not == "finalized"
-        rd.close
-      else
-        rd.close
-        obj = "Test"
-        handler = Proc.new { wr.write "finalized"; wr.close }
-        ObjectSpace.define_finalizer(obj, handler)
-        exit 0
+      it "calls finalizer at exit even if it is self-referencing" do
+        rd, wr = IO.pipe
+        if Kernel::fork then
+          wr.close
+          rd.read.should == "finalized"
+          rd.close
+        else
+          rd.close
+          obj = "Test"
+          handler = Proc.new { wr.write "finalized"; wr.close }
+          ObjectSpace.define_finalizer(obj, handler)
+          exit 0
+        end
       end
     end
   end

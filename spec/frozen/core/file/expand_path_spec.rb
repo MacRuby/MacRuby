@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
+require File.expand_path('../../../spec_helper', __FILE__)
 
 describe "File.expand_path" do
   before :each do
@@ -41,10 +41,19 @@ describe "File.expand_path" do
 
   # FIXME: do not use conditionals like this around #it blocks
   unless not home = ENV['HOME']
-    it "converts a pathname to an absolute pathname, using ~ (home) as base" do
-      File.expand_path('~').should == home
-      File.expand_path('~', '/tmp/gumby/ddd').should == home
-      File.expand_path('~/a', '/tmp/gumby/ddd').should == File.join(home, 'a')
+    platform_is_not :windows do
+      it "converts a pathname to an absolute pathname, using ~ (home) as base" do
+        File.expand_path('~').should == home
+        File.expand_path('~', '/tmp/gumby/ddd').should == home
+        File.expand_path('~/a', '/tmp/gumby/ddd').should == File.join(home, 'a')
+      end
+    end
+    platform_is :windows do
+      it "converts a pathname to an absolute pathname, using ~ (home) as base" do
+        File.expand_path('~').should == home.tr("\\", '/')
+        File.expand_path('~', '/tmp/gumby/ddd').should == home.tr("\\", '/')
+        File.expand_path('~/a', '/tmp/gumby/ddd').should == File.join(home.tr("\\", '/'), 'a')
+      end
     end
   end
 
@@ -54,7 +63,8 @@ describe "File.expand_path" do
       File.expand_path("../../bin", "/tmp/x").should == "/bin"
       File.expand_path("../../bin", "/tmp").should == "/bin"
       File.expand_path("../../bin", "/").should == "/bin"
-      File.expand_path("../../bin", "tmp/x").should == File.join(@base, 'bin')
+      File.expand_path("../bin", "tmp/x").should == File.join(@base, 'tmp', 'bin')
+      File.expand_path("../bin", "x/../tmp").should == File.join(@base, 'bin')
     end
 
     it "expand_path for commoms unix path  give a full path" do
@@ -108,8 +118,16 @@ describe "File.expand_path" do
     lambda { File.expand_path(true) }.should raise_error(TypeError)
   end
 
-  it "expands /./dir to /dir" do
-    File.expand_path("/./dir").should == "/dir"
+  platform_is_not :windows do
+    it "expands /./dir to /dir" do
+      File.expand_path("/./dir").should == "/dir"
+    end
+  end
+
+  platform_is :windows do
+    it "expands C:/./dir to C:/dir" do
+      File.expand_path("C:/./dir").should == "C:/dir"
+    end
   end
 
   ruby_version_is "1.9" do
@@ -117,7 +135,6 @@ describe "File.expand_path" do
       old_external = Encoding.default_external
       Encoding.default_external = Encoding::SHIFT_JIS
       File.expand_path("./a").encoding.should == Encoding::SHIFT_JIS
-      File.expand_path("./\u{9876}").encoding.should == Encoding::SHIFT_JIS
       Encoding.default_external = old_external
     end
   end

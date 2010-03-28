@@ -1,17 +1,14 @@
 # -*- encoding: utf-8 -*-
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
 
 describe "IO#rewind" do
   before :each do
-    @file = File.open(File.dirname(__FILE__) + '/fixtures/readlines.txt', 'r')
-    @io = IO.open @file.fileno, 'r'
+    @io = IOSpecs.io_fixture "lines.txt"
   end
 
   after :each do
-    # we *must* close both in order to not leak descriptors
     @io.close unless @io.closed?
-    @file.close unless @file.closed? rescue Errno::EBADF
   end
 
   it "positions the instance to the beginning of input" do

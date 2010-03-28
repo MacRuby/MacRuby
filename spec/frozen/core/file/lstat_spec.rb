@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/shared/stat'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../shared/stat', __FILE__)
 
 describe "File.lstat" do
   it_behaves_like :file_stat, :lstat
@@ -17,11 +17,13 @@ describe "File.lstat" do
   after :each do
     rm_r @link, @file
   end
-  
-  it "returns a File::Stat object with symlink properties for a symlink" do
-    st = File.lstat(@link)
 
-    st.symlink?.should == true
-    st.file?.should == false
+  platform_is_not :windows do
+    it "returns a File::Stat object with symlink properties for a symlink" do
+      st = File.lstat(@link)
+
+      st.symlink?.should == true
+      st.file?.should == false
+    end
   end
 end

@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes.rb'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes.rb', __FILE__)
 
 ruby_version_is '1.8.7' do
   describe "String#rpartition with String" do
@@ -14,6 +14,11 @@ ruby_version_is '1.8.7' do
 
     it "accepts regexp" do
       "hello!".rpartition(/l./).should == ["hel", "lo", "!"]
+    end
+
+    it "affects $~" do
+      matched_string = "hello!".rpartition(/l./)[1]
+      matched_string.should == $~[0]
     end
 
     ruby_bug "redmine #1510", '1.9.1' do

@@ -1,7 +1,28 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes.rb'
+# -*- encoding: utf-8 -*-
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes.rb', __FILE__)
 
 describe "String#gsub with pattern and replacement" do
+
+  before :each do
+    @kcode = $KCODE
+  end
+
+  after :each do
+    $KCODE = @kcode
+  end
+
+  it "inserts the replacement around every character when the pattern collapses" do
+    "hello".gsub(//, ".").should == ".h.e.l.l.o."
+  end
+
+  it "respects $KCODE when the pattern collapses" do
+    str = "こにちわ"
+    reg = %r!!
+
+    $KCODE = "utf-8"
+    str.gsub(reg, ".").should == ".こ.に.ち.わ."
+  end
 
   it "doesn't freak out when replacing ^" do
     "Text\n".gsub(/^/, ' ').should == " Text\n"
@@ -13,8 +34,6 @@ describe "String#gsub with pattern and replacement" do
 
     str = "hello homely world. hah!"
     str.gsub(/\Ah\S+\s*/, "huh? ").should == "huh? homely world. hah!"
-
-    "hello".gsub(//, ".").should == ".h.e.l.l.o."
   end
   
   it "ignores a block if supplied" do
@@ -444,35 +463,40 @@ describe "String#gsub! with pattern and replacement" do
       a.gsub!(/./, "foo".untrust).untrusted?.should == true
     end
   end
-  
+
   it "returns nil if no modifications were made" do
     a = "hello"
     a.gsub!(/z/, '*').should == nil
     a.gsub!(/z/, 'z').should == nil
     a.should == "hello"
   end
-  
+
   ruby_version_is ""..."1.9" do
-    it "raises a TypeError when self is frozen" do
+    it "does not raise an error if the frozen string would not be modified" do
       s = "hello"
       s.freeze
-    
-      s.gsub!(/ROAR/, "x") # ok
+
+      s.gsub!(/ROAR/, "x").should be_nil
+    end
+
+    it "raises a TypeError if the frozen string would be modified" do
+      s = "hello"
+      s.freeze
+
       lambda { s.gsub!(/e/, "e")       }.should raise_error(TypeError)
       lambda { s.gsub!(/[aeiou]/, '*') }.should raise_error(TypeError)
     end
   end
 
+  # See [ruby-core:23666]
   ruby_version_is "1.9" do
-    ruby_bug "[ruby-core:23666]", "1.9.2" do
-      it "raises a RuntimeError when self is frozen" do
-        s = "hello"
-        s.freeze
-      
-        lambda { s.gsub!(/ROAR/, "x")    }.should raise_error(RuntimeError)
-        lambda { s.gsub!(/e/, "e")       }.should raise_error(RuntimeError)
-        lambda { s.gsub!(/[aeiou]/, '*') }.should raise_error(RuntimeError)
-      end
+    it "raises a RuntimeError when self is frozen" do
+      s = "hello"
+      s.freeze
+
+      lambda { s.gsub!(/ROAR/, "x")    }.should raise_error(RuntimeError)
+      lambda { s.gsub!(/e/, "e")       }.should raise_error(RuntimeError)
+      lambda { s.gsub!(/[aeiou]/, '*') }.should raise_error(RuntimeError)
     end
   end
 end
@@ -497,15 +521,33 @@ describe "String#gsub! with pattern and block" do
       a.gsub!(/./) { "foo".untrust }.untrusted?.should == true
     end
   end
-  
+
   it "returns nil if no modifications were made" do
     a = "hello"
     a.gsub!(/z/) { '*' }.should == nil
     a.gsub!(/z/) { 'z' }.should == nil
     a.should == "hello"
   end
-  
-  ruby_bug "[ruby-core:23663]", "1.9" do
+
+  ruby_version_is ""..."1.9" do
+    it "does not raise an error if the frozen string would not be modified" do
+      s = "hello"
+      s.freeze
+
+      s.gsub!(/ROAR/) { "x" }.should be_nil
+    end
+
+    it "raises a RuntimeError if the frozen string would be modified" do
+      s = "hello"
+      s.freeze
+
+      lambda { s.gsub!(/e/)       { "e" } }.should raise_error(RuntimeError)
+      lambda { s.gsub!(/[aeiou]/) { '*' } }.should raise_error(RuntimeError)
+    end
+  end
+
+  # See [ruby-core:23663]
+  ruby_version_is "1.9" do
     it "raises a RuntimeError when self is frozen" do
       s = "hello"
       s.freeze

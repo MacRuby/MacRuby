@@ -25,10 +25,14 @@ describe :string_each_line, :shared => true do
     a.should == ["one\ntwo\r\nthree"]
   end
 
-  it "appends multiple successive newlines together when the separator is an empty string" do
+  it "yields paragraphs (broken by 2 or more successive newlines) when passed ''" do
     a = []
     "hello\nworld\n\n\nand\nuniverse\n\n\n\n\n".send(@method, '') { |s| a << s }
     a.should == ["hello\nworld\n\n\n", "and\nuniverse\n\n\n\n\n"]
+
+    a = []
+    "hello\nworld\n\n\nand\nuniverse\n\n\n\n\ndog".send(@method, '') { |s| a << s }
+    a.should == ["hello\nworld\n\n\n", "and\nuniverse\n\n\n\n\n", "dog"]
   end
 
   it "uses $/ as the separator when none is given" do
@@ -103,16 +107,19 @@ describe :string_each_line, :shared => true do
   end
 
   ruby_version_is '1.9' do
-    it "accept string-like separator" do
+    it "accept string separator" do
       "hello world".send(@method, ?o).to_a.should == ["hello", " wo", "rld"]
-      "hello world".send(@method, :o).to_a.should == ["hello", " wo", "rld"]
+    end
+
+    it "raises a TypeError when the separator is a symbol" do
+      lambda { "hello world".send(@method, :o).to_a }.should raise_error(TypeError)
     end
   end
 
   ruby_version_is "1.8.7" do
     it "returns an enumerator when no block given" do
       enum = "hello world".send(@method, ' ')
-      enum.should be_kind_of(enumerator_class)
+      enum.should be_an_instance_of(enumerator_class)
       enum.to_a.should == ["hello ", "world"]
     end
   end

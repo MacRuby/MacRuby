@@ -1,17 +1,9 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes.rb'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes.rb', __FILE__)
 
 describe "String#initialize" do
-  ruby_version_is ""..."1.9" do
-    it "is a private method" do
-      "".private_methods.should include("initialize")
-    end
-  end
-
-  ruby_version_is "1.9" do
-    it "is a private method" do
-      "".private_methods.should include(:initialize)
-    end
+  it "is a private method" do
+    String.should have_private_instance_method(:initialize)
   end
 
   it "replaces contents of self with the passed string" do
@@ -63,21 +55,27 @@ describe "String#initialize" do
     lambda { String.new nil }.should raise_error(TypeError)
   end
 
-  ruby_version_is ""..."1.9" do 
-    it "raises a TypeError if self is frozen" do
+  ruby_version_is ""..."1.9" do
+    it "raises a TypeError on a frozen instance that is modified" do
       a = "hello".freeze
-
-      a.send :initialize, a
       lambda { a.send :initialize, "world" }.should raise_error(TypeError)
+    end
+
+    it "does not raise an exception on a frozen instance that would not be modified" do
+      a = "hello".freeze
+      a.send(:initialize, a).should equal(a)
     end
   end
 
-  ruby_version_is "1.9" do   
-    it "raises a RuntimeError if self is frozen" do
+  ruby_version_is "1.9" do
+    it "raises a RuntimeError on a frozen instance that is modified" do
       a = "hello".freeze
-
-      a.send :initialize, a
       lambda { a.send :initialize, "world" }.should raise_error(RuntimeError)
     end
-  end  
+
+    it "raises a RuntimeError on a frozen instance that would not be modified" do
+      a = "hello".freeze
+      lambda { a.send :initialize, a }.should raise_error(RuntimeError)
+    end
+  end
 end

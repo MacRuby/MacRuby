@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/marshal_data'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/marshal_data', __FILE__)
 
 mv = [Marshal::MAJOR_VERSION].pack 'C'
 nv = [Marshal::MINOR_VERSION].pack 'C'
@@ -199,6 +199,21 @@ describe "Marshal.dump" do
       Marshal.dump(a).should ==
         "#{mv+nv}[\tU:\x10UserMarshalI\"\nstuff\x06:\x06EFU:\x18UserMarshalWithIvar[\x06I\"\fmy data\x06;\x06F@\x06@\b"
     end
+  end
+
+  it "favors marshal_dump over _dump" do
+    m = mock("marshaled")
+    m.should_receive(:marshal_dump).and_return(0)
+    m.should_not_receive(:_dump)
+
+    Marshal.dump(m)
+  end
+
+  it "does not use Class#name when using marshal_dump" do
+    u = UserMarshalWithClassName.new
+
+    m = Marshal.dump(u)
+    m.index(u.class.name).should be_nil
   end
 
   ruby_version_is ""..."1.9" do

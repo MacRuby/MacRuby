@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
 
 describe "Numeric#coerce" do
   before(:each) do
@@ -14,8 +14,25 @@ describe "Numeric#coerce" do
     a.coerce(b).should == [b, a]
   end
 
+  # I (emp) think that this behavior is actually a bug in MRI. It's here as documentation
+  # of the behavior until we find out if it's a bug.
+  quarantine! do
+    it "considers the presense of a metaclass when checking the class of the objects" do
+      a = NumericSub.new
+      b = NumericSub.new
+
+      # inject a metaclass on a
+      class << a; true; end
+
+      # watch it explode
+      lambda { a.coerce(b) }.should raise_error(TypeError)
+    end
+  end
+
   it "calls #to_f to convert other if self responds to #to_f" do
-    other = NumericSub.new
+    # Do not use NumericSub here, because coerce checks the classes of the receiver
+    # and arguments before calling #to_f.
+    other = mock("numeric")
     lambda { @obj.coerce(other) }.should raise_error(TypeError)
   end
 

@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
 
 describe "Kernel.at_exit" do
   it "is a private method" do
@@ -14,6 +14,12 @@ describe "Kernel.at_exit" do
     code = "at_exit {print 4};at_exit {print 5}; print 6; at_exit {print 7}"
     ruby_exe(code).should == "6754"
   end
+
+  it "allows calling exit inside at_exit handler" do
+    code = "at_exit {print 3}; at_exit {print 4; exit; print 5}; at_exit {print 6}"
+    ruby_exe(code).should == "643"
+  end
+
 end
 
 describe "Kernel#at_exit" do
