@@ -1,6 +1,0 @@
-fails:IO#each yields each line to the passed block
-fails:IO#each yields each line starting from the current position
-fails:IO#each uses $/ as the default line separator
-fails:IO#each when passed a separator uses the passed argument as the line separator
-fails:IO#each when passed a separator tries to convert the passed separator to a String using #to_str
-fails:IO#each returns an Enumerator when passed no block

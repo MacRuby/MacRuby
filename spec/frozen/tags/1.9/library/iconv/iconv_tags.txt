@@ -1,7 +1,0 @@
-fails:Iconv#iconv when given a string or string-like parameter returns a converted version of it
-fails:Iconv.iconv converts a series of strings with a single converter
-fails:The 'utf-8' encoder emits proper representations for characters outside the Basic Multilingual Plane
-fails:The 'utf-16be' decoder does not emit a byte-order mark
-fails:The 'utf-16be' decoder treats possible byte-order marks as regular characters
-fails:The 'utf-16le' decoder does not emit a byte-order mark
-fails:The 'utf-16le' decoder treats possible byte-order marks as regular characters

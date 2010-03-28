@@ -1,2 +1,0 @@
-fails:Net::HTTPHeader#each_value when passed no block returns an Enumerable::Enumerator
-fails:Net::HTTPHeader#each_value when passed no block returns an Enumerator

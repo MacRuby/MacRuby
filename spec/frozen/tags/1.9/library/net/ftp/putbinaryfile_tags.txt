@@ -1,1 +1,0 @@
-fails:Net::FTP#putbinaryfile sends the STOR command to the server

@@ -1,1 +1,0 @@
-fails:module gets a name when assigned to a constant

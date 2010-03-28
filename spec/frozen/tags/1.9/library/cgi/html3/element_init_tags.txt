@@ -1,2 +1,0 @@
-fails:CGI::Html3#element_init initializes the HTML Generation methods for HTML3
-fails:CGI::Html3#element_init should extend self with CGI::TagMaker

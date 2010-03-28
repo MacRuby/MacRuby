@@ -1,4 +1,0 @@
-fails:CGI#initialize when passed no arguments does not extend self with CGI::HtmlExtension
-fails:CGI#initialize when passed no arguments does not extend self with any of the other HTML modules
-fails:CGI#initialize when CGI_PARAMS is set prints out a warning
-fails:CGI#initialize when CGI_PARAMS is set sets #cookies and #params to the contents of CGI_PARAMS and CGI_COOKIES

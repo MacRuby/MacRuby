@@ -1,8 +1,0 @@
-fails:Net::FTP#login when passed no arguments sends the USER command with 'anonymous' as name to the server
-fails:Net::FTP#login when passed no arguments sends the current username + hostname as a password when required
-fails:Net::FTP#login when passed name sends the USER command with the passed name to the server
-fails:Net::FTP#login when passed name, password sends the USER command with the passed name to the server
-fails:Net::FTP#login when passed name, password sends the passed password when required
-fails:Net::FTP#login when passed name, password, account sends the USER command with the passed name to the server
-fails:Net::FTP#login when passed name, password, account sends the passed password when required
-fails:Net::FTP#login when passed name, password, account sends the passed account when required

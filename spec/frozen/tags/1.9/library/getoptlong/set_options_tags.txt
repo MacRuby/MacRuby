@@ -1,3 +1,0 @@
-fails:GetoptLong#set_options allows setting command line options
-fails:GetoptLong#set_options discards previously defined command line options
-fails:GetoptLong#set_options raises an ArgumentError if one of the given arguments is not an Array

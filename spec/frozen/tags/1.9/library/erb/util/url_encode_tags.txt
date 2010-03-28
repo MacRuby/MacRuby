@@ -1,1 +1,0 @@
-fails:ERB::Util.url_encode returns string when argument is number

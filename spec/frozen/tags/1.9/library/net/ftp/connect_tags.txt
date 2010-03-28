@@ -1,1 +1,0 @@
-fails:Net::FTP#connect prints a small debug line when in debug mode

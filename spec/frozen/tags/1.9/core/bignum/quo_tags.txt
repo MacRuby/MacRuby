@@ -1,1 +1,0 @@
-fails:Bignum#quo does not raise a ZeroDivisionError when the given Integer is 0

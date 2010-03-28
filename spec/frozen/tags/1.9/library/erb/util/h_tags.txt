@@ -1,1 +1,0 @@
-fails:ERB::Util.h returns string when argument is number

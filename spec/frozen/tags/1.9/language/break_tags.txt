@@ -1,7 +1,0 @@
-fails:Breaking out of a loop with a value assigns splatted objects
-fails:Breaking out of a loop with a value assigns to a splatted reference
-fails:Breaking out of a loop with a value assigns splatted objects to a splatted reference
-fails:Breaking out of a loop with a value assigns splatted objects to a splatted reference from a splatted loop
-fails:Breaking out of a loop with a value assigns splatted objects to multiple block variables
-fails:Breaking out of a loop with a value stops any loop type at the correct spot
-fails:Breaking out of a loop with a value stops a yielded method at the correct spot

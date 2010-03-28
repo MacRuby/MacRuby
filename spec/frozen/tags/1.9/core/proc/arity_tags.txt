@@ -1,3 +1,0 @@
-fails:Proc#arity returns -1 if no argument declaration is made, using Proc.new
-fails:Proc#arity returns -1 if no argument declaration is made, using Kernel#lambda
-fails:Proc#arity returns -1 if no argument declaration is made, using Kernel#proc

@@ -1,2 +1,0 @@
-fails:SortedSet#flatten_merge is protected
-fails:SortedSet#flatten_merge flattens the passed SortedSet and merges it into self

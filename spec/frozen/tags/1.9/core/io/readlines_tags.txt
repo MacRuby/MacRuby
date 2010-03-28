@@ -1,8 +1,0 @@
-fails:IO#readlines when passed no arguments returns an Array containing lines based on $/
-fails:IO#readlines when passed [separator] returns an Array containing lines based on the passed separator
-fails:IO#readlines when passed [separator] returns the remaining content as one line starting at the current position when passed nil
-fails:IO#readlines when passed [separator] tries to convert the passed separator to a String using #to_str
-fails:IO.readlines when passed [file_name] returns an Array containing lines of file_name based on $/
-fails:IO.readlines when passed [file_name] tries to convert the passed file_name to a String using #to_str
-fails:IO#readlines when passed [file_name, separator] returns an Array containing lines of file_name based on the passed separator
-fails:IO#readlines when passed [file_name, separator] tries to convert the passed separator to a String using #to_str

@@ -1,2 +1,0 @@
-fails:Math#exp! raises a TypeError when passed a Complex number
-fails:Math.exp! raises a TypeError when passed a Complex number

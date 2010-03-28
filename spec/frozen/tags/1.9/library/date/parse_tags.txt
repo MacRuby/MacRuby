@@ -1,7 +1,0 @@
-fails:Date#parse can handle YYDDD as year and day number
-fails:Date#parse can handle YYMMDD as year month and day
-fails:Date#parse with '/' separator US-style parses a MMDDYYYY string into a Date object
-fails:Date#parse with '/' separator US-style parses a MMDDYY string into a Date object
-fails:Date#parse with '/' separator US-style parses a MMDDYY string into a Date object using the year digits as 20XX
-fails:Date#parse with '-' separator EU-style can parse a MM-DD-YY string into a Date object
-fails:Date#parse(.) parses a YY.MM.DD string into a Date object

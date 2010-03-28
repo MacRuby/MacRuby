@@ -1,1 +1,0 @@
-fails:String#sub with pattern and block restores $~ after leaving the block

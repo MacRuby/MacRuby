@@ -1,1 +1,0 @@
-fails:Kernel#sprintf treats nil arguments as zeroes in %d slots

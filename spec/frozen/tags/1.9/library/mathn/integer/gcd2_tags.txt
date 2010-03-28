@@ -1,2 +1,0 @@
-fails:Integer#gcd2 Returns the greatest common divisor of the two numbers
-fails:Integer#gcd2 raises a ZeroDivisionError when is called on zero

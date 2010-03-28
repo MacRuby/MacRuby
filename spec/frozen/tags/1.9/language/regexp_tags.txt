@@ -1,5 +1,0 @@
-fails:Literal Regexps does not do thread synchronization for /o
-fails:Literal Regexps supports /e (EUC encoding)
-fails:Literal Regexps supports /s (SJIS encoding)
-fails:Literal Regexps supports /u (UTF8 encoding)
-fails:Literal Regexps selects last of multiple encoding specifiers

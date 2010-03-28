@@ -1,1 +1,0 @@
-fails:Time#<=> returns nil when Time is compared to some Object

@@ -1,1 +1,0 @@
-fails:CGI::Html4#doctype returns the doctype declaration for HTML4

@@ -1,1 +1,0 @@
-fails:ARGF.chars returns self when passed a block

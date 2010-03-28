@@ -1,4 +1,0 @@
-fails:Proc#call sets self's single parameter to an Array of all given values
-fails:Proc#call on a Proc created with Kernel#lambda or Kernel#proc raises an ArgumentError when called with too few arguments
-fails:Proc#call on a Proc created with Kernel#lambda or Kernel#proc raises an ArgumentError when called with too many arguments
-fails:Proc#call on a Proc created with Kernel#lambda or Kernel#proc treats a single Array argument as a single argument

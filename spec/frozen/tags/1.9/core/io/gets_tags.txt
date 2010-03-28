@@ -1,4 +1,0 @@
-fails:IO#gets returns the next line of string that were separated by $/
-fails:IO#gets assigns the returned line to $_
-fails:IO#gets returns the entire content if the separator is nil
-fails:IO#gets returns the next paragraph if the separator's length is 0

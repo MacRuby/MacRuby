@@ -1,1 +1,0 @@
-bug:Kernel#freeze has no effect on immediate values

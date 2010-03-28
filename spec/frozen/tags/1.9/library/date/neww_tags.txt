@@ -1,4 +1,0 @@
-fails:Date#neww creates a Date for the day of Julian calendar reform in Italy by default
-fails:Date#neww Creates a Date for the friday in the year and week given
-fails:Date#neww Creates a Date for the correct day given the year, week and day number
-fails:Date#neww creates only Date objects for valid weeks

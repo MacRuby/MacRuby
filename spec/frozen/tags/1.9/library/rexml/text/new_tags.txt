@@ -1,2 +1,0 @@
-fails:REXML::Text.new expects escaped text if raw is true
-fails:REXML::Text.new can detect illegal expressions from a regex if raw is true

@@ -1,1 +1,0 @@
-fails:ERB::Util.u returns string when argument is number

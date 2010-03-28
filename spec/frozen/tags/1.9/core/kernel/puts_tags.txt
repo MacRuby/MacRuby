@@ -1,1 +1,0 @@
-bug:Kernel#puts writes nil with a newline when given nil as an arg

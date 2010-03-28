@@ -1,2 +1,0 @@
-fails:Fixnum#% does not raise a FloatDomainError when the given argument is 0 and a Float
-fails:Fixnum#modulo does not raise a FloatDomainError when the given argument is 0 and a Float

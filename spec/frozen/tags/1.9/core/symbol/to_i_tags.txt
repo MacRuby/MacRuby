@@ -1,1 +1,0 @@
-fails:Symbol#to_i returns an integer that is unique for each symbol for each program execution

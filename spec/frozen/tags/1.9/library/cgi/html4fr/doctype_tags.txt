@@ -1,1 +1,0 @@
-fails:CGI::Html4Fr#doctype returns the doctype declaration for the Frameset version of HTML4

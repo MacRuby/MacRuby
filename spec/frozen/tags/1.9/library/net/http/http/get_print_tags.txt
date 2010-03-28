@@ -1,1 +1,0 @@
-fails:Net::HTTP.get_print when passed host, path, port it prints the body of the specified uri to $stdout

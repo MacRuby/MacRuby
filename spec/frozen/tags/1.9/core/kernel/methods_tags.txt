@@ -1,7 +1,0 @@
-fails:Kernel#methods picks up methods added via self.meth
-fails:Kernel#methods picks up methods added inside 'class << self'
-fails:Kernel#methods picks up private methods added via self.meth
-fails:Kernel#methods picks up methods added inside 'class << self' after private
-fails:Kernel#methods returns a list of the names of publicly accessible methods in the object
-fails:Kernel#methods returns a list of the names of publicly accessible methods in the object and its ancestors and mixed-in modules
-fails:Kernel#methods does not include any .undef'd methods

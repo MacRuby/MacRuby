@@ -1,1 +1,0 @@
-fails:IO#rewind positions the instance to the beginning of input

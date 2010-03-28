@@ -1,2 +1,0 @@
-bug(1755):IO#reopen reassociates self with the I/O stream specified as an argument, after some reads
-bug(1755):IO#reopen reassociates self with a new stream after some reads

@@ -1,2 +1,0 @@
-fails:Net::FTP#initialize is private
-fails:Net::FTP#initialize sets self into binary mode

@@ -1,4 +1,0 @@
-fails:Kernel#method_missing is a private method
-fails:Kernel#method_missing is called when an undefined method is called
-fails:Kernel#method_missing is called when a private method is called
-fails:Kernel#method_missing is called when a protected method is called

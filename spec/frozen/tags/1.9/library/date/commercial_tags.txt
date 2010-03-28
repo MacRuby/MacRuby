@@ -1,4 +1,0 @@
-fails:Date#commercial creates a Date for the day of Julian calendar reform in Italy by default
-fails:Date#commercial Creates a Date for the friday in the year and week given
-fails:Date#valid_commercial? should be able to determine if the date is a valid commercial date
-fails:Date#valid_commercial? should be able to handle negative week and day numbers

@@ -1,2 +1,0 @@
-fails:Kernel#instance_eval passes the object to the block
-fails:Kernel#instance_eval shares a scope across sibling evals

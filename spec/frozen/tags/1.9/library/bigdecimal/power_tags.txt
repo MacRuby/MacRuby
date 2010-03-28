@@ -1,1 +1,0 @@
-fails:BigDecimal#power returns NaN if self is infinite

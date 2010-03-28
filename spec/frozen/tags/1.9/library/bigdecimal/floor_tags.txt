@@ -1,1 +1,0 @@
-fails:BigDecimal#floor returns the greatest integer smaller or equal to self

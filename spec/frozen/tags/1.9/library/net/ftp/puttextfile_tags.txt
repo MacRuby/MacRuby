@@ -1,1 +1,0 @@
-fails:Net::FTP#puttextfile sends the STOR command to the server

@@ -1,3 +1,0 @@
-fails:BigDecimal#truncate returns value of type Bigdecimal.
-fails:BigDecimal#truncate returns NaN if self is NaN
-fails:BigDecimal#truncate returns Infinity if self is infinite

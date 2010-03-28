@@ -1,1 +1,0 @@
-fails:Thread#inspect describes a dying running thread

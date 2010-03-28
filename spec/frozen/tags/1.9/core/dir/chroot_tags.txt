@@ -1,1 +1,0 @@
-fails:Dir.chroot as regular user raises an Errno::ENOENT exception if the directory doesn't exist

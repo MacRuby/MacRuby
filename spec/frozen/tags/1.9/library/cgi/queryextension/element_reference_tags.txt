@@ -1,2 +1,0 @@
-fails:CGI::QueryExtension#[] returns a String that was extended with CGI::QueryExtension::Value
-fails:CGI::QueryExtension#[] sets the other values in the returned value

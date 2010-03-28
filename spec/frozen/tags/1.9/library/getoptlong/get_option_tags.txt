@@ -1,4 +1,0 @@
-fails:GetoptLong#get_option returns the next option name and its argument as an Array
-fails:GetoptLong#get_option shifts ARGV on each call
-fails:GetoptLong#get_option terminates processing when encountering '--'
-fails:GetoptLong#get_option raises a if an argument was required, but none given

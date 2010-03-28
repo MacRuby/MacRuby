@@ -1,1 +1,0 @@
-fails:String#[]= with index raises an IndexError without changing self if idx is outside of self
