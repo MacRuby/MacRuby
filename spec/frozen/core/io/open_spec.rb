@@ -1,53 +1,63 @@
 require File.expand_path('../../../spec_helper', __FILE__)
-require File.expand_path('../shared/new', __FILE__)
 require File.expand_path('../fixtures/classes', __FILE__)
+require File.expand_path('../shared/new', __FILE__)
 
 describe "IO.open" do
   it_behaves_like :io_new, :open
 end
 
 describe "IO.open" do
-  before :all do
-    @file_name = fixture __FILE__, "lines.txt"
+  it_behaves_like :io_new_errors, :open
+end
+
+# These specs use a special mock helper to avoid mock
+# methods from preventing IO#close from running and
+# which would prevent the file referenced by @fd from
+# being deleted on Windows.
+
+describe "IO.open" do
+  before :each do
+    @name = tmp("io_open.txt")
+    @fd = new_fd @name
+    ScratchPad.clear
   end
 
-  it "raises an IOError on closed stream" do
-    lambda { IO.open(IOSpecs.closed_file.fileno, 'w') }.should raise_error(IOError)
+  after :each do
+    rm_r @name
   end
 
-  it "with a block invokes close on opened IO object when exiting the block" do
-    File.open(@file_name, 'r') do |f|
-      io = IO.open(f.fileno, 'r') do |io|
-        class << io
-          @res = "close was not invoked"
-          alias_method(:close_orig, :close)
-          def close; close_orig; @res = "close was invoked"; end
-          def to_s;  @res; end
-        end
-        io
+  it "calls #close after yielding to the block" do
+    IO.open(@fd, "w") do |io|
+      IOSpecs.io_mock(io, :close) do
+        super()
+        ScratchPad.record :called
       end
-      io.to_s.should == "close was invoked"
+      io.closed?.should be_false
     end
+    ScratchPad.recorded.should == :called
   end
 
-  it "with a block propagates non-StandardErrors produced by close" do
-    lambda {
-      File.open @file_name do |f|
-        IO.open f.fileno do |io|
-          def io.close
-            raise Exception, "exception out of close"
-          end
+  it "propagates an exception raised by #close that is not a StandardError" do
+    lambda do
+      IO.open(@fd, "w") do |io|
+        IOSpecs.io_mock(io, :close) do
+          super()
+          ScratchPad.record :called
+          raise Exception
         end
-      end # IO object is closed here
-    }.should raise_error(Exception)
+      end
+    end.should raise_error(Exception)
+    ScratchPad.recorded.should == :called
   end
 
-  it "with a block swallows StandardErrors produced by close" do
-    # This closes the file descriptor twice, the second raises Errno::EBADF
-    lambda {
-      File.open @file_name do |f|
-        IO.open f.fileno do end
+  it "does not propagate a StandardError raised by #close" do
+    IO.open(@fd, "w") do |io|
+      IOSpecs.io_mock(io, :close) do
+        super()
+        ScratchPad.record :called
+        raise StandardError
       end
-    }.should_not raise_error
+    end
+    ScratchPad.recorded.should == :called
   end
 end

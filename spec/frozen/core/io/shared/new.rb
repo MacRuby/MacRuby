@@ -1,120 +1,104 @@
 require File.expand_path('../../fixtures/classes', __FILE__)
 
+# This group of specs may ONLY contain specs that do successfully create
+# an IO instance from the file descriptor returned by #new_fd helper.
 describe :io_new, :shared => true do
-  before :all do
-    @filename = tmp("rubinius-spec-io-new-#{$$}.txt")
-  end
-
-  after :all do
-    File.unlink @filename
-  end
-
   before :each do
-    @file = File.open @filename, "w"
+    @name = tmp("io_new.txt")
+    @fd = new_fd @name
   end
 
   after :each do
-    @file.close unless @file.closed? rescue Errno::EBADF
+    @io.close if @io and !@io.closed?
+    rm_r @name
   end
 
-  it "returns a new IO object" do
-    begin
-      io = IO.send(@method, @file.fileno, 'w')
-    ensure
-      io.close
+  it "creates an IO instance from a Fixnum argument" do
+    @io = IO.send(@method, @fd, "w")
+    @io.should be_an_instance_of(IO)
+  end
+
+  it "calls #to_int on an object to convert to a Fixnum" do
+    obj = mock("file descriptor")
+    obj.should_receive(:to_int).and_return(@fd)
+    @io = IO.send(@method, obj, "w")
+    @io.should be_an_instance_of(IO)
+  end
+
+  ruby_version_is "1.9" do
+    it "uses the external encoding specified in the mode argument" do
+      @io = IO.send(@method, @fd, 'w:utf-8')
+      @io.external_encoding.to_s.should == 'UTF-8'
     end
-    io.should be_an_instance_of(IO)
-  end
 
-  it "takes an Integer or #to_int argument as the descriptor to open" do
-    o = mock('descriptor')
-    o.should_receive(:to_int).any_number_of_times.and_return(@file.fileno)
-
-    begin
-      io = IO.send(@method, @file.fileno, 'w')
-      io.fileno.should == @file.fileno
-
-      io2 = IO.send(@method, o, 'w')
-      io2.fileno.should == @file.fileno
-    ensure
-      io.close unless io.closed? rescue Errno::EBADF
-      io2.close unless io2.closed? rescue Errno::EBADF
+    it "uses the external and the internal encoding specified in the mode argument" do
+      @io = IO.send(@method, @fd, 'w:utf-8:ISO-8859-1')
+      @io.external_encoding.to_s.should == 'UTF-8'
+      @io.internal_encoding.to_s.should == 'ISO-8859-1'
     end
-  end
 
-  it "associates new IO with the old descriptor so each IO directly affects the other" do
-    io = IO.send @method, @file.fileno, 'w'
+    it "uses the external encoding specified via the :external_encoding option" do
+      @io = IO.send(@method, @fd, 'w', {:external_encoding => 'utf-8'})
+      @io.external_encoding.to_s.should == 'UTF-8'
+    end
 
-    @file.syswrite "Hello "
-    @file.closed?.should == false
+    it "uses the internal encoding specified via the :internal_encoding option" do
+      @io = IO.send(@method, @fd, 'w', {:internal_encoding => 'iso-8859-1'})
+      @io.internal_encoding.to_s.should == 'ISO-8859-1'
+    end
 
-    io.close
-    io.closed?.should == true
+    it "uses the colon-separated encodings specified via the :encoding option" do
+      @io = IO.send(@method, @fd, 'w', {:encoding => 'utf-8:ISO-8859-1'})
+      @io.external_encoding.to_s.should == 'UTF-8'
+      @io.internal_encoding.to_s.should == 'ISO-8859-1'
+    end
 
-    # Using #syswrite to force no Ruby buffering which could mask this error
-    lambda { @file.syswrite "there\n" }.should raise_error(Errno::EBADF)
-  end
+    it "ingores the :encoding option when the :external_encoding option is present" do
+      @io = IO.send(@method, @fd, 'w', {:external_encoding => 'utf-8', :encoding => 'iso-8859-1:iso-8859-1'})
+      @io.external_encoding.to_s.should == 'UTF-8'
+    end
 
-  it "raises TypeError if not given an Integer or #to_int" do
-    lambda { IO.send(@method, nil, 'r') }.should raise_error(TypeError)
-    lambda { IO.send(@method, Object.new, 'r') }.should raise_error(TypeError)
-  end
+    it "ingores the :encoding option when the :internal_encoding option is present" do
+      @io = IO.send(@method, @fd, 'w', {:internal_encoding => 'iso-8859-1', :encoding => 'iso-8859-1:iso-8859-1'})
+      @io.internal_encoding.to_s.should == 'ISO-8859-1'
+    end
 
-  it "raises ArgumentError if not given any arguments" do
-    lambda { IO.send(@method, IO.new) }.should raise_error(ArgumentError)
-  end
+    it "uses the encoding specified via the :mode option hash" do
+      @io = IO.send(@method, @fd, {:mode => 'w:utf-8:ISO-8859-1'})
+      @io.external_encoding.to_s.should == 'UTF-8'
+      @io.internal_encoding.to_s.should == 'ISO-8859-1'
+    end
 
-  it "raises EBADF if the file descriptor given is not a valid and open one" do
-    lambda { IO.send(@method, -2, 'r') }.should raise_error(Errno::EBADF)
-
-    fd = @file.fileno
-    @file.close
-    lambda { IO.send(@method, fd, 'w') }.should raise_error(Errno::EBADF)
-  end
-
-  # (1.9 behaviour verified as correct in bug #1582)
-  it "raises EINVAL if mode is not compatible with the descriptor's current mode" do
-    lambda { IO.send(@method, @file.fileno, 'r') }.
-      should raise_error(Errno::EINVAL)
-    lambda { io = IO.send(@method, @file.fileno, 'w'); io.close }.
-      should_not raise_error
-  end
-
-  it "raises IOError on closed stream" do
-    lambda { IO.new(IOSpecs.closed_file.fileno, 'w') }.should raise_error(IOError)
-  end
-
-  it "does not close the stream automatically if given a block" do
-    begin
-      io = IO.new(@file.fileno, 'w') {|f| puts f.read }
-      io.closed?.should == false
-      @file.closed?.should == false
-    ensure
-      io.close
+    it "ignores the :internal_encoding option when the same as the external encoding" do
+      @io = IO.send(@method, @fd, 'w', {:external_encoding => 'utf-8', :internal_encoding => 'utf-8'})
+      @io.external_encoding.to_s.should == 'UTF-8'
+      @io.internal_encoding.to_s.should == ''
     end
   end
+end
 
-  it "emits a warning if given a block" do
-    lambda {
-      io = IO.new(@file.fileno, 'w') {|io| puts io.read }
-      io.close
-    }.should complain(/IO::new.*does not take block.*IO::open.*instead/)
+# This group of specs may ONLY contain specs that do not actually create
+# an IO instance from the file descriptor returned by #new_fd helper.
+describe :io_new_errors, :shared => true do
+  before :each do
+    @name = tmp("io_new.txt")
+    @fd = new_fd @name
   end
 
-  it "accepts only one argument" do
-    # By default, IO.new without an arg assumes RO
-    @file.close
-    io = ""
-    @file = File.open @filename, 'r'
-    lambda {
-      io = IO.new(@file.fileno)
-    }.should_not raise_error()
-
-    io.close
+  after :each do
+    IO.new(@fd, "w").close
+    rm_r @name
   end
 
-  # (1.9 behaviour verified as correct in bug #1582)
-  it "cannot open an IO with incompatible flags" do
-    lambda { IO.new(@file.fileno, "r") }.should raise_error(Errno::EINVAL)
+  it "raises an Errno::EBADF if the file descriptor is not valid" do
+    lambda { IO.send(@method, -1, "w") }.should raise_error(Errno::EBADF)
+  end
+
+  it "raises an IOError if passed a closed stream" do
+    lambda { IO.send(@method, IOSpecs.closed_io.fileno, 'w') }.should raise_error(IOError)
+  end
+
+  it "raises an Errno::EINVAL if the new mode is not compatible with the descriptor's current mode" do
+    lambda { IO.send(@method, @fd, "r") }.should raise_error(Errno::EINVAL)
   end
 end

@@ -1,4 +1,4 @@
-describe "Enumerable#cycle" do
+describe "Array#cycle" do
   ruby_version_is '1.8.7' do
     it "returns nil and does nothing for non positive n or empty arrays" do
       [1,2,3].cycle(0){ throw "ball"}.should be_nil
@@ -16,6 +16,15 @@ describe "Enumerable#cycle" do
         break 42 if bomb <= 0
       end.should == 42
       bomb.should == 0
+    end
+
+    it "yields successive elements of the array repeatedly" do
+      b = []
+      [1,2,3].cycle do |elem|
+        b << elem
+        break if b.size == 7
+      end
+      b.should == [1,2,3,1,2,3,1]
     end
   end
 end
