@@ -23,6 +23,7 @@ class MSpecScript
     'library',
     
      # Currently not working on MacRuby
+     '^library/cgi/htmlextension',
      '^library/erb',
      '^library/iconv',
      '^library/generator',
