@@ -16,62 +16,14 @@
 #include "yaml.h"
 #include <unistd.h>
 
-// Ideas to speed this up:
-// none as of yet. need to figure out how to get Shark to link against this .bundle
-
-#define FNV1_32A_INIT 0x811c9dc5
-
-/*
- * 32 bit magic FNV-1a prime
- */
-#define FNV_32_PRIME 0x01000193
-
-static int
-strhash(register const char *string)
-{
-    register unsigned int hval = FNV1_32A_INIT;
-
-    /*
-     * FNV-1a hash each octet in the buffer
-     */
-    while (*string) {
-	/* xor the bottom with the current octet */
-	hval ^= (unsigned int)*string++;
-
-	/* multiply by the 32 bit FNV magic prime mod 2^32 */
-	hval *= FNV_32_PRIME;
-    }
-    return hval;
-}
-
-static CFHashCode
-c_string_hashcode(const void *cstr)
-{
-    return (CFHashCode)strhash((const char *)cstr);
-}
-
-static Boolean
-c_string_equal(const void *str1, const void * str2)
-{
-    return (strcmp((const char *)str1, (const char *)str2) == 0);
-}
-
-static CFDictionaryKeyCallBacks cStringKeyCallbacks = {
-    0,  // version
-    NULL, // retain - this may be wrong
-    NULL, // release - if retain is wrong, so is this
-    NULL, // copy description - fill this in later,
-    c_string_equal, // equality
-    c_string_hashcode // hashcode
-};
-
 typedef struct rb_yaml_parser_s {
     struct RBasic basic;	// holds the class information
-    yaml_parser_t parser;	// the parser object.
+    yaml_parser_t parser;	// the parser object
 
-    VALUE input;		// a reference to the object that's providing input
+    VALUE input;		// a reference to the object that's providing
+				// input
 
-    VALUE resolver;		// used to determine how to unserialize objects.
+    VALUE resolver;		// used to determine how to unserialize objects
 
     yaml_event_t event;		// the event that is currently being parsed.
     bool event_valid;		// is this event valid?
@@ -91,7 +43,6 @@ typedef struct rb_yaml_emitter_s {
 typedef struct rb_yaml_resolver_s {
     struct RBasic basic;
     CFMutableDictionaryRef tags;
-    CFMutableDictionaryRef cstr_tags;
 } rb_yaml_resolver_t;
 
 #define RYAMLResolver(val) ((rb_yaml_resolver_t*)val)
@@ -279,8 +230,9 @@ handler_for_tag(rb_yaml_parser_t *parser, yaml_char_t *tag)
     }
 
     const void *h =
-	CFDictionaryGetValue(RYAMLResolver(parser->resolver)->cstr_tags,
-		(const void *)tag);
+	CFDictionaryGetValue(RYAMLResolver(parser->resolver)->tags,
+		(const void *)rb_intern((const char *)tag));
+
     if (h != NULL) {
 	return (VALUE)h;
     }
@@ -512,8 +464,8 @@ handle_scalar(rb_yaml_parser_t *parser)
     char *val = (char*)parser->event.data.scalar.value;
     char *tag = (char*)parser->event.data.scalar.tag;
     if (parser->event.data.scalar.style == YAML_PLAIN_SCALAR_STYLE
-	&& tag == NULL) {
-      tag = detect_scalar_type(val, parser->event.data.scalar.length);
+	    && tag == NULL) {
+	tag = detect_scalar_type(val, parser->event.data.scalar.length);
     }
     if (tag == NULL) {
 	tag = "tag:yaml.org,2002:str";
@@ -639,8 +591,8 @@ parse_scalar(rb_yaml_parser_t *parser)
     char *val = (char*)parser->event.data.scalar.value;
     char *tag = (char*)parser->event.data.scalar.tag;
     if (parser->event.data.scalar.style == YAML_PLAIN_SCALAR_STYLE
-	&& tag == NULL) {
-      tag = detect_scalar_type(val, parser->event.data.scalar.length);
+	    && tag == NULL) {
+	tag = detect_scalar_type(val, parser->event.data.scalar.length);
     }
     if (tag == NULL) {
 	tag = "str";
@@ -981,7 +933,7 @@ rb_yaml_emitter_scalar(VALUE self, SEL sel, VALUE taguri, VALUE val,
     yaml_event_t ev;
     yaml_emitter_t *emitter = &RYAMLEmitter(self)->emitter;
     yaml_char_t *output = (yaml_char_t *)RSTRING_PTR(val);
-    const size_t length = RSTRING_LEN(val);
+    const size_t length = strlen((const char *)output);
 
     int can_omit_tag = 0;
     int string_tag   = 0;
@@ -990,8 +942,9 @@ rb_yaml_emitter_scalar(VALUE self, SEL sel, VALUE taguri, VALUE val,
     if (string_tag
 	    && (sstyl==YAML_ANY_SCALAR_STYLE || sstyl==YAML_PLAIN_SCALAR_STYLE)
 	    && (detect_scalar_type((const char *)output, length) != NULL)) {
-      /* Quote so this is read back as a string, no matter what type it looks like */
-      sstyl = YAML_DOUBLE_QUOTED_SCALAR_STYLE;
+	// Quote so this is read back as a string, no matter what type it
+	// looks like.
+	sstyl = YAML_DOUBLE_QUOTED_SCALAR_STYLE;
     }
     yaml_scalar_event_initialize(&ev, NULL, tag, output, length,
 	    can_omit_tag, can_omit_tag, sstyl);
@@ -1038,12 +991,10 @@ static VALUE
 rb_yaml_resolver_initialize(VALUE self, SEL sel)
 {
     rb_yaml_resolver_t *resolver = RYAMLResolver(self);
-    CFMutableDictionaryRef d1 = CFDictionaryCreateMutable(NULL, 0, 
-	    &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-    GC_WB(&resolver->tags, CFMakeCollectable(d1));
-    CFMutableDictionaryRef d2 = CFDictionaryCreateMutable(NULL, 0,
-	    &cStringKeyCallbacks, &kCFTypeDictionaryValueCallBacks);
-    GC_WB(&resolver->cstr_tags, CFMakeCollectable(d2));
+    CFMutableDictionaryRef d = CFDictionaryCreateMutable(NULL, 0, NULL,
+	    &kCFTypeDictionaryValueCallBacks);
+    GC_WB(&resolver->tags, d);
+    CFMakeCollectable(d);
     return self;
 }
 
@@ -1052,10 +1003,7 @@ rb_yaml_resolver_add_type(VALUE self, SEL sel, VALUE key, VALUE handler)
 {
     if (!NIL_P(key)) {
 	rb_yaml_resolver_t *r = RYAMLResolver(self);
-	CFDictionarySetValue(r->tags, (const void *)key,
-		(const void *)handler);
-	const char *c = RSTRING_PTR(key);
-	CFDictionarySetValue(r->cstr_tags, (const void *)c,
+	CFDictionarySetValue(r->tags, (const void *)rb_intern_str(key),
 		(const void *)handler);
     }
     return Qnil;
