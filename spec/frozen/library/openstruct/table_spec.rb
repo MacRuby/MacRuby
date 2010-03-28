@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
+require File.expand_path('../../../spec_helper', __FILE__)
 require 'ostruct'
 
 describe "OpenStruct#table" do
@@ -7,7 +7,7 @@ describe "OpenStruct#table" do
   end
   
   it "is protected" do
-    @os.protected_methods.should include("table")
+    OpenStruct.should have_protected_instance_method(:table)
   end
   
   it "returns self's method/value table" do

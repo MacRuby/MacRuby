@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
+require File.expand_path('../../../spec_helper', __FILE__)
 require 'stringio'
 
 describe "StringIO.open when passed [Object, mode]" do
@@ -133,17 +133,17 @@ describe "StringIO.open when passed [Object, mode]" do
     io.closed_read?.should be_false
     io.closed_write?.should be_false
   end
-  
+
   ruby_version_is "" ... "1.9" do
     it "raises a TypeError when passed a frozen String in truncate mode as StringIO backend" do
       lambda { StringIO.open("example".freeze, IO::TRUNC) }.should raise_error(TypeError)
     end
-  end                            
-  
+  end
+
   ruby_version_is "1.9" do
     it "raises a RuntimeError when passed a frozen String in truncate mode as StringIO backend" do
       lambda { StringIO.open("example".freeze, IO::TRUNC) }.should raise_error(RuntimeError)
-    end 
+    end
   end
 
   it "tries to convert the passed mode to a String using #to_str" do

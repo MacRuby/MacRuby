@@ -1,10 +1,10 @@
-require File.dirname(__FILE__) + '/../../../spec_helper'
+require File.expand_path('../../../../spec_helper', __FILE__)
 require 'cgi'
-require File.dirname(__FILE__) + "/fixtures/common"
+require File.expand_path('../fixtures/common', __FILE__)
 
 describe "CGI::HtmlExtension#form" do
   before(:each) do
-    @html = CGISpecs::HtmlExtension.new
+    @html = CGISpecs.cgi_new
     @html.stub!(:script_name).and_return("/path/to/some/script")
   end
   

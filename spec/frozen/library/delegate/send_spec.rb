@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + "/fixtures/classes"
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
 require 'delegate'
 
 describe "SimpleDelegator.new" do
@@ -16,11 +16,20 @@ describe "SimpleDelegator.new" do
     lambda{ @delegate.priv }.should raise_error( NoMethodError )
   end
 
-  ruby_bug "redmine:2206", "1.8.7" do
-    it "forwards private method calls made via send or __send__" do
-      @delegate.send(:priv, 42).should == [:priv, 42]
-      @delegate.__send__(:priv, 42).should == [:priv, 42]
-      lambda{ @delegate.__send__(:priv, 42){@delegate.priv} }.should raise_error( NoMethodError )
+  ruby_version_is "" ... "1.9" do
+    ruby_bug "redmine:2206", "1.8.7" do
+      it "forwards private method calls made via send or __send__" do
+	@delegate.send(:priv, 42).should == [:priv, 42]
+	@delegate.__send__(:priv, 42).should == [:priv, 42]
+	lambda{ @delegate.__send__(:priv, 42){@delegate.priv} }.should raise_error( NoMethodError )
+      end
+    end
+  end
+
+  ruby_version_is "1.9" do
+    it "doesn't forward private method calls even via send or __send__" do
+      lambda{ @delegate.send(:priv, 42) }.should raise_error( NoMethodError )
+      lambda{ @delegate.__send__(:priv, 42) }.should raise_error( NoMethodError )
     end
   end
 end

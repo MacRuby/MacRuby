@@ -1,31 +1,35 @@
-require File.dirname(__FILE__) + '/../../../spec_helper'
+require File.expand_path('../../../../spec_helper', __FILE__)
+require File.expand_path('../../../../fixtures/math/common', __FILE__)
+require File.expand_path('../../../../shared/math/atanh', __FILE__)
+require File.expand_path('../shared/atanh', __FILE__)
 require 'complex'
-require File.dirname(__FILE__) + '/shared/atanh'
 
 describe "Math#atanh" do
-  it_behaves_like :complex_math_atanh, :_, IncludesMath.new
+  it_behaves_like :math_atanh_base, :atanh, IncludesMath.new
+  it_behaves_like :complex_math_atanh_complex, :atanh, IncludesMath.new
 
-  it "should be private" do
-    IncludesMath.should have_private_instance_method(:atanh)
-  end
+  it_behaves_like :math_atanh_private, :atanh
 end
 
 ruby_version_is ""..."1.9" do
   describe "Math#atanh!" do
-    it_behaves_like :complex_math_atanh_bang, :_, IncludesMath.new
+    it_behaves_like :math_atanh_base, :atanh!, IncludesMath.new
+    it_behaves_like :math_atanh_no_complex, :atanh!, IncludesMath.new
+    it_behaves_like :complex_math_atanh_no_complex, :atanh!, IncludesMath.new
 
-    it "should be private" do
-      IncludesMath.should have_private_instance_method(:atanh!)
-    end
+    it_behaves_like :math_atanh_private, :atanh!
   end
 end
 
 describe "Math.atanh" do
-  it_behaves_like :complex_math_atanh, :_, Math
+  it_behaves_like :math_atanh_base, :atanh, Math
+  it_behaves_like :complex_math_atanh_complex, :atanh, Math
 end
 
 ruby_version_is ""..."1.9" do
   describe "Math.atanh!" do
-    it_behaves_like :complex_math_atanh_bang, :_, Math
+    it_behaves_like :math_atanh_base, :atanh!, Math
+    it_behaves_like :math_atanh_no_complex, :atanh!, IncludesMath.new
+    it_behaves_like :complex_math_atanh_no_complex, :atanh!, Math
   end
 end

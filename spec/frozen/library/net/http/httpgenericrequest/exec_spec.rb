@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + '/../../../../spec_helper'
+require File.expand_path('../../../../../spec_helper', __FILE__)
 require 'net/http'
 require "stringio"
 
@@ -107,7 +107,7 @@ describe "Net::HTTPGenericRequest#exec when passed socket, version, path" do
       str.should =~ %r[POST /some/other/path HTTP/1.1\r\n]
       str.should =~ %r[Accept: \*/\*\r\n]
       str.should =~ %r[Content-Type: text/html\r\n]
-      str.should =~ %r[Transfer-Encoding: chunked\r\n\r\n]
+      str.should =~ %r[Transfer-Encoding: chunked\r\n]
       str.should =~ %r[400\r\n#{'a' * 1024}\r\n400\r\n#{'a' * 1024}\r\n0\r\n\r\n$]
     end
 

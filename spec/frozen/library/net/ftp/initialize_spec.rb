@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + '/../../../spec_helper'
+require File.expand_path('../../../../spec_helper', __FILE__)
 require 'net/ftp'
 
 describe "Net::FTP#initialize" do
@@ -8,7 +8,7 @@ describe "Net::FTP#initialize" do
   end
   
   it "is private" do
-    @ftp.private_methods.should include("initialize")
+    Net::FTP.should have_private_instance_method(:initialize)
   end
   
   it "sets self into binary mode" do

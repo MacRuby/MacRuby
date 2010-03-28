@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../../spec_helper'
-require File.dirname(__FILE__) + '/../fixtures/classes'
+require File.expand_path('../../../../spec_helper', __FILE__)
+require File.expand_path('../../fixtures/classes', __FILE__)
 
 describe "Socket::IPSocket#recvfrom" do
 
@@ -22,7 +22,8 @@ describe "Socket::IPSocket#recvfrom" do
     end
 
     @client.send('hello', 0)
-    @client.shutdown
+    @client.shutdown rescue nil
+    # shutdown may raise Errno::ENOTCONN when sent data is pending.
     t.join
 
     data.first.should == 'hello'
@@ -37,7 +38,7 @@ describe "Socket::IPSocket#recvfrom" do
     end
 
     @client.send('hello', 0)
-    @client.shutdown
+    @client.shutdown rescue nil
     t.join
 
     data.first.should == 'hel'
@@ -52,7 +53,7 @@ describe "Socket::IPSocket#recvfrom" do
     end
 
     @client.send('hello', 0)
-    @client.shutdown
+    @client.shutdown rescue nil
     t.join
 
     data.size.should == 2

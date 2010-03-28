@@ -1,21 +1,13 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
+require File.expand_path('../../../spec_helper', __FILE__)
 require 'tempfile'
 
 describe "Tempfile#_close" do
   before(:each) do
     @tempfile = Tempfile.new("specs")
   end
-
-  ruby_version_is "" ... "1.9" do  
-    it "is protected" do
-      @tempfile.protected_methods.should include("_close")
-    end
-  end
-
-  ruby_version_is "1.9" do  
-    it "is protected" do
-      @tempfile.protected_methods.should include(:_close)
-    end
+  
+  it "is protected" do
+    Tempfile.should have_protected_instance_method(:_close)
   end
   
   it "closes self" do

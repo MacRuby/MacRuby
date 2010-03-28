@@ -1,13 +1,13 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
 
 describe "StringIO#print" do
   before(:each) do
     @io = StringIO.new('example')
   end
-  
-  ruby_version_is "" ... "1.9" do  
-    it "prints $_ when passed no arguments and stringify nil if $_ is nil" do
+
+  ruby_version_is "" ... "1.9" do
+    it "prints $_ when passed no arguments" do
       $_ = nil
       @io.print
       @io.string.should == "nilmple"
@@ -15,11 +15,11 @@ describe "StringIO#print" do
       $_ = "blah"
       @io.print
       @io.string.should == "nilblah"
-    end  
-  end 
-  
-  ruby_version_is "1.9" do  
-    it "prints $_ when passed no arguments and return self if $_ is nil" do
+    end
+  end
+
+  ruby_version_is "1.9" do
+    it "prints $_ when passed no arguments" do
       $_ = nil
       @io.print
       @io.string.should == "example"
@@ -27,7 +27,7 @@ describe "StringIO#print" do
       $_ = "blah"
       @io.print
       @io.string.should == "blahple"
-    end  
+    end
   end
 
   it "prints the passed arguments to self" do

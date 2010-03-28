@@ -1,7 +1,7 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/shared/parse'
-require File.dirname(__FILE__) + '/shared/parse_us'
-require File.dirname(__FILE__) + '/shared/parse_eu'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../shared/parse', __FILE__)
+require File.expand_path('../shared/parse_us', __FILE__)
+require File.expand_path('../shared/parse_eu', __FILE__)
 require 'date'
 
 describe "Date#parse" do
@@ -50,16 +50,7 @@ describe "Date#parse" do
       d = Date.parse("10100")
       d.should == Date.civil(10, 4, 10)
     end
-  end
 
-  ruby_version_is "1.9" do
-    it "can handle YYDDD as year and day number" do
-      d = Date.parse("10100")
-      d.should == Date.civil(2010, 4, 10)
-    end
-  end
-
-  ruby_version_is "" ... "1.9" do
     it "can handle YYMMDD as year month and day" do
       d = Date.parse("201023")
       d.should == Date.civil(20, 10, 23)
@@ -67,7 +58,12 @@ describe "Date#parse" do
   end
 
   ruby_version_is "1.9" do
-    it "can handle YYMMDD as year month and day" do
+    it "can handle YYDDD as year and day number in 1969--2068" do
+      d = Date.parse("10100")
+      d.should == Date.civil(2010, 4, 10)
+    end
+
+    it "can handle YYMMDD as year month and day in 1969--2068" do
       d = Date.parse("201023")
       d.should == Date.civil(2020, 10, 23)
     end
@@ -152,19 +148,19 @@ ruby_version_is "1.8.7" do
 
     ruby_version_is "" ... "1.9" do
       it "parses a YY.MM.DD string into a Date object" do
-        d = Date.parse("10.01.07")
-        d.year.should  == 10
-        d.month.should == 1
-        d.day.should   == 7
+	d = Date.parse("10.01.07")
+	d.year.should  == 10
+	d.month.should == 1
+	d.day.should   == 7
       end
     end
 
     ruby_version_is "1.9" do
       it "parses a YY.MM.DD string into a Date object" do
-        d = Date.parse("10.01.07")
-        d.year.should  == 2010
-        d.month.should == 1
-        d.day.should   == 7
+	d = Date.parse("10.01.07")
+	d.year.should  == 2010
+	d.month.should == 1
+	d.day.should   == 7
       end
     end
 

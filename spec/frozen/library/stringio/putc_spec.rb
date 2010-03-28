@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
 
 describe "StringIO#putc when passed [String]" do
   before(:each) do
@@ -55,23 +55,12 @@ describe "StringIO#putc when passed [Object]" do
     @io.putc(?A)
     @io.string.should == "example\000\000\000A"
   end
-  
-  ruby_version_is "" ... "1.9" do
-    it "tries to convert the passed argument to an Integer using #to_int" do
-      obj = mock('to_int')
-      obj.should_receive(:to_int).and_return(?t)
-      @io.putc(obj)
-      @io.string.should == "txample"
-    end
-  end 
-  
-  ruby_version_is "1.9" do
-    it "tries to convert the passed argument to an Integer using #to_int" do
-      obj = mock('to_int')
-      obj.should_receive(:to_int).and_return(90)
-      @io.putc(obj)
-      @io.string.should == "Zxample"
-    end
+
+  it "tries to convert the passed argument to an Integer using #to_int" do
+    obj = mock('to_int')
+    obj.should_receive(:to_int).and_return(116)
+    @io.putc(obj)
+    @io.string.should == "txample"
   end
 
   it "raises a TypeError when the passed argument can't be coerced to Integer" do

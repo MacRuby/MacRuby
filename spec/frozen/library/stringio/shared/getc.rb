@@ -13,12 +13,6 @@ describe :stringio_getc, :shared => true do
     @io.send(@method)
     @io.pos.should eql(3)
   end
-  
-  it "returns the 8-bit byte at the current position" do
-    @io.send(@method).should == ?e
-    @io.send(@method).should == ?x
-    @io.send(@method).should == ?a
-  end   
 
   it "returns nil when called at the end of self" do
     @io.pos = 7

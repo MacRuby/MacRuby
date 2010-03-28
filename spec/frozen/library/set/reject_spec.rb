@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
+require File.expand_path('../../../spec_helper', __FILE__)
 require 'set'
 
 describe "Set#reject!" do
@@ -38,7 +38,7 @@ describe "Set#reject!" do
   ruby_version_is "1.8.8" do
     it "returns an Enumerator when passed no block" do
       enum = @set.reject!
-      enum.should be_kind_of(enumerator_class)
+      enum.should be_an_instance_of(enumerator_class)
       
       enum.each { |x| x.size == 3 }
       

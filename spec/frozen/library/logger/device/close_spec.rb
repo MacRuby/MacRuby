@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../../spec_helper'
-require File.dirname(__FILE__) + '/../fixtures/common'
+require File.expand_path('../../../../spec_helper', __FILE__)
+require File.expand_path('../../fixtures/common', __FILE__)
 
 describe "Logger::LogDevice#close" do
   before :each do
@@ -15,13 +15,23 @@ describe "Logger::LogDevice#close" do
     File.unlink(@file_path) if File.exists?(@file_path)
   end
 
-  it "closes the LogDevice's stream" do
-    @device.close
-    lambda { @device.write("Test") }.should raise_error
+  ruby_version_is "" ... "1.9" do
+    it "closes the LogDevice's stream" do
+      @device.close
+      lambda { @device.write("Test") }.should raise_error
+    end
+ 
+    it "raises an error if it's already closed" do
+      @device.close
+      lambda { @device.close }.should raise_error
+    end
   end
 
-  it "raises an error if it's already closed" do
-    @device.close
-    lambda { @device.close}.should raise_error
+  ruby_version_is "1.9" do
+    it "closes the LogDevice's stream" do
+      @device.close
+      lambda { @device.write("Test") }.should complain(/\Alog writing failed\./)
+    end
   end
+
 end

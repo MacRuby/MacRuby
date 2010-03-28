@@ -1,10 +1,10 @@
-require File.dirname(__FILE__) + '/../../../spec_helper'
+require File.expand_path('../../../../spec_helper', __FILE__)
 require 'cgi'
-require File.dirname(__FILE__) + "/fixtures/common"
+require File.expand_path('../fixtures/common', __FILE__)
 
 describe "CGI::HtmlExtension#reset" do
   before(:each) do
-    @html = CGISpecs::HtmlExtension.new
+    @html = CGISpecs.cgi_new
   end
 
   describe "when passed no arguments" do

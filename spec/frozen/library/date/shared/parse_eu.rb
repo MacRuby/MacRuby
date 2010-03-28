@@ -30,6 +30,13 @@ describe :date_parse_eu, :shared => true do
       d.month.should == 1
       d.day.should   == 7
     end
+
+    it "can parse a MM-DD-YY string into a Date object NOT using the year digits as 20XX" do
+      d = Date.parse("10#{@sep}01#{@sep}07", false)
+      d.year.should  == 10
+      d.month.should == 1
+      d.day.should   == 7
+    end
   end
 
   it "can parse a MM-DD-YY string into a Date object using the year digits as 20XX" do

@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
+require File.expand_path('../../../spec_helper', __FILE__)
 require 'syslog'
 
 describe "Syslog::Constants" do
@@ -17,7 +17,7 @@ describe "Syslog::Constants" do
 
     it 'includes the Syslog constants' do
       @constants.each do |c|
-        Syslog::Constants.constants.include?(c).should be_true
+        Syslog::Constants.should have_constant(c)
       end
     end
 

@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../../spec_helper'
-require File.dirname(__FILE__) + '/../fixtures/common'
+require File.expand_path('../../../../spec_helper', __FILE__)
+require File.expand_path('../../fixtures/common', __FILE__)
 
 describe "Logger::LogDevice#write" do
   before  :each do
@@ -35,8 +35,17 @@ describe "Logger::LogDevice#write" do
     File.unlink(path)
   end
 
-  it "fails if the device is already closed" do
-    @device.close
-    lambda { @device.write "foo" }.should raise_error
+  ruby_version_is "" ... "1.9" do
+    it "fails if the device is already closed" do
+      @device.close
+      lambda { @device.write "foo" }.should raise_error
+    end
+  end
+
+  ruby_version_is "1.9" do
+    it "fails if the device is already closed" do
+      @device.close
+      lambda { @device.write "foo" }.should complain(/\Alog writing failed\./)
+    end
   end
 end

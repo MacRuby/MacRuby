@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + '/../../../spec_helper'
+require File.expand_path('../../../../spec_helper', __FILE__)
 require 'matrix'
 
 describe "Vector.each2" do
@@ -13,13 +13,6 @@ describe "Vector.each2" do
   end
 
   describe "given one argument" do
-    ruby_bug "redmine:2495", "1.9.1" do
-      it "requires the argument to be a Vector or an Array" do
-        lambda { @v.each2(5){}        }.should raise_error(TypeError)
-        lambda { @v.each2(nil){}      }.should raise_error(TypeError)
-      end
-    end
-
     it "accepts an Array argument" do
       a = []
       @v.each2([7, 8, 9]){|x, y| a << x << y}
@@ -37,12 +30,10 @@ describe "Vector.each2" do
       a.should == [[1, 4], [2, 5], [3, 6]]
     end
 
-    ruby_bug "to be submitted", "1.9.1" do
-      it "yield arguments in pairs" do
-        a = []
-        @v.each2(@v2){|pair| a << pair}
-        a.should == [[1, 4], [2, 5], [3, 6]]
-      end
+    it "yield arguments in pairs" do
+      a = []
+      @v.each2(@v2){|*pair| a << pair}
+      a.should == [[1, 4], [2, 5], [3, 6]]
     end
 
     ruby_bug "to be submitted", "1.9.1" do
@@ -54,7 +45,7 @@ describe "Vector.each2" do
     ruby_version_is "1.9" do
       it "returns an enumerator if no block given" do
         enum = @v.each2(@v2)
-        enum.should be_kind_of(enumerator_class)
+        enum.should be_an_instance_of(enumerator_class)
         enum.to_a.should == [[1, 4], [2, 5], [3, 6]]
       end
     end

@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
 
 describe "StringIO#puts when passed [Array, ...]" do
   before(:each) do
@@ -145,7 +145,7 @@ end
 
 describe "StringIO#puts when passed an encoded string" do
   it "stores the bytes unmodified" do
-    io = StringIO.new
+    io = StringIO.new("")
     io.puts "\x00\x01\x02"
     io.puts "æåø"
 

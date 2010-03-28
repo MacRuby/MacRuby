@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
 
 
 describe "StringIO#readline when passed [separator]" do
@@ -38,15 +38,12 @@ describe "StringIO#readline when passed [separator]" do
     @io.lineno.should eql(3)
   end
   
-  it "returns the next paragraph when the passed separator is an empty String" do
-    io = StringIO.new("this is\n\nan example") 
-    ruby_version_is "" ... "1.9" do
-      io.readline("").should == "this is\n"
-    end
-    ruby_version_is "1.9" do
+  ruby_bug "", "1.8.8" do
+    it "returns the next paragraph when the passed separator is an empty String" do
+      io = StringIO.new("this is\n\nan example")
       io.readline("").should == "this is\n\n"
+      io.readline("").should == "an example"
     end
-    io.readline("").should == "an example"
   end
   
   it "returns the remaining content starting at the current position when passed nil" do

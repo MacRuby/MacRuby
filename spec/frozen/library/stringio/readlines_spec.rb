@@ -1,5 +1,5 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/fixtures/classes'
+require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/classes', __FILE__)
 
 describe "StringIO#readlines when passed [separator]" do
   before(:each) do
@@ -26,12 +26,9 @@ describe "StringIO#readlines when passed [separator]" do
     $_.should == "test"
   end
 
-  it "returns an Array containing all paragraphs when the passed separator is an empty String" do
-    io = StringIO.new("this is\n\nan example")
-    ruby_version_is "" ... "1.9" do
-      io.readlines("").should == ["this is\n", "an example"]
-    end
-    ruby_version_is "1.9" do
+  ruby_bug "", "1.8.8" do
+    it "returns an Array containing all paragraphs when the passed separator is an empty String" do
+      io = StringIO.new("this is\n\nan example")
       io.readlines("").should == ["this is\n\n", "an example"]
     end
   end

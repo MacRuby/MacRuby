@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + '/../../../spec_helper'
+require File.expand_path('../../../../spec_helper', __FILE__)
 require 'rexml/document'
 
 describe "REXML::Text.new" do
@@ -44,11 +44,6 @@ describe "REXML::Text.new" do
   it "escapes the values if raw is false" do
     t = REXML::Text.new("<&>", false, nil, false)
     t.should == "&lt;&amp;&gt;"
-  end
-
-   it "can detect illegal expressions from a regex if raw is true" do
-    lambda{ REXML::Text.new("test text", false, nil, true, nil, /text/)}.should raise_error(Exception)
-    lambda{ REXML::Text.new("test", false, nil, true, nil, /text/)}.should_not raise_error(Exception)
   end
 end
 

@@ -1,5 +1,5 @@
 require 'date' 
-require File.dirname(__FILE__) + '/../../spec_helper'
+require File.expand_path('../../../spec_helper', __FILE__)
 
 describe "Date#jd" do
 
@@ -39,9 +39,9 @@ describe "Date#julian_leap?" do
 
 end
 
-describe "Date#valid_jd?" do
+ruby_version_is "" ... "1.9" do
+  describe "Date#valid_jd?" do
 
-  ruby_version_is "" ... "1.9" do
     it "should be able to determine if a day number is a valid Julian day number, true for all numbers" do
       # This might need to check the type of the jd parameter. Date.valid_jd?(:number) is of course
       # bogus but returns itself with the current implementation
@@ -49,14 +49,20 @@ describe "Date#valid_jd?" do
       Date.valid_jd?(0).should    ==    0
       Date.valid_jd?(100).should  ==  100
     end
-  end
 
-  ruby_version_is "1.9" do
+  end
+end
+
+ruby_version_is "1.9" do
+  describe "Date#valid_jd?" do
+
     it "should be able to determine if a day number is a valid Julian day number, true for all numbers" do
+      # This might need to check the type of the jd parameter. Date.valid_jd?(:number) is of course
+      # bogus but returns itself with the current implementation
       Date.valid_jd?(-100).should == true
       Date.valid_jd?(0).should    == true
       Date.valid_jd?(100).should  == true
     end
-  end
 
+  end
 end

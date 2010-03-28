@@ -1,6 +1,6 @@
-require File.dirname(__FILE__) + '/../../../../spec_helper'
+require File.expand_path('../../../../../spec_helper', __FILE__)
 require 'net/http'
-require File.dirname(__FILE__) + "/fixtures/classes"
+require File.expand_path('../fixtures/classes', __FILE__)
 
 describe "Net::HTTPHeader#each_capitalized_name" do
   before(:each) do
@@ -31,7 +31,7 @@ describe "Net::HTTPHeader#each_capitalized_name" do
       ruby_bug "http://redmine.ruby-lang.org/issues/show/447", "1.8.7" do
         it "returns an Enumerator" do
           enumerator = @headers.each_capitalized_name
-          enumerator.should be_kind_of(enumerator_class)
+          enumerator.should be_an_instance_of(enumerator_class)
       
           res = []
           enumerator.each do |key|

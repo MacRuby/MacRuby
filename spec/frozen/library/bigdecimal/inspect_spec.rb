@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
+require File.expand_path('../../../spec_helper', __FILE__)
 require 'bigdecimal'
 
 describe "BigDecimal#inspect" do
@@ -11,16 +11,8 @@ describe "BigDecimal#inspect" do
     @bigdec.inspect.kind_of?(String).should == true
   end
 
-  ruby_version_is "" ... "1.9" do
-    it "returns String starting with #" do
-      @bigdec.inspect[0].should == 35
-    end
-  end
-
-  ruby_version_is "1.9" do
-    it "returns String starting with #" do
-      @bigdec.inspect[0].should == '#'
-    end
+  it "returns String starting with #" do
+    @bigdec.inspect[0].should == ?#
   end
 
   it "encloses information in angle brackets" do
