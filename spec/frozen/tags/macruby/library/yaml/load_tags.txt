@@ -1,0 +1,2 @@
+fails:YAML.load accepts numbers
+fails:YAML.load parses start markers

@@ -1,1 +1,2 @@
 fails:String#dump includes .force_encoding(name) if the encoding isn't ASCII compatible
+fails:String#dump includes .force_encoding(name) if the encoding isn't ASCII compatiable

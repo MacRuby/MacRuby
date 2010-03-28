@@ -2,3 +2,8 @@ fails:Math.lgamma returns an array of 2 elements
 fails:Math.lgamma returns known values
 fails:Math.lgamma returns correct values given +/- infinity
 fails:Math.lgamma returns correct value given NaN
+fails:Math.lgamma returns [Infinity, 1] when passed 0
+fails:Math.lgamma returns [Infinity, 1] when passed -1
+fails:Math.lgamma raises Math::DomainError when passed -Infinity
+fails:Math.lgamma returns [Infinity, 1] when passed Infinity
+fails:Math.lgamma returns [NaN, 1] when passed NaN

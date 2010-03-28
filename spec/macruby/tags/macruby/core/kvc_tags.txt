@@ -1,0 +1,6 @@
+fails:A scalar being accessed through NSKeyValueCoding can be manipulated
+fails:An ordered collection being accessed through NSKeyValueCoding can be manipulated through whole-array accessors
+fails:An ordered collection being accessed through NSKeyValueCoding can be manipulated through index accessors
+fails:An ordered collection being accessed through NSKeyValueCoding can be manipulated through index accessors (w/ replace)
+fails:An ordered collection being accessed through NSKeyValueCoding can be manipulated through index set accessors
+fails:An ordered collection being accessed through NSKeyValueCoding can be manipulated through index set accessors (w/ replace)

@@ -1,2 +1,4 @@
 critical:Dispatch::Queue new raises an ArgumentError if not passed a string
 fails:Dispatch::Queue == should be true if the underlying dispatch_queues are equal
+fails:to_s returns the name of the queue
+fails:suspend! suspends the queue which can be resumed by calling #resume!

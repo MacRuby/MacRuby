@@ -1,0 +1,2 @@
+fails:on_completion will run a notify block on the specified queue
+fails:on_completion will run the notify block only after all associated blocks have been run

@@ -4,3 +4,4 @@ fails:Module#include doesn't include module if it is included in a super class
 fails:Module#include recursively includes new mixins
 critical:Module#include detects cyclic includes
 fails:Module#include? raises a TypeError when no module was given
+fails:Module#include preserves ancestor order

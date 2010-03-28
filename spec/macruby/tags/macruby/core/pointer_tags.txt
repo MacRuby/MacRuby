@@ -1,0 +1,1 @@
+fails:Pointer, through #[] and #[]= can assign and retrieve any object with type `object'

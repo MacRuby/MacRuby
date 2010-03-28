@@ -1,1 +1,12 @@
 fails:Math.gamma returns NaN given NaN
+fails:Math.gamma returns 14! given 15
+fails:Math.gamma returns 15! given 16
+fails:Math.gamma returns 16! given 17
+fails:Math.gamma returns 17! given 18
+fails:Math.gamma returns 18! given 19
+fails:Math.gamma returns 19! given 20
+fails:Math.gamma returns 21! given 22
+fails:Math.gamma returns 22! given 23
+fails:Math.gamma raises Math::DomainError given -1
+fails:Math.gamma raises Math::DomainError given negative infinity
+fails:Math.gamma returns 20! given 21

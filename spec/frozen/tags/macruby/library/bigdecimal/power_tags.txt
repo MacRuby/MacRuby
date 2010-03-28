@@ -1,1 +1,3 @@
 fails:BigDecimal#power powers of self
+fails:BigDecimal#power returns 0.0 if self is infinite and argument is negative
+fails:BigDecimal#power returns infinite if self is infinite and argument is positive

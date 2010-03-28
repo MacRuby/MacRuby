@@ -1,0 +1,5 @@
+fails:Shellwords#shellwords honors quoted strings
+fails:Shellwords#shellwords honors escaped double quotes
+fails:Shellwords#shellwords honors escaped single quotes
+fails:Shellwords#shellwords raises ArgumentError when double quoted strings are misquoted
+fails:Shellwords#shellwords raises ArgumentError when single quoted strings are misquoted

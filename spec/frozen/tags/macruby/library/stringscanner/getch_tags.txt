@@ -1,1 +1,2 @@
 fails:StringScanner#getch should keep the encoding
+fails:StringScanner#getch is multi-byte character sensitive

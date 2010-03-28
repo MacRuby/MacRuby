@@ -1,2 +1,4 @@
 fails:Math#rsqrt returns the square root for Rational numbers
 fails:Math.rsqrt returns the square root for Rational numbers
+fails:Math#rsqrt raises an Math::DomainError if the argument is a negative number
+fails:Math.rsqrt raises an Math::DomainError if the argument is a negative number
