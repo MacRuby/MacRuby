@@ -1,5 +1,4 @@
-# coding: utf-8
-
+# -*- encoding: utf-8 -*-
 # The examples below are based on the definitions in
 # http://unicode.org/reports/tr18/ , which was deemed authoritative in
 # http://redmine.ruby-lang.org/issues/show/1889 .
@@ -22,11 +21,8 @@ it "matches Unicode digits with [[:alnum:]]" do
   "\u{0660}".match(/[[:alnum:]]/).to_a.should == ["\u{0660}"]
 end
 
-not_compliant_on :macruby do
-  # And also 1.9.2...
-  it "matches Unicode marks with [[:alnum:]]" do
-    "\u{36F}".match(/[[:alnum:]]/).to_a.should == ["\u{36F}"]
-  end
+it "doesn't matches Unicode marks with [[:alnum:]]" do
+  "\u{36F}".match(/[[:alnum:]]/).should be_nil
 end
 
 it "doesn't match Unicode control characters with [[:alnum:]]" do
@@ -45,11 +41,8 @@ it "doesn't match Unicode digits with [[:alpha:]]" do
   "\u{0660}".match(/[[:alpha:]]/).to_a.should == []
 end
 
-not_compliant_on :macruby do
-  # And also 1.9.2...
-  it "matches Unicode marks with [[:alpha:]]" do
-    "\u{36F}".match(/[[:alpha:]]/).to_a.should == ["\u{36F}"]
-  end
+it "doesn't matches Unicode marks with [[:alpha:]]" do
+  "\u{36F}".match(/[[:alpha:]]/).should be_nil
 end
 
 it "doesn't match Unicode control characters with [[:alpha:]]" do
@@ -167,17 +160,12 @@ it "doesn't match Unicode control characters with [[:graph:]]" do
   "\u{16}".match(/[[:graph:]]/).should be_nil
 end
 
-not_compliant_on :macruby do
-  it "doesn't match Unicode format characters with [[:graph:]]" do
-    "\u{2060}".match(/[[:graph:]]/).should be_nil
-  end
+it "match Unicode format characters with [[:graph:]]" do
+  "\u{2060}".match(/[[:graph:]]/).to_a.should == ["\u2060"]
 end
 
-not_compliant_on :macruby do
-  # And also 1.9.2...
-  it "doesn't match Unicode private-use characters with [[:graph:]]" do
-    "\u{E001}".match(/[[:graph:]]/).should be_nil
-  end
+it "match Unicode private-use characters with [[:graph:]]" do
+  "\u{E001}".match(/[[:graph:]]/).to_a.should == ["\u{E001}"]
 end
 
 it "matches Unicode lowercase letter characters with [[:lower:]]" do
@@ -258,17 +246,12 @@ it "doesn't match Unicode control characters with [[:print:]]" do
   "\u{16}".match(/[[:print:]]/).should be_nil
 end
 
-not_compliant_on :macruby do
-  it "doesn't match Unicode format characters with [[:print:]]" do
-    "\u{2060}".match(/[[:print:]]/).should be_nil
-  end
+it "match Unicode format characters with [[:print:]]" do
+  "\u{2060}".match(/[[:print:]]/).to_a.should == ["\u{2060}"]
 end
 
-not_compliant_on :macruby do
-  # And 1.9.2...
-  it "doesn't match Unicode private-use characters with [[:print:]]" do
-    "\u{E001}".match(/[[:print:]]/).should be_nil
-  end
+it "match Unicode private-use characters with [[:print:]]" do
+  "\u{E001}".match(/[[:print:]]/).to_a.should == ["\u{E001}"]
 end
 
 it "doesn't match Unicode lowercase letter characters with [[:punct:]]" do
@@ -493,11 +476,8 @@ it "matches Unicode marks with [[:word:]]" do
   "\u{36F}".match(/[[:word:]]/).to_a.should == ["\u{36F}"]
 end
 
-not_compliant_on :macruby do
-  # And 1.9.2...
-  it "doesn't match Unicode Nl characters with [[:word:]]" do
-    "\u{16EE}".match(/[[:word:]]/).should be_nil
-  end
+it "match Unicode Nl characters with [[:word:]]" do
+  "\u{16EE}".match(/[[:word:]]/).to_a.should == ["\u{16EE}"]
 end
 
 it "doesn't match Unicode No characters with [[:word:]]" do
