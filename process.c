@@ -4015,7 +4015,7 @@ proc_setgid(VALUE obj, SEL sel, VALUE id)
 }
 
 
-static size_t maxgroups = 32;
+static size_t maxgroups = NGROUPS_MAX;
 
 
 /*
