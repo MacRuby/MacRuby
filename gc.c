@@ -853,7 +853,7 @@ id2ref(VALUE obj, SEL sel, VALUE objid)
     if (FIXNUM_P(ptr) || SYMBOL_P(ptr))
 	return ptr;
 
-    if (auto_zone_is_valid_pointer(auto_zone(), p0)) {
+    if (auto_zone_is_valid_pointer(__auto_zone, p0)) {
 	auto_memory_type_t type = 
 	    auto_zone_get_layout_type(__auto_zone, p0);
 	if ((type == AUTO_OBJECT_SCANNED || type == AUTO_OBJECT_UNSCANNED)
@@ -1023,7 +1023,11 @@ Init_PreGC(void)
 {
     auto_collection_control_t *control;
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
     __auto_zone = auto_zone();
+#else
+    __auto_zone = objc_collectableZone();
+#endif
     
     if (__auto_zone == NULL) {
 	rb_objc_no_gc_error();
