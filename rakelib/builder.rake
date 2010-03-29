@@ -128,6 +128,8 @@ AOT_STDLIB = [
   'lib/net/**/*.rb',
   'lib/optparse.rb',
   #'lib/stringio.rb', #spec fails
+  'lib/rexml.rb',
+  'lib/rexml/**/*.rb',
   'lib/rubygems.rb',
   'lib/rubygems/**/*.rb',
   'lib/thread.rb',
