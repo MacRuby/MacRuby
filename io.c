@@ -549,9 +549,9 @@ static VALUE
 rb_io_tell(VALUE io, SEL sel)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
-    rb_io_assert_readable(io_struct);
+    rb_io_check_closed(io_struct);
 
-    return OFFT2NUM(ltell(io_struct->read_fd));
+    return OFFT2NUM(ltell(io_struct->fd));
 }
 
 static VALUE
