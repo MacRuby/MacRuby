@@ -1024,9 +1024,9 @@ Init_PreGC(void)
     auto_collection_control_t *control;
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
-    __auto_zone = auto_zone();
-#else
     __auto_zone = objc_collectableZone();
+#else
+    __auto_zone = auto_zone();
 #endif
     
     if (__auto_zone == NULL) {
