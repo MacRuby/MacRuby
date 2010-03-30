@@ -683,7 +683,9 @@ class Gem::Specification
     attributes = @@attributes.map { |name,| name.to_s }.sort
     attributes = attributes - %w[name version platform]
 
-    yaml = YAML.quick_emit object_id, opts do |out|
+    # Currently, MacRuby's #quick_emit works differently than Syck's
+    # yaml = YAML.quick_emit object_id, opts do |out|
+    yaml = YAML.quick_emit nil do |out|
       out.map taguri, to_yaml_style do |map|
         map.add 'name', @name
         map.add 'version', @version
