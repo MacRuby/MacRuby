@@ -5,10 +5,13 @@ class MSpecScript
   FROZEN_PREFIX = 'spec/frozen'
   load File.join(FROZEN_PREFIX, 'ruby.1.9.mspec')
   
+  # Command-line specs
+  set :command_line, ['command_line']
+  
   # Core library specs
   set :core, [
     'core',
-
+    
     # obsolete in 1.9
     '^core/continuation',
     '^core/kernel/callcc_spec.rb',
@@ -17,13 +20,13 @@ class MSpecScript
     '^core/encoding',
     '^core/io'
   ]
-
+  
   # Library specs
   set :library, [
     'library',
     
      # Currently not working on MacRuby
-     '^library/cgi/htmlextension',
+     '^library/cgi/htmlextension', # runs fine when run separately, it seems another spec brings IO in a wrong state
      '^library/continuation',
      '^library/erb',
      '^library/fiber',
@@ -45,7 +48,7 @@ class MSpecScript
   ]
   
   # Prepend the paths with the proper prefix
-  [:language, :core, :library].each do |pseudo_dir|
+  [:command_line, :language, :core, :library].each do |pseudo_dir|
     set(pseudo_dir, get(pseudo_dir).map do |path|
       if path[0,1] == '^'
         "^#{File.join(FROZEN_PREFIX, path[1..-1])}"
@@ -56,7 +59,7 @@ class MSpecScript
   end
   
   set :macruby, ['spec/macruby']
-  set :rubyspec, get(:language) + get(:core) + get(:library)
+  set :rubyspec, get(:command_line) + get(:language) + get(:core) + get(:library)
   set :full, get(:macruby) + get(:rubyspec)
   
   # Optional library specs
