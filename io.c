@@ -558,12 +558,12 @@ static VALUE
 rb_io_seek(VALUE io, VALUE offset, int whence)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
-    rb_io_assert_readable(io_struct);
+    rb_io_check_closed(io_struct);
     off_t off = NUM2OFFT(offset);
 //    if (whence == SEEK_CUR) {
 //	off += ltell(io_struct->read_fd);
 //    }
-    const off_t code = lseek(io_struct->read_fd, off, whence);
+    const off_t code = lseek(io_struct->fd, off, whence);
     if (code == -1) {
 	rb_sys_fail("lseek() failed");
     }
