@@ -137,6 +137,7 @@ AOT_STDLIB = [
   'lib/timeout.rb',
   'lib/uri.rb',
   'lib/uri/**/*.rb',
+  'lib/xmlrpc/**/*.rb',
   'lib/yaml.rb',
   'lib/yaml/rubytypes.rb',
 ]
