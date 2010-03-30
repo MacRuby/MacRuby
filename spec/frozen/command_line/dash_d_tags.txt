@@ -1,0 +1,1 @@
+fails:The -d command line option sets $DEBUG to true
