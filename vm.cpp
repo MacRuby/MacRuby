@@ -1434,7 +1434,10 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
 		super = rb_cObject;
 	    }
 	    else {
-		check_if_module(super);
+		if (TYPE(super) != T_CLASS) {
+		    rb_raise(rb_eTypeError,
+			"wrong argument type (expected Class)");
+		}
 	    }
 	    klass = rb_define_class_id(path, super);
 	    rb_set_class_path2(klass, outer, rb_id2name(path), const_outer);
