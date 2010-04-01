@@ -1,5 +1,5 @@
 /*
- * MacRuby Hash.
+ * MacRuby Array.
  *
  * This file is covered by the Ruby license. See COPYING for more details.
  * 

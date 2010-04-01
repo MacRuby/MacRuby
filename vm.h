@@ -329,11 +329,11 @@ static inline void
 rb_vm_regrow_robject_slots(struct RObject *obj, unsigned int new_num_slot)
 {
     unsigned int i;
-    VALUE *new_slots = (VALUE *)xmalloc(sizeof(VALUE) * (new_num_slot + 1));
-    for (i = 0; i < obj->num_slots; i++) {
-	GC_WB(&new_slots[i], obj->slots[i]);
+    VALUE *new_slots = (VALUE *)xrealloc(obj->slots,
+	    sizeof(VALUE) * (new_num_slot + 1));
+    if (new_slots != obj->slots) {
+	GC_WB(&obj->slots, new_slots);
     }
-    GC_WB(&obj->slots, new_slots);
     for (i = obj->num_slots; i <= new_num_slot; i++) {
 	obj->slots[i] = Qundef;
     }
@@ -436,7 +436,7 @@ rb_robject_allocate_instance(VALUE klass)
     int num_slots = 10;
 
     obj = (struct RObject *)rb_objc_newobj(sizeof(struct RObject));
-    GC_WB(&obj->slots, xmalloc(num_slots * sizeof(VALUE)));
+    GC_WB(&obj->slots, xmalloc_ptrs(num_slots * sizeof(VALUE)));
 
     OBJSETUP(obj, klass, T_OBJECT);
 
@@ -447,7 +447,6 @@ rb_robject_allocate_instance(VALUE klass)
     for (i = 0; i < num_slots; i++) {
 	ROBJECT(obj)->slots[i] = Qundef;
     }
-
     return (VALUE)obj;
 }
 

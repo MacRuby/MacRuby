@@ -50,6 +50,7 @@ extern "C" {
 #endif
 
 #define xmalloc ruby_xmalloc
+#define xmalloc_ptrs ruby_xmalloc_ptrs
 #define xmalloc2 ruby_xmalloc2
 #define xcalloc ruby_xcalloc
 #define xrealloc ruby_xrealloc
@@ -57,6 +58,7 @@ extern "C" {
 #define xfree ruby_xfree
 
 void *xmalloc(size_t);
+void *xmalloc_ptrs(size_t);
 void *xmalloc2(size_t,size_t);
 void *xcalloc(size_t,size_t);
 void *xrealloc(void*,size_t);

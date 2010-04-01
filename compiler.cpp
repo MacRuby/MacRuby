@@ -6677,7 +6677,7 @@ rb_vm_new_struct(VALUE klass, int argc, ...)
 
     va_list ar;
     va_start(ar, argc);
-    VALUE *data = (VALUE *)xmalloc(argc * sizeof(VALUE));
+    VALUE *data = (VALUE *)xmalloc_ptrs(argc * sizeof(VALUE));
     for (int i = 0; i < argc; ++i) {
 	VALUE field = va_arg(ar, VALUE);
 	GC_WB(&data[i], field);

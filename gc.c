@@ -109,11 +109,9 @@ rb_objc_no_gc_error(void)
     exit(1);
 }
 
-void *
-ruby_xmalloc(size_t size)
+static inline void *
+ruby_xmalloc_memory(size_t size, int type)
 {
-    void *mem;
-
     if (size < 0) {
 	rb_raise(rb_eNoMemError, "negative allocation size (or too big)");
     }
@@ -124,13 +122,29 @@ ruby_xmalloc(size_t size)
 	rb_objc_no_gc_error();
     }
 
-    mem = auto_zone_allocate_object(__auto_zone, size, 
-				    AUTO_MEMORY_SCANNED, 0, 0);
+    void *mem = auto_zone_allocate_object(__auto_zone, size, type, 0, 0);
     if (mem == NULL) {
 	rb_memerror();
     }
-
     return mem;
+}
+
+void *
+ruby_xmalloc(size_t size)
+{
+    return ruby_xmalloc_memory(size, AUTO_MEMORY_SCANNED);
+}
+
+void *
+ruby_xmalloc_ptrs(size_t size)
+{
+    int type;
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
+    type = AUTO_MEMORY_ALL_POINTERS;
+#else
+    type = AUTO_MEMORY_SCANNED;
+#endif
+    return ruby_xmalloc_memory(size, type);
 }
 
 void *
@@ -146,20 +160,14 @@ ruby_xmalloc2(size_t n, size_t size)
 void *
 ruby_xcalloc(size_t n, size_t size)
 {
-    void *mem;
-
-    mem = ruby_xmalloc2(n, size);
+    void *mem = ruby_xmalloc2(n, size);
     memset(mem, 0, n * size);
-
     return mem;
 }
-
 
 void *
 ruby_xrealloc(void *ptr, size_t size)
 {
-    void *mem;
-
     if (size < 0) {
 	rb_raise(rb_eArgError, "negative re-allocation size");
     }
@@ -171,21 +179,18 @@ ruby_xrealloc(void *ptr, size_t size)
     }
     
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-    {
-	size_t old_size = malloc_size(ptr);
-	if (old_size >= size) {
-	    return ptr;
-	}
-	mem = ruby_xmalloc(size);
-	if (mem == NULL) {
-	    rb_memerror();
-	}
-	auto_zone_write_barrier_memmove(__auto_zone, mem, ptr, old_size);
-	xfree(ptr);
+    size_t old_size = malloc_size(ptr);
+    if (old_size >= size) {
+	return ptr;
     }
+    void *mem = ruby_xmalloc(size);
+    if (mem == NULL) {
+	rb_memerror();
+    }
+    auto_zone_write_barrier_memmove(__auto_zone, mem, ptr, old_size);
+    xfree(ptr);
 #else
-    mem = malloc_zone_realloc(__auto_zone, ptr, size);
-
+    void *mem = malloc_zone_realloc(__auto_zone, ptr, size);
     if (mem == NULL) {
 	rb_memerror();
     }
@@ -212,7 +217,6 @@ ruby_xfree(void *ptr)
 	malloc_zone_free(__auto_zone, ptr);
     }
 }
-
 
 /*
  *  call-seq:

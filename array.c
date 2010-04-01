@@ -45,10 +45,15 @@ rary_reserve(VALUE ary, size_t newlen)
 	    if (rary->cap > 0) {
 		newlen *= 2;
 	    }
-	    VALUE *new_elements = xrealloc(rary->elements,
-		    sizeof(VALUE) * newlen);
-	    if (new_elements != rary->elements) {
-		GC_WB(&rary->elements, new_elements);
+	    if (rary->elements == NULL) {
+		GC_WB(&rary->elements, xmalloc_ptrs(sizeof(VALUE) * newlen));
+	    }
+	    else {
+		VALUE *new_elements = xrealloc(rary->elements,
+			sizeof(VALUE) * newlen);
+		if (new_elements != rary->elements) {
+		    GC_WB(&rary->elements, new_elements);
+		}
 	    }
 	    rary->cap = newlen;
 	}

@@ -78,7 +78,7 @@ __rb_vm_bcall(VALUE self, SEL sel, VALUE dvars, rb_vm_block_t *b,
 	IMP pimp, const rb_vm_arity_t &arity, int argc, const VALUE *argv)
 {
     if ((arity.real != argc) || (arity.max == -1)) {
-	VALUE *new_argv = (VALUE *)xmalloc(sizeof(VALUE) * arity.real);
+	VALUE *new_argv = (VALUE *)xmalloc_ptrs(sizeof(VALUE) * arity.real);
 	__rb_vm_fix_args(argv, new_argv, arity, argc);
 	argv = new_argv;
 	argc = arity.real;
@@ -123,7 +123,7 @@ __rb_vm_rcall(VALUE self, SEL sel, IMP pimp, const rb_vm_arity_t &arity,
 	int argc, const VALUE *argv)
 {
     if ((arity.real != argc) || (arity.max == -1)) {
-	VALUE *new_argv = (VALUE *)xmalloc(sizeof(VALUE) * arity.real);
+	VALUE *new_argv = (VALUE *)xmalloc_ptrs(sizeof(VALUE) * arity.real);
 	__rb_vm_fix_args(argv, new_argv, arity, argc);
 	argv = new_argv;
 	argc = arity.real;
@@ -350,7 +350,7 @@ method_missing(VALUE obj, SEL sel, rb_vm_block_t *block, int argc,
 
     GET_VM()->set_method_missing_reason(call_status);
 
-    VALUE *new_argv = (VALUE *)xmalloc(sizeof(VALUE) * (argc + 1));
+    VALUE *new_argv = (VALUE *)xmalloc_ptrs(sizeof(VALUE) * (argc + 1));
 
     char buf[100];
     int n = snprintf(buf, sizeof buf, "%s", sel_getName(sel));
@@ -993,7 +993,7 @@ __rb_vm_resolve_args(VALUE **pargv, size_t argv_size, int *pargc, va_list ar)
 		int count = RARRAY_LEN(ary);
 		if (real_argc + count >= argv_size) {
 		    const size_t new_argv_size = real_argc + count + 100;
-		    VALUE *new_argv = (VALUE *)xmalloc(sizeof(VALUE)
+		    VALUE *new_argv = (VALUE *)xmalloc_ptrs(sizeof(VALUE)
 			    * new_argv_size);
 		    memcpy(new_argv, argv, sizeof(VALUE) * argv_size);
 		    argv = new_argv;
@@ -1007,7 +1007,7 @@ __rb_vm_resolve_args(VALUE **pargv, size_t argv_size, int *pargc, va_list ar)
 	    else {
 		if (real_argc >= argv_size) {
 		    const size_t new_argv_size = real_argc + 100;
-		    VALUE *new_argv = (VALUE *)xmalloc(sizeof(VALUE)
+		    VALUE *new_argv = (VALUE *)xmalloc_ptrs(sizeof(VALUE)
 			    * new_argv_size);
 		    memcpy(new_argv, argv, sizeof(VALUE) * argv_size);
 		    argv = new_argv;
@@ -1513,7 +1513,7 @@ rb_vm_block_eval0(rb_vm_block_t *b, SEL sel, VALUE self, int argc,
 	    && (arity.min > 1 || (arity.min == 1 && arity.min != arity.max))) {
 	    // Expand the array.
 	    long ary_len = RARRAY_LEN(argv[0]);
-	    new_argv = (VALUE *)xmalloc(sizeof(VALUE) * ary_len);
+	    new_argv = (VALUE *)xmalloc_ptrs(sizeof(VALUE) * ary_len);
 	    for (int i = 0; i < ary_len; i++) {
 		new_argv[i] = RARRAY_AT(argv[0], i);
 	    }
@@ -1533,7 +1533,7 @@ rb_vm_block_eval0(rb_vm_block_t *b, SEL sel, VALUE self, int argc,
 	else {
 	    new_argc = argc;
 	}
-	new_argv = (VALUE *)xmalloc(sizeof(VALUE) * new_argc);
+	new_argv = (VALUE *)xmalloc_ptrs(sizeof(VALUE) * new_argc);
 	for (int i = 0; i < new_argc; i++) {
 	    new_argv[i] = i < argc ? argv[i] : Qnil;
 	}

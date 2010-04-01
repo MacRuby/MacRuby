@@ -4660,7 +4660,7 @@ rb_vm_thread_pre_init(rb_vm_thread_t *t, rb_vm_block_t *body, int argc,
    
     if (argc > 0) {
 	t->argc = argc;
-	GC_WB(&t->argv, xmalloc(sizeof(VALUE) * argc));
+	GC_WB(&t->argv, xmalloc_ptrs(sizeof(VALUE) * argc));
 	for (int i = 0; i < argc; i++) {
 	    GC_WB(&t->argv[i], argv[i]);
 	}
