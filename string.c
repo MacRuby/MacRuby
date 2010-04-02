@@ -6003,7 +6003,8 @@ rb_enc_str_buf_cat(VALUE str, const char *cstr, long len, rb_encoding_t *enc)
 	str_concat_string(RSTR(str), RSTR(substr));
     }
     else {
-	abort(); // TODO	
+	abort(); // TODO
+	
     }
     return str;
 }
@@ -6117,7 +6118,10 @@ rb_str_dup(VALUE str)
     if (TYPE(str) == T_SYMBOL) {
 	return rb_sym_to_s(str);
     }
-    abort(); // TODO
+    CFMutableStringRef copy
+	= CFStringCreateMutableCopy(NULL, 0, (CFStringRef)str);
+    CFMakeCollectable(copy);
+    return (VALUE)copy;
 }
 
 // Unicode characters hashing function, copied from CoreFoundation.
@@ -6190,22 +6194,21 @@ rb_memhash(const void *ptr, long len)
 }
 
 VALUE
-rb_str_inspect(VALUE rcv)
+rb_str_inspect(VALUE str)
 {
-    if (RSTR(rcv)) {
-	return rstr_inspect(rcv, 0);
+    if (!IS_RSTR(str)) {
+	str = (VALUE)str_need_string(str);
     }
-    // TODO
-    return rcv;
+    return rstr_inspect(str, 0);
 }
 
 VALUE
 rb_str_subseq(VALUE str, long beg, long len)
 {
-    if (IS_RSTR(str)) {
-	return rstr_substr(str, beg, len);
+    if (!IS_RSTR(str)) {
+	str = (VALUE)str_need_string(str);
     }
-    abort(); // TODO
+    return rstr_substr(str, beg, len);
 }
 
 VALUE
@@ -6221,7 +6224,8 @@ rb_str_update(VALUE str, long beg, long len, VALUE val)
 	rstr_splice(str, beg, len, val);
     }
     else {
-	abort(); // TODO
+	CFStringReplace((CFMutableStringRef)str, CFRangeMake(beg, len),
+		(CFStringRef)val);
     }
 }
 
@@ -6232,7 +6236,7 @@ rb_str_delete(VALUE str, long beg, long len)
 	str_delete(RSTR(str), beg, len, false);
     }
     else {
-	abort(); // TODO
+	CFStringDelete((CFMutableStringRef)str, CFRangeMake(beg, len));
     }
 }
 
