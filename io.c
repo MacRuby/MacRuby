@@ -4594,7 +4594,7 @@ Init_IO(void)
     rb_objc_define_method(rb_cIO, "isatty", rb_io_isatty, 0);
     rb_objc_define_method(rb_cIO, "tty?", rb_io_isatty, 0);
     rb_objc_define_method(rb_cIO, "binmode",  rb_io_binmode_m, 0);
-    rb_objc_define_method(rb_cIO, "sysseek", rb_io_seek, -1);
+    rb_objc_define_method(rb_cIO, "sysseek", rb_io_seek_m, -1);
 
     rb_objc_define_method(rb_cIO, "ioctl", rb_io_ioctl, -1);
     rb_objc_define_method(rb_cIO, "fcntl", rb_io_fcntl, -1);
