@@ -113,6 +113,7 @@ class RoxorCompiler {
 	bool current_rescue;
 	NODE *current_block_node;
 	Function *current_block_func;
+	Function *current_non_block_func;
 	GlobalVariable *current_opened_class;
 	bool dynamic_class;
 	bool current_module;
@@ -254,6 +255,7 @@ class RoxorCompiler {
 	    return compile_const_pointer(ptr, PtrPtrTy);
 	}
 
+	Function *compile_scope(NODE *node);
 	Instruction *compile_protected_call(Value *imp,
 		std::vector<Value *> &params);
 	void compile_dispatch_arguments(NODE *args,

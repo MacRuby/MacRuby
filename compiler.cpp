@@ -61,6 +61,7 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     current_block_chain = false;
     current_block_node = NULL;
     current_block_func = NULL;
+    current_non_block_func = NULL;
     current_opened_class = NULL;
     dynamic_class = false;
     current_module = false;
@@ -3043,6 +3044,344 @@ RoxorCompiler::compile_keep_vars(BasicBlock *startBB, BasicBlock *mergeBB)
     BranchInst::Create(mergeBB, bb);
 }
 
+Function *
+RoxorCompiler::compile_scope(NODE *node)
+{
+    rb_vm_arity_t arity = rb_vm_node_arity(node);
+    const int nargs = bb == NULL ? 0 : arity.real;
+    const bool has_dvars = block_declaration;
+
+    // Get dynamic vars.
+    if (has_dvars && node->nd_tbl != NULL) {
+	const int args_count = (int)node->nd_tbl[0];
+	const int lvar_count = (int)node->nd_tbl[args_count + 1];
+	for (int i = 0; i < lvar_count; i++) {
+	    ID id = node->nd_tbl[i + args_count + 2];
+	    if (lvars.find(id) != lvars.end()) {
+		std::vector<ID>::iterator iter = std::find(dvars.begin(),
+			dvars.end(), id);
+		if (iter == dvars.end()) {
+#if ROXOR_COMPILER_DEBUG
+		    printf("dvar %s\n", rb_id2name(id));
+#endif
+		    dvars.push_back(id);
+		}
+	    }
+	}
+    }
+
+    // Create function type.
+    std::vector<const Type *> types;
+    types.push_back(RubyObjTy);	// self
+    types.push_back(PtrTy);	// sel
+    if (has_dvars) {
+	types.push_back(RubyObjPtrPtrTy); // dvars array
+	types.push_back(PtrTy); // rb_vm_block_t of the currently running block
+    }
+    for (int i = 0; i < nargs; ++i) {
+	types.push_back(RubyObjTy);
+    }
+    FunctionType *ft = FunctionType::get(RubyObjTy, types, false);
+
+    std::string function_name;
+    if (ruby_aot_compile) {
+	function_name.append(RSTRING_PTR(ruby_aot_init_func));
+	function_name.append("_ruby_scope");
+    }
+    else {
+	function_name.append("__ruby_scope");
+    }
+
+    Function *f = Function::Create(ft, GlobalValue::ExternalLinkage,
+	    function_name, module);
+
+    BasicBlock *old_rescue_invoke_bb = rescue_invoke_bb;
+    BasicBlock *old_rescue_rethrow_bb = rescue_rethrow_bb;
+    BasicBlock *old_entry_bb = entry_bb;
+    BasicBlock *old_bb = bb;
+    BasicBlock *new_rescue_invoke_bb = NULL;
+    BasicBlock *new_rescue_rethrow_bb = NULL;
+    rescue_invoke_bb = NULL;
+    rescue_rethrow_bb = NULL;
+    bb = BasicBlock::Create(context, "MainBlock", f);
+
+    DISubprogram old_debug_subprogram = debug_subprogram;
+#if 0
+    // This is not the right way to emit subprogram DWARF entries,
+    // llc emits some assembly that doesn't compile because some
+    // symbols are duplicated.
+    debug_subprogram = debug_info->CreateSubprogram(
+	    debug_compile_unit, f->getName(), f->getName(),
+	    f->getName(), debug_compile_unit, nd_line(node),
+	    DIType(), f->hasInternalLinkage(), true);
+    debug_info->InsertSubprogramStart(debug_subprogram, bb);
+#endif
+
+    std::map<ID, Value *> old_lvars = lvars;
+    lvars.clear();
+    Value *old_self = current_self;
+
+    Function::arg_iterator arg;
+
+    arg = f->arg_begin();
+    Value *self = arg++;
+    self->setName("self");
+    current_self = self;
+
+    Value *sel = arg++;
+    sel->setName("sel");
+
+    Value *old_running_block = running_block;
+    Value *old_current_var_uses = current_var_uses;
+    current_var_uses = NULL;
+
+    if (has_dvars) {
+	Value *dvars_arg = arg++;
+	dvars_arg->setName("dvars");
+	running_block = arg++;
+	running_block->setName("running_block");
+    }
+    else {
+	running_block = NULL;
+    }
+
+    current_block_arg = NULL;
+    if (node->nd_tbl != NULL) {
+	bool has_vars_to_save = false;
+	int i, args_count = (int)node->nd_tbl[0];
+	assert(args_count == nargs
+		|| args_count == nargs + 1 /* optional block */
+		|| args_count == nargs - 1 /* unnamed param (|x,|) */);
+	for (i = 0; i < args_count; i++) {
+	    ID id = node->nd_tbl[i + 1];
+#if ROXOR_COMPILER_DEBUG
+	    printf("arg %s\n", rb_id2name(id));
+#endif
+
+	    Value *val = NULL;
+	    if (i < nargs) {
+		val = arg++;
+		val->setName(rb_id2name(id));
+	    }
+	    else {
+		// Optional block.
+		if (currentBlockObjectFunc == NULL) {
+		    // VALUE rb_vm_current_block_object(void);
+		    currentBlockObjectFunc = cast<Function>(
+			    module->getOrInsertFunction(
+				"rb_vm_current_block_object", RubyObjTy, NULL));
+		}
+		val = CallInst::Create(currentBlockObjectFunc, "", bb);
+		current_block_arg = val;
+	    }
+	    Value *slot = new AllocaInst(RubyObjTy, "", bb);
+	    new StoreInst(val, slot, bb);
+	    lvars[id] = slot;
+	    has_vars_to_save = true;
+	}
+
+	// Local vars must be created before the optional arguments
+	// because they can be used in them, for instance with def f(a=b=c=1).
+	if (compile_lvars(&node->nd_tbl[args_count + 1])) {
+	    has_vars_to_save = true;
+	}
+
+	if (has_vars_to_save) {
+	    current_var_uses = new AllocaInst(PtrTy, "", bb);
+	    new StoreInst(compile_const_pointer(NULL),
+		    current_var_uses, bb);
+
+	    new_rescue_invoke_bb = BasicBlock::Create(context,
+		    "rescue_save_vars", f);
+	    new_rescue_rethrow_bb = BasicBlock::Create(context,
+		    "rescue_save_vars.rethrow", f);
+	    rescue_invoke_bb = new_rescue_invoke_bb;
+	    rescue_rethrow_bb = new_rescue_rethrow_bb;
+	}
+
+	NODE *args_node = node->nd_args;
+	if (args_node != NULL) {
+	    // Compile multiple assignment arguments (def f((a, b, v))).
+	    // This must also be done after the creation of local variables.
+	    NODE *rest_node = args_node->nd_next;
+	    if (rest_node != NULL) {
+		NODE *right_req_node = rest_node->nd_next;
+		if (right_req_node != NULL) {
+		    NODE *last_node = right_req_node->nd_next;
+		    if (last_node != NULL) {
+			assert(nd_type(last_node) == NODE_AND);
+			// Multiple assignment for the left-side required
+			// arguments.
+			if (last_node->nd_1st != NULL) {
+			    compile_node(last_node->nd_1st);
+			}
+			// Multiple assignment for the right-side required
+			// arguments.
+			if (last_node->nd_2nd != NULL) {
+			    compile_node(last_node->nd_2nd);
+			}
+		    }
+		}
+	    }
+
+	    // Compile optional arguments.
+	    Function::ArgumentListType::iterator iter = f->arg_begin();
+	    ++iter; // skip self
+	    ++iter; // skip sel
+	    NODE *opt_node = args_node->nd_opt;
+	    if (opt_node != NULL) {
+		int to_skip = args_node->nd_frml;
+		if (has_dvars) {
+		    to_skip += 2; // dvars array and currently running block
+		}
+		for (i = 0; i < to_skip; i++) {
+		    ++iter; // skip dvars and args required on the left-side
+		}
+		iter = compile_optional_arguments(iter, opt_node);
+	    }
+	}
+    }
+
+    Value *val = NULL;
+    if (node->nd_body != NULL) {
+	entry_bb = BasicBlock::Create(context, "entry_point", f); 
+	BranchInst::Create(entry_bb, bb);
+	bb = entry_bb;
+
+	rb_vm_arity_t old_current_arity = current_arity;
+	Function *old_current_non_block_func = current_non_block_func;
+	if (!block_declaration) {
+	    current_non_block_func = f;
+	    current_arity = arity;
+	}
+
+	DEBUG_LEVEL_INC();
+	val = compile_node(node->nd_body);
+	DEBUG_LEVEL_DEC();
+
+	current_non_block_func = old_current_non_block_func;
+	current_arity = old_current_arity;
+    }
+    if (val == NULL) {
+	val = nilVal;
+    }
+
+    ReturnInst::Create(context, val, bb);
+
+    // The rethrows after the save of variables must be real rethrows.
+    rescue_rethrow_bb = NULL;
+    rescue_invoke_bb = NULL;
+
+    // Current_lvar_uses has 2 uses or more if it is really used.
+    // (there is always a StoreInst in which we assign it NULL)
+    if (current_var_uses != NULL && current_var_uses->hasNUsesOrMore(2)) {
+	// Searches all ReturnInst in the function we just created and add
+	// before a call to the function to save the local variables if
+	// necessary (we can't do this before finishing compiling the whole
+	// function because we can't be sure if the function contains a block
+	// or not before).
+	std::vector<ReturnInst *> to_fix;
+	for (Function::iterator block_it = f->begin();
+		block_it != f->end();
+		++block_it) {
+	    for (BasicBlock::iterator inst_it = block_it->begin();
+		    inst_it != block_it->end();
+		    ++inst_it) {
+		ReturnInst *inst = dyn_cast<ReturnInst>(inst_it);
+		if (inst != NULL) {
+		    to_fix.push_back(inst);
+		}
+	    }
+	}
+	// We have to process the blocks in a second loop because
+	// we can't modify the blocks while iterating on them.
+	for (std::vector<ReturnInst *>::iterator inst_it = to_fix.begin();
+		inst_it != to_fix.end();
+		++inst_it) {
+
+	    ReturnInst *inst = *inst_it;
+	    BasicBlock *startBB = inst->getParent();
+	    BasicBlock *mergeBB = startBB->splitBasicBlock(inst, "merge");
+	    // We do not want the BranchInst added by splitBasicBlock.
+	    startBB->getInstList().pop_back();
+	    compile_keep_vars(startBB, mergeBB);
+	}
+
+	if (new_rescue_invoke_bb->use_empty()
+		&& new_rescue_rethrow_bb->use_empty()) {
+	    new_rescue_invoke_bb->eraseFromParent();
+	    new_rescue_rethrow_bb->eraseFromParent();
+	}
+	else {
+	    if (new_rescue_invoke_bb->use_empty()) {
+		new_rescue_invoke_bb->eraseFromParent();
+	    }
+	    else {
+		bb = new_rescue_invoke_bb;
+		compile_landing_pad_header();
+		BranchInst::Create(new_rescue_rethrow_bb, bb);
+	    }
+
+	    bb = new_rescue_rethrow_bb;
+	    BasicBlock *mergeBB = BasicBlock::Create(context,
+		    "merge", f);
+	    compile_keep_vars(bb, mergeBB);
+
+	    bb = mergeBB;
+	    compile_rethrow_exception();
+	}
+    }
+    else if (current_var_uses != NULL) {
+	for (BasicBlock::use_iterator rescue_use_it =
+		new_rescue_invoke_bb->use_begin();
+		rescue_use_it != new_rescue_invoke_bb->use_end();
+		rescue_use_it = new_rescue_invoke_bb->use_begin()) {
+	    InvokeInst* invoke = dyn_cast<InvokeInst>(rescue_use_it);
+	    assert(invoke != NULL);
+
+	    // Transform the InvokeInst in CallInst.
+	    std::vector<Value *> params;
+	    for (InvokeInst::op_iterator op_it = invoke->op_begin()+3;
+		    op_it != invoke->op_end(); ++op_it) {
+		params.push_back(op_it->get());
+	    }
+	    CallInst *call_inst = CallInst::Create(
+		    invoke->getOperand(0),
+		    params.begin(), params.end(),
+		    invoke->getNameStr(),
+		    invoke);
+
+	    invoke->replaceAllUsesWith(call_inst);
+	    BasicBlock *normal_bb = dyn_cast<BasicBlock>(invoke->getOperand(1));
+	    assert(normal_bb != NULL);
+	    BranchInst::Create(normal_bb, invoke);
+	    invoke->eraseFromParent();
+	}
+	new_rescue_invoke_bb->eraseFromParent();
+
+	if (new_rescue_rethrow_bb->use_empty()) {
+	    new_rescue_rethrow_bb->eraseFromParent();
+	}
+	else {
+	    bb = new_rescue_rethrow_bb;
+	    compile_rethrow_exception();
+	}
+    }
+
+    rescue_rethrow_bb = old_rescue_rethrow_bb;
+    rescue_invoke_bb = old_rescue_invoke_bb;
+
+    bb = old_bb;
+    entry_bb = old_entry_bb;
+    lvars = old_lvars;
+    current_self = old_self;
+    current_var_uses = old_current_var_uses;
+    running_block = old_running_block;
+    debug_subprogram = old_debug_subprogram;
+
+    return f;
+}
+
 Value *
 RoxorCompiler::compile_node(NODE *node)
 {
@@ -3062,340 +3401,12 @@ RoxorCompiler::compile_node(NODE *node)
 
     switch (nd_type(node)) {
 	case NODE_SCOPE:
-	    {
-		rb_vm_arity_t arity = rb_vm_node_arity(node);
-		const int nargs = bb == NULL ? 0 : arity.real;
-		const bool has_dvars = block_declaration;
-
-		// Get dynamic vars.
-		if (has_dvars && node->nd_tbl != NULL) {
-		    const int args_count = (int)node->nd_tbl[0];
-		    const int lvar_count = (int)node->nd_tbl[args_count + 1];
-		    for (int i = 0; i < lvar_count; i++) {
-			ID id = node->nd_tbl[i + args_count + 2];
-			if (lvars.find(id) != lvars.end()) {
-			    std::vector<ID>::iterator iter = std::find(dvars.begin(), dvars.end(), id);
-			    if (iter == dvars.end()) {
-#if ROXOR_COMPILER_DEBUG
-				printf("dvar %s\n", rb_id2name(id));
-#endif
-				dvars.push_back(id);
-			    }
-			}
-		    }
-		}
-
-		// Create function type.
-		std::vector<const Type *> types;
-		types.push_back(RubyObjTy);	// self
-		types.push_back(PtrTy);		// sel
-		if (has_dvars) {
-		    types.push_back(RubyObjPtrPtrTy); // dvars array
-		    types.push_back(PtrTy); // rb_vm_block_t of the currently running block
-		}
-		for (int i = 0; i < nargs; ++i) {
-		    types.push_back(RubyObjTy);
-		}
-		FunctionType *ft = FunctionType::get(RubyObjTy, types, false);
-
-		std::string function_name;
- 		if (ruby_aot_compile) {
-		    function_name.append(RSTRING_PTR(ruby_aot_init_func));
-		    function_name.append("_ruby_scope");
- 		}
- 		else {
-		    function_name.append("__ruby_scope");
- 		}
-
-		Function *f = Function::Create(ft, GlobalValue::ExternalLinkage,
-			function_name, module);
-
-		BasicBlock *old_rescue_invoke_bb = rescue_invoke_bb;
-		BasicBlock *old_rescue_rethrow_bb = rescue_rethrow_bb;
-		BasicBlock *old_entry_bb = entry_bb;
-		BasicBlock *old_bb = bb;
-		BasicBlock *new_rescue_invoke_bb = NULL;
-		BasicBlock *new_rescue_rethrow_bb = NULL;
-		rescue_invoke_bb = NULL;
-		rescue_rethrow_bb = NULL;
-		bb = BasicBlock::Create(context, "MainBlock", f);
-
-		DISubprogram old_debug_subprogram = debug_subprogram;
-#if 0
-		// This is not the right way to emit subprogram DWARF entries,
-		// llc emits some assembly that doesn't compile because some
-		// symbols are duplicated.
-		debug_subprogram = debug_info->CreateSubprogram(
-			debug_compile_unit, f->getName(), f->getName(),
-			f->getName(), debug_compile_unit, nd_line(node),
-			DIType(), f->hasInternalLinkage(), true);
-		debug_info->InsertSubprogramStart(debug_subprogram, bb);
-#endif
-
-		std::map<ID, Value *> old_lvars = lvars;
-		lvars.clear();
-		Value *old_self = current_self;
-
-		Function::arg_iterator arg;
-
-		arg = f->arg_begin();
-		Value *self = arg++;
-		self->setName("self");
-		current_self = self;
-
-		Value *sel = arg++;
-		sel->setName("sel");
-
-		Value *old_running_block = running_block;
-		Value *old_current_var_uses = current_var_uses;
-		current_var_uses = NULL;
-
-		if (has_dvars) {
-		    Value *dvars_arg = arg++;
-		    dvars_arg->setName("dvars");
-		    running_block = arg++;
-		    running_block->setName("running_block");
-		}
-		else {
-		    running_block = NULL;
-		}
-
-		current_block_arg = NULL;
-		if (node->nd_tbl != NULL) {
-		    bool has_vars_to_save = false;
-		    int i, args_count = (int)node->nd_tbl[0];
-		    assert(args_count == nargs
-			    || args_count == nargs + 1 /* optional block */
-			    || args_count == nargs - 1 /* unnamed param (|x,|) */);
-		    for (i = 0; i < args_count; i++) {
-			ID id = node->nd_tbl[i + 1];
-#if ROXOR_COMPILER_DEBUG
-			printf("arg %s\n", rb_id2name(id));
-#endif
-
-			Value *val = NULL;
-			if (i < nargs) {
-			    val = arg++;
-			    val->setName(rb_id2name(id));
-			}
-			else {
-			    // Optional block.
-			    if (currentBlockObjectFunc == NULL) {
-				// VALUE rb_vm_current_block_object(void);
-				currentBlockObjectFunc = cast<Function>(
-					module->getOrInsertFunction("rb_vm_current_block_object", 
-					    RubyObjTy, NULL));
-			    }
-			    val = CallInst::Create(currentBlockObjectFunc, "", bb);
-			    current_block_arg = val;
-			}
-			Value *slot = new AllocaInst(RubyObjTy, "", bb);
-			new StoreInst(val, slot, bb);
-			lvars[id] = slot;
-			has_vars_to_save = true;
-		    }
-
-		    // local vars must be created before the optional arguments
-		    // because they can be used in them, for instance with def f(a=b=c=1)
-		    if (compile_lvars(&node->nd_tbl[args_count + 1])) {
-			has_vars_to_save = true;
-		    }
-
-		    if (has_vars_to_save) {
-			current_var_uses = new AllocaInst(PtrTy, "", bb);
-			new StoreInst(compile_const_pointer(NULL),
-				current_var_uses, bb);
-
-			new_rescue_invoke_bb = BasicBlock::Create(context,
-				"rescue_save_vars", f);
-			new_rescue_rethrow_bb = BasicBlock::Create(context,
-				"rescue_save_vars.rethrow", f);
-			rescue_invoke_bb = new_rescue_invoke_bb;
-			rescue_rethrow_bb = new_rescue_rethrow_bb;
-		    }
-
-		    NODE *args_node = node->nd_args;
-		    if (args_node != NULL) {
-			// compile multiple assignment arguments (def f((a, b, v)))
-			// (this must also be done after the creation of local variables)
-			NODE *rest_node = args_node->nd_next;
-			if (rest_node != NULL) {
-			    NODE *right_req_node = rest_node->nd_next;
-			    if (right_req_node != NULL) {
-				NODE *last_node = right_req_node->nd_next;
-				if (last_node != NULL) {
-				    assert(nd_type(last_node) == NODE_AND);
-				    // multiple assignment for the left-side required arguments
-				    if (last_node->nd_1st != NULL) {
-					compile_node(last_node->nd_1st);
-				    }
-				    // multiple assignment for the right-side required arguments
-				    if (last_node->nd_2nd != NULL) {
-					compile_node(last_node->nd_2nd);
-				    }
-				}
-			    }
-			}
-
-			// Compile optional arguments.
-			Function::ArgumentListType::iterator iter = f->arg_begin();
-			++iter; // skip self
-			++iter; // skip sel
-			NODE *opt_node = args_node->nd_opt;
-			if (opt_node != NULL) {
-			    int to_skip = args_node->nd_frml;
-			    if (has_dvars) {
-				to_skip += 2; // dvars array and currently running block
-			    }
-			    for (i = 0; i < to_skip; i++) {
-				++iter; // skip dvars and args required on the left-side
-			    }
-			    iter = compile_optional_arguments(iter, opt_node);
-			}
-		    }
-		}
-
-		Value *val = NULL;
-		if (node->nd_body != NULL) {
-		    entry_bb = BasicBlock::Create(context, "entry_point", f); 
-		    BranchInst::Create(entry_bb, bb);
-		    bb = entry_bb;
-
-		    rb_vm_arity_t old_current_arity = current_arity;
-		    current_arity = arity;
-
-		    DEBUG_LEVEL_INC();
-		    val = compile_node(node->nd_body);
-		    DEBUG_LEVEL_DEC();
-
-		    current_arity = old_current_arity;
-		}
-		if (val == NULL) {
-		    val = nilVal;
-		}
-
-		ReturnInst::Create(context, val, bb);
-
-		// the rethrows after the save of variables must be real rethrows
-		rescue_rethrow_bb = NULL;
-		rescue_invoke_bb = NULL;
-
-		// current_lvar_uses has 2 uses or more if it is really used
-		// (there is always a StoreInst in which we assign it NULL)
-		if (current_var_uses != NULL && current_var_uses->hasNUsesOrMore(2)) {
-		    // searches all ReturnInst in the function we just created and add before
-		    // a call to the function to save the local variables if necessary
-		    // (we can't do this before finishing compiling the whole function
-		    // because we can't be sure if the function contains a block or not before)
-		    std::vector<ReturnInst *> to_fix;
-		    for (Function::iterator block_it = f->begin();
-			 block_it != f->end();
-			 ++block_it) {
-			for (BasicBlock::iterator inst_it = block_it->begin();
-			     inst_it != block_it->end();
-			     ++inst_it) {
-			    ReturnInst *inst = dyn_cast<ReturnInst>(inst_it);
-			    if (inst != NULL) {
-				to_fix.push_back(inst);
-			    }
-			}
-		    }
-		    // we have to process the blocks in a second loop because
-		    // we can't modify the blocks while iterating on them
-		    for (std::vector<ReturnInst *>::iterator inst_it = to_fix.begin();
-			 inst_it != to_fix.end();
-			 ++inst_it) {
-
-			ReturnInst *inst = *inst_it;
-			BasicBlock *startBB = inst->getParent();
-			BasicBlock *mergeBB = startBB->splitBasicBlock(inst, "merge");
-			// we do not want the BranchInst added by splitBasicBlock
-			startBB->getInstList().pop_back();
-			compile_keep_vars(startBB, mergeBB);
-		    }
-
-		    if (new_rescue_invoke_bb->use_empty() && new_rescue_rethrow_bb->use_empty()) {
-			new_rescue_invoke_bb->eraseFromParent();
-			new_rescue_rethrow_bb->eraseFromParent();
-		    }
-		    else {
-			if (new_rescue_invoke_bb->use_empty()) {
-			    new_rescue_invoke_bb->eraseFromParent();
-			}
-			else {
-			    bb = new_rescue_invoke_bb;
-			    compile_landing_pad_header();
-			    BranchInst::Create(new_rescue_rethrow_bb, bb);
-			}
-
-			bb = new_rescue_rethrow_bb;
-			BasicBlock *mergeBB = BasicBlock::Create(context,
-				"merge", f);
-			compile_keep_vars(bb, mergeBB);
-
-			bb = mergeBB;
-			compile_rethrow_exception();
-		    }
-		}
-		else if (current_var_uses != NULL) {
-		    for (BasicBlock::use_iterator rescue_use_it = new_rescue_invoke_bb->use_begin();
-			 rescue_use_it != new_rescue_invoke_bb->use_end();
-			 rescue_use_it = new_rescue_invoke_bb->use_begin()) {
-			InvokeInst* invoke = dyn_cast<InvokeInst>(rescue_use_it);
-			assert(invoke != NULL);
-
-			// transform the InvokeInst in CallInst
-			std::vector<Value *> params;
-			for (InvokeInst::op_iterator op_it = invoke->op_begin()+3;
-			     op_it != invoke->op_end(); ++op_it) {
-			    params.push_back(op_it->get());
-			}
-			CallInst *call_inst = CallInst::Create(
-				invoke->getOperand(0),
-				params.begin(), params.end(),
-				invoke->getNameStr(),
-				invoke);
-
-			invoke->replaceAllUsesWith(call_inst);
-			BasicBlock *normal_bb = dyn_cast<BasicBlock>(invoke->getOperand(1));
-			assert(normal_bb != NULL);
-			BranchInst::Create(normal_bb, invoke);
-			invoke->eraseFromParent();
-		    }
-		    new_rescue_invoke_bb->eraseFromParent();
-
-		    if (new_rescue_rethrow_bb->use_empty()) {
-			new_rescue_rethrow_bb->eraseFromParent();
-		    }
-		    else {
-			bb = new_rescue_rethrow_bb;
-			compile_rethrow_exception();
-		    }
-		}
-
-		rescue_rethrow_bb = old_rescue_rethrow_bb;
-		rescue_invoke_bb = old_rescue_invoke_bb;
-
-		bb = old_bb;
-		entry_bb = old_entry_bb;
-		lvars = old_lvars;
-		current_self = old_self;
-		current_var_uses = old_current_var_uses;
-		running_block = old_running_block;
-		debug_subprogram = old_debug_subprogram;
-
-		return cast<Value>(f);
-	    }
-	    break;
+	    return cast<Value>(compile_scope(node));
 
 	case NODE_DVAR:
 	case NODE_LVAR:
-	    {
-		assert(node->nd_vid > 0);
-
-		return new LoadInst(compile_lvar_slot(node->nd_vid), "", bb);
-	    }
-	    break;
+	    assert(node->nd_vid > 0);
+	    return new LoadInst(compile_lvar_slot(node->nd_vid), "", bb);
 
 	case NODE_GVAR:
 	    {
@@ -3404,14 +3415,16 @@ RoxorCompiler::compile_node(NODE *node)
 
 		if (gvarGetFunc == NULL) {
 		    // VALUE rb_gvar_get(struct global_entry *entry);
-		    gvarGetFunc = cast<Function>(module->getOrInsertFunction("rb_gvar_get", RubyObjTy, PtrTy, NULL));
+		    gvarGetFunc = cast<Function>(module->getOrInsertFunction(
+				"rb_gvar_get", RubyObjTy, PtrTy, NULL));
 		}
 
 		std::vector<Value *> params;
 
 		params.push_back(compile_global_entry(node));
 
-		return CallInst::Create(gvarGetFunc, params.begin(), params.end(), "", bb);
+		return CallInst::Create(gvarGetFunc, params.begin(),
+			params.end(), "", bb);
 	    }
 	    break;
 
@@ -4127,12 +4140,10 @@ RoxorCompiler::compile_node(NODE *node)
 		bool positive_arity = false;
 		if (nd_type(node) == NODE_ZSUPER) {
 		    assert(args == NULL);
-		    int arity = bb->getParent()->getArgumentList().size();
-		    arity -= 2; // skip self and sel
-		    if (block_declaration) {
-			arity -= 2; // skip dvar and current_block
-		    }
-		    positive_arity = arity > 0;
+		    assert(current_non_block_func != NULL);
+		    positive_arity = 
+			current_non_block_func->getArgumentList().size()
+			    - 2 /* skip self and sel */ > 0;
 		}
 		else {
 		    NODE *n = args;
@@ -4276,19 +4287,12 @@ rescan_args:
 		int argc = 0;
 		if (nd_type(node) == NODE_ZSUPER) {
 		    Function::ArgumentListType &fargs =
-			bb->getParent()->getArgumentList();
+			current_non_block_func->getArgumentList();
 		    const int fargs_arity = fargs.size() - 2;
-		    const int arity = block_declaration
-			? fargs_arity - 2 // skip dvars and current_block
-			: fargs_arity;
-		    params.push_back(ConstantInt::get(Int32Ty, arity));
+		    params.push_back(ConstantInt::get(Int32Ty, fargs_arity));
 		    Function::ArgumentListType::iterator iter = fargs.begin();
 		    iter++; // skip self
 		    iter++; // skip sel
-		    if (block_declaration) {
-			iter++; // skip dvars
-			iter++; // skip current_block
-		    }
 		    const int rest_pos = current_arity.max == -1
 			? (current_arity.left_req
 				+ (current_arity.real - current_arity.min - 1))
@@ -4302,7 +4306,20 @@ rescan_args:
 			// We can't simply push the direct argument address
 			// because if may have a default value.
 			ID argid = rb_intern(iter->getName().data());
-			Value *argslot = compile_lvar_slot(argid);
+			Value *argslot;
+			if (block_declaration) {
+			    if (std::find(dvars.begin(), dvars.end(), argid)
+				    == dvars.end()) {
+				// Dvar does not exist yet, so we create it
+				// on demand!
+				dvars.push_back(argid);
+			    }
+			    argslot = compile_dvar_slot(argid);			
+			}
+			else {
+			    argslot = compile_lvar_slot(argid);
+			}
+
 			params.push_back(new LoadInst(argslot, "", bb));
 
 			++i;
