@@ -607,8 +607,7 @@ rb_obj_is_kind_of(VALUE obj, VALUE c)
 	if (is_module) {
 	    VALUE ary = rb_attr_get(cl, idIncludedModules);
 	    if (ary != Qnil) {
-		int i, count;
-		for (i = 0, count = RARRAY_LEN(ary); i < count; i++) {
+		for (int i = 0, count = RARRAY_LEN(ary); i < count; i++) {
 		    VALUE imod = RARRAY_AT(ary, i);
 		    if (imod == c) {
 			return Qtrue;
@@ -2002,9 +2001,7 @@ rb_class_new_instance(int argc, VALUE *argv, VALUE klass)
 static VALUE
 rb_mod_attr_reader(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
-    int i;
-
-    for (i=0; i<argc; i++) {
+    for (int i = 0; i < argc; i++) {
 	rb_attr(klass, rb_to_id(argv[i]), Qtrue, Qfalse, Qtrue);
     }
     return Qnil;
@@ -2032,9 +2029,7 @@ rb_mod_attr(VALUE klass, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_mod_attr_writer(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
-    int i;
-
-    for (i=0; i<argc; i++) {
+    for (int i = 0; i < argc; i++) {
 	rb_attr(klass, rb_to_id(argv[i]), Qfalse, Qtrue, Qtrue);
     }
     return Qnil;
@@ -2058,9 +2053,7 @@ rb_mod_attr_writer(VALUE klass, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_mod_attr_accessor(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
-    int i;
-
-    for (i=0; i<argc; i++) {
+    for (int i = 0; i < argc; i++) {
 	rb_attr(klass, rb_to_id(argv[i]), Qtrue, Qtrue, Qtrue);
     }
     return Qnil;
