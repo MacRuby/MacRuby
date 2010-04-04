@@ -9924,18 +9924,29 @@ ripper_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 
     Data_Get_Struct(self, struct parser_params, parser);
     rb_scan_args(argc, argv, "12", &src, &fname, &lineno);
-#if 0 // TODO
-    if (rb_obj_respond_to(src, ripper_id_gets, 0)) {
-        parser->parser_lex_gets = ripper_lex_get_generic;
+
+    UChar *chars = NULL;
+    long chars_len = 0;
+    bool need_free = false;
+    rb_str_get_uchars(src, &chars, &chars_len, &need_free);
+
+    if (need_free) {
+	UChar *tmp = (UChar *)xmalloc(sizeof(UChar) * chars_len);
+	memcpy(tmp, chars, sizeof(UChar) * chars_len);
+	free(chars);
+	chars = tmp;
     }
-    else
-#endif 
-    {
-        StringValue(src);
-        parser->parser_lex_gets = lex_get_str;
-    }
-    GC_WB(&parser->parser_lex_input, src);
+
+    struct lex_get_str_context *ctx = (struct lex_get_str_context *)
+	xmalloc(sizeof(struct lex_get_str_context));
+    GC_WB(&ctx->str, src);
+    ctx->chars = chars;
+    ctx->chars_len = chars_len;
+
+    parser->parser_lex_gets = lex_get_str;
+    GC_WB(&parser->parser_lex_input, ctx);
     parser->eofp = Qfalse;
+
     if (NIL_P(fname)) {
         fname = STR_NEW2("(ripper)");
     }
