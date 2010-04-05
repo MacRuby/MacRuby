@@ -87,8 +87,22 @@ mr_enc_s_default_internal(VALUE klass, SEL sel)
 }
 
 static VALUE
+mr_enc_set_default_internal(VALUE klass, SEL sel, VALUE enc)
+{
+    default_internal = rb_to_encoding(enc);
+    return (VALUE)default_internal;
+}
+
+static VALUE
 mr_enc_s_default_external(VALUE klass, SEL sel)
 {
+    return (VALUE)default_external;
+}
+
+static VALUE
+mr_enc_set_default_external(VALUE klass, SEL sel, VALUE enc)
+{
+    default_external = rb_to_encoding(enc);
     return (VALUE)default_external;
 }
 
@@ -286,10 +300,12 @@ Init_Encoding(void)
 
     rb_objc_define_method(*(VALUE *)rb_cEncoding, "default_external",
 	    mr_enc_s_default_external, 0);
-    //rb_define_singleton_method(rb_cEncoding, "default_external=", set_default_external, 1);
+    rb_objc_define_method(*(VALUE *)rb_cEncoding, "default_external=",
+	    mr_enc_set_default_external, 1);
     rb_objc_define_method(*(VALUE *)rb_cEncoding, "default_internal",
 	    mr_enc_s_default_internal, 0);
-    //rb_define_singleton_method(rb_cEncoding, "default_internal=", set_default_internal, 1);
+    rb_objc_define_method(*(VALUE *)rb_cEncoding, "default_internal=",
+	    mr_enc_set_default_internal, 1);
     //rb_define_singleton_method(rb_cEncoding, "locale_charmap", rb_locale_charmap, 0);
 
     // Create constants.
