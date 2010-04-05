@@ -1991,6 +1991,25 @@ rary_replace(VALUE rcv, SEL sel, VALUE other)
     return rcv;
 }
 
+/*
+ *  call-seq:
+ *     array.to_a     -> array
+ *
+ *  Returns _self_. If called on a subclass of Array, converts
+ *  the receiver to an Array object.
+ */
+
+static VALUE
+rary_to_a(VALUE ary, SEL sel)
+{
+    if (rb_obj_class(ary) != rb_cRubyArray) {
+        VALUE dup = rb_ary_new();
+        rary_replace(dup, 0, ary);
+        return dup;
+    }
+    return ary;
+}
+
 /* 
  *  call-seq:
  *     array.clear    ->  array
@@ -3473,6 +3492,7 @@ Init_Array(void)
 	    rary_s_try_convert, 1);
     rb_objc_define_method(rb_cRubyArray, "initialize", rary_initialize, -1);
     rb_objc_define_method(rb_cRubyArray, "initialize_copy", rary_replace, 1);
+    rb_objc_define_method(rb_cRubyArray, "to_a", rary_to_a, 0);
     rb_objc_define_method(rb_cRubyArray, "dup", rary_dup, 0);
     rb_objc_define_method(rb_cRubyArray, "clone", rary_clone, 0);
     rb_objc_define_method(rb_cRubyArray, "to_s", rary_inspect, 0);
