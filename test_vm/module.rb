@@ -195,3 +195,21 @@ assert ':ok', %{
   end
   X.new.foo
 }
+
+assert ':ok', %{
+  module M
+    def self.foo(v)
+      Module.new do
+        define_method(:inherited) do |klass|
+          super(klass)
+          p v
+        end
+      end
+    end
+  end
+  class X
+    extend M.foo(:ok)
+  end
+  class Y<X
+  end
+}
