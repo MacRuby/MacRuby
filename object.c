@@ -1840,8 +1840,16 @@ VALUE rb_mod_module_exec(VALUE mod, SEL sel, int argc, VALUE *argv);
 VALUE
 rb_mod_initialize(VALUE module, SEL sel)
 {
-    if (rb_block_given_p()) {
-	rb_mod_module_exec(module, 0, 1, &module);
+    static bool initialized = false;
+    if (!initialized) {
+	initialized = true;
+	// force initialize
+	class_getMethodImplementation((Class)module, sel);
+	initialized = false;
+
+	if (rb_block_given_p()) {
+	    rb_mod_module_exec(module, 0, 1, &module);
+	}
     }
     return Qnil;
 }
