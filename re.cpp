@@ -1082,6 +1082,58 @@ regexp_fixed_encoding(VALUE rcv, SEL sel)
     return RREGEXP(rcv)->fixed_encoding ? Qtrue : Qfalse;
 }
 
+/*
+ * call-seq:
+ *    rxp.names   => [name1, name2, ...]
+ *
+ * Returns a list of names of captures as an array of strings.
+ *
+ *     /(?<foo>.)(?<bar>.)(?<baz>.)/.names
+ *     #=> ["foo", "bar", "baz"]
+ *
+ *     /(?<foo>.)(?<foo>.)/.names
+ *     #=> ["foo"]
+ *
+ *     /(.)(.)/.names
+ *     #=> []
+ */
+
+static VALUE
+regexp_names(VALUE rcv, SEL sel)
+{
+    // TODO
+    return rb_ary_new();
+}
+
+/*
+ * call-seq:
+ *    rxp.named_captures  => hash
+ *
+ * Returns a hash representing information about named captures of <i>rxp</i>.
+ *
+ * A key of the hash is a name of the named captures.
+ * A value of the hash is an array which is list of indexes of corresponding
+ * named captures.
+ *
+ *    /(?<foo>.)(?<bar>.)/.named_captures
+ *    #=> {"foo"=>[1], "bar"=>[2]}
+ *
+ *    /(?<foo>.)(?<foo>.)/.named_captures
+ *    #=> {"foo"=>[1, 2]}
+ *
+ * If there are no named captures, an empty hash is returned.
+ *
+ *    /(.)(.)/.named_captures
+ *    #=> {}
+ */
+
+static VALUE
+regexp_named_captures(VALUE rcv, SEL sel)
+{
+    // TODO
+    return rb_hash_new();
+}
+
 static VALUE
 match_getter(void)
 {
@@ -1218,10 +1270,10 @@ Init_Regexp(void)
 	    (void *)regexp_fixed_encoding, 0);
 #if 0
     rb_objc_define_method(rb_cRegexp, "encoding", rb_reg_encoding, 0);
-    rb_objc_define_method(rb_cRegexp, "names", rb_reg_names, 0);
-    rb_objc_define_method(rb_cRegexp, "named_captures",
-	    rb_reg_named_captures, 0);
 #endif
+    rb_objc_define_method(rb_cRegexp, "names", (void *)regexp_names, 0);
+    rb_objc_define_method(rb_cRegexp, "named_captures",
+	    (void *)regexp_named_captures, 0);
     rb_objc_define_method(rb_cRegexp, "to_s", (void *)regexp_to_s, 0);
     rb_objc_define_method(rb_cRegexp, "inspect", (void *)regexp_inspect, 0);
 
