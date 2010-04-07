@@ -19,9 +19,15 @@ VALUE rb_cNSString;
 VALUE rb_cNSMutableString;
 
 static inline VALUE
-to_str(VALUE ary)
+to_str(VALUE str)
 {
-    return rb_convert_type(ary, T_STRING, "String", "to_str");
+    switch (TYPE(str)) {
+	case T_STRING:
+	    return str;
+	case T_SYMBOL:
+	    return rb_sym_to_s(str);
+    }
+    return rb_convert_type(str, T_STRING, "String", "to_str");
 }
 
 static id
