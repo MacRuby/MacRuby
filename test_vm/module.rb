@@ -213,3 +213,10 @@ assert ':ok', %{
   class Y<X
   end
 }
+
+assert ':ok', %{
+  m = Module.new do
+    define_method(:foo) { p :ok }
+  end
+  Class.new.extend(m).foo
+}
