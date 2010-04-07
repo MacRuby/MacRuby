@@ -151,6 +151,7 @@ class RoxorCompiler {
 	Function *prepareIvarSlotFunc;
 	Function *getIvarFunc;
 	Function *setIvarFunc;
+	Function *setKVOIvarFunc;
 	Function *definedFunc;
 	Function *undefFunc;
 	Function *aliasFunc;

@@ -100,6 +100,7 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     prepareIvarSlotFunc = NULL;
     getIvarFunc = NULL;
     setIvarFunc = NULL;
+    setKVOIvarFunc = NULL;
     definedFunc = NULL;
     undefFunc = NULL;
     aliasFunc = NULL;
@@ -5988,7 +5989,7 @@ Function *
 RoxorCompiler::compile_write_attr(ID name)
 {
     Function *f = cast<Function>(module->getOrInsertFunction("",
-		RubyObjTy, RubyObjTy, PtrTy, RubyObjTy, NULL));
+	RubyObjTy, RubyObjTy, PtrTy, RubyObjTy, NULL));
 
     Function::arg_iterator arg = f->arg_begin();
     current_self = arg++;
@@ -5997,14 +5998,19 @@ RoxorCompiler::compile_write_attr(ID name)
 
     bb = BasicBlock::Create(context, "EntryBlock", f);
 
-    // This disables ivar slot generation.
-    // TODO: make it work
-    const bool old_current_instance_method = current_instance_method;
-    current_instance_method = false;
+    std::vector<Value *> params;
+    params.push_back(current_self);
+    params.push_back(compile_id(name));
+    params.push_back(new_val);
 
-    Value *val = compile_ivar_assignment(name, new_val);
+    if (setKVOIvarFunc == NULL) {
+	    setKVOIvarFunc =
+	    cast<Function>(module->getOrInsertFunction("rb_vm_set_kvo_ivar",
+	            RubyObjTy, RubyObjTy, RubyObjTy, RubyObjTy, NULL));
+    }
 
-    current_instance_method = old_current_instance_method;
+    Value *val = CallInst::Create(setKVOIvarFunc,
+	params.begin(), params.end(), "", bb);
 
     ReturnInst::Create(context, val, bb);
 

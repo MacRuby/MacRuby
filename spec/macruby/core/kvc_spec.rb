@@ -221,3 +221,15 @@ describe "An unordered collection being accessed through NSKeyValueCoding" do
     manipulateUnorderedCollection(w)
   end
 end
+
+class Wrapper
+  attr_accessor :whatever
+end
+
+describe "Module::attr_writer" do
+  it "defines an Objective-C style setter method" do
+    w = Wrapper.new
+    w.setWhatever(42)
+    w.whatever.should == 42
+  end
+end

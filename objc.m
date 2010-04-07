@@ -338,6 +338,8 @@ reload_protocols(void)
 #endif
 }
 
+static bool enable_kvo_notifications = false;
+
 VALUE
 rb_require_framework(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
@@ -450,6 +452,8 @@ success:
     reload_class_constants();
     reload_protocols();
 
+    enable_kvo_notifications = true;
+
     return Qtrue;
 }
 
@@ -502,6 +506,21 @@ rb_objc_define_kvo_setter(VALUE klass, ID mid)
 		"(method `%s')",
 		mid_name, rb_class2name(klass), buf);
     }
+}
+
+VALUE
+rb_vm_set_kvo_ivar(VALUE obj, ID name, VALUE val)
+{
+    NSString *key = NULL;
+    if (enable_kvo_notifications) {
+	key = [(NSString *)rb_id2str(name) substringFromIndex:1]; // skip '@' prefix
+	[(id)obj willChangeValueForKey:key];
+    }
+    rb_ivar_set(obj, name, val);
+    if (enable_kvo_notifications) {
+	[(id)obj didChangeValueForKey:key];
+    }
+    return val;
 }
 
 VALUE
