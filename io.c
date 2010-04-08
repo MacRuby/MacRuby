@@ -3344,7 +3344,9 @@ rb_f_backquote(VALUE obj, SEL sel, VALUE str)
     VALUE io = rb_io_s_popen(rb_cIO, 0, 1, &str);
     rb_io_t *io_s = ExtractIOStruct(io);
 
-    // Wait that the process is finished before reading stuff.
+    VALUE outbuf = rb_bstr_new();
+    rb_io_read_all(ExtractIOStruct(io), outbuf);
+
     assert(io_s->pid != -1);
     int status;
     if (waitpid(io_s->pid, &status, 0) != -1) {
@@ -3352,9 +3354,8 @@ rb_f_backquote(VALUE obj, SEL sel, VALUE str)
 	io_s->pid = -1;
     }
 
-    VALUE outbuf = rb_bstr_new();
-    rb_io_read_all(ExtractIOStruct(io), outbuf);
     rb_io_close(io);
+
     rb_str_force_encoding(outbuf, rb_encodings[ENCODING_UTF8]);
     return outbuf;
 }
