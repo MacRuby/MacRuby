@@ -343,6 +343,8 @@ RoxorVM::RoxorVM(void)
     parse_in_eval = false;
     has_ensure = false;
     return_from_block = -1;
+    current_super_class = NULL;
+    current_super_sel = 0;
 }
 
 static inline void *
@@ -402,6 +404,8 @@ RoxorVM::RoxorVM(const RoxorVM &vm)
     has_ensure = false;
     return_from_block = -1;
     throw_exc = NULL;
+    current_super_class = NULL;
+    current_super_sel = 0;
 }
 
 RoxorVM::~RoxorVM(void)

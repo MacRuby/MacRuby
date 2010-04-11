@@ -37,8 +37,9 @@ typedef struct rb_vm_local {
 				// (temporary)
 
 typedef struct rb_vm_block {
-    int flags; 	// IMPORTANT: this field should always be at the beginning.
-		// Look at how rb_vm_take_ownership() is called in compiler.cpp.
+    // IMPORTANT: the flags field should always be at the beginning.
+    // Look at how rb_vm_take_ownership() is called in compiler.cpp.
+    int flags;
     VALUE proc; // a reference to a Proc object, or nil.
     VALUE self;
     VALUE klass;
@@ -50,9 +51,9 @@ typedef struct rb_vm_block {
     struct rb_vm_var_uses **parent_var_uses;
     struct rb_vm_block *parent_block;
     int dvars_size;
+    // IMPORTANT: do not add fields after dvars, because it would mess with
+    // the way the structure is allocated.
     VALUE *dvars[1];
-    // ATTENTION: do not add fields here, because it would mess with the way
-    // the structure is allocated regarding the dvars buffer!
 } rb_vm_block_t;
 
 typedef struct {
@@ -932,6 +933,8 @@ class RoxorVM {
 	bool parse_in_eval;
 	bool has_ensure;
 	int return_from_block;
+	Class current_super_class;
+	SEL current_super_sel;	
 
 	RoxorCatchThrowException *throw_exc;
 
@@ -956,6 +959,8 @@ class RoxorVM {
 	ACCESSOR(has_ensure, bool);
 	ACCESSOR(return_from_block, int);
 	ACCESSOR(throw_exc, RoxorCatchThrowException *);
+	ACCESSOR(current_super_class, Class);
+	ACCESSOR(current_super_sel, SEL);
 
 	std::string debug_blocks(void);
 

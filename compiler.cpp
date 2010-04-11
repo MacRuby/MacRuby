@@ -4230,7 +4230,7 @@ rescan_args:
 			//	// ...
 			//	SEL super_sel = sel;
 			//  	if (super_sel == 0) {
-			//		super_sel = <hardcoded-mid>;
+			//	    super_sel = <hardcoded-mid>;
 			//	}
 			//	rb_vm_dispatch(..., super_sel, ...);
 			Function *f = bb->getParent();

@@ -48,7 +48,7 @@ __rb_vm_fix_args(const VALUE *argv, VALUE *new_argv,
 	}
 	else if (i < arity.left_req + opt_args) {
 	    // optional args
-	    int opt_arg_index = i - arity.left_req;
+	    const int opt_arg_index = i - arity.left_req;
 	    if (opt_arg_index >= used_opt_args) {
 		new_argv[i] = Qundef;
 	    }
@@ -58,7 +58,7 @@ __rb_vm_fix_args(const VALUE *argv, VALUE *new_argv,
 	}
 	else if (i == rest_pos) {
 	    // rest
-	    int rest_size = argc - arity.real + 1;
+	    const int rest_size = argc - arity.real + 1;
 	    if (rest_size <= 0) {
 		new_argv[i] = rb_ary_new();
 	    }
@@ -86,7 +86,8 @@ __rb_vm_bcall(VALUE self, SEL sel, VALUE dvars, rb_vm_block_t *b,
 
     assert(pimp != NULL);
 
-    VALUE (*imp)(VALUE, SEL, VALUE, rb_vm_block_t *,  ...) = (VALUE (*)(VALUE, SEL, VALUE, rb_vm_block_t *, ...))pimp;
+    VALUE (*imp)(VALUE, SEL, VALUE, rb_vm_block_t *,  ...) =
+	(VALUE (*)(VALUE, SEL, VALUE, rb_vm_block_t *, ...))pimp;
 
     switch (argc) {
 	case 0:
@@ -98,23 +99,27 @@ __rb_vm_bcall(VALUE self, SEL sel, VALUE dvars, rb_vm_block_t *b,
 	case 3:
 	    return (*imp)(self, sel, dvars, b, argv[0], argv[1], argv[2]);
 	case 4:
-	    return (*imp)(self, sel, dvars, b, argv[0], argv[1], argv[2], argv[3]);
+	    return (*imp)(self, sel, dvars, b, argv[0], argv[1], argv[2],
+		    argv[3]);
 	case 5:
-	    return (*imp)(self, sel, dvars, b, argv[0], argv[1], argv[2], argv[3], argv[4]);
+	    return (*imp)(self, sel, dvars, b, argv[0], argv[1], argv[2],
+		    argv[3], argv[4]);
 	case 6:
-	    return (*imp)(self, sel, dvars, b, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5]);
+	    return (*imp)(self, sel, dvars, b, argv[0], argv[1], argv[2],
+		    argv[3], argv[4], argv[5]);
 	case 7:
-	    return (*imp)(self, sel, dvars, b, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
+	    return (*imp)(self, sel, dvars, b, argv[0], argv[1], argv[2],
+		    argv[3], argv[4], argv[5], argv[6]);
 	case 8:
-	    return (*imp)(self, sel, dvars, b, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7]);
+	    return (*imp)(self, sel, dvars, b, argv[0], argv[1], argv[2],
+		    argv[3], argv[4], argv[5], argv[6], argv[7]);
 	case 9:
-	    return (*imp)(self, sel, dvars, b, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8]);
+	    return (*imp)(self, sel, dvars, b, argv[0], argv[1], argv[2],
+		    argv[3], argv[4], argv[5], argv[6], argv[7], argv[8]);
     }
 
-    rb_vm_long_arity_bstub_t *stub;
-
-    stub = (rb_vm_long_arity_bstub_t *)GET_CORE()->gen_large_arity_stub(argc,
-	true);
+    rb_vm_long_arity_bstub_t *stub = (rb_vm_long_arity_bstub_t *)
+	GET_CORE()->gen_large_arity_stub(argc, true);
     return (*stub)(pimp, (id)self, sel, dvars, b, argc, argv);
 }
 
@@ -145,24 +150,31 @@ __rb_vm_rcall(VALUE self, SEL sel, IMP pimp, const rb_vm_arity_t &arity,
 	case 4:
 	    return (*imp)(self, sel, argv[0], argv[1], argv[2], argv[3]);
 	case 5:
-	    return (*imp)(self, sel, argv[0], argv[1], argv[2], argv[3], argv[4]);
+	    return (*imp)(self, sel, argv[0], argv[1], argv[2], argv[3],
+		    argv[4]);
 	case 6:
-	    return (*imp)(self, sel, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5]);
+	    return (*imp)(self, sel, argv[0], argv[1], argv[2], argv[3],
+		    argv[4], argv[5]);
 	case 7:
-	    return (*imp)(self, sel, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
+	    return (*imp)(self, sel, argv[0], argv[1], argv[2], argv[3],
+		    argv[4], argv[5], argv[6]);
 	case 8:
-	    return (*imp)(self, sel, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7]);
+	    return (*imp)(self, sel, argv[0], argv[1], argv[2], argv[3],
+		    argv[4], argv[5], argv[6], argv[7]);
 	case 9:
-	    return (*imp)(self, sel, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8]);
+	    return (*imp)(self, sel, argv[0], argv[1], argv[2], argv[3],
+		    argv[4], argv[5], argv[6], argv[7], argv[8]);
 	case 10:
-	    return (*imp)(self, sel, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8], argv[9]);
+	    return (*imp)(self, sel, argv[0], argv[1], argv[2], argv[3],
+		    argv[4], argv[5], argv[6], argv[7], argv[8], argv[9]);
 	case 11:
-	    return (*imp)(self, sel, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8], argv[9], argv[10]);
+	    return (*imp)(self, sel, argv[0], argv[1], argv[2], argv[3],
+		    argv[4], argv[5], argv[6], argv[7], argv[8], argv[9],
+		    argv[10]);
     }
 
-    rb_vm_long_arity_stub_t *stub;
-
-    stub = (rb_vm_long_arity_stub_t *)GET_CORE()->gen_large_arity_stub(argc);
+    rb_vm_long_arity_stub_t *stub = (rb_vm_long_arity_stub_t *)
+	GET_CORE()->gen_large_arity_stub(argc);
     return (*stub)(pimp, (id)self, sel, argc, argv);
 }
 
@@ -203,7 +215,7 @@ helper_sel(const char *p, size_t len)
     if (len >= 3 && isalpha(p[len - 3]) && p[len - 2] == '='
 	&& p[len - 1] == ':') {
 
-	/* foo=: -> setFoo: shortcut */
+	// foo=: -> setFoo: shortcut
 	snprintf(buf, sizeof buf, "set%s", p);
 	buf[3] = toupper(buf[3]);
 	buf[len + 1] = ':';
@@ -211,98 +223,50 @@ helper_sel(const char *p, size_t len)
 	new_sel = sel_registerName(buf);
     }
     else if (len > 1 && p[len - 1] == '?') {
-	/* foo?: -> isFoo: shortcut */
+	// foo?: -> isFoo: shortcut
 	snprintf(buf, sizeof buf, "is%s", p);
 	buf[2] = toupper(buf[2]);
 	buf[len + 1] = '\0';
 	new_sel = sel_registerName(buf);
     }
     else if (strcmp(p, "[]:") == 0) {
+	// []: -> objectForKey: shortcut
 	new_sel = selObjectForKey;
     }
     else if (strcmp(p, "[]=:") == 0) {
+	// []=: -> setObjectForKey: shortcut
 	new_sel = selSetObjectForKey;
     }
 
     return new_sel;
 }
 
-static IMP
-objc_imp(IMP imp)
-{
-    rb_vm_method_node_t *node = GET_CORE()->method_node_get(imp);
-    if (node != NULL && node->ruby_imp == imp) {
-	imp = node->objc_imp;
-    }
-    return imp;
-}
-
 static Method
-rb_vm_super_lookup(VALUE klass, SEL sel)
+rb_vm_super_lookup(Class klass, SEL sel, Class *super_class_p)
 {
     // Locate the current method implementation.
-    Class k = (Class)klass;
-    IMP self;
-    while (true) {
-	Method m = class_getInstanceMethod(k, sel);
-	if (m == NULL) {
-	    // The given selector does not exist, let's go through
-	    // #method_missing...
-	    return NULL; 
-	}
-	assert(m != NULL);
-	self = method_getImplementation(m);
-	if (UNAVAILABLE_IMP(self)) {
-	    k = class_getSuperclass(k);
-	    assert(k != NULL);
-	}
-	else {
-	    break;
-	}
+    Class self_class = klass;
+    Method method = class_getInstanceMethod(self_class, sel);
+    if (method == NULL) {
+	// The given selector does not exist, let's go through
+	// #method_missing...
+	*super_class_p = NULL;
+	return NULL; 
     }
+    IMP self_imp = method_getImplementation(method);
 
-    // Compute the stack call implementations right after our current method.
-    void *callstack[128];
-    int callstack_n = backtrace(callstack, 128);
-    std::vector<void *> callstack_funcs;
-    bool skip = true;
-    for (int i = callstack_n - 1; i >= 0; i--) {
-	void *start = NULL;
-	if (GET_CORE()->symbolize_call_address(callstack[i],
-		    &start, NULL, 0, NULL, NULL, 0)) {
-	    start = (void *)objc_imp((IMP)start);
-	    if (start == (void *)self) {
-		skip = false;
-	    }
-	    if (!skip) {
-		callstack_funcs.push_back(start);
-	    }
-	}
-    }
-
-    // Iterate over ancestors and return the first method that isn't on
-    // the stack.
-    VALUE ary = rb_mod_ancestors_nocopy(klass);
+    // Iterate over ancestors, locate the current class and return the
+    // super method, if it exists.
+    VALUE ary = rb_mod_ancestors_nocopy((VALUE)klass);
     const int count = RARRAY_LEN(ary);
     bool klass_located = false;
-
 #if ROXOR_VM_DEBUG
     printf("locating super method %s of class %s in ancestor chain %s\n", 
-	    sel_getName(sel), rb_class2name(klass),
+	    sel_getName(sel), rb_class2name((VALUE)klass),
 	    RSTRING_PTR(rb_inspect(ary)));
-    printf("callstack functions: ");
-    for (std::vector<void *>::iterator iter = callstack_funcs.begin();
-	 iter != callstack_funcs.end();
-	 ++iter) {
-	printf("%p ", *iter);
-    }
-    printf("\n");
 #endif
-
-    //assert(!callstack_funcs.empty());
-
     for (int i = 0; i < count; i++) {
-        if (!klass_located && RARRAY_AT(ary, i) == klass) {
+        if (!klass_located && RARRAY_AT(ary, i) == (VALUE)self_class) {
             klass_located = true;
         }
         if (klass_located) {
@@ -310,32 +274,33 @@ rb_vm_super_lookup(VALUE klass, SEL sel)
                 VALUE k = RARRAY_AT(ary, i + 1);
 
 		Method method = class_getInstanceMethod((Class)k, sel);
-		VALUE super = RCLASS_SUPER(k);
-
 		if (method == NULL) {
 		    continue;
 		}
 
 		IMP imp = method_getImplementation(method);
-		if (UNAVAILABLE_IMP(imp)
-		    || (super != 0 && class_getInstanceMethod((Class)super,
-			    sel) == method)) {
+		if (imp == self_imp || UNAVAILABLE_IMP(imp)) {
 		    continue;
 		}
 
-		if (std::find(callstack_funcs.begin(), callstack_funcs.end(), 
-			    (void *)imp) == callstack_funcs.end()) {
-		    // Method is not on stack.
-#if ROXOR_VM_DEBUG
-		    printf("returning method implementation %p " \
-		    	   "from class/module %s\n", imp, rb_class2name(k));
-#endif
-		    return method;
+		VALUE super = RCLASS_SUPER(k);
+		if (super != 0 && class_getInstanceMethod((Class)super,
+			    sel) == method) {
+		    continue;
 		}
+
+#if ROXOR_VM_DEBUG
+		printf("returning method %p of class %s (#%d)\n",
+			method, rb_class2name(k), i + 1);
+#endif
+
+		*super_class_p = (Class)k;
+		return method;
             }
         }
     }
 
+    *super_class_p = NULL;
     return NULL;
 }
 
@@ -574,6 +539,18 @@ reinstall_method_maybe(Class klass, SEL sel, const char *types)
     return true;
 }
 
+static inline bool
+sel_equal(Class klass, SEL x, SEL y)
+{
+    if (x == y) {
+	return true;
+    }
+
+    IMP x_imp = class_getMethodImplementation(klass, x);
+    IMP y_imp = class_getMethodImplementation(klass, y);
+    return x_imp == y_imp;
+}
+
 static force_inline VALUE
 __rb_vm_dispatch(RoxorVM *vm, struct mcache *cache, VALUE top, VALUE self,
 	Class klass, SEL sel, rb_vm_block_t *block, unsigned char opt,
@@ -595,6 +572,16 @@ __rb_vm_dispatch(RoxorVM *vm, struct mcache *cache, VALUE top, VALUE self,
 #endif
     bool cache_method = true;
 
+    Class current_super_class = vm->get_current_super_class();
+    SEL current_super_sel = vm->get_current_super_sel();
+
+    // XXX: super method cache is disabled because it causes random runtime
+    // bugs in rails. Instead of fixing the problem, we wait for the new
+    // method cache implementation which should be different (and thread-safe).
+    if (opt == DISPATCH_SUPER) {
+	cache->flag = 0;
+    }
+
     if (cache->flag == 0) {
 recache:
 #if ROXOR_VM_DEBUG
@@ -603,7 +590,12 @@ recache:
 
 	Method method;
 	if (opt == DISPATCH_SUPER) {
-	    method = rb_vm_super_lookup((VALUE)klass, sel);
+	    if (!sel_equal(klass, current_super_sel, sel)) {
+		current_super_sel = sel;
+		current_super_class = klass;
+	    }
+	    method = rb_vm_super_lookup(current_super_class, sel,
+		    &current_super_class);
 	}
 	else {
 	    method = class_getInstanceMethod(klass, sel);
@@ -747,7 +739,7 @@ dispatch:
 	}
 
 #if ROXOR_VM_DEBUG
-	printf("ruby dispatch %c[<%s %p> %s] (imp %p block %p argc %d opt %d cached %s)\n",
+	printf("ruby dispatch %c[<%s %p> %s] (imp %p block %p argc %d opt %d cache %p cached %s)\n",
 		class_isMetaClass(klass) ? '+' : '-',
 		class_getName(klass),
 		(void *)self,
@@ -756,6 +748,7 @@ dispatch:
 		block,
 		argc,
 		opt,
+		cache,
 		cached ? "true" : "false");
 #endif
 
@@ -766,14 +759,24 @@ dispatch:
 	}
 	vm->set_current_class(NULL);
 
+	Class old_current_super_class = vm->get_current_super_class();
+	vm->set_current_super_class(current_super_class);
+	SEL old_current_super_sel = vm->get_current_super_sel();
+	vm->set_current_super_sel(current_super_sel);
+
 	struct Finally {
 	    bool block_already_current;
 	    Class current_class;
+	    Class current_super_class;
+	    SEL current_super_sel;
 	    RoxorVM *vm;
 	    Finally(bool _block_already_current, Class _current_class,
+		    Class _current_super_class, SEL _current_super_sel,
 		    RoxorVM *_vm) {
 		block_already_current = _block_already_current;
 		current_class = _current_class;
+		current_super_class = _current_super_class;
+		current_super_sel = _current_super_sel;
 		vm = _vm;
 	    }
 	    ~Finally() {
@@ -782,8 +785,11 @@ dispatch:
 		}
 		vm->set_current_class(current_class);
 		vm->pop_broken_with();
+		vm->set_current_super_class(current_super_class);
+		vm->set_current_super_sel(current_super_sel);
 	    }
-	} finalizer(block_already_current, current_klass, vm);
+	} finalizer(block_already_current, current_klass,
+		old_current_super_class, old_current_super_sel, vm);
 
 	// DTrace probe: method__entry
 	if (MACRUBY_METHOD_ENTRY_ENABLED()) {
