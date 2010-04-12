@@ -3,26 +3,44 @@ FixtureCompiler.require! "method"
 
 require File.join(FIXTURES, 'method')
 
+class SubclassedTestMethod < TestMethod
+  def setFoo(x)
+    super(x * 2)
+  end
+  
+  def isFoo
+    !super
+  end
+end
+
 describe "A pure Objective-C method" do
   before :each do
     @o = TestMethod.new
   end
 
-  it "can be called with #foo= if it matches the #setFoo pattern" do
-    @o.should respond_to(:'setFoo')
-    @o.should respond_to(:'foo=')
+  it "can be called with #foo= if it matches the #setFoo pattern, also when overridden from Ruby" do
+    o2 = SubclassedTestMethod.new
+    [
+      [@o, 123, 123, 456, 456],
+      [o2, 123, 246, 456, 912]
+    ].each do |o, v1, rv1, v2, rv2|
+      o.should respond_to(:'setFoo')
+      o.should respond_to(:'foo=')
 
-    @o.setFoo(123)
-    @o.foo.should == 123
-    @o.foo = 456
-    @o.foo.should == 456
+      o.setFoo(v1)
+      o.foo.should == rv1
+      o.foo = v2
+      o.foo.should == rv2
+    end
   end
 
-  it "can be called with #foo? if it matches the #isFoo pattern" do
-    @o.should respond_to(:'isFoo')
-    @o.should respond_to(:'foo?')
-
-    @o.foo?.should equal(@o.isFoo)
+  it "can be called with #foo? if it matches the #isFoo pattern, also when overridden from Ruby" do
+    o2 = SubclassedTestMethod.new
+    [@o, o2].each do |o|
+      o.should respond_to(:'isFoo')
+      o.should respond_to(:'foo?')
+      o.foo?.should equal(o.isFoo)
+    end
   end
 
   it "is only exposed in #methods if the second argument is true" do

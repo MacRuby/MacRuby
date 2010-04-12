@@ -677,24 +677,26 @@ recache2:
 		}
 	    }
 
-	    // Let's try to see if we are not given a helper selector.
-	    SEL new_sel = helper_sel(selname, selname_len);
-	    if (new_sel != NULL) {
-		Method m = class_getInstanceMethod(klass, new_sel);
-		if (m != NULL) {
-		    if (GET_CORE()->method_node_get(m) == NULL) {
-			sel = new_sel;
-			method = m;
-			// We need to invert arguments because
-			// #[]= and setObject:forKey: take arguments
-			// in a reverse order
-			if (new_sel == selSetObjectForKey && argc == 2) {
-			    VALUE swap = argv[0];
-			    ((VALUE *)argv)[0] = argv[1];
-			    ((VALUE *)argv)[1] = swap;
-			    cache_method = false;
-			}
-			goto recache2;
+	    // Enable helpers for classes which are not RubyObject based.
+	    if ((RCLASS_VERSION(klass) & RCLASS_IS_OBJECT_SUBCLASS)
+		!= RCLASS_IS_OBJECT_SUBCLASS) {
+		// Let's try to see if we are not given a helper selector.
+		SEL new_sel = helper_sel(selname, selname_len);
+		if (new_sel != NULL) {
+		    Method m = class_getInstanceMethod(klass, new_sel);
+		    if (m != NULL) {
+		    	sel = new_sel;
+		    	method = m;
+		    	// We need to invert arguments because
+		    	// #[]= and setObject:forKey: take arguments
+		    	// in a reverse order
+		    	if (new_sel == selSetObjectForKey && argc == 2) {
+		    	    VALUE swap = argv[0];
+		    	    ((VALUE *)argv)[0] = argv[1];
+		    	    ((VALUE *)argv)[1] = swap;
+		    	    cache_method = false;
+		    	}
+		    	goto recache2;
 		    }
 		}
 	    }
