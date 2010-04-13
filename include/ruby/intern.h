@@ -205,6 +205,7 @@ VALUE rb_f_notimplement(VALUE rcv, SEL sel);
 VALUE rb_exc_new(VALUE, const char*, long);
 VALUE rb_exc_new2(VALUE, const char*);
 VALUE rb_exc_new3(VALUE, VALUE);
+VALUE rb_format_exception_message(VALUE exc);
 PRINTF_ARGS(NORETURN(void rb_loaderror(const char*, ...)), 1, 2);
 PRINTF_ARGS(NORETURN(void rb_name_error(ID, const char*, ...)), 2, 3);
 NORETURN(void rb_invalid_str(const char*, const char*));

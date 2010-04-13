@@ -3837,29 +3837,7 @@ rb_vm_print_current_exception(void)
 	printf("uncaught Objective-C/C++ exception...\n");
 	std::terminate();
     }
-
-    VALUE message = rb_vm_call(exc, sel_registerName("message"), 0, NULL,
-	    false);
-    VALUE bt = rb_vm_call(exc, sel_registerName("backtrace"), 0, NULL,
-	    false);
-
-    const long count = (bt != Qnil ? RARRAY_LEN(bt) : 0);
-    if (count > 0) {
-	for (long i = 0; i < count; i++) {
-	    const char *bte = RSTRING_PTR(RARRAY_AT(bt, i));
-	    if (i == 0) {
-		printf("%s: %s (%s)\n", bte, RSTRING_PTR(message),
-			rb_class2name(*(VALUE *)exc));
-	    }
-	    else {
-		printf("\tfrom %s\n", bte);
-	    }
-	}
-    }
-    else {
-	printf("%s (%s)\n", RSTRING_PTR(message),
-		rb_class2name(*(VALUE *)exc));
-    }
+    printf("%s", rb_str_cstr(rb_format_exception_message(exc)));
 }
 
 extern "C"

@@ -1215,6 +1215,38 @@ rb_check_frozen(VALUE obj)
     if (OBJ_FROZEN(obj)) rb_error_frozen(rb_obj_classname(obj));
 }
 
+VALUE
+rb_format_exception_message(VALUE exc)
+{
+    VALUE message = rb_vm_call(exc, sel_registerName("message"), 0, NULL,
+	    false);
+    VALUE bt = rb_vm_call(exc, sel_registerName("backtrace"), 0, NULL,
+	    false);
+
+    CFMutableStringRef result = CFStringCreateMutable(NULL, 0);
+
+    const long count = (bt != Qnil ? RARRAY_LEN(bt) : 0);
+    if (count > 0) {
+	for (long i = 0; i < count; i++) {
+	    const char *bte = RSTRING_PTR(RARRAY_AT(bt, i));
+	    if (i == 0) {
+		CFStringAppendFormat(result, NULL, CFSTR("%s: %s (%s)\n"),
+		    bte, RSTRING_PTR(message), rb_class2name(*(VALUE *)exc));
+	    }
+	    else {
+		CFStringAppendFormat(result, NULL, CFSTR("\tfrom %s\n"), bte);
+	    }
+	}
+    }
+    else {
+	CFStringAppendFormat(result, NULL, CFSTR("%s (%s)\n"),
+	    RSTRING_PTR(message), rb_class2name(*(VALUE *)exc));
+    }
+
+    CFMakeCollectable(result);
+    return (VALUE)result;
+}
+
 void
 Init_syserr(void)
 {

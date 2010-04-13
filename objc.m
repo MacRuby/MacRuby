@@ -606,7 +606,7 @@ id
 rb_rb2oc_exception(VALUE exc)
 {
     NSString *name = [NSString stringWithUTF8String:rb_obj_classname(exc)];
-    NSString *reason = [(id)exc performSelector:@selector(message)];
+    NSString *reason = (NSString *)rb_format_exception_message(exc);
 #if 0
     // This is technically not required, and it seems that some exceptions
     // don't like to be treated like NSDictionary values...
