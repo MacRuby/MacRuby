@@ -233,6 +233,8 @@ rb_ocid_to_rval(id obj)
 
 void rb_objc_exception_raise(const char *name, const char *message);
 
+bool rb_objc_ignore_sel(SEL sel);
+
 #if defined(__cplusplus)
 }
 #endif

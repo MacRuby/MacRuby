@@ -88,7 +88,6 @@ extern SEL selCopy;
 extern SEL selMutableCopy;
 extern SEL selToS;
 extern SEL selToAry;
-extern SEL sel_ignored;
 extern SEL sel_zone;
 extern SEL selSend;
 extern SEL sel__send__;

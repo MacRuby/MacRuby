@@ -635,6 +635,16 @@ rb_objc_exception_raise(const char *name, const char *message)
 	reason:[NSString stringWithUTF8String:message] userInfo:nil] raise];
 }
 
+bool
+rb_objc_ignore_sel(SEL sel)
+{
+  return sel == @selector(retain)
+      || sel == @selector(release)
+      || sel == @selector(autorelease)
+      || sel == @selector(retainCount)
+      || sel == @selector(dealloc);
+}
+
 size_t
 rb_objc_type_size(const char *type)
 {
