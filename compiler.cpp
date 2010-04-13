@@ -5428,6 +5428,18 @@ rescan_args:
 	    }
 	    break;
 
+	case NODE_PRELUDE:
+	    {
+		assert(node->nd_head != NULL);
+		compile_node(node->nd_head);
+
+		if (node->nd_body != NULL) {
+		    compile_node(node->nd_body);
+		}
+
+		return nilVal;
+	    }
+
 	case NODE_POSTEXE:
 	    {
 		assert(node->nd_body != NULL);
