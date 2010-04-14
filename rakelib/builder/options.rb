@@ -115,8 +115,8 @@ LDFLAGS = `#{LLVM_CONFIG} --ldflags --libs #{LLVM_MODULES}`.strip.gsub(/\n/, '')
 LDFLAGS << " -lpthread -ldl -lxml2 -lobjc -lauto -licucore -framework Foundation"
 DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION}"
 DLDFLAGS << " -unexported_symbols_list #{UNEXPORTED_SYMBOLS_LIST}" if UNEXPORTED_SYMBOLS_LIST
-CFLAGS << " -std=gnu99" # we add this one later to not conflict with C++ flags
-OBJC_CFLAGS << " -std=gnu99"
+CFLAGS << " -std=c99" # we add this one later to not conflict with C++ flags
+OBJC_CFLAGS << " -std=c99"
 
 if `sw_vers -productVersion`.to_f <= 10.6
   CFLAGS << " -I./icu-1060"

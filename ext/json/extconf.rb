@@ -3,6 +3,6 @@ require 'mkmf'
 require 'rbconfig'
 
 $INCFLAGS << ' -I../..'
-$CFLAGS << ' -Wall -std=gnu99'
+$CFLAGS << ' -Wall -std=c99'
 
 create_makefile("json")

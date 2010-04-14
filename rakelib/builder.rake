@@ -3,7 +3,7 @@ require File.expand_path('../builder/builder', __FILE__)
 desc "Build the markgc tool"
 task :mark_gc do
   if !File.exist?('markgc')
-    sh "/usr/bin/gcc -std=gnu99 markgc.c -o markgc -Wno-format"
+    sh "/usr/bin/gcc -std=c99 markgc.c -o markgc -Wno-format"
   end
 end
 
