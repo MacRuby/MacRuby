@@ -1889,8 +1889,8 @@ take_items(VALUE obj, long n)
     args[0] = result;
     args[1] = (VALUE)n;
     
-    rb_objc_block_call(obj, selEach, cacheEach, 0, 0,
-	    (VALUE(*)(ANYARGS))take_i, (VALUE)args);
+    rb_objc_block_call(obj, selEach, 0, 0, (VALUE(*)(ANYARGS))take_i,
+	    (VALUE)args);
 
     return result;
 }

@@ -268,7 +268,6 @@ RoxorCompiler::compile_single_when_argument(NODE *arg, Value *comparedToVal,
     Value *condVal;
     if (comparedToVal != NULL) {
 	std::vector<Value *> params;
-	params.push_back(compile_mcache(selEqq, false));
 	params.push_back(current_self);
 	params.push_back(subnodeVal);
 	params.push_back(compile_sel(selEqq));
@@ -425,12 +424,12 @@ RoxorCompiler::compile_fast_op_call(SEL sel, Value *selfVal, Value *otherVal)
 {
     Function *func = NULL;
 
-    // VALUE rb_vm_fast_op(struct mcache *cache, VALUE left, VALUE right);
+    // VALUE rb_vm_fast_op(VALUE left, VALUE right);
 #define fast_op(storage, name) \
     do { \
 	if (storage == NULL) { \
 	    storage = cast<Function>(module->getOrInsertFunction(name, \
-			RubyObjTy, PtrTy, RubyObjTy, RubyObjTy, NULL)); \
+			RubyObjTy, RubyObjTy, RubyObjTy, NULL)); \
 	} \
 	func = storage; \
     } \
@@ -474,7 +473,6 @@ RoxorCompiler::compile_fast_op_call(SEL sel, Value *selfVal, Value *otherVal)
     }
 
     std::vector<Value *> params;
-    params.push_back(compile_mcache(sel, false));
     params.push_back(selfVal);
     params.push_back(otherVal);
 
@@ -485,17 +483,15 @@ Value *
 RoxorCompiler::compile_when_splat(Value *comparedToVal, Value *splatVal)
 {
     if (whenSplatFunc == NULL) {
-	// VALUE rb_vm_when_splat(struct mcache *cache,
-	//			  unsigned char overriden,
-	//			  VALUE comparedTo, VALUE splat)
+	// VALUE rb_vm_when_splat(unsigned char overriden,
+	//	VALUE comparedTo, VALUE splat)
 	whenSplatFunc = cast<Function>
 	    (module->getOrInsertFunction("rb_vm_when_splat",
-					 RubyObjTy, PtrTy, Int1Ty,
-					 RubyObjTy, RubyObjTy, NULL));
+					 RubyObjTy, Int1Ty, RubyObjTy,
+					 RubyObjTy, NULL));
     }
 
     std::vector<Value *> params;
-    params.push_back(compile_mcache(selEqq, false));
     GlobalVariable *is_redefined = GET_CORE()->redefined_op_gvar(selEqq, true);
     params.push_back(new LoadInst(is_redefined, "", bb));
     params.push_back(comparedToVal);
@@ -568,55 +564,6 @@ RoxorCompiler::compile_const_global_string(const char *str,
     }
 
     return gvar;
-}
-
-Value *
-RoxorCompiler::compile_get_mcache(Value *sel, bool super)
-{
-    if (getCacheFunc == NULL) {
-	// void *rb_vm_get_call_cache2(SEL sel, unsigned char super);
-	getCacheFunc = 
-	    cast<Function>(module->getOrInsertFunction(
-			"rb_vm_get_call_cache2", PtrTy, PtrTy, Int8Ty,
-			NULL));
-    }
-
-    std::vector<Value *> params;
-    params.push_back(sel);
-    params.push_back(ConstantInt::get(Int8Ty, super ? 1 : 0));
-
-    return CallInst::Create(getCacheFunc, params.begin(), params.end(), "", bb);
-}
-
-Value *
-RoxorCompiler::compile_mcache(SEL sel, bool super)
-{
-    struct mcache *cache = GET_CORE()->method_cache_get(sel, super);
-    return compile_const_pointer(cache);
-}
-
-Value *
-RoxorAOTCompiler::compile_mcache(SEL sel, bool super)
-{
-    if (super) {
-	char buf[100];
-	snprintf(buf, sizeof buf, "__super__:%s", sel_getName(sel));
-        sel = sel_registerName(buf);
-    }
-
-    GlobalVariable *gvar;
-    std::map<SEL, GlobalVariable *>::iterator iter = mcaches.find(sel);
-    if (iter == mcaches.end()) {
-	gvar = new GlobalVariable(*RoxorCompiler::module, PtrTy, false,
-		GlobalValue::InternalLinkage, Constant::getNullValue(PtrTy),
-		"");
-	assert(gvar != NULL);
-	mcaches[sel] = gvar;
-    }
-    else {
-	gvar = iter->second;
-    }
-    return new LoadInst(gvar, "", bb);
 }
 
 Value *
@@ -757,10 +704,9 @@ Value *
 RoxorCompiler::compile_dispatch_call(std::vector<Value *> &params)
 {
     if (dispatcherFunc == NULL) {
-	// VALUE rb_vm_dispatch(struct mcache *cache, VALUE top, VALUE self,
-	// 	SEL sel, void *block, unsigned char opt, int argc, ...);
+	// VALUE rb_vm_dispatch(VALUE top, VALUE self, SEL sel, void *block,
+	//	unsigned char opt, int argc, ...);
 	std::vector<const Type *> types;
-	types.push_back(PtrTy);
 	types.push_back(RubyObjTy);
 	types.push_back(RubyObjTy);
 	types.push_back(PtrTy);
@@ -805,7 +751,6 @@ RoxorCompiler::compile_attribute_assign(NODE *node, Value *extra_val)
 
     std::vector<Value *> params;
     const SEL sel = mid_to_sel(mid, argc);
-    params.push_back(compile_mcache(sel, false));
     params.push_back(current_self);
     params.push_back(recv);
     params.push_back(compile_sel(sel));
@@ -2203,7 +2148,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    return NULL;
 	}
 	
-	Value *val = params[2]; // self
+	Value *val = params[1]; // self
 
 	Function *f = bb->getParent();
 
@@ -2236,7 +2181,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 
 	GlobalVariable *is_redefined = GET_CORE()->redefined_op_gvar(sel, true);
 	
-	Value *leftVal = params[2]; // self
+	Value *leftVal = params[1]; // self
 	Value *rightVal = params.back();
 
 	VALUE leftRVal = Qundef, rightRVal = Qundef;
@@ -2552,7 +2497,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    return NULL;
 	}
 
-	if (params.size() - argc > 7) {
+	if (params.size() - argc > 6) {
 	    // Looks like there is a splat argument there, we can't handle this
 	    // in the primitives.
 	    return NULL;
@@ -2561,31 +2506,34 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	Function *opt_func = NULL;
 
 	if (sel == selLTLT) {
-	    opt_func = cast<Function>(module->getOrInsertFunction("rb_vm_fast_shift",
-			RubyObjTy, RubyObjTy, RubyObjTy, PtrTy, Int1Ty, NULL));
+	    opt_func = cast<Function>(module->getOrInsertFunction(
+			"rb_vm_fast_shift",
+			RubyObjTy, RubyObjTy, RubyObjTy, Int1Ty, NULL));
 	}
 	else if (sel == selAREF) {
-	    opt_func = cast<Function>(module->getOrInsertFunction("rb_vm_fast_aref",
-			RubyObjTy, RubyObjTy, RubyObjTy, PtrTy, Int1Ty, NULL));
+	    opt_func = cast<Function>(module->getOrInsertFunction(
+			"rb_vm_fast_aref",
+			RubyObjTy, RubyObjTy, RubyObjTy, Int1Ty, NULL));
 	}
 	else if (sel == selASET) {
-	    opt_func = cast<Function>(module->getOrInsertFunction("rb_vm_fast_aset",
-			RubyObjTy, RubyObjTy, RubyObjTy, RubyObjTy, PtrTy,
-			Int1Ty, NULL));
+	    opt_func = cast<Function>(module->getOrInsertFunction(
+			"rb_vm_fast_aset",
+			RubyObjTy, RubyObjTy, RubyObjTy, RubyObjTy, Int1Ty,
+			NULL));
 	}
 	else {
 	    abort();
 	}
 
 	std::vector<Value *> new_params;
-	new_params.push_back(params[2]);		// self
+	new_params.push_back(params[1]);		// self
 	if (argc == 1) {
 	    new_params.push_back(params.back());	// other
 	}
 	else {
-	    new_params.insert(new_params.end(), params.end() - 2, params.end());
+	    new_params.insert(new_params.end(), params.end() - 2,
+		    params.end());
 	}
-	new_params.push_back(params[0]);		// cache
 
 	GlobalVariable *is_redefined = GET_CORE()->redefined_op_gvar(sel, true);
 	new_params.push_back(new LoadInst(is_redefined, "", bb));
@@ -2624,16 +2572,15 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 
 	bb = thenBB;
 	std::vector<Value *> new_params;
-	new_params.push_back(compile_mcache(new_sel, false));
 	// Compile a null top reference, to ignore protected visibility.
 	new_params.push_back(ConstantInt::get(RubyObjTy, 0));
-	new_params.push_back(params[2]);
+	new_params.push_back(params[1]);
 	new_params.push_back(compile_sel(new_sel));
-	new_params.push_back(params[4]);
+	new_params.push_back(params[3]);
 	new_params.push_back(ConstantInt::get(Int8Ty, DISPATCH_FCALL));
 	new_params.push_back(ConstantInt::get(Int32Ty, argc - 1));
 	for (int i = 0; i < argc - 1; i++) {
-	    new_params.push_back(params[8 + i]);
+	    new_params.push_back(params[7 + i]);
 	}
 	Value *thenVal = compile_dispatch_call(new_params);
 	thenBB = bb;
@@ -2651,118 +2598,6 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 
 	return pn;
     }
-#if 0
-    // XXX this optimization is disabled because it's buggy and not really
-    // interesting
-    // #eval
-    else if (sel == selEval) {
-
-	if (current_block_func != NULL || argc != 1) {
-	    return NULL;
-	}
-	Value *strVal = params.back();
-	if (!ConstantInt::classof(strVal)) {
-	    return NULL;
-	}
-	VALUE str = cast<ConstantInt>(strVal)->getZExtValue();
-	if (TYPE(str) != T_STRING) {
-	    return NULL;
-	}
-	// FIXME: 
-	// - pass the real file/line arguments
-	// - catch potential parsing exceptions
-	NODE *new_node = rb_compile_string("", str, 0);
-	if (new_node == NULL) {
-	    return NULL;
-	}
-	if (nd_type(new_node) != NODE_SCOPE || new_node->nd_body == NULL) {
-	    return NULL;
-	}
-
-	GlobalVariable *is_redefined = GET_VM()->redefined_op_gvar(sel, true);
-
-	Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
-	Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
-		is_redefined_val, ConstantInt::getFalse(), "", bb);
-
-	Function *f = bb->getParent();
-
-	BasicBlock *thenBB = BasicBlock::Create("op_not_redefined", f);
-	BasicBlock *elseBB = BasicBlock::Create("op_dispatch", f);
-	BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
-
-	BranchInst::Create(thenBB, elseBB, isOpRedefined, bb);
-
-	bb = thenBB;
-	Value *thenVal = compile_node(new_node->nd_body);
-	thenBB = bb;
-	BranchInst::Create(mergeBB, thenBB);
-
-	bb = elseBB;
-	Value *elseVal = compile_dispatch_call(params);
-	BranchInst::Create(mergeBB, elseBB);
-
-	bb = mergeBB;
-	PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
-	pn->addIncoming(thenVal, thenBB);
-	pn->addIncoming(elseVal, elseBB);
-
-	return pn;
-
-    }
-#endif
-#if 0
-    // TODO: block inlining optimization
-    else if (current_block_func != NULL) {
-	static SEL selTimes = 0;
-	if (selTimes == 0) {
-	    selTimes = rb_intern("times");
-	}
-
-	if (sel == selTimes && argc == 0) {
-	    Value *val = params[1]; // self
-
-	    long valLong;
-	    if (unbox_fixnum_constant(val, &valLong)) {
-		GlobalVariable *is_redefined = redefined_op_gvar(sel, true);
-
-		Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
-		Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, is_redefined_val, ConstantInt::getFalse(), "", bb);
-
-		Function *f = bb->getParent();
-
-		BasicBlock *thenBB = BasicBlock::Create("op_not_redefined", f);
-		BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
-		BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
-
-		BranchInst::Create(thenBB, elseBB, isOpRedefined, bb);
-		bb = thenBB;
-
-
-
-//		Val *mem = new AllocaInst(RubyObjTy, "", bb);
-//		new StoreInst(zeroVal, mem, "", bb);
-//		Val *i = LoadInst(mem, "", bb);
-		
-
-
-		Value *thenVal = val;
-		BranchInst::Create(mergeBB, thenBB);
-
-		Value *elseVal = dispatchCall;
-		elseBB->getInstList().push_back(dispatchCall);
-		BranchInst::Create(mergeBB, elseBB);
-
-		PHINode *pn = PHINode::Create(Type::Int32Ty, "op_tmp", mergeBB);
-		pn->addIncoming(thenVal, thenBB);
-		pn->addIncoming(elseVal, elseBB);
-		bb = mergeBB;
-
-		return pn;
-	    }
-	}
-    }
-#endif
     return NULL;
 }
 
@@ -3631,7 +3466,6 @@ RoxorCompiler::compile_node(NODE *node)
 		    assert(node->nd_next->nd_vid > 0);
 		    sel = mid_to_sel(node->nd_next->nd_vid, 0);
 		}
-		params.push_back(compile_mcache(sel, false));
 		params.push_back(current_self);
 		params.push_back(recv);
 		params.push_back(compile_sel(sel));
@@ -3691,7 +3525,6 @@ RoxorCompiler::compile_node(NODE *node)
 			? node->nd_mid : node->nd_next->nd_mid;
 		    sel = mid_to_sel(mid, 1);
 		    params.clear();
-		    params.push_back(compile_mcache(sel, false));
 		    params.push_back(current_self);
 		    params.push_back(tmp);
 		    params.push_back(compile_sel(sel));
@@ -3716,7 +3549,6 @@ RoxorCompiler::compile_node(NODE *node)
 		    sel = mid_to_sel(node->nd_next->nd_aid, 1);
 		}
 		params.clear();
-		params.push_back(compile_mcache(sel, false));
 		params.push_back(current_self);
 		params.push_back(recv);
 		params.push_back(compile_sel(sel));
@@ -3768,7 +3600,6 @@ RoxorCompiler::compile_node(NODE *node)
 		}
 
 		std::vector<Value *> params;
-		params.push_back(compile_mcache(selBackquote, false));
 		params.push_back(current_self);
 		params.push_back(current_self);
 		params.push_back(compile_sel(selBackquote));
@@ -4215,7 +4046,7 @@ rescan_args:
 		// Prepare the dispatcher parameters.
 		std::vector<Value *> params;
 
-		// Method cache (and prepare the selector).
+		// Prepare the selector.
 		Value *sel_val;
 		SEL sel;
 		if (mid != 0) {
@@ -4241,10 +4072,6 @@ rescan_args:
 				dyn_sel, compile_const_pointer(NULL));
 			sel_val = SelectInst::Create(is_null, sel_val, dyn_sel,
 				"", bb);
-			params.push_back(compile_get_mcache(sel_val, true));
-		    }
-		    else {
-			params.push_back(compile_mcache(sel, super_call));
 		    }
 		}
 		else {
@@ -4252,7 +4079,6 @@ rescan_args:
 		    // A super call outside a method definition. Compile a
 		    // null selector, the runtime will raise an exception.
 		    sel = 0;
-		    params.push_back(compile_const_pointer(NULL));
 		    sel_val = compile_const_pointer(NULL);
 		}
 
@@ -4364,7 +4190,7 @@ rescan_args:
 			blockVal = compile_const_pointer(NULL);
 		    }
 		}
-		params[4] = blockVal;
+		params[3] = blockVal;
 
 		// If we are calling a method that needs a top-level binding
 		// object, let's create it.
@@ -4641,7 +4467,6 @@ rescan_args:
 		}
 
 		std::vector<Value *> params;
-		params.push_back(compile_mcache(selEqTilde, false));
 		params.push_back(current_self);
 		params.push_back(reTarget);
 		params.push_back(compile_sel(selEqTilde));
@@ -5236,7 +5061,6 @@ rescan_args:
 		    // dispatch #each on the receiver
 		    std::vector<Value *> params;
 
-		    params.push_back(compile_mcache((is_lambda ? selLambda : selEach), false));
 		    params.push_back(current_self);
 
 		    if (!is_lambda) {
@@ -5252,9 +5076,11 @@ rescan_args:
 			params.push_back(current_self);
 		    }
 
-		    params.push_back(compile_sel((is_lambda ? selLambda : selEach)));
+		    params.push_back(compile_sel(is_lambda
+				? selLambda : selEach));
 		    params.push_back(compile_block_create());
-		    params.push_back(ConstantInt::get(Int8Ty, (is_lambda ? DISPATCH_FCALL : 0)));
+		    params.push_back(ConstantInt::get(Int8Ty, is_lambda
+				? DISPATCH_FCALL : 0));
 		    params.push_back(ConstantInt::get(Int32Ty, 0));
 
 		    caller = compile_dispatch_call(params);
@@ -5454,7 +5280,6 @@ rescan_args:
 
 		std::vector<Value *> params;
 		SEL sel = sel_registerName("at_exit");
-		params.push_back(compile_mcache(sel, false));
 		params.push_back(current_self);
 		params.push_back(compile_nsobject());
 		params.push_back(compile_sel(sel));
@@ -5543,36 +5368,6 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
     BasicBlock::InstListType &list = 
 	function->getEntryBlock().getInstList();
     bb = &function->getEntryBlock();
-
-    // Compile method caches.
-
-    Function *getMethodCacheFunc = cast<Function>(module->getOrInsertFunction(
-		"rb_vm_get_method_cache",
-		PtrTy, PtrTy, NULL));
-
-    for (std::map<SEL, GlobalVariable *>::iterator i = mcaches.begin();
-	 i != mcaches.end();
-	 ++i) {
-
-	SEL sel = i->first;
-	GlobalVariable *gvar = i->second;
-
-	std::vector<Value *> params;
-	Value *load = compile_sel(sel, false);
-	params.push_back(load);
-
-	Instruction *call = CallInst::Create(getMethodCacheFunc,
-		params.begin(), params.end(), "");
-
-	Instruction *assign = new StoreInst(call, gvar, "");
-
-	list.insert(list.begin(), assign);
-	list.insert(list.begin(), call);
-	Instruction *load_insn = dyn_cast<Instruction>(load);
-	if (load_insn != NULL) {
-	    list.insert(list.begin(), load_insn);
-	}
-    }
 
     // Compile constant caches.
 	

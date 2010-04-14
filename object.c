@@ -41,18 +41,11 @@ VALUE rb_cFalseClass;
 static ID id_eq, id_match, id_inspect, id_init_copy;
 
 static SEL eqlSel = 0;
-static void *eqlCache = NULL;
-
-static void *allocCache = NULL;
-static void *initializeCache = NULL;
-static void *initialize2Cache = NULL;
-static void *eqCache = NULL;
-static void *dupCache = NULL;
 
 inline VALUE
 rb_send_dup(VALUE obj)
 {
-    return rb_vm_call_with_cache(dupCache, obj, selDup, 0, NULL);
+    return rb_vm_call(obj, selDup, 0, NULL, false);
 }
 
 /*
@@ -70,7 +63,7 @@ rb_equal(VALUE obj1, VALUE obj2)
     if (obj1 == obj2) {
 	return Qtrue;
     }
-    VALUE result = rb_vm_call_with_cache(eqCache, obj1, selEq, 1, &obj2);
+    VALUE result = rb_vm_call(obj1, selEq, 1, &obj2, false);
     if (RTEST(result)) {
 	return Qtrue;
     }
@@ -86,7 +79,7 @@ rb_equal_imp(VALUE obj1, SEL sel, VALUE obj2)
 int
 rb_eql(VALUE obj1, VALUE obj2)
 {
-    return RTEST(rb_vm_call_with_cache(eqlCache, obj1, eqlSel, 1, &obj2));
+    return RTEST(rb_vm_call(obj1, eqlSel, 1, &obj2, false));
 }
 
 /*
@@ -147,7 +140,7 @@ rb_obj_not(VALUE obj, SEL sel)
 static VALUE
 rb_obj_not_equal(VALUE obj1, SEL sel, VALUE obj2)
 {
-    VALUE result = rb_vm_call_with_cache(eqCache, obj1, selEq, 1, &obj2);
+    VALUE result = rb_vm_call(obj1, selEq, 1, &obj2, false);
     return RTEST(result) ? Qfalse : Qtrue;
 }
 
@@ -1932,7 +1925,7 @@ rb_obj_alloc0(VALUE klass)
 	// Fast path!
 	return rb_robject_allocate_instance(klass);
     }
-    return rb_vm_call_with_cache(allocCache, klass, selAlloc, 0, NULL);
+    return rb_vm_call(klass, selAlloc, 0, NULL, false);
 }
 
 VALUE
@@ -1973,12 +1966,10 @@ rb_class_new_instance0(int argc, VALUE *argv, VALUE klass)
 
     rb_vm_block_t *block = rb_vm_current_block();
     if (argc == 0) {
-	rb_vm_call_with_cache2(initializeCache, block, obj, CLASS_OF(obj),
-		selInitialize, argc, argv);
+	rb_vm_call2(block, obj, CLASS_OF(obj), selInitialize, argc, argv);
     }
     else {
-	rb_vm_call_with_cache2(initialize2Cache, block, obj, CLASS_OF(obj),
-		selInitialize2, argc, argv);
+	rb_vm_call2(block, obj, CLASS_OF(obj), selInitialize2, argc, argv);
     }
 
     return obj;
@@ -2987,13 +2978,7 @@ Init_Object(void)
     RCLASS_SET_VERSION_FLAG(rb_cRubyObject, RCLASS_IS_OBJECT_SUBCLASS);
     rb_define_object_special_methods(rb_cRubyObject);
 
-    allocCache = rb_vm_get_call_cache(selAlloc);
-    initializeCache = rb_vm_get_call_cache(selInitialize);
-    initialize2Cache = rb_vm_get_call_cache(selInitialize2);
-    eqCache = rb_vm_get_call_cache(selEq);
-    dupCache = rb_vm_get_call_cache(selDup);
     eqlSel = sel_registerName("eql?:");
-    eqlCache = rb_vm_get_call_cache(eqlSel);
 
     rb_objc_define_method(*(VALUE *)rb_cModule, "alloc", rb_module_s_alloc, 0);
     rb_objc_define_method(*(VALUE *)rb_cClass, "alloc", rb_class_s_alloc, 0);

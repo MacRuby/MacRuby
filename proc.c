@@ -1063,8 +1063,12 @@ rb_method_call(VALUE method, SEL sel, int argc, VALUE *argv)
 	}
     }
 
+    VALUE result = Qnil;
+#if 0
+    // TODO
     VALUE result = rb_vm_call_with_cache2(data->cache, NULL, data->recv,
 	    data->oclass, data->sel, argc, argv);
+#endif
 
     if (safe >= 0) {
 	rb_set_safe_level_force(safe);

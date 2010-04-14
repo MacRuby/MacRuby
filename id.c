@@ -106,8 +106,6 @@ Init_id(void)
     selLambda = sel_registerName("lambda");
     selObjectForKey = sel_registerName("objectForKey:");
     selSetObjectForKey = sel_registerName("setObject:forKey:");
-
-    cacheEach = rb_vm_get_call_cache(selEach);
 #endif
 
     idAREF = rb_intern("[]");

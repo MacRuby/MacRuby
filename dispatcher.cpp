@@ -23,6 +23,7 @@
 #include <dlfcn.h>
 
 #define ROXOR_VM_DEBUG		0
+#define ROXOR_MCACHE_DEBUG	1
 #define MAX_DISPATCH_ARGS 	100
 
 static force_inline void
@@ -347,10 +348,8 @@ method_missing(VALUE obj, SEL sel, rb_vm_block_t *block, int argc,
 	return Qnil; // never reached
     }
     else {
-	struct mcache *cache = GET_CORE()->method_cache_get(selMethodMissing,
-		false);
-	return rb_vm_call_with_cache2(cache, block, obj, NULL, selMethodMissing,
-		argc + 1, new_argv);
+	return rb_vm_call2(block, obj, NULL, selMethodMissing, argc + 1,
+		new_argv);
     }
 }
 
@@ -551,16 +550,37 @@ sel_equal(Class klass, SEL x, SEL y)
     return x_imp == y_imp;
 }
 
-static force_inline VALUE
-__rb_vm_dispatch(RoxorVM *vm, struct mcache *cache, VALUE top, VALUE self,
-	Class klass, SEL sel, rb_vm_block_t *block, unsigned char opt,
-	int argc, const VALUE *argv)
+static inline int
+mcache_hash(Class klass, SEL sel)
 {
-    if (cache == NULL) {
-	if (sel == 0 && opt == DISPATCH_SUPER) {
+    return (((unsigned long)klass >> 3) ^ (unsigned long)sel)
+	& (MCACHE_SIZE - 1);
+}
+
+#if ROXOR_MCACHE_DEBUG
+static long cached_count = 0;
+static long collision_count = 0;
+#endif
+
+extern "C"
+void
+rb_vm_dispatch_finalize(void)
+{
+#if ROXOR_MCACHE_DEBUG
+    printf("cached count %ld, collision count %ld\n", cached_count,
+	    collision_count);
+#endif
+}
+
+static force_inline VALUE
+__rb_vm_dispatch(RoxorVM *vm, VALUE top, VALUE self, Class klass, SEL sel,
+	rb_vm_block_t *block, unsigned char opt, int argc, const VALUE *argv)
+{
+    if (sel == 0) {
+	if (opt == DISPATCH_SUPER) {
 	    rb_raise(rb_eNoMethodError, "super called outside of method");
 	}
-	abort(); 
+	abort();
     }
 
     if (klass == NULL) {
@@ -570,17 +590,43 @@ __rb_vm_dispatch(RoxorVM *vm, struct mcache *cache, VALUE top, VALUE self,
 #if ROXOR_VM_DEBUG
     bool cached = true;
 #endif
+    int cache_hash = 0;
     bool cache_method = true;
+
+    struct mcache *cache;
+    if (opt == DISPATCH_SUPER) {
+	cache_hash = mcache_hash(klass, sel) + 1;
+	cache = &vm->mcache[cache_hash];
+	if (!(cache->flag & MCACHE_SUPER) || cache->sel != sel) {
+	    cache->flag = 0; // recache
+#if ROXOR_MCACHE_DEBUG
+	    collision_count++;
+#endif
+	}
+#if ROXOR_MCACHE_DEBUG
+	else {
+	    cached_count++;
+	}
+#endif
+    }
+    else {
+	cache_hash = mcache_hash(klass, sel);
+	cache = &vm->mcache[cache_hash];
+	if (cache->sel != sel) {
+	    cache->flag = 0; // recache
+#if ROXOR_MCACHE_DEBUG
+	    collision_count++;
+#endif
+	}
+#if ROXOR_MCACHE_DEBUG
+	else {
+	    cached_count++;
+	}
+#endif
+    }
 
     Class current_super_class = vm->get_current_super_class();
     SEL current_super_sel = vm->get_current_super_sel();
-
-    // XXX: super method cache is disabled because it causes random runtime
-    // bugs in rails. Instead of fixing the problem, we wait for the new
-    // method cache implementation which should be different (and thread-safe).
-    if (opt == DISPATCH_SUPER) {
-	cache->flag = 0;
-    }
 
     if (cache->flag == 0) {
 recache:
@@ -620,6 +666,11 @@ recache2:
 		// objc call
 		fill_ocache(cache, self, klass, imp, sel, method, argc);
 	    }
+
+	    if (opt == DISPATCH_SUPER) {
+		cache->flag |= MCACHE_SUPER;
+	    }
+	    cache->sel = sel;
 	}
 	else {
 	    // Method is not found...
@@ -732,7 +783,7 @@ recache2:
     }
 
 dispatch:
-    if (cache->flag == MCACHE_RCALL) {
+    if (cache->flag & MCACHE_RCALL) {
 	if (rcache.klass != klass) {
 	    goto recache;
 	}
@@ -741,7 +792,7 @@ dispatch:
 	}
 
 #if ROXOR_VM_DEBUG
-	printf("ruby dispatch %c[<%s %p> %s] (imp %p block %p argc %d opt %d cache %p cached %s)\n",
+	printf("ruby dispatch %c[<%s %p> %s] (imp %p block %p argc %d opt %d cache hash %d cached %s)\n",
 		class_isMetaClass(klass) ? '+' : '-',
 		class_getName(klass),
 		(void *)self,
@@ -750,7 +801,7 @@ dispatch:
 		block,
 		argc,
 		opt,
-		cache,
+		cache_hash,
 		cached ? "true" : "false");
 #endif
 
@@ -820,7 +871,7 @@ dispatch:
 
 	return v;
     }
-    else if (cache->flag == MCACHE_OCALL) {
+    else if (cache->flag & MCACHE_OCALL) {
 	if (ocache.klass != klass) {
 	    goto recache;
 	}
@@ -856,13 +907,14 @@ dispatch:
 	}
 
 #if ROXOR_VM_DEBUG
-	printf("objc dispatch %c[<%s %p> %s] imp=%p argc=%d (cached=%s)\n",
+	printf("objc dispatch %c[<%s %p> %s] imp %p argc %d cache hash %d cached %s\n",
 		class_isMetaClass(klass) ? '+' : '-',
 		class_getName(klass),
 		(void *)self,
 		sel_getName(sel),
 		ocache.imp,
 		argc,
+		cache_hash,
 		cached ? "true" : "false");
 #endif
 
@@ -912,7 +964,7 @@ sel_target_found:
 	return __rb_vm_objc_dispatch(ocache.stub, ocache.imp, ocrcv, sel,
 		argc, argv);
     }
-    else if (cache->flag == MCACHE_FCALL) {
+    else if (cache->flag & MCACHE_FCALL) {
 #if ROXOR_VM_DEBUG
 	printf("C dispatch %s() imp=%p argc=%d (cached=%s)\n",
 		fcache.bs_function->name,
@@ -1032,8 +1084,8 @@ __rb_vm_resolve_args(VALUE **pargv, size_t argv_size, int *pargc, va_list ar)
 
 extern "C"
 VALUE
-rb_vm_dispatch(struct mcache *cache, VALUE top, VALUE self, SEL sel,
-	rb_vm_block_t *block, unsigned char opt, int argc, ...)
+rb_vm_dispatch(VALUE top, VALUE self, SEL sel, rb_vm_block_t *block,
+	unsigned char opt, int argc, ...)
 {
     VALUE base_argv[MAX_DISPATCH_ARGS];
     VALUE *argv = base_argv;
@@ -1066,47 +1118,24 @@ rb_vm_dispatch(struct mcache *cache, VALUE top, VALUE self, SEL sel,
 	~Finally() { vm->pop_current_binding(); }
     } finalizer(vm);
 
-    VALUE retval = __rb_vm_dispatch(vm, cache, top, self, NULL, sel, block,
-	    opt, argc, argv);
-
-    return retval;
+    return __rb_vm_dispatch(vm, top, self, NULL, sel, block, opt, argc, argv);
 }
 
 extern "C"
 VALUE
 rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *argv, bool super)
 {
-    struct mcache *cache;
-    unsigned char opt = DISPATCH_FCALL;
-    if (super) {
-	cache = (struct mcache *)alloca(sizeof(struct mcache));
-	cache->flag = 0;
-	opt = DISPATCH_SUPER;
-    }
-    else {
-	cache = GET_CORE()->method_cache_get(sel, false);
-    }
-
-    return __rb_vm_dispatch(GET_VM(), cache, 0, self, NULL, sel, NULL, opt,
-	    argc, argv);
+    return __rb_vm_dispatch(GET_VM(), 0, self, NULL, sel, NULL,
+	    super ? DISPATCH_SUPER : DISPATCH_FCALL, argc, argv);
 }
 
 extern "C"
 VALUE
-rb_vm_call_with_cache(void *cache, VALUE self, SEL sel, int argc, 
+rb_vm_call2(rb_vm_block_t *block, VALUE self, VALUE klass, SEL sel, int argc,
 	const VALUE *argv)
 {
-    return __rb_vm_dispatch(GET_VM(), (struct mcache *)cache, 0, self, NULL,
-	    sel, NULL, DISPATCH_FCALL, argc, argv);
-}
-
-extern "C"
-VALUE
-rb_vm_call_with_cache2(void *cache, rb_vm_block_t *block, VALUE self,
-	VALUE klass, SEL sel, int argc, const VALUE *argv)
-{
-    return __rb_vm_dispatch(GET_VM(), (struct mcache *)cache, 0, self,
-	    (Class)klass, sel, block, DISPATCH_FCALL, argc, argv);
+    return __rb_vm_dispatch(GET_VM(), 0, self, (Class)klass, sel, block,
+	    DISPATCH_FCALL, argc, argv);
 }
 
 // The rb_vm_fast_* functions don't check if the selector has been redefined or
@@ -1130,122 +1159,134 @@ extern "C" {
 
 extern "C"
 VALUE
-rb_vm_fast_plus(struct mcache *cache, VALUE self, VALUE other)
+rb_vm_fast_plus(VALUE self, VALUE other)
 {
     switch (TYPE(self)) {
 	// TODO: Array, String
 	case T_BIGNUM:
 	    return rb_big_plus(self, other);
+
 	case T_FIXNUM:
 	    return rb_fix_plus(self, other);
+
 	case T_FLOAT:
 	    return rb_flo_plus(self, other);
+
 	case T_COMPLEX:
 	    return rb_nu_plus(self, other);
     }
-    return rb_vm_dispatch(cache, 0, self, selPLUS, NULL, 0, 1, other);
+    return rb_vm_dispatch(0, self, selPLUS, NULL, 0, 1, other);
 }
 
 extern "C"
 VALUE
-rb_vm_fast_minus(struct mcache *cache, VALUE self, VALUE other)
+rb_vm_fast_minus(VALUE self, VALUE other)
 {
     switch (TYPE(self)) {
 	// TODO: Array, String
 	case T_BIGNUM:
 	    return rb_big_minus(self, other);
+
 	case T_FIXNUM:
 	    return rb_fix_minus(self, other);
+
 	case T_FLOAT:
 	    return rb_flo_minus(self, other);
+
 	case T_COMPLEX:
 	    return rb_nu_minus(self, other);
     }
-    return rb_vm_dispatch(cache, 0, self, selMINUS, NULL, 0, 1, other);
+    return rb_vm_dispatch(0, self, selMINUS, NULL, 0, 1, other);
 }
 
 extern "C"
 VALUE
-rb_vm_fast_div(struct mcache *cache, VALUE self, VALUE other)
+rb_vm_fast_div(VALUE self, VALUE other)
 {
     switch (TYPE(self)) {
 	case T_BIGNUM:
 	    return rb_big_div(self, other);
+
 	case T_FIXNUM:
 	    return rb_fix_div(self, other);
+
 	case T_FLOAT:
 	    return rb_flo_div(self, other);
+
 	case T_COMPLEX:
 	    return rb_nu_div(self, other);
     }
-    return rb_vm_dispatch(cache, 0, self, selDIV, NULL, 0, 1, other);
+    return rb_vm_dispatch(0, self, selDIV, NULL, 0, 1, other);
 }
 
 extern "C"
 VALUE
-rb_vm_fast_mult(struct mcache *cache, VALUE self, VALUE other)
+rb_vm_fast_mult(VALUE self, VALUE other)
 {
     switch (TYPE(self)) {
 	// TODO: Array, String
 	case T_BIGNUM:
 	    return rb_big_mul(self, other);
+
 	case T_FIXNUM:
 	    return rb_fix_mul(self, other);
+
 	case T_FLOAT:
 	    return rb_flo_mul(self, other);
+
 	case T_COMPLEX:
 	    return rb_nu_mul(self, other);
     }
-    return rb_vm_dispatch(cache, 0, self, selMULT, NULL, 0, 1, other);
+    return rb_vm_dispatch(0, self, selMULT, NULL, 0, 1, other);
 }
 
 extern "C"
 VALUE
-rb_vm_fast_lt(struct mcache *cache, VALUE self, VALUE other)
+rb_vm_fast_lt(VALUE self, VALUE other)
 {
     switch (TYPE(self)) {
 	case T_BIGNUM:
 	    return FIX2INT(rb_big_cmp(self, other)) < 0 ? Qtrue : Qfalse;
     }
-    return rb_vm_dispatch(cache, 0, self, selLT, NULL, 0, 1, other);
+    return rb_vm_dispatch(0, self, selLT, NULL, 0, 1, other);
 }
 
 extern "C"
 VALUE
-rb_vm_fast_le(struct mcache *cache, VALUE self, VALUE other)
+rb_vm_fast_le(VALUE self, VALUE other)
 {
     switch (TYPE(self)) {
 	case T_BIGNUM:
 	    return FIX2INT(rb_big_cmp(self, other)) <= 0 ? Qtrue : Qfalse;
     }
-    return rb_vm_dispatch(cache, 0, self, selLE, NULL, 0, 1, other);
+    return rb_vm_dispatch(0, self, selLE, NULL, 0, 1, other);
 }
 
 extern "C"
 VALUE
-rb_vm_fast_gt(struct mcache *cache, VALUE self, VALUE other)
+rb_vm_fast_gt(VALUE self, VALUE other)
 {
     switch (TYPE(self)) {
 	case T_BIGNUM:
 	    return FIX2INT(rb_big_cmp(self, other)) > 0 ? Qtrue : Qfalse;
     }
-    return rb_vm_dispatch(cache, 0, self, selGT, NULL, 0, 1, other);
+    return rb_vm_dispatch(0, self, selGT, NULL, 0, 1, other);
 }
 
 extern "C"
 VALUE
-rb_vm_fast_ge(struct mcache *cache, VALUE self, VALUE other)
+rb_vm_fast_ge(VALUE self, VALUE other)
 {
     switch (TYPE(self)) {
 	case T_BIGNUM:
 	    return FIX2INT(rb_big_cmp(self, other)) >= 0 ? Qtrue : Qfalse;
     }
-    return rb_vm_dispatch(cache, 0, self, selGE, NULL, 0, 1, other);
+    return rb_vm_dispatch(0, self, selGE, NULL, 0, 1, other);
 }
 
 extern "C"
 VALUE
-rb_vm_fast_eq(struct mcache *cache, VALUE self, VALUE other)
+rb_vm_fast_eq(VALUE self, VALUE other)
 {
     const int self_type = TYPE(self);
     switch (self_type) {
@@ -1282,20 +1323,20 @@ rb_vm_fast_eq(struct mcache *cache, VALUE self, VALUE other)
 	case T_BIGNUM:
 	    return rb_big_eq(self, other);
     }
-    return rb_vm_dispatch(cache, 0, self, selEq, NULL, 0, 1, other);
+    return rb_vm_dispatch(0, self, selEq, NULL, 0, 1, other);
 }
 
 extern "C"
 VALUE
-rb_vm_fast_neq(struct mcache *cache, VALUE self, VALUE other)
+rb_vm_fast_neq(VALUE self, VALUE other)
 {
     // TODO
-    return rb_vm_dispatch(cache, 0, self, selNeq, NULL, 0, 1, other);
+    return rb_vm_dispatch(0, self, selNeq, NULL, 0, 1, other);
 }
 
 extern "C"
 VALUE
-rb_vm_fast_eqq(struct mcache *cache, VALUE self, VALUE other)
+rb_vm_fast_eqq(VALUE self, VALUE other)
 {
     switch (TYPE(self)) {
 	// TODO: Range
@@ -1316,14 +1357,13 @@ rb_vm_fast_eqq(struct mcache *cache, VALUE self, VALUE other)
 	    return rb_obj_is_kind_of(other, self);
 
 	default:
-	    return rb_vm_dispatch(cache, 0, self, selEqq, NULL, 0, 1, other);
+	    return rb_vm_dispatch(0, self, selEqq, NULL, 0, 1, other);
     }
 }
 
 extern "C"
 VALUE
-rb_vm_when_splat(struct mcache *cache, unsigned char overriden,
-		 VALUE comparedTo, VALUE splat)
+rb_vm_when_splat(unsigned char overriden, VALUE comparedTo, VALUE splat)
 {
     VALUE ary = rb_check_convert_type(splat, T_ARRAY, "Array", "to_a");
     if (NIL_P(ary)) {
@@ -1333,7 +1373,7 @@ rb_vm_when_splat(struct mcache *cache, unsigned char overriden,
     if (overriden == 0) {
 	for (int i = 0; i < count; ++i) {
 	    VALUE o = RARRAY_AT(ary, i);
-	    if (RTEST(rb_vm_fast_eqq(cache, o, comparedTo))) {
+	    if (RTEST(rb_vm_fast_eqq(o, comparedTo))) {
 		return Qtrue;
 	    }
 	}
@@ -1341,8 +1381,7 @@ rb_vm_when_splat(struct mcache *cache, unsigned char overriden,
     else {
 	for (int i = 0; i < count; ++i) {
 	    VALUE o = RARRAY_AT(ary, i);
-	    if (RTEST(rb_vm_dispatch(cache, 0, o, selEqq, NULL, 0, 1,
-			    comparedTo))) {
+	    if (RTEST(rb_vm_dispatch(0, o, selEqq, NULL, 0, 1, comparedTo))) {
 		return Qtrue;
 	    }
 	}
@@ -1352,8 +1391,7 @@ rb_vm_when_splat(struct mcache *cache, unsigned char overriden,
 
 extern "C"
 VALUE
-rb_vm_fast_shift(VALUE obj, VALUE other, struct mcache *cache,
-		 unsigned char overriden)
+rb_vm_fast_shift(VALUE obj, VALUE other, unsigned char overriden)
 {
     if (overriden == 0) {
 	switch (TYPE(obj)) {
@@ -1373,14 +1411,13 @@ rb_vm_fast_shift(VALUE obj, VALUE other, struct mcache *cache,
 #endif
 	}
     }
-    return __rb_vm_dispatch(GET_VM(), cache, 0, obj, NULL, selLTLT, NULL, 0, 1,
+    return __rb_vm_dispatch(GET_VM(), 0, obj, NULL, selLTLT, NULL, 0, 1,
 	    &other);
 }
 
 extern "C"
 VALUE
-rb_vm_fast_aref(VALUE obj, VALUE other, struct mcache *cache,
-		unsigned char overriden)
+rb_vm_fast_aref(VALUE obj, VALUE other, unsigned char overriden)
 {
     if (overriden == 0)
 	switch (TYPE(obj)) {
@@ -1396,14 +1433,13 @@ rb_vm_fast_aref(VALUE obj, VALUE other, struct mcache *cache,
 		}
 		break;
     }
-    return __rb_vm_dispatch(GET_VM(), cache, 0, obj, NULL, selAREF, NULL, 0, 1,
+    return __rb_vm_dispatch(GET_VM(), 0, obj, NULL, selAREF, NULL, 0, 1,
 	    &other);
 }
 
 extern "C"
 VALUE
-rb_vm_fast_aset(VALUE obj, VALUE other1, VALUE other2, struct mcache *cache,
-		unsigned char overriden)
+rb_vm_fast_aset(VALUE obj, VALUE other1, VALUE other2, unsigned char overriden)
 {
     if (overriden == 0) {
 	switch (TYPE(obj)) {
@@ -1424,7 +1460,7 @@ rb_vm_fast_aset(VALUE obj, VALUE other1, VALUE other2, struct mcache *cache,
 	}
     }
     VALUE args[2] = { other1, other2 };
-    return __rb_vm_dispatch(GET_VM(), cache, 0, obj, NULL, selASET, NULL, 0, 2,
+    return __rb_vm_dispatch(GET_VM(), 0, obj, NULL, selASET, NULL, 0, 2,
 	    args);
 }
 
@@ -1579,9 +1615,13 @@ block_call:
     } finalizer(vm, b, old_current_class);
 
     if (b->flags & VM_BLOCK_METHOD) {
+#if 0
+	// TODO
 	rb_vm_method_t *m = (rb_vm_method_t *)b->imp;
 	return rb_vm_call_with_cache2(m->cache, NULL, m->recv, m->oclass,
 		m->sel, argc, argv);
+#endif
+	return Qnil;
     }
     return __rb_vm_bcall(self, sel, (VALUE)b->dvars, b, b->imp, b->arity,
 	    argc, argv);

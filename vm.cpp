@@ -345,6 +345,10 @@ RoxorVM::RoxorVM(void)
     return_from_block = -1;
     current_super_class = NULL;
     current_super_sel = 0;
+
+    mcache = (struct mcache *)malloc(sizeof(struct mcache) * MCACHE_SIZE);
+    assert(mcache != NULL);
+    memset(mcache, 0, sizeof(struct mcache) * MCACHE_SIZE);
 }
 
 static inline void *
@@ -406,6 +410,10 @@ RoxorVM::RoxorVM(const RoxorVM &vm)
     throw_exc = NULL;
     current_super_class = NULL;
     current_super_sel = 0;
+
+    mcache = (struct mcache *)malloc(sizeof(struct mcache) * MCACHE_SIZE);
+    assert(mcache != NULL);
+    memcpy(mcache, vm.mcache, sizeof(struct mcache) * MCACHE_SIZE);
 }
 
 RoxorVM::~RoxorVM(void)
@@ -421,6 +429,8 @@ RoxorVM::~RoxorVM(void)
     GC_RELEASE(broken_with);
     GC_RELEASE(last_status);
     GC_RELEASE(errinfo);
+
+    free(mcache);
 }
 
 static void
@@ -677,33 +687,6 @@ rb_vm_get_constant_cache(const char *name)
     return GET_CORE()->constant_cache_get(rb_intern(name));
 }
 
-struct mcache *
-RoxorCore::method_cache_get(SEL sel, bool super)
-{
-    if (super) {
-	struct mcache *cache = (struct mcache *)malloc(sizeof(struct mcache));
-	cache->flag = 0;
-	// TODO store the cache somewhere and invalidate it appropriately.
-	return cache;
-    }
-    std::map<SEL, struct mcache *>::iterator iter = mcache.find(sel);
-    if (iter == mcache.end()) {
-	struct mcache *cache = (struct mcache *)malloc(sizeof(struct mcache));
-	cache->flag = 0;
-	mcache[sel] = cache;
-	return cache;
-    }
-    return iter->second;
-}
-
-extern "C"
-void *
-rb_vm_get_method_cache(SEL sel)
-{
-    const bool super = strncmp(sel_getName(sel), "__super__:", 10) == 0;
-    return GET_CORE()->method_cache_get(sel, super); 
-}
-
 rb_vm_method_node_t *
 RoxorCore::method_node_get(IMP imp, bool create)
 {
@@ -875,10 +858,13 @@ RoxorCore::method_added(Class klass, SEL sel)
 void
 RoxorCore::invalidate_method_cache(SEL sel)
 {
+#if 0 // TODO
     std::map<SEL, struct mcache *>::iterator iter = mcache.find(sel);
     if (iter != mcache.end()) {
 	iter->second->flag = 0;
     }
+#endif
+    memset(GET_VM()->mcache, 0, sizeof(struct mcache) * MCACHE_SIZE);
 }
 
 rb_vm_method_node_t *
@@ -3216,20 +3202,6 @@ rb_vm_pop_binding(void)
     GET_VM()->pop_current_binding(false);
 }
 
-extern "C"
-void *
-rb_vm_get_call_cache(SEL sel)
-{
-    return GET_CORE()->method_cache_get(sel, false);
-}
-
-extern "C"
-void *
-rb_vm_get_call_cache2(SEL sel, unsigned char super)
-{
-    return GET_CORE()->method_cache_get(sel, super);
-}
-
 // Should be used inside a method implementation.
 extern "C"
 int
@@ -5144,6 +5116,8 @@ Init_PostVM(void)
     rb_define_const(rb_cThGroup, "Default", group);
 }
 
+extern "C" void rb_vm_dispatch_finalize(void);
+
 extern "C"
 void
 rb_vm_finalize(void)
@@ -5158,6 +5132,7 @@ rb_vm_finalize(void)
 	    GET_CORE()->get_functions_compiled());
 #endif
 
+    rb_vm_dispatch_finalize();
 
     // XXX: deleting the core is not safe at this point because there might be
     // threads still running and trying to unregister.

@@ -40,10 +40,8 @@ rb_call(VALUE recv, ID mid, int argc, const VALUE *argv, int scope,
 	}
     }
 
-    void *cache = rb_vm_get_call_cache(sel);
     rb_vm_block_t *block = pass_current_block ? rb_vm_current_block() : NULL;
-    return rb_vm_call_with_cache2(cache, block, recv, CLASS_OF(recv),
-	    sel, argc, argv);
+    return rb_vm_call2(block, recv, CLASS_OF(recv), sel, argc, argv);
 }
 
 /*
@@ -259,14 +257,11 @@ rb_f_loop(VALUE rcv, SEL sel)
 }
 
 VALUE
-rb_objc_block_call(VALUE obj, SEL sel, void *cache, int argc, VALUE *argv, 
-		   VALUE (*bl_proc) (ANYARGS), VALUE data2)
+rb_objc_block_call(VALUE obj, SEL sel, int argc, VALUE *argv,
+	VALUE (*bl_proc) (ANYARGS), VALUE data2)
 {
     rb_vm_block_t *b = rb_vm_create_block((IMP)bl_proc, obj, data2);
-    if (cache == NULL) {
-	cache = rb_vm_get_call_cache(sel);
-    }
-    return rb_vm_call_with_cache2(cache, b, obj, 0, sel, argc, argv);
+    return rb_vm_call2(b, obj, 0, sel, argc, argv);
 }
 
 VALUE
@@ -282,7 +277,7 @@ rb_block_call(VALUE obj, ID mid, int argc, VALUE *argv,
 	snprintf(buf, sizeof buf, "%s:", rb_id2name(mid));
 	sel = sel_registerName(buf);
     }
-    return rb_objc_block_call(obj, sel, NULL, argc, argv, bl_proc, data2);
+    return rb_objc_block_call(obj, sel, argc, argv, bl_proc, data2);
 }
 
 VALUE

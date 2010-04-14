@@ -307,11 +307,8 @@ void rb_vm_alias(VALUE klass, ID name, ID def);
 bool rb_vm_copy_method(Class klass, Method method);
 void rb_vm_copy_methods(Class from_class, Class to_class);
 VALUE rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *args, bool super);
-VALUE rb_vm_call_with_cache(void *cache, VALUE self, SEL sel, int argc,
-	const VALUE *argv);
-VALUE rb_vm_call_with_cache2(void *cache, rb_vm_block_t *block, VALUE self,
-	VALUE klass, SEL sel, int argc, const VALUE *argv);
-void *rb_vm_get_call_cache(SEL sel);
+VALUE rb_vm_call2(rb_vm_block_t *block, VALUE self, VALUE klass, SEL sel,
+	int argc, const VALUE *argv);
 VALUE rb_vm_yield(int argc, const VALUE *argv);
 VALUE rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv);
 bool rb_vm_respond_to(VALUE obj, SEL sel, bool priv);
@@ -325,6 +322,10 @@ void rb_vm_set_outer(VALUE klass, VALUE under);
 VALUE rb_vm_get_outer(VALUE klass);
 VALUE rb_vm_catch(VALUE tag);
 VALUE rb_vm_throw(VALUE tag, VALUE value);
+
+// TODO defined in vm_eval.c, should be renamed as rb_vm_block_call
+VALUE rb_objc_block_call(VALUE obj, SEL sel, int argc, VALUE *argv,
+	VALUE (*bl_proc) (ANYARGS), VALUE data2);
 
 static inline void
 rb_vm_regrow_robject_slots(struct RObject *obj, unsigned int new_num_slot)
@@ -545,10 +546,12 @@ typedef VALUE rb_vm_long_arity_bstub_t(IMP imp, id self, SEL sel,
 				       int argc, const VALUE *argv);
 
 struct mcache {
-#define MCACHE_RCALL 0x1 // Ruby call
-#define MCACHE_OCALL 0x2 // Objective-C call
-#define MCACHE_FCALL 0x4 // C call
+#define MCACHE_RCALL 	0x1 // Ruby call
+#define MCACHE_OCALL 	0x2 // Objective-C call
+#define MCACHE_FCALL 	0x4 // C call
+#define MCACHE_SUPER	0x8 // super call (only applied with RCALL or OCALL)
     uint8_t flag;
+    SEL sel;
     union {
 	struct {
 	    Class klass;
@@ -638,8 +641,7 @@ class RoxorCore {
 	std::map<IMP, rb_vm_method_node_t *> ruby_imps;
 	std::map<Method, rb_vm_method_node_t *> ruby_methods;
 
-	// Method and constant caches.
-	std::map<SEL, struct mcache *> mcache;
+	// Constant cache.
 	std::map<ID, struct ccache *> ccache;
 
 	// Instance variable slots cache.
@@ -780,7 +782,6 @@ class RoxorCore {
 		char *path, size_t path_len, unsigned long *ln,
 		char *name, size_t name_len);
 
-	struct mcache *method_cache_get(SEL sel, bool super);
 	void invalidate_method_cache(SEL sel);
 	rb_vm_method_node_t *method_node_get(IMP imp, bool create=false);
 	rb_vm_method_node_t *method_node_get(Method m, bool create=false);
@@ -909,6 +910,9 @@ class RoxorVM {
 	    }
 	    return RoxorVM::main;
 	}
+
+#define MCACHE_SIZE 0x1000
+	struct mcache *mcache;
 
     private:
 	// Cache to avoid allocating the same block twice.
