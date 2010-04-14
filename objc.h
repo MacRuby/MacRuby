@@ -202,7 +202,11 @@ rb_ocid_to_rval(id obj)
     if (obj == (id)kCFNull || obj == nil) {
 	return Qnil;
     }
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
+    if (true) {
+#else
     if (((unsigned long)obj & 0x1) == 0x1) {
+#endif
 	// An Objective-C immediate! We only recognize NSNumbers for now.
 	Class k = object_getClass(obj);
 	while (k != NULL) {
@@ -223,7 +227,9 @@ rb_ocid_to_rval(id obj)
 	    }
 	    k = class_getSuperclass(k);
 	}
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
 	rb_bug("unknown Objective-C immediate: %p\n", obj);
+#endif
     }
     return (VALUE)obj;
 }
