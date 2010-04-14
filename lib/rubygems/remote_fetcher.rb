@@ -264,11 +264,13 @@ class Gem::RemoteFetcher
       # removed once we re-implement the IO subsystem (and therefore Net::HTTP)
       # on top of CF.
       framework 'Foundation'
+      say "Fetching #{uri.to_s}" if Gem.configuration.really_verbose
       url = NSURL.URLWithString(uri.to_s)
       data = NSMutableData.dataWithContentsOfURL(url)
       if data.nil?
         raise Gem::RemoteFetcher::FetchError, "error when fetching data from #{uri}"
       end
+      say "OK" if Gem.configuration.really_verbose
       return String.new(data)
     end
     raise "block is dead" if block_given?
