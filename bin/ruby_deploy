@@ -83,9 +83,10 @@ class Deployer
   end
 
   def compile_files
-    Dir.glob(File.join(@app_bundle, 'Contents/Resources/*.rb')) +
-      Dir.glob(File.join(app_macruby_usr, '**/*.rb'))
+    Dir.glob(File.join(@app_bundle, 'Contents/Resources/*.rb'))
   end
+
+  MACRUBYC = File.join(RbConfig::CONFIG['bindir'], 'macrubyc')
 
   def compile
     compile_files.each do |source|
@@ -93,7 +94,7 @@ class Deployer
       next if base == 'rb_main'
       obj = File.join(File.dirname(source), base + '.rbo')
       if !File.exist?(obj) or File.mtime(source) > File.mtime(obj)
-        compile_cmd = "macrubyc -C \"#{source}\" -o \"#{obj}\""
+        compile_cmd = "#{MACRUBYC} -C \"#{source}\" -o \"#{obj}\""
         # Use Xcode ARCHS env var to determine which archs to compile for
         compile_cmd += ENV['ARCHS'].strip.split.map { |a| " -a #{a}" }.join if ENV['ARCHS']
         execute(compile_cmd, "Can't compile \"#{source}\"")
