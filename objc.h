@@ -174,6 +174,8 @@ rb_rval_to_ocid(VALUE obj)
             return (id)kCFNull;
         }
 	if (FIXNUM_P(obj)) {
+	    // TODO: this could be optimized in case we can fit the fixnum
+	    // into an immediate NSNumber directly.
 	    long val = FIX2LONG(obj);
 	    CFNumberRef number = CFNumberCreate(NULL, kCFNumberLongType, &val);
 	    CFMakeCollectable(number);
@@ -190,6 +192,8 @@ rb_rval_to_ocid(VALUE obj)
     return (id)obj;
 }
 
+extern CFTypeID __CFNumberTypeID;
+
 static inline VALUE
 rb_ocid_to_rval(id obj)
 {
@@ -202,35 +206,25 @@ rb_ocid_to_rval(id obj)
     if (obj == (id)kCFNull || obj == nil) {
 	return Qnil;
     }
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-    if (true) {
-#else
-    if (((unsigned long)obj & 0x1) == 0x1) {
-#endif
-	// An Objective-C immediate! We only recognize NSNumbers for now.
-	Class k = object_getClass(obj);
-	while (k != NULL) {
-	    if (k == (Class)rb_cNSNumber) {
-		if (CFNumberIsFloatType((CFNumberRef)obj)) {
-		    // Will likely not happen, but just in case...	
-		    double v;
-		    assert(CFNumberGetValue((CFNumberRef)obj,
-				kCFNumberDoubleType, &v));
-		    return DOUBLE2NUM(v);
-		}
-		else {
-		    long v;
-		    assert(CFNumberGetValue((CFNumberRef)obj,
-				kCFNumberLongType, &v));
-		    return LONG2FIX(v);
-		}
-	    }
-	    k = class_getSuperclass(k);
+
+    if (CFGetTypeID(obj) == __CFNumberTypeID) {
+	// TODO: this could be optimized in case the object is an immediate.
+	if (CFNumberIsFloatType((CFNumberRef)obj)) {
+	    double v = 0;
+	    assert(CFNumberGetValue((CFNumberRef)obj, kCFNumberDoubleType, &v));
+	    return DOUBLE2NUM(v);
 	}
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
-	rb_bug("unknown Objective-C immediate: %p\n", obj);
-#endif
+	else {
+	    long v = 0;
+	    assert(CFNumberGetValue((CFNumberRef)obj, kCFNumberLongType, &v));
+	    return LONG2FIX(v);
+	}
     }
+
+    if (((unsigned long)obj & 0x1) == 0x1) {
+	rb_bug("unknown Objective-C immediate: %p\n", obj);
+    }
+
     return (VALUE)obj;
 }
 

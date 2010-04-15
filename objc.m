@@ -25,6 +25,8 @@
 # include "bs.h"
 #endif
 
+CFTypeID __CFNumberTypeID = 0;
+
 static inline const char *
 rb_get_bs_method_type(bs_element_method_t *bs_method, int arg)
 {
@@ -663,6 +665,9 @@ rb_objc_type_size(const char *type)
 void
 Init_ObjC(void)
 {
+    __CFNumberTypeID = CFNumberGetTypeID();
+    assert(__CFNumberTypeID > 0);
+
     rb_objc_define_method(rb_mKernel, "load_bridge_support_file",
 	    rb_objc_load_bs, 1);
 
