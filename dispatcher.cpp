@@ -261,9 +261,12 @@ rb_vm_super_lookup(Class klass, SEL sel, Class *super_class_p)
     const int count = RARRAY_LEN(ary);
     bool klass_located = false;
 #if ROXOR_VM_DEBUG
-    printf("locating super method %s of class %s in ancestor chain %s\n", 
-	    sel_getName(sel), rb_class2name((VALUE)klass),
-	    RSTRING_PTR(rb_inspect(ary)));
+    printf("locating super method %s of class %s in ancestor chain: ", 
+	    sel_getName(sel), rb_class2name((VALUE)klass));
+    for (int i = 0; i < count; i++) {
+	printf("%s ", rb_class2name(RARRAY_AT(ary, i)));
+    }
+    printf("\n");
 #endif
     for (int i = 0; i < count; i++) {
         if (!klass_located && RARRAY_AT(ary, i) == (VALUE)self_class) {
@@ -598,6 +601,7 @@ recache:
 		    &current_super_class);
 	}
 	else {
+	    current_super_sel = 0;
 	    method = class_getInstanceMethod(klass, sel);
 	}
 
