@@ -2131,6 +2131,11 @@ prepare_method(Class klass, bool dynamic_class, SEL sel, void *data,
 prepare_method:
 
     m = class_getInstanceMethod(klass, sel);
+    if (m == NULL && rb_vm_resolve_method(klass, sel)) {
+	m = class_getInstanceMethod(klass, sel);
+	assert(m != NULL);
+    }
+
     if (precompiled) {
 	if (imp == NULL) {
 	    imp = (IMP)data;
