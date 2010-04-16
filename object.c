@@ -1843,8 +1843,7 @@ rb_mod_initialize(VALUE module, SEL sel)
     static bool initialized = false;
     if (!initialized) {
 	initialized = true;
-	// force initialize
-	class_getMethodImplementation((Class)module, sel);
+	rb_objc_force_class_initialize((Class)module);
 	initialized = false;
 
 	if (rb_block_given_p()) {

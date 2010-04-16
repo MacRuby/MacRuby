@@ -640,11 +640,18 @@ rb_objc_exception_raise(const char *name, const char *message)
 bool
 rb_objc_ignore_sel(SEL sel)
 {
-  return sel == @selector(retain)
-      || sel == @selector(release)
-      || sel == @selector(autorelease)
-      || sel == @selector(retainCount)
-      || sel == @selector(dealloc);
+    return sel == @selector(retain)
+	|| sel == @selector(release)
+	|| sel == @selector(autorelease)
+	|| sel == @selector(retainCount)
+	|| sel == @selector(dealloc);
+}
+
+void
+rb_objc_force_class_initialize(Class klass)
+{
+    // This forces +initialize to be called.
+    class_getMethodImplementation(klass, @selector(initialize));
 }
 
 size_t

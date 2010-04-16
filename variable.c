@@ -12,6 +12,7 @@
 #include "ruby/util.h"
 #include "id.h"
 #include "vm.h"
+#include "objc.h"
 
 st_table *rb_global_tbl;
 st_table *rb_class_tbl;
@@ -1524,6 +1525,7 @@ retrieve_dynamic_objc_class(VALUE klass, ID name)
 	if (k != 0 && !RCLASS_RUBY(k)) {
 	     // Set the constant. Only if the returned class is a pure
 	     // Objective-C class, to avoid namespace conflicts in Ruby land.
+	    rb_objc_force_class_initialize((Class)k);
 	    rb_const_set(klass, name, k);
 	    return k;
 	}
