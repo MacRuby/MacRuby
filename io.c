@@ -2111,11 +2111,31 @@ io_from_spawning_new_process(VALUE prog, VALUE mode)
 	    "could not add a close() to stdout");
 
     pid_t pid;
-    // TODO: Split the process_name up into char* components?
-    char *spawnedArgs[] = {(char*)_PATH_BSHELL, "-c",
-	(char*)RSTRING_PTR(prog), NULL};
-    errno = posix_spawn(&pid, spawnedArgs[0], &actions, NULL, spawnedArgs,
-	    *(_NSGetEnviron()));
+
+    VALUE argArray = rb_check_array_type(prog);
+    if (!NIL_P(argArray)) {
+	const long len = RARRAY_LEN(argArray);
+	char **spawnedArgs =
+		malloc((len + 1) * sizeof(char *));
+	for (long i = 0; i < len; i++) {
+	    VALUE str = RARRAY_AT(argArray, i);
+	    spawnedArgs[i] = StringValuePtr(str);
+	}
+	spawnedArgs[len] = 0;
+	// using posix_spawnP (look up binary in PATH)
+	errno = posix_spawnp(&pid, spawnedArgs[0], &actions, NULL, spawnedArgs,
+		*(_NSGetEnviron()));
+	const int err = errno;
+	free(spawnedArgs);
+	errno = err;
+    }
+    else {
+	// TODO: Split the process_name up into char* components?
+	char *spawnedArgs[] = {(char*)_PATH_BSHELL, "-c",
+		StringValuePtr(prog), NULL};
+	errno = posix_spawn(&pid, spawnedArgs[0], &actions, NULL, spawnedArgs,
+		*(_NSGetEnviron()));
+    }
     if (errno != 0) {
 	const int err = errno;
 	close(fd[0]);
@@ -2153,7 +2173,6 @@ rb_io_s_popen(VALUE klass, SEL sel, int argc, VALUE *argv)
     if (NIL_P(mode)) {
 	mode = (VALUE)CFSTR("r");
     }
-    StringValue(process_name);
     VALUE io = io_from_spawning_new_process(process_name, mode);
     if (rb_block_given_p()) {
 	VALUE ret = rb_vm_yield(1, &io);
@@ -2188,6 +2207,19 @@ rb_io_s_open(VALUE klass, SEL sel, int argc, VALUE *argv)
         return ret;
     }
     return io;
+}
+
+static VALUE
+check_pipe_command(VALUE fname)
+{
+    const char *cname = StringValuePtr(fname);
+    const size_t len = strlen(cname);
+
+    if (cname[0] == '|') {
+        VALUE cmd = rb_str_new(cname + 1, len - 1);
+        return cmd;
+    }
+    return Qnil;
 }
 
 /*
@@ -2300,12 +2332,23 @@ rb_io_s_open(VALUE klass, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_file_open(VALUE io, int argc, VALUE *argv)
 {
+    if (argc > 0) {
+	// First argument must always be a path, we are checking it here to
+	// conform to RubySpecs which states that the conversion must only
+	// happen once.
+	FilePathValue(argv[0]);
+    }
+    if (argc >= 1) {
+	VALUE cmd = check_pipe_command(argv[0]);
+	if (cmd != Qnil) {
+	    return rb_io_s_popen(rb_cIO, 0, 1, &cmd);
+	}
+    }
     VALUE path, modes, permissions;
     rb_scan_args(argc, argv, "12", &path, &modes, &permissions);
     if (NIL_P(modes)) {
 	modes = (VALUE)CFSTR("r");
     }
-    FilePathValue(path);
     const char *filepath = RSTRING_PTR(path);
     const int flags = convert_mode_string_to_oflags(modes);
     const mode_t perm = NIL_P(permissions) ? 0666 : NUM2UINT(permissions);
@@ -2349,6 +2392,12 @@ f_open_ensure(VALUE io)
 VALUE
 rb_f_open(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
+    if (argc >= 1) {
+	VALUE cmd = check_pipe_command(argv[0]);
+	if (cmd != Qnil) {
+	    return rb_io_s_popen(rb_cIO, 0, 1, &cmd);
+	}
+    }
     VALUE io = rb_class_new_instance(argc, argv, rb_cFile);
     if (rb_block_given_p()) {
 	return rb_ensure(f_open_body, io, f_open_ensure, io);
