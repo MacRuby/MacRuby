@@ -22,4 +22,25 @@
 
 @end
 
+@interface TestClassInitialization : NSObject
+@end
+
+@implementation TestClassInitialization
+
+static int res = 0;
+
++ (void)initialize
+{
+    if (self == [TestClassInitialization class]) {
+	res += 42;
+    }
+}
+
++ (int)result
+{
+    return res;
+}
+
+@end
+
 void Init_object(void) {}

@@ -52,3 +52,14 @@ describe "Object#copyWithZone:" do
     o2.frozen?.should == false
   end
 end
+
+describe "An Objective-C class" do
+  it "has its +initialize method called once it is accessed for the first time" do
+    3.times { ::TestClassInitialization.result.should == 42 }
+
+    # If +[NSPredicate initialize] is not properly called, this will raise a warning in the
+    # running terminal (see https://www.macruby.org/trac/ticket/458).
+    obj = NSPredicate.predicateWithFormat("NOT (SELF in %@)", argumentArray: [[1,2,3,4]])
+    obj.kind_of?(NSPredicate).should == true
+  end
+end
