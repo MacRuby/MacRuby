@@ -43,4 +43,21 @@ static int res = 0;
 
 @end
 
+@interface TestCustomMethodResolver : NSObject
+@end
+
+@implementation TestCustomMethodResolver
+
++ (BOOL)resolveInstanceMethod:(SEL)name
+{
+    return NO;
+}
+
++ (BOOL)resolveClassMethod:(SEL)name
+{
+    return NO;
+}
+
+@end
+
 void Init_object(void) {}

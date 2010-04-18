@@ -62,4 +62,14 @@ describe "An Objective-C class" do
     obj = NSPredicate.predicateWithFormat("NOT (SELF in %@)", argumentArray: [[1,2,3,4]])
     obj.kind_of?(NSPredicate).should == true
   end
+
+  it "with a custom Objective-C method resolver can still be used to add new methods from Ruby" do
+    class TestCustomMethodResolverSub < ::TestCustomMethodResolver
+      def foo; 42; end
+      alias_method :bar, :foo 
+    end
+    o = TestCustomMethodResolverSub.new
+    o.foo.should == 42
+    o.bar.should == 42
+  end
 end
