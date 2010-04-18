@@ -2092,6 +2092,8 @@ RoxorCore::prepare_method(Class klass, SEL sel, Function *func,
     invalidate_respond_to_cache();
 }
 
+static bool class_has_custom_resolver(Class klass);
+
 static void
 prepare_method(Class klass, bool dynamic_class, SEL sel, void *data,
 	const rb_vm_arity_t &arity, int flags, bool precompiled)
@@ -2122,6 +2124,7 @@ prepare_method(Class klass, bool dynamic_class, SEL sel, void *data,
 
     const char *sel_name = sel_getName(sel);
     const bool genuine_selector = sel_name[strlen(sel_name) - 1] == ':';
+    const bool custom_resolver = class_has_custom_resolver(klass);
     bool redefined = false;
     bool added_modfunc = false;
     SEL orig_sel = sel;
@@ -2144,8 +2147,9 @@ prepare_method:
     }
     else {
 	Function *func = (Function *)data;
-	if (m != NULL) {
-	    // The method already exists - we need to JIT it.
+	if (m != NULL || custom_resolver) {
+	    // The method already exists _or_ the class implemented a custom
+	    // Objective-C method resolver - we need to JIT it.
 	    if (imp == NULL) {
 		imp = GET_CORE()->compile(func);
 	    }
@@ -4881,6 +4885,8 @@ setup_builtin_stubs(void)
 
 static IMP old_resolveClassMethod_imp = NULL;
 static IMP old_resolveInstanceMethod_imp = NULL;
+static SEL sel_resolveClassMethod = 0;
+static SEL sel_resolveInstanceMethod = 0;
 
 static BOOL
 resolveClassMethod_imp(void *self, SEL sel, SEL name)
@@ -4898,6 +4904,23 @@ resolveInstanceMethod_imp(void *self, SEL sel, SEL name)
 	return YES;
     }
     return NO; // TODO call old IMP
+}
+
+static bool
+class_has_custom_resolver(Class klass)
+{
+    if (!class_isMetaClass(klass)) {
+	klass = *(Class *)klass;
+    }
+    if (class_getMethodImplementation(klass, sel_resolveClassMethod)
+	    != (IMP)resolveClassMethod_imp) {
+	return true;
+    }
+    if (class_getMethodImplementation(klass, sel_resolveInstanceMethod)
+	    != (IMP)resolveInstanceMethod_imp) {
+	return true;
+    }
+    return false;
 }
 
 // We can't trust LLVM to pick the right target at runtime.
@@ -4929,16 +4952,16 @@ Init_PreVM(void)
 
     setup_builtin_stubs();
 
-    Method m;
     Class ns_object = (Class)objc_getClass("NSObject");
-    m = class_getInstanceMethod(*(Class *)ns_object,
-	sel_registerName("resolveClassMethod:"));
+    Method m;
+    sel_resolveClassMethod = sel_registerName("resolveClassMethod:");
+    m = class_getInstanceMethod(*(Class *)ns_object, sel_resolveClassMethod);
     assert(m != NULL);
     old_resolveClassMethod_imp = method_getImplementation(m);
     method_setImplementation(m, (IMP)resolveClassMethod_imp);
 
-    m = class_getInstanceMethod(*(Class *)ns_object,
-	sel_registerName("resolveInstanceMethod:"));
+    sel_resolveInstanceMethod = sel_registerName("resolveInstanceMethod:");
+    m = class_getInstanceMethod(*(Class *)ns_object, sel_resolveInstanceMethod);
     assert(m != NULL);
     old_resolveInstanceMethod_imp = method_getImplementation(m);
     method_setImplementation(m, (IMP)resolveInstanceMethod_imp);
