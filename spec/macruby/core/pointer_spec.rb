@@ -170,3 +170,19 @@ describe "Pointer, through #[] and #[]=" do
     lambda { pointer[3] = 42 }.should raise_error(ArgumentError)
   end
 end
+
+describe "A Pointer object" do
+  it "can have its type changed using #cast!" do
+    pointer = Pointer.new(NSRect.type)
+    pointer[0] = NSMakeRect(10, 20, 30, 40)
+
+    val = NSValue.valueWithPointer(pointer)
+    pointer2 = val.pointerValue
+    pointer2.class.should == Pointer
+    pointer2.type == 'v'
+
+    pointer2.cast!(NSRect.type).should == pointer2
+    pointer2.type.should == NSRect.type
+    pointer2[0].should == NSMakeRect(10, 20, 30, 40)
+  end
+end
