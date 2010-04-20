@@ -650,6 +650,19 @@ rb_objc_ignore_sel(SEL sel)
 void
 rb_objc_force_class_initialize(Class klass)
 {
+    // Do not do anything in case the class is not NSObject-based
+    // (likely Proxy).
+    bool ok = false;
+    for (Class k = klass; k != NULL; k = class_getSuperclass(k)) {
+	if (k == (Class)rb_cNSObject) {
+	    ok = true;
+	    break;
+	}
+    }
+    if (!ok) {
+	return;
+    }
+
     // This forces +initialize to be called.
     class_getMethodImplementation(klass, @selector(initialize));
 }
@@ -678,7 +691,9 @@ Init_ObjC(void)
     rb_objc_define_method(rb_mKernel, "load_bridge_support_file",
 	    rb_objc_load_bs, 1);
 
-    Method m = class_getInstanceMethod(objc_getClass("NSKeyValueUnnestedProperty"), sel_registerName("isaForAutonotifying"));
+    Class k = objc_getClass("NSKeyValueUnnestedProperty");
+    assert(k != NULL);
+    Method m = class_getInstanceMethod(k, @selector(isaForAutonotifying));
     assert(m != NULL);
     old_imp_isaForAutonotifying = method_getImplementation(m);
     method_setImplementation(m, (IMP)rb_obj_imp_isaForAutonotifying);
