@@ -571,17 +571,18 @@ typedef struct {
 static const char *convert_ffi_type(VALUE type,
 	bool raise_exception_if_unknown);
 
-VALUE
-rb_pointer_new(const char *type_str, void *val, size_t len)
+static void
+rb_pointer_init_type(rb_vm_pointer_t *ptr, VALUE type)
 {
+    const char *type_str = StringValuePtr(type);
     // LLVM doesn't allow to get a pointer to Type::VoidTy, and for convenience
     // reasons we map a pointer to void as a pointer to unsigned char.
     if (*type_str == 'v') {
 	type_str = "C";
+	type = rb_str_new2(type_str);
     }
 
-    rb_vm_pointer_t *ptr = (rb_vm_pointer_t *)xmalloc(sizeof(rb_vm_pointer_t));
-    GC_WB(&ptr->type, rb_str_new2(type_str));
+    GC_WB(&ptr->type, type);
 
     RoxorCore *core = GET_CORE();
 
@@ -592,9 +593,17 @@ rb_pointer_new(const char *type_str, void *val, size_t len)
 
     ptr->type_size = core->get_sizeof(type_str);
     assert(ptr->type_size > 0);
-    ptr->len = len;
+}
+
+VALUE
+rb_pointer_new(const char *type_str, void *val, size_t len)
+{
+    rb_vm_pointer_t *ptr = (rb_vm_pointer_t *)xmalloc(sizeof(rb_vm_pointer_t));
+
+    rb_pointer_init_type(ptr, rb_str_new2(type_str));
 
     GC_WB(&ptr->val, val);
+    ptr->len = len;
 
     return Data_Wrap_Struct(rb_cPointer, NULL, NULL, ptr);
 }
@@ -663,8 +672,8 @@ rb_pointer_get_data(VALUE rcv, const char *type)
     rb_vm_pointer_t *ptr;
     Data_Get_Struct(rcv, rb_vm_pointer_t, ptr);
 
-    assert(*type == _C_PTR);
-    if (strcmp(RSTRING_PTR(ptr->type), type + 1) != 0) {
+    assert(type[0] == _C_PTR);
+    if (type[1] != _C_VOID && strcmp(RSTRING_PTR(ptr->type), &type[1]) != 0) {
 	rb_raise(rb_eTypeError,
 		"expected instance of Pointer of type `%s', got `%s'",
 		type + 1,
@@ -720,6 +729,17 @@ rb_pointer_type(VALUE rcv, SEL sel)
     Data_Get_Struct(rcv, rb_vm_pointer_t, ptr);
 
     return ptr->type;
+}
+
+static VALUE
+rb_pointer_cast(VALUE rcv, SEL sel, VALUE type)
+{
+    rb_vm_pointer_t *ptr;
+    Data_Get_Struct(rcv, rb_vm_pointer_t, ptr);
+
+    rb_pointer_init_type(ptr, type);
+
+    return rcv;
 }
 
 bs_element_constant_t *
@@ -1201,6 +1221,8 @@ Init_BridgeSupport(void)
 	    (void *)rb_pointer_assign, 1);
     rb_objc_define_method(rb_cPointer, "type",
 	    (void *)rb_pointer_type, 0);
+    rb_objc_define_method(rb_cPointer, "cast!",
+	    (void *)rb_pointer_cast, 1);
 
     bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie");
     rb_objc_retain((void *)bs_const_magic_cookie);
