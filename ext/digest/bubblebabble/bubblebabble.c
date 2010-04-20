@@ -21,7 +21,7 @@ bubblebabble_str_new(VALUE str_digest)
 {
     const char *digest;
     size_t digest_len;
-    UInt8 *p;
+    char *p;
     int i, j, seed = 1;
     static const char vowels[] = {
         'a', 'e', 'i', 'o', 'u', 'y'
@@ -40,7 +40,7 @@ bubblebabble_str_new(VALUE str_digest)
     }
 
     const size_t p_len = (digest_len | 1) * 3 + 2;
-    p = (UInt8 *)malloc(p_len + 1);
+    p = (char *)malloc(p_len + 1);
 
     i = j = 0;
     p[j++] = 'x';
