@@ -471,21 +471,6 @@ fill_rcache(struct mcache *cache, Class klass, SEL sel,
     rcache.node = node;
 }
 
-static bool
-can_forwardInvocation(VALUE recv, SEL sel)
-{
-    if (!SPECIAL_CONST_P(recv)) {
-	static SEL methodSignatureForSelector = 0;
-	if (methodSignatureForSelector == 0) {
-	    methodSignatureForSelector =
-		sel_registerName("methodSignatureForSelector:");	
-	}
-	return objc_msgSend((id)recv, methodSignatureForSelector, (id)sel)
-	    != nil;
-    }
-    return false;
-}
-
 static void
 fill_ocache(struct mcache *cache, VALUE self, Class klass, IMP imp, SEL sel,
 	    Method method, int argc)
@@ -635,7 +620,8 @@ recache2:
 	    }
 
 	    // Does the receiver implements -forwardInvocation:?
-	    if (opt != DISPATCH_SUPER && can_forwardInvocation(self, sel)) {
+	    if (opt != DISPATCH_SUPER
+		    && rb_objc_supports_forwarding(self, sel)) {
 		fill_ocache(cache, self, klass, (IMP)objc_msgSend, sel, NULL,
 			argc);
 		goto dispatch;

@@ -25,8 +25,6 @@
 # include "bs.h"
 #endif
 
-CFTypeID __CFNumberTypeID = 0;
-
 static inline const char *
 rb_get_bs_method_type(bs_element_method_t *bs_method, int arg)
 {
@@ -118,6 +116,15 @@ rb_objc_get_types(VALUE recv, Class klass, SEL sel, Method method,
 
 	    return true;
 	}
+    }
+    return false;
+}
+
+bool
+rb_objc_supports_forwarding(VALUE recv, SEL sel)
+{
+    if (!SPECIAL_CONST_P(recv)) {
+	return [(id)recv methodSignatureForSelector:sel] != nil;
     }
     return false;
 }
@@ -685,9 +692,6 @@ rb_objc_type_size(const char *type)
 void
 Init_ObjC(void)
 {
-    __CFNumberTypeID = CFNumberGetTypeID();
-    assert(__CFNumberTypeID > 0);
-
     rb_objc_define_method(rb_mKernel, "load_bridge_support_file",
 	    rb_objc_load_bs, 1);
 

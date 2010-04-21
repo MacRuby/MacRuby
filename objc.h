@@ -18,6 +18,8 @@ extern "C" {
 bool rb_objc_get_types(VALUE recv, Class klass, SEL sel, Method m,
 	bs_element_method_t *bs_method, char *buf, size_t buflen);
 
+bool rb_objc_supports_forwarding(VALUE recv, SEL sel);
+
 void rb_objc_define_kvo_setter(VALUE klass, ID mid);
 VALUE rb_vm_set_kvo_ivar(VALUE obj, ID name, VALUE val);
 
@@ -192,7 +194,19 @@ rb_rval_to_ocid(VALUE obj)
     return (id)obj;
 }
 
-extern CFTypeID __CFNumberTypeID;
+static inline bool
+rb_objc_obj_is_nsnumber(id obj)
+{
+    Class k = object_getClass(obj); // might be an immediate
+    do {
+	if (k == (Class)rb_cNSNumber) {
+	    return true;
+	}
+	k = class_getSuperclass(k);
+    }
+    while (k != NULL);
+    return false;
+}
 
 static inline VALUE
 rb_ocid_to_rval(id obj)
@@ -207,7 +221,7 @@ rb_ocid_to_rval(id obj)
 	return Qnil;
     }
 
-    if (CFGetTypeID(obj) == __CFNumberTypeID) {
+    if (rb_objc_obj_is_nsnumber(obj)) {
 	// TODO: this could be optimized in case the object is an immediate.
 	if (CFNumberIsFloatType((CFNumberRef)obj)) {
 	    double v = 0;
