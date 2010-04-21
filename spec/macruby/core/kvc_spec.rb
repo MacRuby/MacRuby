@@ -233,3 +233,17 @@ describe "Module::attr_writer" do
     w.whatever.should == 42
   end
 end
+
+class SubWrapper < Wrapper
+  def whatever; 'whatever_value'; end
+end
+
+describe "A class inheriting from a class that defines a KVC attribute" do
+  it "can also re-define it" do
+    o = SubWrapper.new
+    o.valueForKey('whatever').should == 'whatever_value'
+    o.whatever = 'OMG'
+    o.valueForKey('whatever').should == 'whatever_value'
+    o.whatever.should == 'whatever_value'
+  end
+end
