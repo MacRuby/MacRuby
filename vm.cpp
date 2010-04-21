@@ -64,6 +64,34 @@ pthread_key_t RoxorVM::vm_thread_key;
 
 VALUE rb_cTopLevel = 0;
 
+// A simple class that acquires the core global lock in its constructor and
+// releases it in its destructor. It is used to make sure the lock will be
+// released in case an exception happens inside the scope (since C++ exceptions
+// call object destructors).
+class RoxorCoreLock {
+    private:
+	bool locked;
+
+    public:
+	RoxorCoreLock() {
+	    GET_CORE()->lock();
+	    locked = true;
+	}
+
+	~RoxorCoreLock() {
+	    if (locked) {
+		GET_CORE()->unlock();
+		locked = false;
+	    }
+	}
+
+	void unlock(void) {
+	    assert(locked);
+	    GET_CORE()->unlock();
+	    locked = false;
+	}
+};
+
 class RoxorFunction {
     public: 
 	// Information retrieved from JITManager.
@@ -1110,23 +1138,21 @@ void
 rb_vm_set_default_random(VALUE random)
 {
     RoxorCore *core = GET_CORE();
+    RoxorCoreLock lock;
 
-    core->lock();
     if (core->get_default_random() != random) {
 	GC_RELEASE(core->get_default_random());
 	GC_RETAIN(random);
 	core->set_default_random(random);
     }
-    core->unlock();
 }
 
 VALUE
 RoxorCore::trap_cmd_for_signal(int signal)
 {
-    lock();
-    VALUE trap = trap_cmd[signal];
-    unlock();
-    return trap;
+    RoxorCoreLock lock;
+
+    return trap_cmd[signal];
 }
 
 extern "C"
@@ -1139,10 +1165,9 @@ rb_vm_trap_cmd_for_signal(int signal)
 int
 RoxorCore::trap_level_for_signal(int signal)
 {
-    lock();
-    VALUE trap = trap_level[signal];
-    unlock();
-    return trap;
+    RoxorCoreLock lock;
+
+    return trap_level[signal];
 }
 
 extern "C"
@@ -1155,7 +1180,8 @@ rb_vm_trap_level_for_signal(int signal)
 void
 RoxorCore::set_trap_for_signal(VALUE trap, int level, int signal)
 {
-    lock();
+    RoxorCoreLock lock;
+
     VALUE oldtrap = trap_cmd[signal];
     if (oldtrap != trap) {
 	GC_RELEASE(oldtrap);
@@ -1163,7 +1189,6 @@ RoxorCore::set_trap_for_signal(VALUE trap, int level, int signal)
 	trap_cmd[signal] = trap;
 	trap_level[signal] = level;
     }
-    unlock();
 }
 
 extern "C"
@@ -1838,9 +1863,9 @@ kvo_sel(Class klass, const char *selname, const size_t selsize,
 #endif
 }
 
-static inline void 
+static void 
 resolve_method_type(char *buf, const size_t buflen, Class klass, Method m,
-	SEL sel, const unsigned int oc_arity)
+	SEL sel, const unsigned int types_count)
 {
     bs_element_method_t *bs_method = GET_CORE()->find_bs_method(klass, sel);
 
@@ -1855,12 +1880,10 @@ resolve_method_type(char *buf, const size_t buflen, Class klass, Method m,
 	    // informal protocol method.
 	    const char *informal_type_str = informal_type->c_str();
 	    strncpy(buf, informal_type_str, buflen);
-            const unsigned int type_arity = TypeArity(informal_type_str);
-            if (oc_arity > type_arity) {
-		for (unsigned int i = type_arity; i < oc_arity; i++) {
-		    strlcat(buf, "@", buflen);
-		}
-	    } 
+	    for (unsigned int i = TypeArity(informal_type_str);
+		    i < types_count; i++) {
+		strlcat(buf, "@", buflen);
+	    }
 	}
 	else {
 	    // Generate an automatic signature. We do check for KVO selectors
@@ -1887,31 +1910,32 @@ resolve_method_type(char *buf, const size_t buflen, Class klass, Method m,
 	    else if (kvo_sel(klass, selname, selsize, "replaceObjectIn",
 			"AtIndex:withObject:")) {
 		strncpy(buf, "v@:i@", buflen);
-
 	    }
 #if 0 // TODO
 	    else if (kvo_sel(klass, selname, selsize, "get", ":range:")) {
 	    }
 #endif
 	    else {
-		assert(oc_arity < buflen);
+		assert(types_count < buflen);
 
+		// retval, self and sel.
 		buf[0] = strncmp(selname, "set", 3) == 0 ? 'v' : '@';
 		buf[1] = '@';
 		buf[2] = ':';
-		for (unsigned int i = 3; i < oc_arity; i++) {
+
+		// Arguments.
+		for (unsigned int i = 3; i < types_count; i++) {
 		    buf[i] = '@';
 		}
-		buf[oc_arity] = '\0';
+		buf[types_count] = '\0';
 	    }
 	}
     }
     else {
-	const unsigned int m_argc = method_getNumberOfArguments(m);
-	if (m_argc < oc_arity) {
-	    for (unsigned int i = m_argc; i < oc_arity; i++) {
-		strcat(buf, "@");
-	    }
+	assert(strlen(buf) >= 3);
+	for (unsigned int i = method_getNumberOfArguments(m) + 1;
+		i < types_count; i++) {
+	    strlcat(buf, "@", buflen);
 	}
     }
 }
@@ -1920,7 +1944,7 @@ rb_vm_method_node_t *
 RoxorCore::retype_method(Class klass, rb_vm_method_node_t *node,
 	const char *types)
 {
-    lock();
+    RoxorCoreLock lock;
 
     // TODO: 1) don't reinstall method in case the types didn't change
     // 2) free LLVM machine code from old objc IMP
@@ -1934,8 +1958,6 @@ RoxorCore::retype_method(Class klass, rb_vm_method_node_t *node,
     // Re-add the method.
     node = add_method(klass, node->sel, node->objc_imp, node->ruby_imp,
 	    node->arity, node->flags, types);
-
-    unlock();
 
     return node;
 }
@@ -1951,9 +1973,9 @@ RoxorCore::resolve_method(Class klass, SEL sel, Function *func,
     }
 
     // Resolve Objective-C signature.
-    const int oc_arity = arity.real + 3;
+    const int types_count = arity.real + 3; // retval, self and sel
     char types[100];
-    resolve_method_type(types, sizeof types, klass, m, sel, oc_arity);
+    resolve_method_type(types, sizeof types, klass, m, sel, types_count);
 
     // Generate Objective-C stub if needed.
     std::map<IMP, IMP>::iterator iter = objc_to_ruby_stubs.find(imp);
@@ -2022,7 +2044,7 @@ rb_vm_resolve_method(Class klass, SEL sel)
 	return false;
     }
 
-    GET_CORE()->lock();
+    RoxorCoreLock lock;
 
     bool status = false;
 
@@ -2052,7 +2074,6 @@ rb_vm_resolve_method(Class klass, SEL sel)
     status = GET_CORE()->resolve_methods(map, klass, sel);
 
 bails:
-    GET_CORE()->unlock();
     return status;
 }
 
@@ -2576,7 +2597,7 @@ __rb_vm_define_method(Class klass, SEL sel, IMP objc_imp, IMP ruby_imp,
 
     const char *sel_name = sel_getName(sel);
     const bool genuine_selector = sel_name[strlen(sel_name) - 1] == ':';
-    int oc_arity = genuine_selector ? arity.real : 0;
+    int types_count = genuine_selector ? arity.real + 3 : 3;
     bool redefined = direct;
     rb_vm_method_node_t *node;
 
@@ -2584,7 +2605,7 @@ define_method:
     Method method = class_getInstanceMethod(klass, sel);
 
     char types[100];
-    resolve_method_type(types, sizeof types, klass, method, sel, oc_arity);
+    resolve_method_type(types, sizeof types, klass, method, sel, types_count);
 
     node = GET_CORE()->add_method(klass, sel, objc_imp, ruby_imp, arity,
 	    flags, types);
@@ -2594,7 +2615,7 @@ define_method:
 	    char buf[100];
 	    snprintf(buf, sizeof buf, "%s:", sel_name);
 	    sel = sel_registerName(buf);
-	    oc_arity = arity.real;
+	    types_count = arity.real + 3;
 	    redefined = true;
 
 	    goto define_method;
@@ -2604,7 +2625,7 @@ define_method:
 	    strlcpy(buf, sel_name, sizeof buf);
 	    buf[strlen(buf) - 1] = 0; // remove the ending ':'
 	    sel = sel_registerName(buf);
-	    oc_arity = 0;
+	    types_count = 3;
 	    redefined = true;
 
 	    goto define_method;
@@ -2888,7 +2909,8 @@ rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv)
 void *
 RoxorCore::gen_large_arity_stub(int argc, bool is_block)
 {
-    lock();
+    RoxorCoreLock lock;
+
     std::map<int, void *> &stubs =
 	is_block ? rb_large_arity_bstubs : rb_large_arity_rstubs;
     std::map<int, void *>::iterator iter = stubs.find(argc);
@@ -2902,7 +2924,6 @@ RoxorCore::gen_large_arity_stub(int argc, bool is_block)
     else {
 	stub = iter->second;
     }
-    unlock();
 
     return stub;
 }
@@ -2911,7 +2932,7 @@ void *
 RoxorCore::gen_stub(std::string types, bool variadic, int min_argc,
 	bool is_objc)
 {
-    lock();
+    RoxorCoreLock lock;
 
 #if ROXOR_VM_DEBUG
     printf("gen Ruby -> %s stub with types %s\n", is_objc ? "ObjC" : "C",
@@ -2930,8 +2951,6 @@ RoxorCore::gen_stub(std::string types, bool variadic, int min_argc,
     else {
 	stub = iter->second;
     }
-
-    unlock();
 
     return stub;
 }
@@ -3453,6 +3472,7 @@ static inline void
 __vm_raise(void)
 {
     VALUE rb_exc = GET_VM()->current_exception();
+
     // DTrace probe: raise
     if (MACRUBY_RAISE_ENABLED()) {
 	char *classname = (char *)rb_class2name(CLASS_OF(rb_exc));
@@ -4364,21 +4384,21 @@ rb_vm_unregister_finalizer(rb_vm_finalizer_t *finalizer)
 void
 RoxorCore::register_finalizer(rb_vm_finalizer_t *finalizer)
 {
-    lock();
+    RoxorCoreLock lock;
+
     finalizers.push_back(finalizer);
-    unlock();
 }
 
 void
 RoxorCore::unregister_finalizer(rb_vm_finalizer_t *finalizer)
 {
-    lock();
+    RoxorCoreLock lock;
+
     std::vector<rb_vm_finalizer_t *>::iterator i = std::find(finalizers.begin(),
 	    finalizers.end(), finalizer);
     if (i != finalizers.end()) {
 	finalizers.erase(i);
     }
-    unlock();
 }
 
 static void
@@ -4440,9 +4460,9 @@ rb_vm_set_multithreaded(bool flag)
 void
 RoxorCore::register_thread(VALUE thread)
 {
-    lock();
+    RoxorCoreLock lock;
+
     rb_ary_push(threads, thread);
-    unlock();
 
     rb_vm_thread_t *t = GetThreadPtr(thread);
     pthread_assert(pthread_setspecific(RoxorVM::vm_thread_key, t->vm));
@@ -4456,7 +4476,8 @@ extern "C" void rb_thread_unlock_all_mutexes(rb_vm_thread_t *thread);
 void
 RoxorCore::unregister_thread(VALUE thread)
 {
-    lock();
+    RoxorCoreLock lock;
+
     // We do not call #delete because it might trigger #== in case it has been
     // overriden on the thread object, and therefore cause a deadlock if the
     // new method tries to acquire the RoxorCore GIL.
@@ -4474,7 +4495,8 @@ RoxorCore::unregister_thread(VALUE thread)
 		(void *)thread);
 	abort();
     }
-    unlock();
+
+    lock.unlock();
 
     rb_vm_thread_t *t = GetThreadPtr(thread);
 
@@ -5103,7 +5125,7 @@ void
 rb_vm_unregister_current_alien_thread(void)
 {
     // Check if the current pthread has been registered.
-    GET_CORE()->lock();
+    RoxorCoreLock lock;
     pthread_t self = pthread_self();
     VALUE ary = GET_CORE()->get_threads();
     bool need_to_unregister = false;
@@ -5113,7 +5135,7 @@ rb_vm_unregister_current_alien_thread(void)
 	    need_to_unregister = true;
 	}
     }
-    GET_CORE()->unlock();
+    lock.unlock();
 
     // If yes, appropriately unregister it.
     if (need_to_unregister) {
