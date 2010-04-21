@@ -1,6 +1,6 @@
 #!/bin/sh
 # Download and install the latest version of MacRuby
-URL=http://macruby.icoretech.org/latest
+URL=http://www.macruby.org/files/nightlies/
 PKG=macruby_nightly-latest.pkg
 DOWNLOAD_DIR=~/Downloads
 DESTROOT=/
