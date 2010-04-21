@@ -173,14 +173,17 @@ nsstr_to_rstr(id nsstr)
 static VALUE
 nsstr_forward(id rcv, SEL sel, int argc, VALUE *argv)
 {
-    return rb_vm_call(nsstr_to_rstr(rcv), sel, argc, argv, false);
+    return rb_vm_call_with_cache2(rb_vm_get_call_cache(sel),
+	rb_vm_current_block(), nsstr_to_rstr(rcv), rb_cRubyString, sel, argc,
+	argv);
 }
 
 static VALUE
 nsstr_forward_bang(id rcv, SEL sel, int argc, VALUE *argv)
 {
     VALUE rcv_rstr = nsstr_to_rstr(rcv);
-    VALUE ret = rb_vm_call(rcv_rstr, sel, argc, argv, false);
+    VALUE ret = rb_vm_call_with_cache2(rb_vm_get_call_cache(sel),
+	rb_vm_current_block(), rcv_rstr, rb_cRubyString, sel, argc, argv);
     [rcv setString:(id)rcv_rstr];
     return ret;
 }

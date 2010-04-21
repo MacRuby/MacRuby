@@ -81,4 +81,8 @@ describe "An NSString object" do
     # TODO
     #lambda { a << 'foo' }.should raise_error(RuntimeError)
   end
+
+  it "forwards the block when calling a ruby method" do
+    NSString.stringWithString("ybuRcaM").sub(/.+/) { |s| s.reverse }.should == "MacRuby"
+  end
 end
