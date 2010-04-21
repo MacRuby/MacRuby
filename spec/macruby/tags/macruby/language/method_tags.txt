@@ -1,3 +1,0 @@
-fails:A pure MacRuby method can be called using -[NSObject performSelector:]
-fails:A pure MacRuby method can be called using -[NSObject performSelector:withObject:]
-fails:A pure MacRuby method can be called using -[NSObject performSelector:withObject:withObject:]

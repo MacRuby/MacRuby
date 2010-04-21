@@ -1,3 +1,0 @@
-fails:A pure Objective-C method can be called with #foo= if it matches the #setFoo pattern
-fails:A pure Objective-C method can be called on an immediate object
-fails:A pure MacRuby method can be forwarded by NSUndoManager
