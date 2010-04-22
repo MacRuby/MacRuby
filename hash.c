@@ -1774,6 +1774,8 @@ Init_Hash(void)
     id_yield = rb_intern("yield");
 
     rb_cRubyHash = rb_define_class("Hash", rb_cNSMutableHash);
+    RCLASS_SET_VERSION_FLAG(rb_cRubyHash, RCLASS_IS_HASH_SUBCLASS);
+
     rb_objc_define_method(*(VALUE *)rb_cRubyHash, "new",
 	    rb_class_new_instance_imp, -1);
     rb_objc_define_method(*(VALUE *)rb_cRubyHash, "alloc", rhash_alloc, 0);

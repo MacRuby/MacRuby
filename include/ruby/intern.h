@@ -150,7 +150,7 @@ VALUE rb_Complex(VALUE, VALUE);
 /* class.c */
 #if WITH_OBJC
 VALUE rb_objc_create_class(const char *name, VALUE super);
-bool rb_objc_install_primitives(Class ocklass, Class ocsuper);
+void rb_objc_class_sync_version(Class klass, Class super_class);
 void rb_define_object_special_methods(VALUE klass);
 VALUE rb_class_new_instance_imp(VALUE, SEL, int, VALUE *);
 VALUE rb_make_singleton_class(VALUE super);

@@ -17,7 +17,6 @@
 VALUE rb_cHash;
 VALUE rb_cNSHash;
 VALUE rb_cNSMutableHash;
-static VALUE rb_cCFHash;
 
 static id
 to_hash(id hash)
@@ -436,12 +435,6 @@ nshash_compare_by_id_p(id rcv, SEL sel)
 void
 Init_NSDictionary(void)
 {
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-    rb_cCFHash = (VALUE)objc_getClass("NSCFDictionary");
-#else
-    rb_cCFHash = (VALUE)objc_getClass("__NSCFDictionary");
-#endif
-    assert(rb_cCFHash != 0);
     rb_cNSHash = (VALUE)objc_getClass("NSDictionary");
     assert(rb_cNSHash != 0);
     rb_cHash = rb_cNSHash;
@@ -504,121 +497,6 @@ Init_NSDictionary(void)
 	    nshash_compare_by_id, 0);
     rb_objc_define_method(rb_cHash, "compare_by_identity?",
 	    nshash_compare_by_id_p, 0);
-}
-
-// NSDictionary + NSMutableDictionary primitives. These are added automatically
-// on singleton classes of pure NSDictionaries. Our implementation just calls
-// the original methods, by tricking the receiver's class.
-
-#define PREPARE_RCV(x) \
-    Class __old = *(Class *)x; \
-    *(Class *)x = (Class)rb_cCFHash;
-
-#define RESTORE_RCV(x) \
-    *(Class *)x = __old;
-
-static unsigned
-nshash_count(id rcv, SEL sel) 
-{
-    PREPARE_RCV(rcv);
-    const unsigned count = [rcv count];
-    RESTORE_RCV(rcv);
-    return count; 
-}
-
-static id
-nshash_keyEnumerator(id rcv, SEL sel)
-{
-    PREPARE_RCV(rcv);
-    id keys = [rcv allKeys]; 
-    RESTORE_RCV(rcv);
-    return [keys objectEnumerator];
-}
-
-static id
-nshash_objectForKey(id rcv, SEL sel, id key)
-{
-    PREPARE_RCV(rcv);
-    id value = [rcv objectForKey:key];
-    RESTORE_RCV(rcv);
-    return value;
-}
-
-static void 
-nshash_setObjectForKey(id rcv, SEL sel, id value, id key) 
-{
-    PREPARE_RCV(rcv);
-    [rcv setObject:value forKey:key];
-    RESTORE_RCV(rcv);
-} 
-
-static void
-nshash_getObjectsAndKeys(id rcv, SEL sel, id *objs, id *keys)
-{
-    PREPARE_RCV(rcv);
-    [rcv getObjects:objs andKeys:keys];
-    RESTORE_RCV(rcv);
-}
-
-static void
-nshash_removeObjectForKey(id rcv, SEL sel, id key)
-{
-    PREPARE_RCV(rcv);
-    [rcv removeObjectForKey:key];
-    RESTORE_RCV(rcv);
-}
-
-static void
-nshash_removeAllObjects(id rcv, SEL sel)
-{
-    PREPARE_RCV(rcv);
-    [rcv removeAllObjects];
-    RESTORE_RCV(rcv);
-}
-
-static bool
-nshash_isEqual(id rcv, SEL sel, id other)
-{
-    PREPARE_RCV(rcv);
-    const bool res = [rcv isEqualToDictionary:other];
-    RESTORE_RCV(rcv);
-    return res;
-}
-
-static bool
-nshash_containsObject(id rcv, SEL sel, id value)
-{
-    PREPARE_RCV(rcv);
-    const bool res = [[rcv allKeysForObject:value] count] > 0;
-    RESTORE_RCV(rcv);
-    return res;
-}
-
-void
-rb_objc_install_hash_primitives(Class klass)
-{
-    rb_objc_install_method2(klass, "count", (IMP)nshash_count);
-    rb_objc_install_method2(klass, "keyEnumerator", (IMP)nshash_keyEnumerator);
-    rb_objc_install_method2(klass, "objectForKey:", (IMP)nshash_objectForKey);
-    rb_objc_install_method2(klass, "getObjects:andKeys:",
-	    (IMP)nshash_getObjectsAndKeys);
-    rb_objc_install_method2(klass, "isEqual:", (IMP)nshash_isEqual);
-    rb_objc_install_method2(klass, "containsObject:",
-	    (IMP)nshash_containsObject);
-
-    const bool mutable =
-	class_getSuperclass(klass) == (Class)rb_cNSMutableHash; 
-
-    if (mutable) {
-	rb_objc_install_method2(klass, "setObject:forKey:",
-		(IMP)nshash_setObjectForKey);
-	rb_objc_install_method2(klass, "removeObjectForKey:",
-		(IMP)nshash_removeObjectForKey);
-	rb_objc_install_method2(klass, "removeAllObjects",
-		(IMP)nshash_removeAllObjects);
-    }
-
-    //rb_objc_define_method(*(VALUE *)klass, "alloc", hash_alloc, 0);
 }
 
 // MRI compatibility API.

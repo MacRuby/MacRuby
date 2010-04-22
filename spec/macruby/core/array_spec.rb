@@ -15,17 +15,6 @@ describe "The Array class" do
   end
 end
 
-describe "The NSArray class" do
-  it "can be subclassed and later instantiated" do
-    k = Class.new(NSArray)
-    a = k.new
-    a.class.should == k
-    a.size.should == 0
-    # TODO
-    #lambda { a << 42 }.should raise_error(RuntimeError)
-  end
-end
-
 describe "An Array object" do
   it "is an instance of the Array/NSMutableArray class" do
     [].class.should == Array
@@ -72,13 +61,4 @@ describe "An NSArray object" do
     a.size.should == 0
     lambda { a << 123 }.should raise_error(RuntimeError)
   end
-
-=begin
-  it "can have a singleton class" do
-    a = NSArray.array
-    def a.foo; 42; end
-    a.foo.should == 42
-    lambda { a << 123 }.should raise_error(RuntimeError)
-  end
-=end
 end

@@ -5422,6 +5422,7 @@ Init_String(void)
     Init_NSString();
 
     // rb_cRubyString is defined earlier in Init_PreVM().
+    RCLASS_SET_VERSION_FLAG(rb_cRubyString, RCLASS_IS_STRING_SUBCLASS);
     rb_set_class_path(rb_cRubyString, rb_cObject, "String");
     rb_const_set(rb_cObject, rb_intern("String"), rb_cRubyString);
 
@@ -5581,12 +5582,6 @@ rb_objc_str_is_pure(VALUE str)
         k = RCLASS_SUPER(k);
     }
     return true;
-}
-
-void
-rb_objc_install_string_primitives(Class klass)
-{
-    // TODO
 }
 
 // ByteString emulation.

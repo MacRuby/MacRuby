@@ -15,17 +15,6 @@ describe "The Hash class" do
   end
 end
 
-describe "The NSDictionary class" do
-  it "can be subclassed and later instantiated" do
-    k = Class.new(NSDictionary)
-    a = k.new
-    a.class.should == k
-    a.size.should == 0
-    # TODO
-    #lambda { a[42] = 123 }.should raise_error(RuntimeError)
-  end
-end
-
 describe "An Hash object" do
   it "is an instance of the Hash class" do
     {}.class.should == Hash
@@ -70,13 +59,6 @@ describe "An NSDictionary object" do
   it "is immutable" do
     a = NSDictionary.dictionary
     a.size.should == 0
-    lambda { a[42] = 123 }.should raise_error(RuntimeError)
-  end
-
-  it "can have a singleton class" do
-    a = NSDictionary.dictionary
-    def a.foo; 42; end
-    a.foo.should == 42
     lambda { a[42] = 123 }.should raise_error(RuntimeError)
   end
 end

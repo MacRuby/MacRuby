@@ -3484,6 +3484,8 @@ Init_Array(void)
     Init_NSArray();
 
     rb_cRubyArray = rb_define_class("Array", rb_cNSMutableArray);
+    RCLASS_SET_VERSION_FLAG(rb_cRubyArray, RCLASS_IS_ARRAY_SUBCLASS);
+
     rb_objc_define_method(*(VALUE *)rb_cRubyArray, "new",
 	    rb_class_new_instance_imp, -1);
     rb_objc_define_method(*(VALUE *)rb_cRubyArray, "alloc", rary_alloc, 0);

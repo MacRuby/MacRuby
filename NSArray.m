@@ -17,7 +17,6 @@
 VALUE rb_cArray;
 VALUE rb_cNSArray;
 VALUE rb_cNSMutableArray;
-static VALUE rb_cCFArray;
 
 static id
 nsary_dup(id rcv, SEL sel)
@@ -939,12 +938,6 @@ nsary_shuffle(id rcv, SEL sel)
 void
 Init_NSArray(void)
 {
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-    rb_cCFArray = (VALUE)objc_getClass("NSCFArray");
-#else
-    rb_cCFArray = (VALUE)objc_getClass("__NSCFArray");
-#endif
-    assert(rb_cCFArray != 0);
     rb_cNSArray = (VALUE)objc_getClass("NSArray");
     assert(rb_cNSArray != 0);
     rb_cArray = rb_cNSArray;
@@ -1034,113 +1027,6 @@ Init_NSArray(void)
     rb_objc_define_method(rb_cArray, "permutation", rary_permutation, -1);
     rb_objc_define_method(rb_cArray, "cycle", rary_cycle, -1);
     rb_objc_define_method(rb_cArray, "sample", rary_sample, -1);
-}
-
-#define PREPARE_RCV(x) \
-    Class old = *(Class *)x; \
-    *(Class *)x = (Class)rb_cCFArray;
-
-#define RESTORE_RCV(x) \
-    *(Class *)x = old;
-
-static long
-imp_rb_array_count(id rcv, SEL sel)
-{
-    PREPARE_RCV(rcv);
-    const long count = [rcv count];
-    RESTORE_RCV(rcv);
-    return count;
-}
-
-static id
-imp_rb_array_objectAtIndex(id rcv, SEL sel, long idx)
-{
-    PREPARE_RCV(rcv);
-    id obj = [rcv objectAtIndex:idx];
-    RESTORE_RCV(rcv);
-    return obj;
-}
-
-static void
-imp_rb_array_insertObjectAtIndex(id rcv, SEL sel, id obj, long idx)
-{
-    PREPARE_RCV(rcv);
-    [rcv insertObject:obj atIndex:idx];
-    RESTORE_RCV(rcv);
-}
-
-static void
-imp_rb_array_removeObjectAtIndex(id rcv, SEL sel, long idx)
-{
-    PREPARE_RCV(rcv);
-    [rcv removeObjectAtIndex:idx];
-    RESTORE_RCV(rcv);
-}
-
-static void
-imp_rb_array_replaceObjectAtIndexWithObject(id rcv, SEL sel, long idx, id obj)
-{
-    PREPARE_RCV(rcv);
-    [rcv replaceObjectAtIndex:idx withObject:obj];
-    RESTORE_RCV(rcv);
-}
-
-static void
-imp_rb_array_addObject(id rcv, SEL sel, id obj)
-{
-    PREPARE_RCV(rcv);
-    [rcv addObject:obj];
-    RESTORE_RCV(rcv);
-}
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-// This is to work around a bug where CF will try to call an non-existing
-// method.
-static CFIndex
-imp_rb_array_cfindexOfObjectInRange(void *rcv, SEL sel, void *obj, 
-    CFRange range)
-{
-    CFIndex i;
-    PREPARE_RCV(rcv);
-    i = CFArrayGetFirstIndexOfValue((CFArrayRef)rcv, range, obj);
-    RESTORE_RCV(rcv);
-    return i;
-}
-#endif
-
-void
-rb_objc_install_array_primitives(Class klass)
-{
-    rb_objc_install_method2(klass, "count", (IMP)imp_rb_array_count);
-    rb_objc_install_method2(klass, "objectAtIndex:",
-	    (IMP)imp_rb_array_objectAtIndex);
-
-    const bool is_mutable = class_getSuperclass(klass)
-	== (Class)rb_cNSMutableArray;
-
-    if (is_mutable) {
-	rb_objc_install_method2(klass, "insertObject:atIndex:",
-		(IMP)imp_rb_array_insertObjectAtIndex);
-	rb_objc_install_method2(klass, "removeObjectAtIndex:",
-		(IMP)imp_rb_array_removeObjectAtIndex);
-	rb_objc_install_method2(klass, "replaceObjectAtIndex:withObject:", 
-		(IMP)imp_rb_array_replaceObjectAtIndexWithObject);
-	rb_objc_install_method2(klass, "addObject:",
-		(IMP)imp_rb_array_addObject);
-    }
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-    // This is to work around a bug where CF will try to call an non-existing 
-    // method. 
-    rb_objc_install_method2(klass, "_cfindexOfObject:range:",
-	    (IMP)imp_rb_array_cfindexOfObjectInRange);
-    Method m = class_getInstanceMethod(klass, 
-	    sel_registerName("_cfindexOfObject:range:"));
-    class_addMethod(klass, sel_registerName("_cfindexOfObject:inRange:"), 
-	    method_getImplementation(m), method_getTypeEncoding(m));
-#endif
-
-    //rb_objc_define_method(*(VALUE *)klass, "alloc", ary_alloc, 0);
 }
 
 // MRI compatibility API.

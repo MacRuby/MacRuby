@@ -20,44 +20,35 @@
 
 extern st_table *rb_class_tbl;
 
-void rb_objc_install_array_primitives(Class);
-void rb_objc_install_hash_primitives(Class);
-void rb_objc_install_string_primitives(Class);
-void rb_objc_install_set_primitives(Class);
-
-bool
-rb_objc_install_primitives(Class ocklass, Class ocsuper)
+void
+rb_objc_class_sync_version(Class ocklass, Class ocsuper)
 {
-    if (rb_cRubyArray != 0 && rb_cRubyHash != 0 && rb_cString != 0) {
-	do {
-	    if (ocsuper == (Class)rb_cRubyArray) {
-		RCLASS_SET_VERSION_FLAG(ocklass, RCLASS_IS_ARRAY_SUBCLASS);
-		return false;
-	    }
-	    if (ocsuper == (Class)rb_cArray) {
-		rb_objc_install_array_primitives(ocklass);
-		RCLASS_SET_VERSION_FLAG(ocklass, RCLASS_IS_ARRAY_SUBCLASS);
-		return true;
-	    }
-	    if (ocsuper == (Class)rb_cRubyHash) {
-		RCLASS_SET_VERSION_FLAG(ocklass, RCLASS_IS_HASH_SUBCLASS);
-		return false;
-	    }
-	    if (ocsuper == (Class)rb_cHash) {
-		rb_objc_install_hash_primitives(ocklass);
-		RCLASS_SET_VERSION_FLAG(ocklass, RCLASS_IS_HASH_SUBCLASS);
-		return true;
-	    }
-	    if (ocsuper == (Class)rb_cString) {
-		rb_objc_install_string_primitives(ocklass);
-		RCLASS_SET_VERSION_FLAG(ocklass, RCLASS_IS_STRING_SUBCLASS);
-		return true;
-	    }
-	    ocsuper = class_getSuperclass(ocsuper);
-	}
-	while (ocsuper != NULL);
+    const long super_version = RCLASS_VERSION(ocsuper);
+    long klass_version = RCLASS_VERSION(ocklass);
+
+    if ((super_version & RCLASS_NO_IV_SLOTS) == RCLASS_NO_IV_SLOTS) {
+	klass_version |= RCLASS_NO_IV_SLOTS;
     }
-    return false;
+
+    if (ocsuper == (Class)rb_cObject
+	|| (super_version & RCLASS_IS_OBJECT_SUBCLASS)
+	    == RCLASS_IS_OBJECT_SUBCLASS) {
+	klass_version |= RCLASS_IS_OBJECT_SUBCLASS;
+    }
+    if ((super_version & RCLASS_IS_ARRAY_SUBCLASS)
+	    == RCLASS_IS_ARRAY_SUBCLASS) {
+	klass_version |= RCLASS_IS_ARRAY_SUBCLASS;
+    }
+    if ((super_version & RCLASS_IS_HASH_SUBCLASS)
+	    == RCLASS_IS_HASH_SUBCLASS) {
+	klass_version |= RCLASS_IS_HASH_SUBCLASS;
+    }
+    if ((super_version & RCLASS_IS_STRING_SUBCLASS)
+	    == RCLASS_IS_STRING_SUBCLASS) {
+	klass_version |= RCLASS_IS_STRING_SUBCLASS;
+    }
+
+    RCLASS_SET_VERSION(ocklass, klass_version);
 }
 
 static void *
@@ -193,22 +184,12 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
     if (flags == T_MODULE) {
 	version_flag |= RCLASS_IS_MODULE;
     }
-    const long super_version = RCLASS_VERSION(super);
-    if (super == rb_cObject
-	|| (super_version & RCLASS_IS_OBJECT_SUBCLASS)
-	    == RCLASS_IS_OBJECT_SUBCLASS) {
-	version_flag |= RCLASS_IS_OBJECT_SUBCLASS;
-    }
-    if ((super_version & RCLASS_NO_IV_SLOTS) == RCLASS_NO_IV_SLOTS) {
-	version_flag |= RCLASS_NO_IV_SLOTS;
-    }	
-
     RCLASS_SET_VERSION(ocklass, version_flag);
 
     objc_registerClassPair(ocklass);
 
     if (klass != 0) {
-	rb_objc_install_primitives(ocklass, (Class)super);
+	rb_objc_class_sync_version(ocklass, (Class)super);
     }
 
     return (VALUE)ocklass;
@@ -348,7 +329,7 @@ rb_class_init_copy(VALUE clone, SEL sel, VALUE orig)
 	rb_raise(rb_eTypeError, "can't copy singleton class");
     }
     clone =  rb_mod_init_copy(clone, 0, orig);
-    rb_objc_install_primitives((Class)clone, (Class)orig);
+    rb_objc_class_sync_version((Class)clone, (Class)orig);
     return clone;
 }
 
