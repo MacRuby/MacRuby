@@ -522,7 +522,7 @@ reinstall_method_maybe(Class klass, SEL sel, const char *types)
 	return false;
     }
 
-    GET_CORE()->retype_method(klass, node, types);
+    GET_CORE()->retype_method(klass, node, method_getTypeEncoding(m), types);
 
     return true;
 }

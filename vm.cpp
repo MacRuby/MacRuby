@@ -1942,22 +1942,39 @@ resolve_method_type(char *buf, const size_t buflen, Class klass, Method m,
 
 rb_vm_method_node_t *
 RoxorCore::retype_method(Class klass, rb_vm_method_node_t *node,
-	const char *types)
+	const char *old_types, const char *new_types)
 {
-    RoxorCoreLock lock;
+    if (strcmp(old_types, new_types) == 0) {
+	// No need to retype.
+	// XXX might be better to compare every type after filtering stack
+	// size and other crappy modifiers.
+	return node;
+    }
 
-    // TODO: 1) don't reinstall method in case the types didn't change
-    // 2) free LLVM machine code from old objc IMP
+    const int new_types_arity = TypeArity(new_types);
+    char buf[100];
+    if (node->arity.real + 3 >= new_types_arity) {
+	// The method arity is bigger than the number of types of the new
+	// signature, so we need to pad.
+	strlcpy(buf, new_types, sizeof buf);
+	for (int i = 0; i < node->arity.real + 3 - new_types_arity; i++) {
+	    strlcat(buf, "@", sizeof buf);
+	}
+	new_types = &buf[0];
+    }
+
+    RoxorCoreLock lock;
 
     // Re-generate ObjC stub. 
     Function *objc_func = RoxorCompiler::shared->compile_objc_stub(NULL,
-	    node->ruby_imp, node->arity, types);
+	    node->ruby_imp, node->arity, new_types);
     node->objc_imp = compile(objc_func);
+    // TODO: free LLVM machine code from old objc IMP
     objc_to_ruby_stubs[node->ruby_imp] = node->objc_imp;
 
     // Re-add the method.
     node = add_method(klass, node->sel, node->objc_imp, node->ruby_imp,
-	    node->arity, node->flags, types);
+	    node->arity, node->flags, new_types);
 
     return node;
 }
