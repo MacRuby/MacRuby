@@ -157,6 +157,7 @@ TypeArity(const char *type)
     unsigned int arity = 0;
     while (*type != '\0') {
 	type = SkipFirstType(type);
+	type = SkipStackSize(type);
 	arity++;
     }
     return arity;
