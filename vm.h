@@ -425,9 +425,6 @@ void rb_vm_set_abort_on_exception(bool flag);
 Class rb_vm_set_current_class(Class klass);
 Class rb_vm_get_current_class(void);
 
-bool rb_vm_is_multithreaded(void);
-void rb_vm_set_multithreaded(bool flag);
-
 bool rb_vm_aot_feature_load(const char *name);
 
 static inline VALUE
@@ -620,7 +617,6 @@ class RoxorCore {
 
 	// State.
 	bool running;
-	bool multithreaded;
 	bool abort_on_exception;
 	VALUE loaded_features;
 	VALUE load_path;
@@ -689,7 +685,6 @@ class RoxorCore {
 	~RoxorCore(void);
 
 	ACCESSOR(running, bool);
-	ACCESSOR(multithreaded, bool);
 	ACCESSOR(abort_on_exception, bool);
 	ACCESSOR(default_random, VALUE);
 	READER(loaded_features, VALUE);
@@ -706,14 +701,10 @@ class RoxorCore {
 	int trap_level_for_signal(int signal);
 
 	void lock(void) { 
-	    if (multithreaded) {
-		assert(pthread_mutex_lock(&gl) == 0);
-	    }
+	    assert(pthread_mutex_lock(&gl) == 0);
 	}
 	void unlock(void) {
-	    if (multithreaded) {
-		assert(pthread_mutex_unlock(&gl) == 0);
-	    }
+	    assert(pthread_mutex_unlock(&gl) == 0);
 	}
 
 	void register_thread(VALUE thread);
@@ -894,21 +885,17 @@ class RoxorVM {
 	static pthread_key_t vm_thread_key;
 
 	static force_inline RoxorVM *current(void) {
-	    if (GET_CORE()->get_multithreaded()) {
-		void *vm = pthread_getspecific(vm_thread_key);
-		if (vm == NULL) {
-		    // The value does not exist yet, which means we are called
-		    // from a thread that was not created by MacRuby directly
-		    // (potentially the GC thread or Cocoa). In this case, we
-		    // create a new VM object just for this thread.
-		    // XXX the VM object is never detroyed.
-		    RoxorVM *new_vm = new RoxorVM();
-		    new_vm->setup_from_current_thread();
-		    return new_vm;
-		}
-		return (RoxorVM *)vm;
+	    void *vm = pthread_getspecific(vm_thread_key);
+	    if (vm == NULL) {
+		// The value does not exist yet, which means we are called
+		// from a thread that was not created by MacRuby directly
+		// (potentially the GC thread or Cocoa). In this case, we
+		// create a new VM object just for this thread.
+		RoxorVM *new_vm = new RoxorVM();
+		new_vm->setup_from_current_thread();
+		return new_vm;
 	    }
-	    return RoxorVM::main;
+	    return (RoxorVM *)vm;
 	}
 
     private:

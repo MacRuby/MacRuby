@@ -298,7 +298,6 @@ extern "C" std::type_info *__cxa_current_exception_type(void);
 RoxorCore::RoxorCore(void)
 {
     running = false;
-    multithreaded = false;
     abort_on_exception = false;
 
     pthread_assert(pthread_mutex_init(&gl, 0));
@@ -4455,23 +4454,7 @@ extern "C"
 void *
 rb_vm_create_vm(void)
 {
-    GET_CORE()->set_multithreaded(true);
-
     return (void *)new RoxorVM(*GET_VM());
-}
-
-extern "C"
-bool
-rb_vm_is_multithreaded(void)
-{
-    return GET_CORE()->get_multithreaded();
-}
-
-extern "C"
-void
-rb_vm_set_multithreaded(bool flag)
-{
-    GET_CORE()->set_multithreaded(flag);
 }
 
 void
@@ -4988,6 +4971,8 @@ Init_PreVM(void)
     RoxorVM::main = new RoxorVM();
 
     pthread_assert(pthread_key_create(&RoxorVM::vm_thread_key, NULL));
+    pthread_assert(pthread_setspecific(RoxorVM::vm_thread_key,
+		(void *)RoxorVM::main));
 
     setup_builtin_stubs();
 
@@ -5109,7 +5094,7 @@ Init_VM(void)
 void
 RoxorVM::setup_from_current_thread(void)
 {
-    pthread_setspecific(RoxorVM::vm_thread_key, (void *)this);
+    pthread_assert(pthread_setspecific(RoxorVM::vm_thread_key, (void *)this));
 
     rb_vm_thread_t *t = (rb_vm_thread_t *)xmalloc(sizeof(rb_vm_thread_t));
     rb_vm_thread_pre_init(t, NULL, 0, NULL, (void *)this);
@@ -5124,10 +5109,10 @@ extern "C"
 void
 rb_vm_register_current_alien_thread(void)
 {
-    // This callback is not used, we prefer to create RoxorVM objects
-    // lazily (in RoxorVM::current()), for performance reasons, because the
-    // callback is called *a lot* and most of the time from various parts of
-    // the system which will never ask us to execute Ruby code.
+    // The creation of RoxorVM objects is done lazily (in RoxorVM::current())
+    // for performance reason, because the callback is called *a lot* and most
+    // of the time from various parts of the system which will never ask us to
+    // execute Ruby code.
 #if 0
     if (GET_CORE()->get_running()) {
 	printf("registered alien thread %p\n", pthread_self());
@@ -5141,9 +5126,18 @@ extern "C"
 void
 rb_vm_unregister_current_alien_thread(void)
 {
+    if (!GET_CORE()->get_running()) {
+	return;
+    }
+
+    pthread_t self = pthread_self();
+    if (GetThreadPtr(RoxorVM::main->get_thread())->thread == self) {
+	// Do not unregister the main thread.
+	return;
+    }
+
     // Check if the current pthread has been registered.
     RoxorCoreLock lock;
-    pthread_t self = pthread_self();
     VALUE ary = GET_CORE()->get_threads();
     bool need_to_unregister = false;
     for (int i = 0; i < RARRAY_LEN(ary); i++) {

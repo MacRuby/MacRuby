@@ -362,7 +362,6 @@ get_prepared_block()
     if (block == NULL) {
         rb_raise(rb_eArgError, "block not given");
     }
-    rb_vm_set_multithreaded(true);
 #if GCD_BLOCKS_COPY_DVARS
     block = rb_vm_dup_block(block);
     for (int i = 0; i < block->dvars_size; i++) {
@@ -1150,7 +1149,7 @@ static void
 rb_dispatch_begin_thread(void)
 {
     if (old_dispatch_begin_thread_4GC != NULL) {
-	    (*old_dispatch_begin_thread_4GC)();
+	(*old_dispatch_begin_thread_4GC)();
     }
     rb_vm_register_current_alien_thread();
 }
@@ -1159,7 +1158,7 @@ static void
 rb_dispatch_end_thread(void)
 {
     if (old_dispatch_end_thread_4GC != NULL) {
-	    (*old_dispatch_end_thread_4GC)();
+	(*old_dispatch_end_thread_4GC)();
     }
     rb_vm_unregister_current_alien_thread();
 }
@@ -1172,7 +1171,6 @@ Init_PreGCD(void)
     dispatch_begin_thread_4GC = rb_dispatch_begin_thread;
     dispatch_end_thread_4GC = rb_dispatch_end_thread;
 }
-
 
 void
 Init_Dispatch(void)

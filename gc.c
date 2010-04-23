@@ -748,7 +748,6 @@ static void
 rb_objc_finalizer_finalize(void *rcv, SEL sel)
 {
     rb_vm_finalizer_t *f = (rb_vm_finalizer_t *)rcv;
-    rb_vm_set_multithreaded(true);
     rb_vm_call_finalizer(f);
     rb_vm_unregister_finalizer(f); 
     if (rb_objc_finalizer_finalize_super != NULL) {
