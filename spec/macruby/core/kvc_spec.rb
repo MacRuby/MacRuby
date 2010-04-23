@@ -90,7 +90,7 @@ def manipulateOrderedCollection(w)
   w.valueForKey("kvcOrderedCollection").should == [1, 20, 3, 40, 5, 60, 70, 8]
 
   w.mutableArrayValueForKey("kvcOrderedCollection").removeObjectAtIndex(1)
-  w.mutableArrayValueForKey("kvcOrderedCollection").removeObjectIdenticalTo(40)
+  w.mutableArrayValueForKey("kvcOrderedCollection").removeObject(40)
   w.mutableArrayValueForKey("kvcOrderedCollection").removeObjectsAtIndexes(
       NSIndexSet.indexSetWithIndex(3))
   w.mutableArrayValueForKey("kvcOrderedCollection").removeObjectsInRange(
