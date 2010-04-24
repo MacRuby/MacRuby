@@ -446,12 +446,17 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
   if (callback == NULL)
     return false;
 
+  /* check if the given framework path has not been loaded already */
   cf_path = CFStringCreateWithFileSystemRepresentation(kCFAllocatorMalloc, 
     path);
-  if (CFArrayContainsValue(parser->loaded_paths, CFRangeMake(0, CFArrayGetCount(parser->loaded_paths)), cf_path)) {
-    /* already loaded */
-    CFRelease(cf_path);
-    return true;
+  for (unsigned i = 0, count = CFArrayGetCount(parser->loaded_paths);
+       i < count; i++) {
+    CFStringRef s = CFArrayGetValueAtIndex(parser->loaded_paths, i);
+    if (CFStringCompare(cf_path, s, kCFCompareCaseInsensitive)
+        == kCFCompareEqualTo) {
+      /* already loaded */
+      return true;
+    }
   }
 
   //printf("parsing %s\n", path);
