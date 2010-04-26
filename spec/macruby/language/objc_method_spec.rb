@@ -426,6 +426,22 @@ describe "A pure Objective-C method" do
     end
     @o.methodAcceptingSEL('foo:arg1:arg2:', target:o)
   end
+
+  it "accepting an anonymous structure should be given a Boxed object that matches the types" do
+    @o.methodSignatureForSelector(:'methodAcceptingAnonymousStructure:').getArgumentTypeAtIndex(2).should == '{?=dd}'
+
+    @o.methodAcceptingAnonymousStructure(NSPoint.new(42, 4200)).should == 1
+    @o.methodAcceptingAnonymousStructure(NSSize.new(42, 4200)).should == 1
+    @o.methodAcceptingAnonymousStructure([42, 4200]).should == 1
+    @o.methodAcceptingAnonymousStructure(NSPoint.new(42, 4201)).should == 0
+    @o.methodAcceptingAnonymousStructure(NSSize.new(42, 4201)).should == 0
+    @o.methodAcceptingAnonymousStructure([42, 4201]).should == 0
+
+    lambda { @o.methodAcceptingAnonymousStructure([42]) }.should raise_error(ArgumentError)
+    lambda { @o.methodAcceptingAnonymousStructure([42, 4200, 42]) }.should raise_error(ArgumentError)
+    lambda { @o.methodAcceptingAnonymousStructure(nil) }.should raise_error(TypeError)
+    lambda { @o.methodAcceptingAnonymousStructure(NSRange.new(42, 4200)) }.should raise_error(TypeError)
+  end
 end
 
 describe "A pure MacRuby method" do

@@ -151,6 +151,17 @@ SkipFirstType(const char *type)
     }
 }
 
+static inline const char *
+GetFirstType(const char *p, char *buf, size_t buflen)
+{
+    const char *p2 = SkipFirstType(p);
+    const size_t len = p2 - p;
+    assert(len < buflen);
+    strncpy(buf, p, len);
+    buf[len] = '\0';
+    return SkipStackSize(p2);
+}
+
 static inline unsigned int
 TypeArity(const char *type)
 {

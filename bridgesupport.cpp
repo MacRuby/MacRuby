@@ -526,6 +526,168 @@ RoxorCore::register_bs_boxed(bs_element_type_t type, void *value)
     return true;
 }
 
+rb_vm_bs_boxed_t *
+RoxorCore::register_anonymous_bs_struct(const char *type)
+{
+    if (strlen(type) < 3 || type[0] != _C_STRUCT_B || type[1] != '?'
+	   || type[2] != '=') {
+	// Does not look like an anonymous struct...
+	return NULL;
+    }
+
+    // Prepare the list of field types.
+    std::vector<std::string> s_types;
+    char buf[100];
+    const char *p = &type[3];
+    while (*p != _C_STRUCT_E) {
+	p = GetFirstType(p, buf, sizeof buf);
+	assert(*p != '\0');
+	s_types.push_back(buf);
+    }
+
+    // Prepare the BridgeSupport structure.
+    bs_element_struct_t *bs_struct = (bs_element_struct_t *)
+	malloc(sizeof(bs_element_struct_t));
+    bs_struct->name = (char *)"?";
+    bs_struct->type = strdup(type);
+    bs_struct->fields_count = s_types.size();
+    assert(bs_struct->fields_count > 0);
+    bs_struct->fields = (bs_element_struct_field_t *)
+	malloc(sizeof(bs_element_struct_field_t) * bs_struct->fields_count);
+    for (unsigned i = 0; i < bs_struct->fields_count; i++) {
+	bs_element_struct_field_t *field = &bs_struct->fields[i];
+	field->name = (char *)"?";
+	field->type = strdup(s_types.at(i).c_str());
+    }
+    bs_struct->opaque = true;
+
+    // Prepare the boxed structure.
+    rb_vm_bs_boxed_t *boxed = (rb_vm_bs_boxed_t *)
+	malloc(sizeof(rb_vm_bs_boxed_t));
+    boxed->bs_type = BS_ELEMENT_STRUCT;
+    boxed->as.s = bs_struct;
+    boxed->type = NULL; // Lazy
+    boxed->klass = rb_cBoxed; // This type has no class
+
+    // Register it to the runtime.
+    bs_boxed[type] = boxed;
+    return boxed;
+}
+
+static inline long
+rebuild_new_struct_ary(const StructType *type, VALUE orig, VALUE new_ary)
+{
+    long n = 0;
+
+    for (StructType::element_iterator iter = type->element_begin();
+	 iter != type->element_end();
+	 ++iter) {
+
+	const Type *ftype = *iter;
+	
+	if (ftype->getTypeID() == Type::StructTyID) {
+            long i, n2;
+            VALUE tmp;
+
+            n2 = rebuild_new_struct_ary(cast<StructType>(ftype), orig, new_ary);
+            tmp = rb_ary_new();
+            for (i = 0; i < n2; i++) {
+                if (RARRAY_LEN(orig) == 0) {
+                    return 0;
+		}
+                rb_ary_push(tmp, rb_ary_shift(orig));
+            }
+            rb_ary_push(new_ary, tmp);
+        }
+        n++;
+    }
+
+    return n;
+}
+
+extern "C"
+void
+rb_vm_get_struct_fields(VALUE rval, VALUE *buf, rb_vm_bs_boxed_t *bs_boxed)
+{
+    if (TYPE(rval) == T_ARRAY) {
+	unsigned n = RARRAY_LEN(rval);
+	if (n < bs_boxed->as.s->fields_count) {
+	    rb_raise(rb_eArgError,
+		    "not enough elements in array `%s' to create " \
+		    "structure `%s' (%d for %d)",
+		    RSTRING_PTR(rb_inspect(rval)), bs_boxed->as.s->name, n,
+		    bs_boxed->as.s->fields_count);
+	}
+
+	if (n > bs_boxed->as.s->fields_count) {
+	    VALUE new_rval = rb_ary_new();
+	    VALUE orig = rval;
+	    rval = rb_ary_dup(rval);
+	    rebuild_new_struct_ary(cast<StructType>(bs_boxed->type), rval,
+		    new_rval);
+	    n = RARRAY_LEN(new_rval);
+	    if (RARRAY_LEN(rval) != 0 || n != bs_boxed->as.s->fields_count) {
+		rb_raise(rb_eArgError,
+			"too much elements in array `%s' to create " \
+			"structure `%s' (%ld for %d)",
+			RSTRING_PTR(rb_inspect(orig)),
+			bs_boxed->as.s->name, RARRAY_LEN(orig),
+			bs_boxed->as.s->fields_count);
+	    }
+	    rval = new_rval;
+	}
+
+	for (unsigned i = 0; i < n; i++) {
+	    buf[i] = RARRAY_AT(rval, i);
+	}
+    }
+    else {
+	if (!rb_obj_is_kind_of(rval, bs_boxed->klass)) {
+	    rb_raise(rb_eTypeError, 
+		    "expected instance of `%s', got `%s' (%s)",
+		    rb_class2name(bs_boxed->klass),
+		    RSTRING_PTR(rb_inspect(rval)),
+		    rb_obj_classname(rval));
+	}
+
+	if (bs_boxed->klass == rb_cBoxed) {
+	    // An anonymous type...
+	    // Let's check that the given boxed object matches the types.
+	    rb_vm_bs_boxed_t *rval_bs_boxed =
+		locate_bs_boxed(CLASS_OF(rval), true);
+	    assert(rval_bs_boxed != NULL);
+
+	    if (rval_bs_boxed->as.s->fields_count
+		    != bs_boxed->as.s->fields_count) {
+		rb_raise(rb_eTypeError,
+			"expected instance of Boxed with %d fields, got %d",
+			bs_boxed->as.s->fields_count, 
+			rval_bs_boxed->as.s->fields_count);
+	    }
+
+	    for (unsigned i = 0; i < bs_boxed->as.s->fields_count; i++) {
+		if (strcmp(bs_boxed->as.s->fields[i].type,
+			    rval_bs_boxed->as.s->fields[i].type) != 0) {
+		    rb_raise(rb_eTypeError,
+			"field %d of given instance of `%s' does not match " \
+			"the type expected (%s, got %s)",
+			i,
+			rb_class2name(bs_boxed->klass),
+			bs_boxed->as.s->fields[i].type,
+			rval_bs_boxed->as.s->fields[i].type);	
+		}
+	    }
+	}
+
+	VALUE *data;
+	Data_Get_Struct(rval, VALUE, data);
+
+	for (unsigned i = 0; i < bs_boxed->as.s->fields_count; i++) {
+	    buf[i] = data[i];
+	}	
+    }
+}
+
 static VALUE
 rb_boxed_objc_type(VALUE rcv, SEL sel)
 {
@@ -797,7 +959,16 @@ rb_vm_bs_boxed_t *
 RoxorCore::find_bs_struct(std::string type)
 {
     rb_vm_bs_boxed_t *boxed = find_bs_boxed(type);
-    return boxed == NULL ? NULL : boxed->is_struct() ? boxed : NULL;
+    if (boxed != NULL) {
+	if (boxed->is_struct()) {
+	    return boxed;
+	}
+	return NULL;
+    }
+
+    // Given structure type does not exist... but it may be an anonymous
+    // type (like {?=qq}) which is sometimes present in BridgeSupport files...
+    return register_anonymous_bs_struct(type.c_str());
 }
 
 rb_vm_bs_boxed_t *
@@ -1079,7 +1250,6 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 
 	case BS_ELEMENT_CFTYPE:
 	{
-	    
 	    bs_element_cftype_t *bs_cftype = (bs_element_cftype_t *)value;
 	    std::map<std::string, bs_element_cftype_t *>::iterator
 		iter = bs_cftypes.find(bs_cftype->type);
@@ -1132,7 +1302,8 @@ RoxorCore::load_bridge_support(const char *path, const char *framework_path,
 
     char *error = NULL;
     const bool ok = bs_parser_parse(bs_parser, path, framework_path,
-	    (bs_parse_options_t)options, __bs_parse_cb, rb_cObject_dict, &error);
+	    (bs_parse_options_t)options, __bs_parse_cb, rb_cObject_dict,
+	    &error);
     if (!ok) {
 	rb_raise(rb_eRuntimeError, "%s", error);
     }

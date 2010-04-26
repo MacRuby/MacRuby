@@ -720,6 +720,16 @@
     return ptr == NULL;
 }
 
+typedef struct {
+    CGFloat f1;
+    CGFloat f2;
+} anon_struct;
+
+- (BOOL)methodAcceptingAnonymousStructure:(anon_struct)s
+{
+    return s.f1 == 42 && s.f2 == 4200;
+}
+
 extern id objc_msgSend(id self, SEL op, ...);
 
 - (void)methodAcceptingSEL:(SEL)sel target:(id)target

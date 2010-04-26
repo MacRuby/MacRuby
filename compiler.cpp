@@ -6029,17 +6029,6 @@ RoxorCompiler::compile_write_attr(ID name)
     return f;
 }
 
-static inline const char *
-GetFirstType(const char *p, char *buf, size_t buflen)
-{
-    const char *p2 = SkipFirstType(p);
-    const size_t len = p2 - p;
-    assert(len < buflen);
-    strncpy(buf, p, len);
-    buf[len] = '\0';
-    return SkipStackSize(p2);
-}
-
 static inline void
 convert_error(const char type, VALUE val)
 {
@@ -6248,91 +6237,6 @@ rb_vm_rval_to_cptr(VALUE rval, const char *type, void **cptr)
     return *cptr;
 }
 
-static inline long
-rebuild_new_struct_ary(const StructType *type, VALUE orig, VALUE new_ary)
-{
-    long n = 0;
-
-    for (StructType::element_iterator iter = type->element_begin();
-	 iter != type->element_end();
-	 ++iter) {
-
-	const Type *ftype = *iter;
-	
-	if (ftype->getTypeID() == Type::StructTyID) {
-            long i, n2;
-            VALUE tmp;
-
-            n2 = rebuild_new_struct_ary(cast<StructType>(ftype), orig, new_ary);
-            tmp = rb_ary_new();
-            for (i = 0; i < n2; i++) {
-                if (RARRAY_LEN(orig) == 0) {
-                    return 0;
-		}
-                rb_ary_push(tmp, rb_ary_shift(orig));
-            }
-            rb_ary_push(new_ary, tmp);
-        }
-        n++;
-    }
-
-    return n;
-}
-
-extern "C"
-void
-rb_vm_get_struct_fields(VALUE rval, VALUE *buf, rb_vm_bs_boxed_t *bs_boxed)
-{
-    if (TYPE(rval) == T_ARRAY) {
-	unsigned n = RARRAY_LEN(rval);
-	if (n < bs_boxed->as.s->fields_count) {
-	    rb_raise(rb_eArgError,
-		    "not enough elements in array `%s' to create " \
-		    "structure `%s' (%d for %d)",
-		    RSTRING_PTR(rb_inspect(rval)), bs_boxed->as.s->name, n,
-		    bs_boxed->as.s->fields_count);
-	}
-
-	if (n > bs_boxed->as.s->fields_count) {
-	    VALUE new_rval = rb_ary_new();
-	    VALUE orig = rval;
-	    rval = rb_ary_dup(rval);
-	    rebuild_new_struct_ary(cast<StructType>(bs_boxed->type), rval,
-		    new_rval);
-	    n = RARRAY_LEN(new_rval);
-	    if (RARRAY_LEN(rval) != 0 || n != bs_boxed->as.s->fields_count) {
-		rb_raise(rb_eArgError,
-			"too much elements in array `%s' to create " \
-			"structure `%s' (%ld for %d)",
-			RSTRING_PTR(rb_inspect(orig)),
-			bs_boxed->as.s->name, RARRAY_LEN(orig),
-			bs_boxed->as.s->fields_count);
-	    }
-	    rval = new_rval;
-	}
-
-	for (unsigned i = 0; i < n; i++) {
-	    buf[i] = RARRAY_AT(rval, i);
-	}
-    }
-    else {
-	if (!rb_obj_is_kind_of(rval, bs_boxed->klass)) {
-	    rb_raise(rb_eTypeError, 
-		    "expected instance of `%s', got `%s' (%s)",
-		    rb_class2name(bs_boxed->klass),
-		    RSTRING_PTR(rb_inspect(rval)),
-		    rb_obj_classname(rval));
-	}
-
-	VALUE *data;
-	Data_Get_Struct(rval, VALUE, data);
-
-	for (unsigned i = 0; i < bs_boxed->as.s->fields_count; i++) {
-	    buf[i] = data[i];
-	}	
-    }
-}
-
 void
 RoxorCompiler::compile_get_struct_fields(Value *val, Value *buf,
 					 rb_vm_bs_boxed_t *bs_boxed)
@@ -6530,8 +6434,10 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 
         case _C_FPTR_B:
 	    {
-		GlobalVariable *proc_gvar = new GlobalVariable(*RoxorCompiler::module,
-			RubyObjTy, false, GlobalValue::InternalLinkage, nilVal, "");
+		GlobalVariable *proc_gvar =
+		    new GlobalVariable(*RoxorCompiler::module,
+			    RubyObjTy, false, GlobalValue::InternalLinkage,
+			    nilVal, "");
 		new StoreInst(val, proc_gvar, bb);
 
 		char buf[100];
@@ -6799,7 +6705,7 @@ RoxorCompiler::compile_new_pointer(const char *type, Value *val)
 
 Value *
 RoxorCompiler::compile_conversion_to_ruby(const char *type,
-					  const Type *llvm_type, Value *val)
+	const Type *llvm_type, Value *val)
 {
     const char *func_name = NULL;
 

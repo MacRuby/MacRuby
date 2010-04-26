@@ -847,6 +847,7 @@ class RoxorCore {
     private:
 	bool register_bs_boxed(bs_element_type_t type, void *value);
 	void register_bs_class(bs_element_class_t *bs_class);
+	rb_vm_bs_boxed_t *register_anonymous_bs_struct(const char *type);
 };
 
 #define GET_CORE() (RoxorCore::shared)
