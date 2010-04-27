@@ -3121,7 +3121,7 @@ rb_vm_keep_vars(rb_vm_var_uses *uses, int lvars_size, ...)
     return;
 
 use_found:
-    rb_vm_kept_local *locals = (rb_vm_kept_local *)malloc(
+    rb_vm_kept_local *locals = (rb_vm_kept_local *)xmalloc(
 	    sizeof(rb_vm_kept_local)*lvars_size);
 
     va_list ar;
@@ -3129,7 +3129,7 @@ use_found:
     for (int i = 0; i < lvars_size; ++i) {
 	locals[i].name = va_arg(ar, ID);
 	locals[i].stack_address = va_arg(ar, VALUE *);
-	locals[i].new_address = (VALUE *)xmalloc(sizeof(VALUE));
+	GC_WB(&locals[i].new_address, (VALUE *)xmalloc(sizeof(VALUE)));
 	GC_WB(locals[i].new_address, *locals[i].stack_address);
     }
     va_end(ar);
@@ -3180,7 +3180,6 @@ use_found:
 	use_index = 0;
 	free(old_current);
     }
-    free(locals);
 }
 
 static inline rb_vm_local_t **
