@@ -57,8 +57,8 @@ range_init(VALUE range, VALUE beg, VALUE end, int exclude_end)
     }
 
     SET_EXCL(range, exclude_end);
-    RSTRUCT(range)->as.ary[0] = beg;
-    RSTRUCT(range)->as.ary[1] = end;
+    GC_WB(&RANGE_BEG(range), beg);
+    GC_WB(&RANGE_END(range), end);
 }
 
 VALUE
