@@ -356,7 +356,7 @@ do {\
 	head->back = entry;\
     }\
     else {\
-	table->head = entry;\
+	GC_WB(&table->head, entry);\
 	entry->fore = entry;\
 	entry->back = entry;\
     }\
@@ -458,7 +458,7 @@ rehash(register st_table *table)
     if ((ptr = table->head) != 0) {
 	do {
 	    hash_val = ptr->hash % new_num_bins;
-	    ptr->next = new_bins[hash_val];
+	    GC_WB(&ptr->next, new_bins[hash_val]);
 	    GC_WB(&new_bins[hash_val], ptr);
 	} while ((ptr = ptr->fore) != table->head);
     }
@@ -493,6 +493,8 @@ st_copy(st_table *old_table)
 	    entry = alloc(st_table_entry);
 	    assert(entry != NULL);
 	    *entry = *ptr;
+	    GC_WB(&entry->key, ptr->key);
+	    GC_WB(&entry->record, ptr->record);
 	    hash_val = entry->hash % num_bins;
 	    GC_WB(&entry->next, new_table->bins[hash_val]);
 	    GC_WB(&new_table->bins[hash_val], entry);
@@ -500,7 +502,8 @@ st_copy(st_table *old_table)
 	    prev = entry;
 	    *tail = entry;
 	    tail = &entry->fore;
-	} while ((ptr = ptr->fore) != old_table->head);
+	} while ((ptr = ptr->fore) != old_table->head && ptr != NULL);
+	GC_WB(&new_table->head, new_table->head);
 	entry = new_table->head;
 	entry->back = prev;
 	*tail = entry;

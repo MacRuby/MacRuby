@@ -3395,8 +3395,8 @@ rb_vm_make_curry_proc(VALUE proc, VALUE passed, VALUE arity)
     b->arity.real = 1;
     b->flags = VM_BLOCK_PROC;
     b->imp = (IMP)rb_vm_block_curry;
-    b->dvars[0] = (VALUE *)proc;
-    b->dvars[1] = (VALUE *)passed;
+    GC_WB(&b->dvars[0], (VALUE *)proc);
+    GC_WB(&b->dvars[1], (VALUE *)passed);
     b->dvars[2] = (VALUE *)arity;
 
     return rb_proc_alloc_with_block(rb_cProc, b);
