@@ -410,8 +410,7 @@ rb_node_release(NODE *node)
 	    rb_node_release(node->u3.node);
 	    break;
 
-	case NODE_METHOD:	/* 1,2 */
-	case NODE_WHILE:
+	case NODE_WHILE:	/* 1,2 */
 	case NODE_UNTIL:
 	case NODE_AND:
 	case NODE_OR:
