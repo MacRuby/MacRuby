@@ -61,4 +61,9 @@ describe "An NSArray object" do
     a.size.should == 0
     lambda { a << 123 }.should raise_error(RuntimeError)
   end
+
+  it "can be transformed to yaml using #to_yaml" do
+    require 'yaml'
+    NSArray.arrayWithArray([1, 2, 42]).to_yaml.should == "--- \n- 1\n- 2\n- 42\n"
+  end
 end

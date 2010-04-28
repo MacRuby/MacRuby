@@ -82,7 +82,7 @@ class Struct
   def taguri; "!ruby/struct:#{self.class.to_s.sub(/^Struct::/, '')}"; end
 end
 
-class String
+class NSString
   yaml_as "tag:yaml.org,2002:str"
   
   def to_yaml(output = nil)
@@ -108,7 +108,7 @@ class Exception
   def taguri; "!ruby/exception:#{self.class}"; end
 end
 
-class Array
+class NSArray
   yaml_as "tag:yaml.org,2002:seq"
   
   def to_yaml(output = nil)
@@ -120,7 +120,7 @@ class Array
   end
 end
 
-class Hash
+class NSDictionary
   yaml_as "tag:yaml.org,2002:map"
   
   def to_yaml(output = nil)

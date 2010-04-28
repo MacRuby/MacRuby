@@ -47,6 +47,10 @@ describe "An Hash object" do
 end
 
 describe "An NSDictionary object" do
+  before(:all) do
+    require 'yaml'
+  end
+
   it "is an instance of the Hash class" do
     a = NSDictionary.dictionary
     a.is_a?(Hash).should == true
@@ -60,5 +64,16 @@ describe "An NSDictionary object" do
     a = NSDictionary.dictionary
     a.size.should == 0
     lambda { a[42] = 123 }.should raise_error(RuntimeError)
+  end
+
+  it "can be transformed to yaml using #to_yaml" do
+    NSDictionary.dictionaryWithDictionary({:a => "ok", :c => 42}).to_yaml.should == "--- \n:a: ok\n:c: 42\n"
+  end
+
+  it "can include Foundation objects and be correctly transformed to yaml" do
+    a = NSString.stringWithString("a")
+    ok = NSString.stringWithString("ok")
+    ary = NSArray.arrayWithArray([42, 21])
+    NSDictionary.dictionaryWithDictionary({a => ok, :c => ary}).to_yaml.should == "--- \na: ok\n:c:\n- 42\n- 21\n"
   end
 end

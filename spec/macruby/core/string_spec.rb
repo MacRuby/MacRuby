@@ -63,4 +63,9 @@ describe "An NSString object" do
   it "forwards the block when calling a ruby method" do
     NSString.stringWithString("ybuRcaM").sub(/.+/) { |s| s.reverse }.should == "MacRuby"
   end
+
+  it "can be transformed to yaml using #to_yaml" do
+    require 'yaml'
+    NSString.stringWithString("ok").to_yaml.should == "--- ok\n"
+  end
 end
