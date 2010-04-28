@@ -13,6 +13,7 @@
 #include "id.h"
 #include "vm.h"
 #include "objc.h"
+#include "class.h"
 
 st_table *rb_global_tbl;
 st_table *rb_class_tbl;
@@ -333,7 +334,7 @@ rb_name_class(VALUE klass, ID id)
 VALUE
 rb_class_name(VALUE klass)
 {
-    return rb_class_path(rb_class_real(klass));
+    return rb_class_path(rb_class_real(klass, false));
 }
 
 const char *

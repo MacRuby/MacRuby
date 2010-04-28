@@ -18,6 +18,7 @@
 #include "hash.h"
 #include "encoding.h"
 #include "re.h"
+#include "class.h"
 
 #include <execinfo.h>
 #include <dlfcn.h>
@@ -842,7 +843,7 @@ dispatch:
 	    if (self == Qfalse) {
 		return rb_cFalseClass;
 	    }
-	    return rb_class_real((VALUE)klass);
+	    return rb_class_real((VALUE)klass, true);
 	}
 
 #if ROXOR_VM_DEBUG

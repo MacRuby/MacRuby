@@ -204,8 +204,6 @@ rb_str_NSCoder_decode(void *coder, const char *key)
 void
 Init_NSString(void)
 {
-    rb_cNSString = (VALUE)objc_getClass("NSString");
-    assert(rb_cNSString != 0);
     rb_cString = rb_cNSString;
     rb_include_module(rb_cString, rb_mComparable);
     rb_cNSMutableString = (VALUE)objc_getClass("NSMutableString");

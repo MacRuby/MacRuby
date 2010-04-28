@@ -25,6 +25,7 @@ using namespace llvm;
 #include "compiler.h"
 #include "bridgesupport.h"
 #include "objc.h"
+#include "class.h"
 
 #include <execinfo.h>
 #include <dlfcn.h>

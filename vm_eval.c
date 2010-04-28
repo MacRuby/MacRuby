@@ -17,6 +17,7 @@
 #include "vm.h"
 #include "objc.h"
 #include "id.h"
+#include "class.h"
 
 #include "vm_method.c"
 

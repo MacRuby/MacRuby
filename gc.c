@@ -26,9 +26,7 @@
 #include "objc.h"
 #include "vm.h"
 #include "id.h"
-#include <stdio.h>
-#include <setjmp.h>
-#include <sys/types.h>
+#include "class.h"
 
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>

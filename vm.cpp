@@ -49,6 +49,7 @@ using namespace llvm;
 #include "debugger.h"
 #include "objc.h"
 #include "dtrace.h"
+#include "class.h"
 
 #include <objc/objc-exception.h>
 
@@ -1424,7 +1425,7 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
 	// Constant is already defined.
 	check_if_module(klass);
 	if (!(flags & DEFINE_MODULE) && super != 0) {
-	    if (rb_class_real(RCLASS_SUPER(klass)) != super) {
+	    if (rb_class_real(RCLASS_SUPER(klass), true) != super) {
 		rb_raise(rb_eTypeError, "superclass mismatch for class %s",
 			rb_class2name(klass));
 	    }
@@ -4990,8 +4991,13 @@ Init_PreVM(void)
     method_setImplementation(m, (IMP)resolveInstanceMethod_imp);
 
     // Early define some classes.
-    rb_cSymbol = rb_objc_create_class("Symbol",
-	    (VALUE)objc_getClass("NSString"));
+    rb_cNSString = (VALUE)objc_getClass("NSString");
+    assert(rb_cNSString != 0);
+    rb_cNSArray = (VALUE)objc_getClass("NSArray");
+    assert(rb_cNSArray != 0);
+    rb_cNSHash = (VALUE)objc_getClass("NSDictionary");
+    assert(rb_cNSHash != 0);
+    rb_cSymbol = rb_objc_create_class("Symbol", rb_cNSString);
     rb_cEncoding = rb_objc_create_class("Encoding",
 	    (VALUE)objc_getClass("NSObject"));
     rb_cRubyString = rb_objc_create_class("String",

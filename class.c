@@ -14,9 +14,11 @@
 #include "ruby/node.h"
 #include "ruby/st.h"
 #include <ctype.h>
+#include <stdarg.h>
 #include "id.h"
 #include "vm.h"
 #include "objc.h"
+#include "class.h"
 
 extern st_table *rb_class_tbl;
 
@@ -34,18 +36,6 @@ rb_objc_class_sync_version(Class ocklass, Class ocsuper)
 	|| (super_version & RCLASS_IS_OBJECT_SUBCLASS)
 	    == RCLASS_IS_OBJECT_SUBCLASS) {
 	klass_version |= RCLASS_IS_OBJECT_SUBCLASS;
-    }
-    if ((super_version & RCLASS_IS_ARRAY_SUBCLASS)
-	    == RCLASS_IS_ARRAY_SUBCLASS) {
-	klass_version |= RCLASS_IS_ARRAY_SUBCLASS;
-    }
-    if ((super_version & RCLASS_IS_HASH_SUBCLASS)
-	    == RCLASS_IS_HASH_SUBCLASS) {
-	klass_version |= RCLASS_IS_HASH_SUBCLASS;
-    }
-    if ((super_version & RCLASS_IS_STRING_SUBCLASS)
-	    == RCLASS_IS_STRING_SUBCLASS) {
-	klass_version |= RCLASS_IS_STRING_SUBCLASS;
     }
 
     RCLASS_SET_VERSION(ocklass, klass_version);
@@ -109,7 +99,7 @@ rb_obj_superclass(VALUE klass, SEL sel)
     while (RCLASS_SINGLETON(cl)) {
 	cl = RCLASS_SUPER(cl);
     }
-    return rb_class_real(cl);
+    return rb_class_real(cl, true);
 }
 
 VALUE rb_obj_init_copy(VALUE, SEL, VALUE);
@@ -198,22 +188,7 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
 VALUE
 rb_objc_create_class(const char *name, VALUE super)
 {
-    VALUE klass;
-
-    if (!RCLASS_RUBY(super)) {
-	const long v = RCLASS_VERSION(super);
-	if (v & RCLASS_IS_STRING_SUBCLASS) {
-	    super = rb_cNSMutableString;
-	}
-	else if (v & RCLASS_IS_HASH_SUBCLASS) {
-	    super = rb_cNSMutableHash;
-	}
-	else if (v & RCLASS_IS_ARRAY_SUBCLASS) {
-	    super = rb_cNSMutableArray;
-	}
-    }
-
-    klass = rb_objc_alloc_class(name, super, T_CLASS, rb_cClass);
+    VALUE klass = rb_objc_alloc_class(name, super, T_CLASS, rb_cClass);
    
     if (super != rb_cNSObject && super != 0
 	    && ((RCLASS_VERSION(*(VALUE *)super) & RCLASS_HAS_ROBJECT_ALLOC)
@@ -277,7 +252,7 @@ rb_mod_init_copy(VALUE clone, SEL sel, VALUE orig)
     rb_obj_init_copy(clone, 0, orig);
     {
 	VALUE super;
-	int version_flag;
+	unsigned long version_flag;
 
 	if (!RCLASS_RUBY(orig)) {
 	    super = orig;
@@ -462,7 +437,7 @@ rb_define_class(const char *name, VALUE super)
 	if (TYPE(klass) != T_CLASS) {
 	    rb_raise(rb_eTypeError, "%s is not a class", name);
 	}
-	if (rb_class_real(RCLASS_SUPER(klass)) != super) {
+	if (rb_class_real(RCLASS_SUPER(klass), true) != super) {
 	    rb_name_error(id, "%s is already defined", name);
 	}
 	return klass;
@@ -492,7 +467,7 @@ rb_define_class_under(VALUE outer, const char *name, VALUE super)
 	if (TYPE(klass) != T_CLASS) {
 	    rb_raise(rb_eTypeError, "%s is not a class", name);
 	}
-	if (rb_class_real(RCLASS_SUPER(klass)) != super) {
+	if (rb_class_real(RCLASS_SUPER(klass), true) != super) {
 	    rb_name_error(id, "%s is already defined", name);
 	}
 	return klass;
@@ -1203,8 +1178,6 @@ rb_define_attr(VALUE klass, const char *name, int read, int write)
     rb_attr(klass, rb_intern(name), read, write, Qfalse);
 }
 
-#include <stdarg.h>
-
 int
 rb_scan_args(int argc, const VALUE *argv, const char *fmt, ...)
 {
@@ -1283,4 +1256,134 @@ rb_scan_args(int argc, const VALUE *argv, const char *fmt, ...)
   error:
     rb_fatal("bad scan arg format: %s", fmt);
     return 0;
+}
+
+static void *rb_class_flags_key = NULL;
+
+static unsigned long
+rb_class_get_mask(Class k)
+{
+    return (unsigned long)rb_objc_get_associative_ref(k, &rb_class_flags_key);
+}
+
+static void
+rb_class_set_mask(Class k, unsigned long mask)
+{
+    rb_objc_set_associative_ref(k, &rb_class_flags_key, (void *)mask);
+}
+
+#define RCLASS_MASK_TYPE_SHIFT 16
+
+unsigned long
+rb_class_get_flags(Class k)
+{
+    return rb_class_get_mask(k) >> RCLASS_MASK_TYPE_SHIFT;
+}
+
+void
+rb_class_set_flags(Class k, unsigned long flags)
+{
+    rb_class_set_mask(k, flags << RCLASS_MASK_TYPE_SHIFT);
+}
+
+static int
+foundation_type(Class k)
+{
+    Class tmp = k;
+    do {
+	if (tmp == (Class)rb_cNSString) {
+	    return T_STRING;
+	}
+	if (tmp == (Class)rb_cNSArray) {
+	    return T_ARRAY;
+	}
+	if (tmp == (Class)rb_cNSHash) {
+	    return T_HASH;
+	}
+	tmp = class_getSuperclass(tmp);
+    }
+    while (tmp != NULL);
+    return 0;
+}
+
+int
+rb_objc_type(VALUE obj)
+{
+    Class k = *(Class *)obj;
+
+    if (k != NULL) {
+	unsigned long mask = rb_class_get_mask(k);
+	int type = mask & 0xff;
+	if (type == 0) {
+	    // Type is not available, let's compute it. 	    
+	    if (k == (Class)rb_cSymbol) {
+		type = T_SYMBOL;
+		goto done;
+	    }
+	    if (k == (Class)rb_cFixnum) {
+		type = T_FIXNUM;
+		goto done;
+	    }
+	    if ((type = foundation_type(k)) != 0) {
+		goto done;
+	    }
+	    if (RCLASS_META(k)) {
+		if (RCLASS_MODULE(obj)) {
+		    type = T_MODULE;
+		    goto done;
+		}
+		else {
+		    type = T_CLASS;
+		    goto done;
+		}
+	    }
+	    const unsigned long flags = mask >> RCLASS_MASK_TYPE_SHIFT;
+	    if ((flags & RCLASS_IS_OBJECT_SUBCLASS)
+		    != RCLASS_IS_OBJECT_SUBCLASS) {
+		type = T_NATIVE;
+		goto done;
+	    }
+	    type = BUILTIN_TYPE(obj);
+
+done:
+	    assert(type != 0);
+	    mask |= type;
+	    rb_class_set_mask(k, mask); 
+	}	
+	return type;
+    }
+    return BUILTIN_TYPE(obj);
+}
+
+bool
+rb_obj_is_native(VALUE obj)
+{
+    Class k = *(Class *)obj;
+    return k != NULL && (RCLASS_VERSION(k) & RCLASS_IS_OBJECT_SUBCLASS)
+	!= RCLASS_IS_OBJECT_SUBCLASS;
+}
+
+VALUE
+rb_class_real(VALUE cl, bool hide_builtin_foundation_classes)
+{
+    if (cl == 0) {
+        return 0;
+    }
+    if (RCLASS_META(cl)) {
+	return RCLASS_MODULE(cl) ? rb_cModule : rb_cClass;
+    }
+    while (RCLASS_SINGLETON(cl)) {
+	cl = RCLASS_SUPER(cl);
+    }
+    if (hide_builtin_foundation_classes && !RCLASS_RUBY(cl)) {
+	switch (foundation_type((Class)cl)) {
+	    case T_STRING:
+		return rb_cRubyString;
+	    case T_ARRAY:
+		return rb_cRubyArray;
+	    case T_HASH:
+		return rb_cRubyHash;
+	}
+    }
+    return cl;
 }

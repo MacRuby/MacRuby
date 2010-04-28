@@ -18,6 +18,7 @@
 #include "objc.h"
 #include "vm.h"
 #include "hash.h"
+#include "class.h"
 
 static VALUE rhash_try_convert(VALUE, SEL, VALUE);
 
@@ -1774,7 +1775,6 @@ Init_Hash(void)
     id_yield = rb_intern("yield");
 
     rb_cRubyHash = rb_define_class("Hash", rb_cNSMutableHash);
-    RCLASS_SET_VERSION_FLAG(rb_cRubyHash, RCLASS_IS_HASH_SUBCLASS);
 
     rb_objc_define_method(*(VALUE *)rb_cRubyHash, "new",
 	    rb_class_new_instance_imp, -1);

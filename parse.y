@@ -506,6 +506,7 @@ static int lvar_defined_gen(struct parser_params*, ID);
 #ifdef RIPPER
 #define RIPPER_VERSION "0.1.0"
 
+#include "class.h"
 #include "eventids1.c"
 #include "eventids2.c"
 static ID ripper_id_gets;

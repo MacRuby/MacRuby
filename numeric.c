@@ -20,6 +20,7 @@
 #include "vm.h"
 #include "id.h"
 #include "encoding.h"
+#include "class.h"
 
 #include <unicode/utf8.h>
 

@@ -24,6 +24,7 @@
 #include "encoding.h"
 #include "array.h"
 #include "hash.h"
+#include "class.h"
 
 VALUE rb_cBasicObject;
 VALUE rb_mKernel;
@@ -151,34 +152,6 @@ rb_obj_not_equal(VALUE obj1, SEL sel, VALUE obj2)
     return RTEST(result) ? Qfalse : Qtrue;
 }
 
-VALUE
-rb_class_real(VALUE cl)
-{
-    if (cl == 0) {
-        return 0;
-    }
-    if (RCLASS_META(cl)) {
-//	return rb_cClass;
-	return RCLASS_MODULE(cl) ? rb_cModule : rb_cClass;
-    }
-    while (RCLASS_SINGLETON(cl)) {
-	cl = RCLASS_SUPER(cl);
-    }
-    if (!RCLASS_RUBY(cl)) {
-	const long v = RCLASS_VERSION(cl);
-	if (v & RCLASS_IS_STRING_SUBCLASS) {
-	    return rb_cRubyString;
-	}
-	if (v & RCLASS_IS_HASH_SUBCLASS) {
-	    return rb_cRubyHash;
-	}
-	if (v & RCLASS_IS_ARRAY_SUBCLASS) {
-	    return rb_cRubyArray;
-	}
-    }
-    return cl;
-}
-
 /*
  *  call-seq:
  *     obj.class    => class
@@ -196,7 +169,7 @@ rb_class_real(VALUE cl)
 VALUE
 rb_obj_class(VALUE obj)
 {
-    return rb_class_real(CLASS_OF(obj));
+    return rb_class_real(CLASS_OF(obj), true);
 }
 
 static void
@@ -384,7 +357,7 @@ rb_obj_init_copy(VALUE obj, SEL sel, VALUE orig)
 static VALUE
 rb_nsobj_dup(VALUE obj, VALUE sel)
 {
-    VALUE klass = rb_class_real(CLASS_OF(obj));
+    VALUE klass = rb_class_real(CLASS_OF(obj), true);
     if (class_respondsToSelector((Class)klass, selCopyWithZone)) {
 	return (VALUE)objc_msgSend((id)obj, selCopy); 
     }
@@ -585,14 +558,14 @@ rb_obj_is_kind_of(VALUE obj, VALUE c)
 	  rb_raise(rb_eTypeError, "class or module required");
     }
 
-    const long v = RCLASS_VERSION(cl);
-    if (c == rb_cRubyString && (v & RCLASS_IS_STRING_SUBCLASS)) {
+    const int t = TYPE(obj);
+    if (c == rb_cRubyString && t == T_STRING) {
 	return Qtrue;
     }
-    if (c == rb_cRubyArray && (v & RCLASS_IS_ARRAY_SUBCLASS)) {
+    if (c == rb_cRubyArray && t == T_ARRAY) {
 	return Qtrue;
     }
-    if (c == rb_cRubyHash && (v & RCLASS_IS_HASH_SUBCLASS)) {
+    if (c == rb_cRubyHash && t == T_HASH) {
 	return Qtrue;
     }
 

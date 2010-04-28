@@ -938,8 +938,6 @@ nsary_shuffle(id rcv, SEL sel)
 void
 Init_NSArray(void)
 {
-    rb_cNSArray = (VALUE)objc_getClass("NSArray");
-    assert(rb_cNSArray != 0);
     rb_cArray = rb_cNSArray;
     rb_cNSMutableArray = (VALUE)objc_getClass("NSMutableArray");
     assert(rb_cNSMutableArray != 0);

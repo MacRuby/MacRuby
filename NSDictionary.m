@@ -435,8 +435,6 @@ nshash_compare_by_id_p(id rcv, SEL sel)
 void
 Init_NSDictionary(void)
 {
-    rb_cNSHash = (VALUE)objc_getClass("NSDictionary");
-    assert(rb_cNSHash != 0);
     rb_cHash = rb_cNSHash;
     rb_cNSMutableHash = (VALUE)objc_getClass("NSMutableDictionary");
     assert(rb_cNSMutableHash != 0);

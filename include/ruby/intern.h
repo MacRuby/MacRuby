@@ -444,7 +444,7 @@ VALUE rb_obj_freeze(VALUE);
 VALUE rb_obj_frozen_p(VALUE);
 //VALUE rb_obj_id(VALUE);
 VALUE rb_obj_class(VALUE);
-VALUE rb_class_real(VALUE);
+VALUE rb_class_real(VALUE, bool hide_builtin_foundation_classes);
 VALUE rb_class_inherited_p(VALUE, VALUE);
 VALUE rb_convert_type(VALUE,int,const char*,const char*);
 VALUE rb_check_convert_type(VALUE,int,const char*,const char*);

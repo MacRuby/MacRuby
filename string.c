@@ -22,6 +22,7 @@
 #include "id.h"
 #include "ruby/node.h"
 #include "vm.h"
+#include "class.h"
 
 #include <unicode/unum.h>
 #include <unicode/utrans.h>
@@ -5422,7 +5423,6 @@ Init_String(void)
     Init_NSString();
 
     // rb_cRubyString is defined earlier in Init_PreVM().
-    RCLASS_SET_VERSION_FLAG(rb_cRubyString, RCLASS_IS_STRING_SUBCLASS);
     rb_set_class_path(rb_cRubyString, rb_cObject, "String");
     rb_const_set(rb_cObject, rb_intern("String"), rb_cRubyString);
 
@@ -5935,7 +5935,7 @@ rb_to_id(VALUE name)
 UChar
 rb_str_get_uchar(VALUE str, long pos)
 {
-    if (RSTR(str)) {
+    if (IS_RSTR(str)) {
 	return str_get_uchar(RSTR(str), pos, true);
     }
     assert(pos >= 0 && pos < CFStringGetLength((CFStringRef)str));
@@ -5945,7 +5945,7 @@ rb_str_get_uchar(VALUE str, long pos)
 void
 rb_str_append_uchar(VALUE str, UChar c)
 {
-    if (RSTR(str)) {
+    if (IS_RSTR(str)) {
 	str_append_uchar(RSTR(str), c);	
     }
     else {
@@ -5959,7 +5959,7 @@ rb_str_append_uchars(VALUE str, const UChar *chars, long len)
     assert(chars != NULL && len >= 0);
 
     if (len > 0) {
-	if (RSTR(str)) {
+	if (IS_RSTR(str)) {
 	    str_concat_uchars(RSTR(str), chars, len);
 	}
 	else {

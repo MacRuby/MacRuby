@@ -14,6 +14,7 @@
 #include "vm.h"
 #include "dtrace.h"
 #include "id.h"
+#include "class.h"
 
 VALUE proc_invoke(VALUE, VALUE, VALUE, VALUE);
 

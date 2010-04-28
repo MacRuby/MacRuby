@@ -17,6 +17,7 @@
 #include "encoding.h"
 #include "id.h"
 #include "re.h"
+#include "class.h"
 
 #include <math.h>
 #ifdef HAVE_FLOAT_H
@@ -208,7 +209,7 @@ class2path(VALUE klass)
 		 (TYPE(klass) == T_CLASS ? "class" : "module"),
 		 n);
     }
-    if (rb_path2class(n) != rb_class_real(klass)) {
+    if (rb_path2class(n) != rb_class_real(klass, true)) {
 	rb_raise(rb_eTypeError, "%s can't be referred", n);
     }
     return path;
@@ -494,7 +495,7 @@ w_class(char type, VALUE obj, struct dump_arg *arg, int check)
     klass = CLASS_OF(obj);
     w_extended(klass, arg, check);
     w_byte(type, arg);
-    p = class2path(rb_class_real(klass));
+    p = class2path(rb_class_real(klass, true));
     path = RSTRING_PTR(p);
     w_unique(path, arg);
 }
@@ -509,7 +510,7 @@ w_uclass(VALUE obj, VALUE super, struct dump_arg *arg)
     VALUE klass = CLASS_OF(obj);
 
     w_extended(klass, arg, Qtrue);
-    klass = rb_class_real(klass);
+    klass = rb_class_real(klass, true);
 #if WITH_OBJC
     if (!is_pure) {
 #else

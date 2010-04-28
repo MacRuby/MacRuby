@@ -10,6 +10,7 @@
 #include "ruby/ruby.h"
 #include "ruby/node.h"
 #include "vm.h"
+#include "class.h"
 
 #define GetCoreDataFromValue(obj, type, ptr) do { \
     ptr = (type*)DATA_PTR(obj); \
