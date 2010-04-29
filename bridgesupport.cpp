@@ -480,7 +480,7 @@ RoxorCore::register_bs_boxed(bs_element_type_t type, void *value)
 
     rb_ivar_set(boxed->klass, boxed_ivar_type, rb_str_new2(octype.c_str()));
 
-    if (type == BS_ELEMENT_STRUCT) {
+    if (type == BS_ELEMENT_STRUCT && !boxed->as.s->opaque) {
 	// Define the fake #new method.
 	rb_objc_define_method(*(VALUE *)boxed->klass, "new",
 		(void *)rb_vm_struct_fake_new, -1);

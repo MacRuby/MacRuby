@@ -8,6 +8,10 @@ describe "A BridgeSupport structure" do
     NSRange.superclass.should == Boxed
   end
 
+  it "if opaque, cannot be directly allocated" do
+    lambda { NSDecimal.new }.should raise_error(RuntimeError)
+  end
+
   it "can be created with null values using the #new method with no argument" do
     o = NSPoint.new
     o.x.class.should == Float
@@ -262,3 +266,12 @@ describe "A BridgeSupport structure" do
     r.size.should == NSSize.new(3, 4)
   end
 end
+
+describe "The NSDecimal structure (contains bit fields and C-style arrays)" do
+  it "can be created from -[NSNumber decimalValue] and re-used later" do
+    o = NSNumber.numberWithFloat(3.1415).decimalValue
+    o.class.should == NSDecimal
+    NSDecimalNumber.decimalNumberWithDecimal(o).should be_close(3.1415, TOLERANCE)
+  end
+end
+

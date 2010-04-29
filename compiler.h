@@ -168,6 +168,7 @@ class RoxorCompiler {
 	Function *getStructFieldsFunc;
 	Function *getOpaqueDataFunc;
 	Function *getPointerPtrFunc;
+	Function *xmallocFunc;
 	Function *checkArityFunc;
 	Function *setStructFunc;
 	Function *newRangeFunc;
@@ -232,6 +233,7 @@ class RoxorCompiler {
 	const PointerType *PtrPtrTy;
 	const Type *IntTy;
 	const PointerType *Int32PtrTy;
+	const Type *BitTy;
 
 	unsigned dbg_mdkind;
 
@@ -348,6 +350,7 @@ class RoxorCompiler {
 	Value *compile_get_cptr(Value *val, const char *type, Value *slot);
 	void compile_check_arity(Value *given, Value *requested);
 	void compile_set_struct(Value *rcv, int field, Value *val);
+	Value *compile_xmalloc(size_t len);
 
 	Value *compile_conversion_to_c(const char *type, Value *val,
 				       Value *slot);

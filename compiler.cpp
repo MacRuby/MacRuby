@@ -117,6 +117,7 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     getStructFieldsFunc = NULL;
     getOpaqueDataFunc = NULL;
     getPointerPtrFunc = NULL;
+    xmallocFunc = NULL;
     checkArityFunc = NULL;
     setStructFunc = NULL;
     newRangeFunc = NULL;
@@ -187,6 +188,7 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     PtrTy = PointerType::getUnqual(Int8Ty);
     PtrPtrTy = PointerType::getUnqual(PtrTy);
     Int32PtrTy = PointerType::getUnqual(Int32Ty);
+    BitTy = Type::getInt1Ty(context);
 
 #if ROXOR_COMPILER_DEBUG
     level = 0;
@@ -6259,10 +6261,8 @@ extern "C"
 void *
 rb_vm_get_opaque_data(VALUE rval, rb_vm_bs_boxed_t *bs_boxed, void **ocval)
 {
-    if (rval == Qnil) {
-	return *ocval = NULL;
-    }
-    else {
+    void *data = NULL;
+    if (rval != Qnil) {
 	if (!rb_obj_is_kind_of(rval, bs_boxed->klass)) {
 	    rb_raise(rb_eTypeError,
 		    "cannot convert `%s' (%s) to opaque type %s",
@@ -6270,17 +6270,21 @@ rb_vm_get_opaque_data(VALUE rval, rb_vm_bs_boxed_t *bs_boxed, void **ocval)
 		    rb_obj_classname(rval),
 		    rb_class2name(bs_boxed->klass));
 	}
-	VALUE *data;
 	Data_Get_Struct(rval, VALUE, data);
-	return *ocval = (void *)data;
     }
+    if (ocval != NULL) {
+	*ocval = data;
+    }
+    return data;
 }
 
 Value *
 RoxorCompiler::compile_get_opaque_data(Value *val, rb_vm_bs_boxed_t *bs_boxed,
-				       Value *slot)
+	Value *slot)
 {
     if (getOpaqueDataFunc == NULL) {
+	// void *rb_vm_get_opaque_data(VALUE rval, rb_vm_bs_boxed_t *bs_boxed,
+	//	void **ocval)
 	getOpaqueDataFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_get_opaque_data",
 		    PtrTy, RubyObjTy, PtrTy, PtrPtrTy, NULL));
@@ -6393,33 +6397,46 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 	    {
 		rb_vm_bs_boxed_t *bs_boxed = GET_CORE()->find_bs_struct(type);
 		if (bs_boxed != NULL) {
-		    Value *fields = new AllocaInst(RubyObjTy,
-			    ConstantInt::get(Int32Ty,
-				bs_boxed->as.s->fields_count), "", bb);
+		    if (bs_boxed->as.s->opaque) {
+			// Structure is opaque, we just copy the data from
+			// the opaque object into the slot.
+			Value *data = compile_get_opaque_data(val, bs_boxed,
+				ConstantPointerNull::get(PtrPtrTy));
+			data = new BitCastInst(data,
+				PointerType::getUnqual(convert_type(type)), 
+				"", bb);
+			new StoreInst(new LoadInst(data, "", bb), slot, bb);
+		    }
+		    else {
+			// Retrieve all fields (as Ruby objects).
+			Value *fields = new AllocaInst(RubyObjTy,
+				ConstantInt::get(Int32Ty,
+				    bs_boxed->as.s->fields_count), "", bb);
+			compile_get_struct_fields(val, fields, bs_boxed);
 
-		    compile_get_struct_fields(val, fields, bs_boxed);
+			// Convert each field to C inside the slot memory.
+			for (unsigned i = 0; i < bs_boxed->as.s->fields_count;
+				i++) {
 
-		    for (unsigned i = 0; i < bs_boxed->as.s->fields_count;
-			    i++) {
+			    const char *ftype = bs_boxed->as.s->fields[i].type;
 
-			const char *ftype = bs_boxed->as.s->fields[i].type;
+			    // Load field VALUE.
+			    Value *fval = GetElementPtrInst::Create(fields,
+				    ConstantInt::get(Int32Ty, i), "", bb);
+			    fval = new LoadInst(fval, "", bb);
 
-			// Load field VALUE.
-			Value *fval = GetElementPtrInst::Create(fields,
-				ConstantInt::get(Int32Ty, i), "", bb);
-			fval = new LoadInst(fval, "", bb);
+			    // Get a pointer to the struct field. The extra 0
+			    // is needed because we are dealing with a pointer
+			    // to the structure.
+			    std::vector<Value *> slot_idx;
+			    slot_idx.push_back(ConstantInt::get(Int32Ty, 0));
+			    slot_idx.push_back(ConstantInt::get(Int32Ty, i));
+			    Value *fslot = GetElementPtrInst::Create(slot,
+				    slot_idx.begin(), slot_idx.end(), "", bb);
 
-			// Get a pointer to the struct field. The extra 0 is
-			// needed because we are dealing with a pointer to the
-			// structure.
-			std::vector<Value *> slot_idx;
-			slot_idx.push_back(ConstantInt::get(Int32Ty, 0));
-			slot_idx.push_back(ConstantInt::get(Int32Ty, i));
-			Value *fslot = GetElementPtrInst::Create(slot,
-				slot_idx.begin(), slot_idx.end(), "", bb);
-
-			RoxorCompiler::compile_conversion_to_c(ftype, fval,
-				fslot);
+			    RoxorCompiler::compile_conversion_to_c(ftype, fval,
+				    fslot);
+			}
 		    }
 
 		    if (GET_CORE()->is_large_struct_type(bs_boxed->type)) {
@@ -6646,6 +6663,7 @@ Value *
 RoxorCompiler::compile_new_struct(Value *klass, std::vector<Value *> &fields)
 {
     if (newStructFunc == NULL) {
+	// VALUE rb_vm_new_struct(VALUE klass, int argc, ...)
 	std::vector<const Type *> types;
 	types.push_back(RubyObjTy);
 	types.push_back(Int32Ty);
@@ -6667,6 +6685,7 @@ Value *
 RoxorCompiler::compile_new_opaque(Value *klass, Value *val)
 {
     if (newOpaqueFunc == NULL) {
+	// VALUE rb_vm_new_opaque(VALUE klass, void *val)
 	newOpaqueFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_new_opaque", RubyObjTy, RubyObjTy, PtrTy, NULL));
     }
@@ -6701,6 +6720,22 @@ RoxorCompiler::compile_new_pointer(const char *type, Value *val)
 
     return CallInst::Create(newPointerFunc, params.begin(), params.end(),
 	    "", bb); 
+}
+
+Value *
+RoxorCompiler::compile_xmalloc(size_t len)
+{
+    if (xmallocFunc == NULL) {
+	// void *ruby_xmalloc(size_t len);
+	xmallocFunc = cast<Function>(module->getOrInsertFunction(
+		    "ruby_xmalloc", PtrTy, Int64Ty, NULL));
+    }
+
+    std::vector<Value *> params;
+    params.push_back(ConstantInt::get(Int64Ty, len));
+
+    return CallInst::Create(xmallocFunc, params.begin(), params.end(),
+	    "", bb);
 }
 
 Value *
@@ -6800,21 +6835,32 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 	    {
 		rb_vm_bs_boxed_t *bs_boxed = GET_CORE()->find_bs_struct(type);
 		if (bs_boxed != NULL) {
-		    std::vector<Value *> params;
-
-		    for (unsigned i = 0; i < bs_boxed->as.s->fields_count;
-			    i++) {
-
-			const char *ftype = bs_boxed->as.s->fields[i].type;
-			const Type *llvm_ftype = convert_type(ftype);
-			Value *fval = ExtractValueInst::Create(val, i, "", bb);
-
-			params.push_back(compile_conversion_to_ruby(ftype,
-				    llvm_ftype, fval));
-		    }
-
 		    Value *klass = ConstantInt::get(RubyObjTy, bs_boxed->klass);
-		    return compile_new_struct(klass, params);
+		    if (bs_boxed->as.s->opaque) {
+			// Structure is opaque, we make a copy.
+			const size_t s = GET_CORE()->get_sizeof(llvm_type);
+			Value *slot = compile_xmalloc(s);
+			slot = new BitCastInst(slot,
+				PointerType::getUnqual(llvm_type), "", bb);
+			new StoreInst(val, slot, bb);
+			slot = new BitCastInst(slot, PtrTy, "", bb);
+			return compile_new_opaque(klass, slot);
+		    }
+		    else {
+			// Convert every field into a Ruby type, then box them.
+			std::vector<Value *> params;
+			for (unsigned i = 0; i < bs_boxed->as.s->fields_count;
+				i++) {
+
+			    const char *ftype = bs_boxed->as.s->fields[i].type;
+			    const Type *llvm_ftype = convert_type(ftype);
+			    Value *fval = ExtractValueInst::Create(val, i, "",
+				    bb);
+			    params.push_back(compile_conversion_to_ruby(ftype,
+					llvm_ftype, fval));
+			}
+			return compile_new_struct(klass, params);
+		    }
 		}
 	    }
 	    break;
@@ -6894,6 +6940,46 @@ RoxorCompiler::convert_type(const char *type)
 	case _C_LNG_LNG:
 	case _C_ULNG_LNG:
 	    return Int64Ty;
+
+	case _C_BFLD:
+	    {
+		// Syntax is `b3' for `unsigned foo:3'. 
+		const long size = atol(type + 1);
+		assert(size > 0);
+		return ArrayType::get(BitTy, size);
+	    }
+	    break;
+
+	case _C_ARY_B:
+	    {
+		// Syntax is [8S] for `short foo[8]'.
+		// First, let's grab the size.
+		char buf[100];
+		unsigned int n = 0;
+		const char *p = type + 1;
+		while (isdigit(*p)) {
+		    assert(n < (sizeof buf) - 1);
+		    buf[n++] = *p;
+		    p++;
+		}
+		assert(n > 0);
+		buf[n] = '\0';
+		const long size = atol(buf);
+		assert(size > 0);
+		// Second, the element type.
+		n = 0;
+		while (*p != _C_ARY_E) {
+		    assert(n < (sizeof buf) - 1);
+		    buf[n++] = *p;
+		    p++;
+		}
+		assert(n > 0);
+		buf[n] = '\0';
+		const Type *type = convert_type(buf);
+		// Now, we can return the array type.
+		return ArrayType::get(type, size);
+	    }
+	    break;
 
 	case _C_FPTR_B:
 	    return PtrTy;
