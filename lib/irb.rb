@@ -156,6 +156,7 @@ module IRB
 	  end
 	  if exc
 	    print exc.class, ": ", exc, "\n"
+	    exc.set_backtrace([]) if exc.backtrace.nil?
 	    if exc.backtrace[0] =~ /irb(2)?(\/.*|-.*|\.rb)?:/ && exc.class.to_s !~ /^IRB/ &&
                 !(SyntaxError === exc)
 	      irb_bug = true 
