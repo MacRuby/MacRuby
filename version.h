@@ -1,5 +1,5 @@
 #define RUBY_ENGINE 		"macruby"
-#define MACRUBY_VERSION 	"0.6"
+#define MACRUBY_VERSION 	"0.7"
 
 #define RUBY_VERSION 		"1.9.0"
 #define RUBY_RELEASE_DATE 	"2008-06-03"
