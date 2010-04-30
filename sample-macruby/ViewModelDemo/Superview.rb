@@ -31,12 +31,12 @@ class MySuperview < NSView
 	
   def moveSubviewToTop(mySubview)
     # Moves the given subview to the top, for drawing order purposes
-    addSubview_positioned_relativeTo_(mySubview, NSWindowBelow, subviews.lastObject)
+    addSubview(mySubview, positioned:NSWindowBelow, relativeTo:subviews.lastObject)
   end
 	
   def moveSubviewToIndex(mySubview, i)
     # An index of 0 will move it behind all others
-    addSubview_positioned_relativeTo_(mySubview, NSWindowBelow, subviews.objectAtIndex(i))
+    addSubview(mySubview, positioned:NSWindowBelow, relativeTo:subviews.objectAtIndex(i))
   end
 	
   def startTimer
