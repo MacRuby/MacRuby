@@ -10,6 +10,6 @@ require 'irb/version'
 
 require 'irb/ext/history'
 
-if !ENV['SPECCING'] && defined?(RUBY_ENGINE) && RUBY_ENGINE == "macruby"
-  require 'irb/ext/macruby'
-end
+# if !ENV['SPECCING'] && defined?(RUBY_ENGINE) && RUBY_ENGINE == "macruby"
+#   require 'irb/ext/macruby'
+# end
