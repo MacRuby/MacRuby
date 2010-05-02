@@ -1,109 +1,97 @@
+# MacRuby implementation of IRB.
 #
-#   history.rb - 
-#   	$Release Version: 0.9.5$
-#   	$Revision: 14912 $
-#   	by Keiju ISHITSUKA(keiju@ruby-lang.org)
+# This file is covered by the Ruby license. See COPYING for more details.
+# 
+# Copyright (C) 2009-2010, Eloy Duran <eloy.de.enige@gmail.com>
 #
-# --
-#
-#   
-#
+# Portions Copyright (C) 2006-2010 Ben Bleything <ben@bleything.net> (Kernel#history & Kernel#history!)
 
 module IRB
-
-  class Context
-
-    NOPRINTING_IVARS.push "@eval_history_values"
-
-    alias _set_last_value set_last_value
-
-    def set_last_value(value)
-      _set_last_value(value)
-
-#      @workspace.evaluate self, "_ = IRB.CurrentContext.last_value"
-      if @eval_history #and !@eval_history_values.equal?(llv)
- 	@eval_history_values.push @line_no, @last_value
- 	@workspace.evaluate self, "__ = IRB.CurrentContext.instance_eval{@eval_history_values}"
-      end
-
-      @last_value
-    end
-
-    attr_reader :eval_history
-    def eval_history=(no)
-      if no
-	if defined?(@eval_history) && @eval_history
-	  @eval_history_values.size(no)
-	else
-	  @eval_history_values = History.new(no)
-	  IRB.conf[:__TMP__EHV__] = @eval_history_values
-	  @workspace.evaluate(self, "__ = IRB.conf[:__TMP__EHV__]")
-	  IRB.conf.delete(:__TMP_EHV__)
-	end
-      else
-	@eval_history_values = nil
-      end
-      @eval_history = no
-    end
-  end
-
   class History
-    @RCS_ID='-$Id: history.rb 14912 2008-01-06 15:49:38Z akr $-'
-
-    def initialize(size = 16)
-      @size = size
-      @contents = []
-    end
-
-    def size(size)
-      if size != 0 && size < @size 
-	@contents = @contents[@size - size .. @size]
+    class << self
+      attr_accessor :file, :max_entries_in_overview
+      
+      def current
+        IRB::Context.current.processors.find do |processor|
+          processor.is_a?(IRB::History)
+        end
       end
-      @size = size
-    end
-
-    def [](idx)
-      begin
-	if idx >= 0
-	  @contents.find{|no, val| no == idx}[1]
-	else
-	  @contents[idx][1]
-	end
-      rescue NameError
-	nil
-      end
-    end
-
-    def push(no, val)
-      @contents.push [no, val]
-      @contents.shift if @size != 0 && @contents.size > @size
     end
     
-    alias real_inspect inspect
-
-    def inspect
-      if @contents.empty?
-	return real_inspect
+    def initialize(context)
+      @context = context
+      
+      to_a.each do |source|
+        Readline::HISTORY.push(source)
+      end if Readline::HISTORY.to_a.empty?
+    end
+    
+    def input(source)
+      File.open(self.class.file, "a") { |f| f.puts(source) }
+      source
+    end
+    
+    def to_a
+      file = self.class.file
+      File.exist?(file) ? File.read(file).split("\n") : []
+    end
+    
+    def clear!
+      File.open(self.class.file, "w") { |f| f << "" }
+      Readline::HISTORY.clear
+    end
+    
+    def history(number_of_entries = max_entries_in_overview)
+      history_size = Readline::HISTORY.size
+      start_index = 0
+      
+      # always remove one extra, because that's the `history' command itself
+      if history_size <= number_of_entries
+        end_index = history_size - 2
+      else
+        end_index = history_size - 2
+        start_index = history_size - number_of_entries - 1
       end
-
-      unless (last = @contents.pop)[1].equal?(self)
-	@contents.push last
-	last = nil
+      
+      start_index.upto(end_index) do |i|
+        puts "#{i}: #{Readline::HISTORY[i]}"
       end
-      str = @contents.collect{|no, val|
-	if val.equal?(self)
-	  "#{no} ...self-history..."
-	else
-	  "#{no} #{val.inspect}"
-	end
-      }.join("\n")
-      if str == ""
-	str = "Empty."
+    end
+    
+    def history!(entry_or_range)
+      # we don't want to execute history! again
+      @context.clear_buffer
+      
+      if entry_or_range.is_a?(Range)
+        entry_or_range.to_a.each do |i|
+          @context.input_line(Readline::HISTORY[i])
+        end
+      else
+        @context.input_line(Readline::HISTORY[entry_or_range])
       end
-      @contents.push last if last
-      str
     end
   end
 end
 
+module Kernel
+  def history(number_of_entries = IRB::History.max_entries_in_overview)
+    IRB::History.current.history(number_of_entries)
+    nil
+  end
+  alias_method :h, :history
+  
+  def history!(entry_or_range)
+    IRB::History.current.history!(entry_or_range)
+    nil
+  end
+  alias_method :h!, :history!
+  
+  def clear_history!
+    IRB::History.current.clear!
+    nil
+  end
+end
 
+IRB::Context.processors << IRB::History
+IRB::History.file = File.expand_path("~/.irb_history")
+IRB::History.max_entries_in_overview = 50

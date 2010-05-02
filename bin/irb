@@ -1,20 +1,36 @@
 #!/usr/bin/env ruby
-#
-#   irb.rb - interactive ruby
-#   	$Release Version: 0.9.5 $
-#   	$Revision: 14912 $
-#   	by Keiju ISHITSUKA(keiju@ruby-lang.org)
-#
 
-require "irb"
+require 'irb'
 
-if __FILE__ == $0
-  IRB.start(__FILE__)
+unless ARGV.empty?
+  require 'optparse'
+  
+  OptionParser.new do |opt|
+    bin = File.basename($0)
+    opt.banner = "Usage:  #{bin} [options] [programfile] [arguments]"
+    opt.on("-r load-lib",     "Loads the given library (same as `ruby -r')") { |lib| require lib }
+    opt.on("-d",              "Set $DEBUG to true (same as `ruby -d')") { $DEBUG = true }
+    opt.on("-I path",         "Add path to $LOAD_PATH") { |path| $LOAD_PATH.unshift(path) }
+    opt.on("--simple-prompt", "Simple prompt mode") { IRB.formatter.prompt = :simple }
+    opt.on("--noprompt",      "No prompt mode") { IRB.formatter.prompt = nil }
+    opt.on("-v", "--version", "Print the version of #{bin}") do
+      puts IRB::VERSION::DESCRIPTION
+      exit
+    end
+  end.parse!(ARGV)
+end
+
+irbrc = File.expand_path("~/.irbrc")
+load(irbrc) if File.exist?(irbrc)
+
+IRB.formatter.filter_from_backtrace << /^#{__FILE__}/
+
+if ARGV.empty?
+  irb(self, TOPLEVEL_BINDING.dup)
 else
-  # check -e option
-  if /^-e$/ =~ $0
-    IRB.start(__FILE__)
-  else
-    IRB.setup(__FILE__)
+  path = ARGV.shift
+  context = IRB::Context.new(self, TOPLEVEL_BINDING.dup)
+  File.open(path, 'r') do |file|
+    file.each_line { |line| context.input_line(line) }
   end
 end

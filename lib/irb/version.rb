@@ -1,15 +1,16 @@
+# MacRuby implementation of IRB.
 #
-#   irb/version.rb - irb version definition file
-#   	$Release Version: 0.9.5$
-#   	$Revision: 14912 $
-#   	by Keiju ISHITSUKA(keiju@ishitsuka.com)
-#
-# --
-#
-#   
-#
+# This file is covered by the Ruby license. See COPYING for more details.
+# 
+# Copyright (C) 2009-2010, Eloy Duran <eloy.de.enige@gmail.com>
 
 module IRB
-  @RELEASE_VERSION = "0.9.5"
-  @LAST_UPDATE_DATE = "05/04/13"
+  module VERSION #:nodoc:
+    MAJOR = 0
+    MINOR = 4
+    TINY  = 2
+    
+    STRING = [MAJOR, MINOR, TINY].join('.')
+    DESCRIPTION = "#{STRING} (DietRB)"
+  end
 end
