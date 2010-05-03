@@ -18,6 +18,27 @@ VALUE rb_cArray;
 VALUE rb_cNSArray;
 VALUE rb_cNSMutableArray;
 
+// Some NSArray instances actually do not even respond to mutable methods.
+// So one way to know is to check if the addObject: method exists.
+#define CHECK_MUTABLE(obj) \
+    do { \
+        if (![obj respondsToSelector:@selector(addObject:)]) { \
+	    rb_raise(rb_eRuntimeError, \
+		    "can't modify frozen/immutable array"); \
+        } \
+    } \
+    while (0)
+
+// If a given mutable operation raises an NSException error,
+// it is likely that the object is not mutable.
+#define TRY_MOP(code) \
+    @try { \
+	code; \
+    } \
+    @catch(NSException *exc) { \
+	rb_raise(rb_eRuntimeError, "can't modify frozen/immutable array"); \
+    }
+
 static id
 nsary_dup(id rcv, SEL sel)
 {
@@ -41,7 +62,8 @@ nsary_clone(id rcv, SEL sel)
 static id
 nsary_clear(id rcv, SEL sel)
 {
-    [rcv removeAllObjects];
+    CHECK_MUTABLE(rcv);
+    TRY_MOP([rcv removeAllObjects]);
     return rcv;
 }
 
@@ -159,21 +181,23 @@ nsary_splice(id ary, long beg, long len, VALUE rpl)
 	rlen = RARRAY_LEN(rpl);
     }
 
+    CHECK_MUTABLE(ary);
+
     if (beg >= n) {
 	for (long i = n; i < beg; i++) {
-	    [ary addObject:[NSNull null]];
+	    TRY_MOP([ary addObject:[NSNull null]]);
 	}
 	if (rlen > 0 && rpl != Qundef) {
-	    [ary addObjectsFromArray:(id)rpl];
+	    TRY_MOP([ary addObjectsFromArray:(id)rpl]);
 	}
     }
     else {
 	if (rlen > 0 && rpl != Qundef) {
-	    [ary replaceObjectsInRange:NSMakeRange(beg, len)
-		withObjectsFromArray:(id)rpl];
+	    TRY_MOP([ary replaceObjectsInRange:NSMakeRange(beg, len)
+		withObjectsFromArray:(id)rpl]);
 	}
 	else {
-	    [ary removeObjectsInRange:NSMakeRange(beg, len)];
+	    TRY_MOP([ary removeObjectsInRange:NSMakeRange(beg, len)]);
 	}
     }
 }
@@ -189,12 +213,15 @@ nsary_store(id ary, long idx, VALUE val)
 		    idx - len);
 	}
     }
+
+    CHECK_MUTABLE(ary);
+
     if (len <= idx) {
 	for (long i = len; i <= idx; i++) {
-	    [ary addObject:[NSNull null]];
+	    TRY_MOP([ary addObject:[NSNull null]]);
 	} 
     }	
-    [ary replaceObjectAtIndex:idx withObject:RB2OC(val)];
+    TRY_MOP([ary replaceObjectAtIndex:idx withObject:RB2OC(val)]);
 }
 
 static VALUE
@@ -286,8 +313,9 @@ nsary_shared_first(int argc, VALUE *argv, id ary, bool last, bool remove)
     }
 
     if (remove) {
+	CHECK_MUTABLE(ary);
 	for (long i = 0; i < n; i++) {
-	    [ary removeObjectAtIndex:offset];
+	    TRY_MOP([ary removeObjectAtIndex:offset]);
 	}
     }
 
@@ -318,14 +346,16 @@ static id
 nsary_concat(id rcv, SEL sel, VALUE ary)
 {
     ary = to_ary(ary);
-    [rcv addObjectsFromArray:(id)ary];
+    CHECK_MUTABLE(rcv);
+    TRY_MOP([rcv addObjectsFromArray:(id)ary]);
     return rcv;
 }
 
 static id
 nsary_push(id rcv, SEL sel, VALUE elem)
 {
-    [rcv addObject:RB2OC(elem)];
+    CHECK_MUTABLE(rcv);
+    TRY_MOP([rcv addObject:RB2OC(elem)]);
     return rcv;
 }
 
@@ -341,11 +371,12 @@ nsary_push_m(id rcv, SEL sel, int argc, VALUE *argv)
 static VALUE
 nsary_pop(id rcv, SEL sel, int argc, VALUE *argv)
 {
+    CHECK_MUTABLE(rcv);
     if (argc == 0) {
 	const long len = [rcv count];
 	if (len > 0) {
 	    id elem = [rcv objectAtIndex:len - 1];
-	    [rcv removeObjectAtIndex:len - 1];
+	    TRY_MOP([rcv removeObjectAtIndex:len - 1]);
 	    return OC2RB(elem);
 	}
 	return Qnil;
@@ -356,11 +387,12 @@ nsary_pop(id rcv, SEL sel, int argc, VALUE *argv)
 static VALUE
 nsary_shift(id rcv, SEL sel, int argc, VALUE *argv)
 {
+    CHECK_MUTABLE(rcv);
     if (argc == 0) {
 	const long len = [rcv count];
 	if (len > 0) {
 	    id elem = [rcv objectAtIndex:0];
-	    [rcv removeObjectAtIndex:0];
+	    TRY_MOP([rcv removeObjectAtIndex:0]);
 	    return OC2RB(elem);
 	}
 	return Qnil;
@@ -371,8 +403,9 @@ nsary_shift(id rcv, SEL sel, int argc, VALUE *argv)
 static id
 nsary_unshift(id rcv, SEL sel, int argc, VALUE *argv)
 {
+    CHECK_MUTABLE(rcv);
     for (int i = argc - 1; i >= 0; i--) {
-	[rcv insertObject:RB2OC(argv[i]) atIndex:0];
+	TRY_MOP([rcv insertObject:RB2OC(argv[i]) atIndex:0]);
     }
     return rcv;
 }
@@ -380,6 +413,7 @@ nsary_unshift(id rcv, SEL sel, int argc, VALUE *argv)
 static void
 nsary_insert(id rcv, long idx, VALUE elem)
 {
+    CHECK_MUTABLE(rcv);
     const long len = [rcv count];
     if (idx < 0) {
 	idx += len;
@@ -389,15 +423,16 @@ nsary_insert(id rcv, long idx, VALUE elem)
     }
     if (idx > len) {
 	for (long i = len; i < idx; i++) {
-	    [rcv addObject:[NSNull null]];
+	    TRY_MOP([rcv addObject:[NSNull null]]);
 	} 	
     }
-    [rcv insertObject:RB2OC(elem) atIndex:idx];
+    TRY_MOP([rcv insertObject:RB2OC(elem) atIndex:idx]);
 }
 
 static id
 nsary_insert_m(id rcv, SEL sel, int argc, VALUE *argv)
 {
+    CHECK_MUTABLE(rcv);
     if (argc < 1) {
 	rb_raise(rb_eArgError, "wrong number of arguments (at least 1)");
     }
@@ -539,8 +574,9 @@ nsary_rindex(id rcv, SEL sel, int argc, VALUE *argv)
 static id
 nsary_reverse_bang(id rcv, SEL sel)
 {
+    CHECK_MUTABLE(rcv);
     for (long i = 0, count = [rcv count]; i < (count / 2); i++) {
-	[rcv exchangeObjectAtIndex:i withObjectAtIndex:count - i - 1];
+	TRY_MOP([rcv exchangeObjectAtIndex:i withObjectAtIndex:count - i - 1]);
     }
     return rcv;
 }
@@ -563,12 +599,13 @@ sort_block(id x, id y, void *context)
 static id
 nsary_sort_bang(id rcv, SEL sel)
 {
+    CHECK_MUTABLE(rcv);
     if ([rcv count] > 1) {
 	if (rb_block_given_p()) {
-	    [rcv sortUsingFunction:sort_block context:NULL];
+	    TRY_MOP([rcv sortUsingFunction:sort_block context:NULL]);
 	}
 	else {
-	    [rcv sortUsingSelector:@selector(compare:)];
+	    TRY_MOP([rcv sortUsingSelector:@selector(compare:)]);
 	}
     }
     return rcv;
@@ -583,11 +620,12 @@ nsary_sort(id rcv, SEL sel)
 static VALUE
 collect(id rcv)
 {
+    CHECK_MUTABLE(rcv);
     for (long i = 0, count = [rcv count]; i < count; i++) {
 	id elem = [rcv objectAtIndex:i];
 	id newval = RB2OC(rb_yield(OC2RB(elem)));
 	RETURN_IF_BROKEN();
-	[rcv replaceObjectAtIndex:i withObject:newval];
+	TRY_MOP([rcv replaceObjectAtIndex:i withObject:newval]);
     }
     return (VALUE)rcv;
 }
@@ -653,8 +691,9 @@ nsary_delete_element(id rcv, VALUE elem)
     NSRange range = NSMakeRange(0, len);
     NSUInteger index;
     bool changed = false;
+    CHECK_MUTABLE(rcv);
     while ((index = [rcv indexOfObject:ocelem inRange:range]) != NSNotFound) {
-	[rcv removeObjectAtIndex:index];
+	TRY_MOP([rcv removeObjectAtIndex:index]);
 	range.location = index;
 	range.length = --len - index;
 	changed = true;
@@ -677,6 +716,7 @@ nsary_delete(id rcv, SEL sel, VALUE elem)
 static VALUE
 nsary_delete_at(id rcv, SEL sel, VALUE pos)
 {
+    CHECK_MUTABLE(rcv);
     long index = NUM2LONG(pos);
     const long len = [rcv count];
     if (index >= len) {
@@ -689,20 +729,21 @@ nsary_delete_at(id rcv, SEL sel, VALUE pos)
 	}
     }
     VALUE elem = OC2RB([rcv objectAtIndex:index]);
-    [rcv removeObjectAtIndex:index]; 
+    TRY_MOP([rcv removeObjectAtIndex:index]); 
     return elem;
 }
 
 static VALUE
 reject(id rcv)
 {
+    CHECK_MUTABLE(rcv);
     bool changed = false;
     for (long i = 0, n = [rcv count]; i < n; i++) {
 	VALUE elem = OC2RB([rcv objectAtIndex:i]);
 	VALUE test = rb_yield(elem);
 	RETURN_IF_BROKEN();
 	if (RTEST(test)) {
-	    [rcv removeObjectAtIndex:i];
+	    TRY_MOP([rcv removeObjectAtIndex:i]);
 	    n--;
 	    i--;
 	    changed = true;
@@ -736,7 +777,8 @@ static id
 nsary_replace(id rcv, SEL sel, VALUE other)
 {
     other = to_ary(other);
-    [rcv setArray:(id)other];
+    CHECK_MUTABLE(rcv);
+    TRY_MOP([rcv setArray:(id)other]);
     return rcv;
 }
 
@@ -828,6 +870,7 @@ nsary_times(id rcv, SEL sel, VALUE times)
 static VALUE
 nsary_uniq_bang(id rcv, SEL sel)
 {
+    CHECK_MUTABLE(rcv);
     long len = [rcv count];
     bool changed = false;
     for (long i = 0; i < len; i++) {
@@ -835,7 +878,7 @@ nsary_uniq_bang(id rcv, SEL sel)
 	NSRange range = NSMakeRange(i + 1, len - i - 1);
 	NSUInteger index;
 	while ((index = [rcv indexOfObject:elem inRange:range]) != NSNotFound) {
-	    [rcv removeObjectAtIndex:index];
+	    TRY_MOP([rcv removeObjectAtIndex:index]);
 	    range.location = index;
 	    range.length = --len - index;
 	    changed = true;
@@ -919,10 +962,11 @@ nsary_take_while(id rcv, SEL sel)
 static id
 nsary_shuffle_bang(id rcv, SEL sel)
 {
+    CHECK_MUTABLE(rcv);
     long i = [rcv count];
     while (i > 0) {
 	const long j = rb_genrand_real() * i--;
-	[rcv exchangeObjectAtIndex:i withObjectAtIndex:j];
+	TRY_MOP([rcv exchangeObjectAtIndex:i withObjectAtIndex:j]);
     }
     return rcv;
 }
