@@ -18,6 +18,27 @@ VALUE rb_cHash;
 VALUE rb_cNSHash;
 VALUE rb_cNSMutableHash;
 
+// Some NSDictionary instances actually do not even respond to mutable methods.
+// So one way to know is to check if the setObject:forKey: method exists.
+#define CHECK_MUTABLE(obj) \
+    do { \
+        if (![obj respondsToSelector:@selector(setObject:forKey:)]) { \
+	    rb_raise(rb_eRuntimeError, \
+		    "can't modify frozen/immutable hash"); \
+        } \
+    } \
+    while (0)
+
+// If a given mutable operation raises an NSException error,
+// it is likely that the object is not mutable.
+#define TRY_MOP(code) \
+    @try { \
+	code; \
+    } \
+    @catch(NSException *exc) { \
+	rb_raise(rb_eRuntimeError, "can't modify frozen/immutable hash"); \
+    }
+
 static id
 to_hash(id hash)
 {
@@ -47,12 +68,14 @@ nshash_clone(id rcv, SEL sel)
 static id
 nshash_rehash(id rcv, SEL sel)
 {
+    CHECK_MUTABLE(rcv);
     NSArray *keys = [rcv allKeys];
     NSArray *values = [rcv allValues];
     assert([keys count] == [values count]);
-    [rcv removeAllObjects];
+    TRY_MOP([rcv removeAllObjects]);
     for (unsigned i = 0, count = [keys count]; i < count; i++) {
-	[rcv setObject:[values objectAtIndex:i] forKey:[keys objectAtIndex:i]];
+	TRY_MOP([rcv setObject:[values objectAtIndex:i]
+		forKey:[keys objectAtIndex:i]]);
     }
     return rcv;
 }
@@ -113,7 +136,8 @@ nshash_aref(id rcv, SEL sel, VALUE key)
 static VALUE
 nshash_aset(id rcv, SEL sel, VALUE key, VALUE val)
 {
-    [rcv setObject:RB2OC(val) forKey:RB2OC(key)];
+    CHECK_MUTABLE(rcv);
+    TRY_MOP([rcv setObject:RB2OC(val) forKey:RB2OC(key)]);
     return val;
 }
 
@@ -251,11 +275,12 @@ nshash_values_at(id rcv, SEL sel, int argc, VALUE *argv)
 static VALUE
 nshash_shift(id rcv, SEL sel)
 {
+    CHECK_MUTABLE(rcv);
     if ([rcv count] > 0) {
 	id key = [[rcv keyEnumerator] nextObject];
 	assert(key != NULL);
 	id value = [rcv objectForKey:key];
-	[rcv removeObjectForKey:key];
+	TRY_MOP([rcv removeObjectForKey:key]);
 	return rb_assoc_new(OC2RB(key), OC2RB(value));
     }
     return nshash_default(rcv, 0, 0, NULL);
@@ -264,10 +289,11 @@ nshash_shift(id rcv, SEL sel)
 static VALUE
 nshash_delete(id rcv, SEL sel, VALUE key)
 {
+    CHECK_MUTABLE(rcv);
     id ockey = RB2OC(key);
     id value = [rcv objectForKey:ockey];
     if (value != nil) {
-	[rcv removeObjectForKey:ockey];
+	TRY_MOP([rcv removeObjectForKey:ockey]);
 	return OC2RB(value);
     }
     if (rb_block_given_p()) {
@@ -279,6 +305,7 @@ nshash_delete(id rcv, SEL sel, VALUE key)
 static VALUE
 nshash_delete_if(id rcv, SEL sel)
 {
+    CHECK_MUTABLE(rcv);
     RETURN_ENUMERATOR(rcv, 0, 0);
     NSMutableArray *ary = [NSMutableArray new];
     for (id key in rcv) {
@@ -288,19 +315,20 @@ nshash_delete_if(id rcv, SEL sel)
 	}
 	RETURN_IF_BROKEN();
     }
-    [rcv removeObjectsForKeys:ary];
+    TRY_MOP([rcv removeObjectsForKeys:ary]);
     return (VALUE)rcv;
 }
 
 static VALUE
 nshash_select(id rcv, SEL sel)
 {
+    CHECK_MUTABLE(rcv);
     RETURN_ENUMERATOR(rcv, 0, 0);
     NSMutableDictionary *dict = [NSMutableDictionary new];
     for (id key in rcv) {
 	id value = [rcv objectForKey:key];
 	if (RTEST(rb_yield_values(2, OC2RB(key), OC2RB(value)))) {
-	    [dict setObject:value forKey:key];
+	    TRY_MOP([dict setObject:value forKey:key]);
 	}
 	RETURN_IF_BROKEN();
     }
@@ -334,6 +362,7 @@ static id
 nshash_update(id rcv, SEL sel, id hash)
 {
     hash = to_hash(hash);
+    CHECK_MUTABLE(rcv);
     if (rb_block_given_p()) {
 	for (id key in hash) {
 	    id value = [hash objectForKey:key];
@@ -342,13 +371,13 @@ nshash_update(id rcv, SEL sel, id hash)
 		value = RB2OC(rb_yield_values(3, OC2RB(key), OC2RB(old_value),
 			    OC2RB(value)));
 	    }
-	    [rcv setObject:value forKey:key];
+	    TRY_MOP([rcv setObject:value forKey:key]);
 	}
     }
     else {
 	for (id key in hash) {
 	    id value = [hash objectForKey:key];
-	    [rcv setObject:value forKey:key];
+	    TRY_MOP([rcv setObject:value forKey:key]);
 	}
     }    
     return rcv;
@@ -364,7 +393,8 @@ static id
 nshash_replace(id rcv, SEL sel, id hash)
 {
     hash = to_hash(hash);
-    [rcv setDictionary:hash];
+    CHECK_MUTABLE(rcv);
+    TRY_MOP([rcv setDictionary:hash]);
     return rcv;
 }
 

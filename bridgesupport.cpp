@@ -560,7 +560,7 @@ RoxorCore::register_anonymous_bs_struct(const char *type)
 	field->name = (char *)"?";
 	field->type = strdup(s_types.at(i).c_str());
     }
-    bs_struct->opaque = true;
+    bs_struct->opaque = false;
 
     // Prepare the boxed structure.
     rb_vm_bs_boxed_t *boxed = (rb_vm_bs_boxed_t *)

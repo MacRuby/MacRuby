@@ -18,6 +18,27 @@ VALUE rb_cString;
 VALUE rb_cNSString;
 VALUE rb_cNSMutableString;
 
+// Some NSString instances actually do not even respond to mutable methods.
+// So one way to know is to check if the setString: method exists.
+#define CHECK_MUTABLE(obj) \
+    do { \
+        if (![obj respondsToSelector:@selector(setString:)]) { \
+	    rb_raise(rb_eRuntimeError, \
+		    "can't modify frozen/immutable string"); \
+        } \
+    } \
+    while (0)
+
+// If a given mutable operation raises an NSException error,
+// it is likely that the object is not mutable.
+#define TRY_MOP(code) \
+    @try { \
+	code; \
+    } \
+    @catch(NSException *exc) { \
+	rb_raise(rb_eRuntimeError, "can't modify frozen/immutable string"); \
+    }
+
 static inline VALUE
 to_str(VALUE str)
 {
@@ -59,16 +80,18 @@ nsstr_to_s(id rcv, SEL sel)
 static id
 nsstr_replace(id rcv, SEL sel, VALUE other)
 {
-    [rcv setString:(id)to_str(other)];
+    CHECK_MUTABLE(rcv);
+    TRY_MOP([rcv setString:(id)to_str(other)]);
     return rcv;
 }
 
 static id
 nsstr_clear(id rcv, SEL sel)
 {
+    CHECK_MUTABLE(rcv);
     const long len = [rcv length];
     if (len > 0) {
-	[rcv deleteCharactersInRange:NSMakeRange(0, len)];
+	TRY_MOP([rcv deleteCharactersInRange:NSMakeRange(0, len)]);
     }
     return rcv;
 }
@@ -95,7 +118,8 @@ nsstr_empty(id rcv, SEL sel)
 static id
 nsstr_concat(id rcv, SEL sel, VALUE other)
 {
-    [rcv appendString:(id)to_str(other)];
+    CHECK_MUTABLE(rcv);
+    TRY_MOP([rcv appendString:(id)to_str(other)]);
     return rcv;
 }
 
@@ -180,10 +204,11 @@ nsstr_forward(id rcv, SEL sel, int argc, VALUE *argv)
 static VALUE
 nsstr_forward_bang(id rcv, SEL sel, int argc, VALUE *argv)
 {
+    CHECK_MUTABLE(rcv);
     VALUE rcv_rstr = nsstr_to_rstr(rcv);
     VALUE ret = rb_vm_call_with_cache2(rb_vm_get_call_cache(sel),
 	    rb_vm_current_block(), rcv_rstr, 0, sel, argc, argv);
-    [rcv setString:(id)rcv_rstr];
+    TRY_MOP([rcv setString:(id)rcv_rstr]);
     return ret;
 }
 
