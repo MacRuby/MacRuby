@@ -5592,6 +5592,9 @@ VALUE
 rb_str_bstr(VALUE str)
 {
     if (!IS_RSTR(str)) {
+	if (CFStringGetLength((CFStringRef)str) == 0) {
+	    return rb_bstr_new();
+	}
 	const char *cptr = CFStringGetCStringPtr((CFStringRef)str,
 		kCFStringEncodingUTF8);
 	if (cptr != NULL) {
