@@ -5064,6 +5064,8 @@ macruby_main(const char *path, int argc, char **argv)
     argv = newargv;    
     argc = n;
 
+    unsetenv("RUBYOPT");
+
     try {
 	ruby_sysinit(&argc, &argv);
 	ruby_init();
