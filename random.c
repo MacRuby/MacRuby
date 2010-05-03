@@ -735,7 +735,7 @@ fixnum:
     }
     else {
 	v = Qnil;
-	NUM2LONG(vmax);
+	(void)NUM2LONG(vmax);
     }
     if (NIL_P(v)) {
 	VALUE mesg = rb_str_new2("invalid argument - ");
