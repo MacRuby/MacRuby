@@ -8,7 +8,7 @@
 #
 
 require 'e2mmap'
-require 'irb/slex'
+require 'rdoc/lex/slex'
 
 require 'rdoc/code_objects'
 require 'rdoc/tokenstream'
