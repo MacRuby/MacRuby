@@ -144,7 +144,7 @@ init_from_string(rb_regexp_t *regexp, VALUE str, int option, VALUE *excp)
 	delete unistr;
 	if (excp != NULL) {
 	    char error[1024];
-	    snprintf(error, sizeof error, "regexp `%s 'compilation error: %s",
+	    snprintf(error, sizeof error, "regexp `%s' compilation error: %s",
 		    RSTRING_PTR(str),
 		    u_errorName(status));
 	    *excp = rb_exc_new2(rb_eRegexpError, error);
