@@ -1056,7 +1056,7 @@ rb_method_call(VALUE method, SEL sel, int argc, VALUE *argv)
 	rb_raise(rb_eTypeError, "can't call unbound method; bind first");
     }
     
-    int safe = 1;
+    int safe = -1;
     if (OBJ_TAINTED(method)) {
 	safe = rb_safe_level();
 	if (rb_safe_level() < 4) {
