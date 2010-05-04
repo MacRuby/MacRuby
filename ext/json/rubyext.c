@@ -433,6 +433,10 @@ json_encode_part(void* ctx, VALUE obj)
             cptr = RSTRING_PTR(obj);
             status = yajl_gen_string(gen->generator, (const unsigned char*)cptr, (unsigned int)strlen(cptr), 1);
             break;
+        case T_SYMBOL:
+            cptr = rb_sym2name(obj);
+            status = yajl_gen_string(gen->generator, (const unsigned char*)cptr, (unsigned int)strlen(cptr), quote_strings);
+            break;
         default:
             if (rb_respond_to(obj, id_to_json)) {
                 str = rb_vm_call_with_cache(to_json_cache, obj, sel_to_json, 0, 0);
