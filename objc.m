@@ -358,14 +358,16 @@ rb_require_framework(VALUE recv, SEL sel, int argc, VALUE *argv)
     do { 								  \
 	path = [[dir stringByAppendingPathComponent:@"Frameworks"]	  \
 	   stringByAppendingPathComponent:frameworkName];		  \
-	if ([fileManager fileExistsAtPath:path])  			  \
+	if ([fileManager fileExistsAtPath:path]) {			  \
 	    goto success; 						  \
+	}								  \
 	path = [[dir stringByAppendingPathComponent:@"PrivateFrameworks"] \
 	   stringByAppendingPathComponent:frameworkName];		  \
-	if ([fileManager fileExistsAtPath:path]) 			  \
+	if ([fileManager fileExistsAtPath:path]) {			  \
 	    goto success; 						  \
+	}								  \
     } 									  \
-    while(0)
+    while (0)
 
 	pathDomainMask = RTEST(search_network)
 	    ? NSAllDomainsMask
@@ -399,8 +401,9 @@ rb_require_framework(VALUE recv, SEL sel, int argc, VALUE *argv)
     for (i = 0, count = [dirs count]; i < count; i++) {
         NSString *dir = [dirs objectAtIndex:i];
         path = [dir stringByAppendingPathComponent:frameworkName];
-        if ([fileManager fileExistsAtPath:path])
+        if ([fileManager fileExistsAtPath:path]) {
             goto success;
+	}
     }
 
 #undef FIND_LOAD_PATH_IN_LIBRARY
@@ -422,11 +425,8 @@ success:
 		 cstr);
     }
 
-    if ([bundle isLoaded]) {
-	return Qfalse;
-    }
-
-    if (![bundle loadAndReturnError:&error]) {
+    const bool loaded = [bundle isLoaded];
+    if (!loaded && ![bundle loadAndReturnError:&error]) {
 	rb_raise(rb_eRuntimeError,
 		 "framework at path `%s' cannot be loaded: %s",
 		 cstr,
@@ -439,7 +439,7 @@ success:
 
     enable_kvo_notifications = true;
 
-    return Qtrue;
+    return loaded ? Qfalse : Qtrue;
 }
 
 void rb_vm_init_compiler(void);
