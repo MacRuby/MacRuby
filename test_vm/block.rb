@@ -730,9 +730,19 @@ assert '[["1-1", "1-2", "1-3"], ["2-1", "2-2", "2-3"], ["3-1", "3-2", "3-3"]]', 
   p arrays
 }
 
-assert ':ok' ,%{
+assert ':ok', %{
   def foo
     lambda { yield }.call
   end
   p(foo { :ok })
+}
+
+assert ':ok', %{
+  def foo
+    bar { p :ok if block_given? }
+  end
+  def bar(&b)
+    b.call
+  end
+  foo
 }
