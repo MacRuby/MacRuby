@@ -45,7 +45,6 @@ SYM_INSTDIR             = b.option('sym_instdir', '/usr/local')
 NO_WARN_BUILD           = !b.option('allow_build_warnings', false)
 ENABLE_STATIC_LIBRARY   = b.option('enable_static_library', 'no') { 'yes' }
 ENABLE_DEBUG_LOGGING    = b.option('enable_debug_logging', true) { |x| x == 'true' }
-UNEXPORTED_SYMBOLS_LIST = b.option('unexported_symbols_list', nil)
 SIMULTANEOUS_JOBS       = b.option('jobs', 1) { |x| x.to_i }
 COMPILE_STDLIB          = b.option('compile_stdlib', true) { |x| x == 'true' }
 
@@ -100,6 +99,7 @@ RUBY_VENDOR_ARCHLIB = File.join(RUBY_VENDOR_LIB2, NEW_RUBY_PLATFORM)
 INSTALL_NAME = File.join(FRAMEWORK_USR_LIB, 'lib' + RUBY_SO_NAME + '.dylib')
 ARCHFLAGS = ARCHS.map { |a| '-arch ' + a }.join(' ')
 LLVM_MODULES = "core jit nativecodegen bitwriter"
+EXPORTED_SYMBOLS_LIST = "./exported_symbols_list"
 
 CC = '/usr/bin/gcc-4.2'
 CXX = '/usr/bin/g++-4.2'
@@ -113,8 +113,7 @@ CXXFLAGS << " -DLLVM_TOT" if ENV['LLVM_TOT']
 CXXFLAGS << " -DLLVM_PRE_TOT" if ENV['LLVM_PRE_TOT']
 LDFLAGS = `#{LLVM_CONFIG} --ldflags --libs #{LLVM_MODULES}`.strip.gsub(/\n/, '')
 LDFLAGS << " -lpthread -ldl -lxml2 -lobjc -lauto -licucore -framework Foundation"
-DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION}"
-DLDFLAGS << " -unexported_symbols_list #{UNEXPORTED_SYMBOLS_LIST}" if UNEXPORTED_SYMBOLS_LIST
+DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION} -exported_symbols_list #{EXPORTED_SYMBOLS_LIST}"
 CFLAGS << " -std=c99" # we add this one later to not conflict with C++ flags
 OBJC_CFLAGS << " -std=c99"
 
