@@ -744,5 +744,5 @@ assert ':ok', %{
   def bar(&b)
     b.call
   end
-  foo
+  foo {}
 }
