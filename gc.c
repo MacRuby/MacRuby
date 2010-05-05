@@ -1050,7 +1050,9 @@ void
 Init_PostGC(void)
 {
     if (!gc_disabled) {
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
 	objc_startCollectorThread();
+#endif
 	auto_collector_reenable(__auto_zone);
     }
 }
