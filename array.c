@@ -2289,7 +2289,7 @@ rb_ary_equal(VALUE ary1, VALUE ary2)
 	    VALUE item2 = rary_elt(ary2, i);
 
 	    if ((FIXFLOAT_P(item1) && isnan(FIXFLOAT2DBL(item1)))
-		|| FIXFLOAT_P(item2) && isnan(FIXFLOAT2DBL(item2))) {
+		    || (FIXFLOAT_P(item2) && isnan(FIXFLOAT2DBL(item2)))) {
 		return Qfalse;
 	    }
 
