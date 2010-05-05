@@ -11,7 +11,6 @@
 #include "ruby/node.h"
 #include "ruby/io.h"
 #include "objc.h"
-#include "id.h"
 #include "vm.h"
 #include "yaml.h"
 #include <unistd.h>
@@ -1058,7 +1057,7 @@ Init_libyaml()
     //rb_objc_define_method(rb_cResolver, "add_ruby_type", rb_yaml_resolver_add_ruby_type, 1);
     //rb_objc_define_method(rb_cResolver, "add_builtin_type", rb_yaml_resolver_add_builtin_type, 1);
     //rb_objc_define_method(rb_cResolver, "add_private_type", rb_yaml_resolver_add_private_type, 1);
-    rb_oDefaultResolver = rb_vm_call(rb_cResolver, selNew, 0, NULL, false);
+    rb_oDefaultResolver = rb_vm_call(rb_cResolver, sel_registerName("new"), 0, NULL, false);
     rb_define_const(rb_mLibYAML, "DEFAULT_RESOLVER", rb_oDefaultResolver);
 
     rb_cEmitter = rb_define_class_under(rb_mLibYAML, "Emitter", rb_cObject);
