@@ -104,11 +104,11 @@ EXPORTED_SYMBOLS_LIST = "./exported_symbols_list"
 CC = '/usr/bin/gcc-4.2'
 CXX = '/usr/bin/g++-4.2'
 CFLAGS = "-I. -I./include -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -O3 -g -Wall -fexceptions"
-CFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
+CFLAGS << " -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
 OBJC_CFLAGS = CFLAGS + " -fobjc-gc-only"
 CXXFLAGS = `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.sub(/-DNDEBUG/, '').sub(/-fno-exceptions/, '').strip
 CXXFLAGS << " -I. -I./include -g -Wall #{ARCHFLAGS}"
-CXXFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
+CXXFLAGS << " -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
 CXXFLAGS << " -DLLVM_TOT" if ENV['LLVM_TOT']
 CXXFLAGS << " -DLLVM_PRE_TOT" if ENV['LLVM_PRE_TOT']
 LDFLAGS = `#{LLVM_CONFIG} --ldflags --libs #{LLVM_MODULES}`.strip.gsub(/\n/, '')
