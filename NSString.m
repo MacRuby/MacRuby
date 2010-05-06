@@ -135,6 +135,15 @@ nsstr_plus(id rcv, SEL sel, VALUE other)
 static VALUE
 nsstr_equal(id rcv, SEL sel, VALUE other)
 {
+    if (rcv == (id)other) {
+        return Qtrue;
+    }
+    if (TYPE(other) != T_STRING) {
+        if (!rb_respond_to(other, rb_intern("to_str"))) {
+            return Qfalse;
+        }
+        return rb_equal(other, (VALUE)rcv);
+    }
     return [rcv isEqualToString:(id)to_str(other)] ? Qtrue : Qfalse;
 }
 
