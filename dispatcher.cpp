@@ -1507,21 +1507,27 @@ rb_vm_block_eval0(rb_vm_block_t *b, SEL sel, VALUE self, int argc,
 	    rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
 		    argc, limit);
 	}
+
 	VALUE *new_argv;
 	if (argc == 1 && TYPE(argv[0]) == T_ARRAY
-	    && (arity.min > 1 || (arity.min == 1 && arity.min != arity.max))) {
+		&& (arity.min > 1
+		    || (arity.min == 1 && arity.min != arity.max))) {
 	    // Expand the array.
-	    long ary_len = RARRAY_LEN(argv[0]);
-	    new_argv = (VALUE *)xmalloc_ptrs(sizeof(VALUE) * ary_len);
-	    for (int i = 0; i < ary_len; i++) {
-		new_argv[i] = RARRAY_AT(argv[0], i);
+	    const long ary_len = RARRAY_LEN(argv[0]);
+	    if (ary_len > 0) {
+		new_argv = (VALUE *)RARRAY_PTR(argv[0]);
+	    }
+	    else {
+		new_argv = NULL;
 	    }
 	    argv = new_argv;
 	    argc = ary_len;
-	    if (argc >= arity.min && (argc <= arity.max || b->arity.max == -1)) {
+	    if (argc >= arity.min
+		    && (argc <= arity.max || b->arity.max == -1)) {
 		goto block_call;
 	    }
 	}
+
 	int new_argc;
 	if (argc <= arity.min) {
 	    new_argc = arity.min;
@@ -1532,10 +1538,17 @@ rb_vm_block_eval0(rb_vm_block_t *b, SEL sel, VALUE self, int argc,
 	else {
 	    new_argc = argc;
 	}
-	new_argv = (VALUE *)xmalloc_ptrs(sizeof(VALUE) * new_argc);
-	for (int i = 0; i < new_argc; i++) {
-	    new_argv[i] = i < argc ? argv[i] : Qnil;
+
+	if (new_argc > 0) {
+	    new_argv = (VALUE *)xmalloc_ptrs(sizeof(VALUE) * new_argc);
+	    for (int i = 0; i < new_argc; i++) {
+		new_argv[i] = i < argc ? argv[i] : Qnil;
+	    }
 	}
+	else {
+	    new_argv = NULL;
+	}
+
 	argc = new_argc;
 	argv = new_argv;
     }

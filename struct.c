@@ -402,8 +402,13 @@ struct_alloc(VALUE klass)
 	rb_mem_clear(st->as.ary, n);
     }
     else {
-	GC_WB(&st->as.heap.ptr, ALLOC_N(VALUE, n));
-	rb_mem_clear(st->as.heap.ptr, n);
+	if (n > 0) {
+	    GC_WB(&st->as.heap.ptr, xmalloc_ptrs(sizeof(VALUE) * n));
+	    rb_mem_clear(st->as.heap.ptr, n);
+	}
+	else {
+	    st->as.heap.ptr = NULL;
+	}
 	st->as.heap.len = n;
     }
 
