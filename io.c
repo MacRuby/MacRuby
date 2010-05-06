@@ -1126,7 +1126,10 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
 
     if (NIL_P(len)) {
 	rb_io_read_all(io_struct, outbuf);
-	goto bail;
+	if (outbuf_created) {
+	    rb_str_force_encoding(outbuf, rb_encodings[ENCODING_UTF8]);
+	}
+	return outbuf;
     }
 
     const long size = FIX2LONG(len);
@@ -1151,10 +1154,6 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
     }
     rb_bstr_set_length(outbuf, data_read);
 
-bail:
-    if (outbuf_created) {
-	rb_str_force_encoding(outbuf, rb_encodings[ENCODING_UTF8]);
-    }
     return outbuf;
 }
 
