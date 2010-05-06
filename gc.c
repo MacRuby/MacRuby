@@ -110,12 +110,7 @@ rb_objc_no_gc_error(void)
 static inline void *
 ruby_xmalloc_memory(size_t size, int type)
 {
-    if (size < 0) {
-	rb_raise(rb_eNoMemError, "negative allocation size (or too big)");
-    }
-    if (size == 0) {
-	size = 1;
-    }
+    assert(size > 0);
     if (__auto_zone == NULL) {
 	rb_objc_no_gc_error();
     }
