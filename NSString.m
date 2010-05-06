@@ -195,14 +195,34 @@ nsstr_to_rstr(id nsstr)
 }
 
 static VALUE
-nsstr_forward(id rcv, SEL sel, int argc, VALUE *argv)
+nsstr_forward_m1(id rcv, SEL sel, int argc, VALUE *argv)
 {
     return rb_vm_call_with_cache2(rb_vm_get_call_cache(sel),
 	    rb_vm_current_block(), nsstr_to_rstr(rcv), 0, sel, argc, argv);
 }
 
 static VALUE
-nsstr_forward_bang(id rcv, SEL sel, int argc, VALUE *argv)
+nsstr_forward_1(id rcv, SEL sel, VALUE arg1)
+{
+    return nsstr_forward_m1(rcv, sel, 1, &arg1);
+}
+
+static VALUE
+nsstr_forward_2(id rcv, SEL sel, VALUE arg1, VALUE arg2)
+{
+    VALUE args[2] = {arg1, arg2};
+    return nsstr_forward_m1(rcv, sel, 2, args);
+}
+
+static VALUE
+nsstr_forward_3(id rcv, SEL sel, VALUE arg1, VALUE arg2, VALUE arg3)
+{
+    VALUE args[3] = {arg1, arg2, arg3};
+    return nsstr_forward_m1(rcv, sel, 3, args);
+}
+
+static VALUE
+nsstr_forward_bang_m1(id rcv, SEL sel, int argc, VALUE *argv)
 {
     CHECK_MUTABLE(rcv);
     VALUE rcv_rstr = nsstr_to_rstr(rcv);
@@ -210,6 +230,26 @@ nsstr_forward_bang(id rcv, SEL sel, int argc, VALUE *argv)
 	    rb_vm_current_block(), rcv_rstr, 0, sel, argc, argv);
     TRY_MOP([rcv setString:(id)rcv_rstr]);
     return ret;
+}
+
+static VALUE
+nsstr_forward_bang_1(id rcv, SEL sel, VALUE arg1)
+{
+    return nsstr_forward_bang_m1(rcv, sel, 1, &arg1);    
+}
+
+static VALUE
+nsstr_forward_bang_2(id rcv, SEL sel, VALUE arg1, VALUE arg2)
+{
+    VALUE args[2] = {arg1, arg2};
+    return nsstr_forward_bang_m1(rcv, sel, 2, args);
+}
+
+static VALUE
+nsstr_forward_bang_3(id rcv, SEL sel, VALUE arg1, VALUE arg2, VALUE arg3)
+{
+    VALUE args[3] = {arg1, arg2, arg3};
+    return nsstr_forward_bang_m1(rcv, sel, 3, args);
 }
 
 void
@@ -252,87 +292,96 @@ Init_NSString(void)
     rb_objc_define_method(rb_cString, "casecmp", nsstr_casecmp, 1);
     rb_objc_define_method(rb_cString, "include?", nsstr_include, 1);
 
-#define forward(msg) \
-	rb_objc_define_method(rb_cString, msg, nsstr_forward, -1)
-#define forward_bang(msg) \
-	rb_objc_define_method(rb_cString, msg, nsstr_forward_bang, -1)
+#define pick_forwarder(arity, bang) \
+    (arity == -1 ? (bang ? nsstr_forward_bang_m1 : nsstr_forward_m1)  \
+     : (arity == 0) ? (bang ? nsstr_forward_bang_1 : nsstr_forward_1) \
+     : (arity == 1) ? (bang ? nsstr_forward_bang_1 : nsstr_forward_1) \
+     : (arity == 2) ? (bang ? nsstr_forward_bang_2 : nsstr_forward_2) \
+     : (arity == 3) ? (bang ? nsstr_forward_bang_3 : nsstr_forward_3) \
+     : (abort(),NULL))
+
+#define forward(msg, arity) \
+    rb_objc_define_method(rb_cString, msg, pick_forwarder(arity, false), arity)
+
+#define forward_bang(msg, arity) \
+    rb_objc_define_method(rb_cString, msg, pick_forwarder(arity, true), arity)
     
     // These methods are implemented as forwarders.
-    forward("[]");
-    forward_bang("[]=");
-    forward("slice");
-    forward_bang("slice!");
-    forward_bang("insert");
-    forward("index");
-    forward("rindex");
-    forward("+");
-    forward("*");
-    forward("%");
-    forward("start_with?");
-    forward("end_with?");
-    forward("to_sym");
-    forward("intern");
-    forward("inspect");
-    forward("dump");
-    forward("match");
-    forward("=~");
-    forward("scan");
-    forward("split");
-    forward("to_i");
-    forward("hex");
-    forward("oct");
-    forward("ord");
-    forward("chr");
-    forward("to_f");
-    forward("chomp");
-    forward_bang("chomp!");
-    forward("chop");
-    forward_bang("chop!");
-    forward("sub");
-    forward_bang("sub!");
-    forward("gsub");
-    forward_bang("gsub!");
-    forward("downcase");
-    forward_bang("downcase!");
-    forward("upcase");
-    forward_bang("upcase!");
-    forward("swapcase");
-    forward_bang("swapcase!");
-    forward("capitalize");
-    forward_bang("capitalize!");
-    forward("ljust");
-    forward("rjust");
-    forward("center");
-    forward("strip");
-    forward("lstrip");
-    forward("rstrip");
-    forward_bang("strip!");
-    forward_bang("lstrip!");
-    forward_bang("rstrip!");
-    forward("lines");
-    forward("each_line");
-    forward("chars");
-    forward("each_char");
-    forward("succ");
-    forward_bang("succ!");
-    forward("next");
-    forward_bang("next!");
-    forward("upto");
-    forward("reverse");
-    forward_bang("reverse!");
-    forward("count");
-    forward("delete");
-    forward_bang("delete!");
-    forward("squeeze");
-    forward_bang("squeeze!");
-    forward("tr");
-    forward_bang("tr!");
-    forward("tr_s");
-    forward_bang("tr_s!");
-    forward("sum");
-    forward("partition");
-    forward("rpartition");
-    forward("crypt");
+    forward("[]", -1);
+    forward_bang("[]=", -1);
+    forward("slice", -1);
+    forward_bang("slice!", -1);
+    forward_bang("insert", 3);
+    forward("index", -1);
+    forward("rindex", -1);
+    forward("+", 1);
+    forward("*", 1);
+    forward("%", 1);
+    forward("start_with?", -1);
+    forward("end_with?", -1);
+    forward("to_sym", 0);
+    forward("intern", 0);
+    forward("inspect", 0);
+    forward("dump", 0);
+    forward("match", -1);
+    forward("=~", 1);
+    forward("scan", 1);
+    forward("split", -1);
+    forward("to_i", -1);
+    forward("hex", 0);
+    forward("oct", 0);
+    forward("ord", 0);
+    forward("chr", 0);
+    forward("to_f", 0);
+    forward("chomp", -1);
+    forward_bang("chomp!", -1);
+    forward("chop", -1);
+    forward_bang("chop!", -1);
+    forward("sub", -1);
+    forward_bang("sub!", -1);
+    forward("gsub", -1);
+    forward_bang("gsub!", -1);
+    forward("downcase", 0);
+    forward_bang("downcase!", 0);
+    forward("upcase", 0);
+    forward_bang("upcase!", 0);
+    forward("swapcase", 0);
+    forward_bang("swapcase!", 0);
+    forward("capitalize", 0);
+    forward_bang("capitalize!", 0);
+    forward("ljust", -1);
+    forward("rjust", -1);
+    forward("center", -1);
+    forward("strip", -1);
+    forward("lstrip", -1);
+    forward("rstrip", -1);
+    forward_bang("strip!", 0);
+    forward_bang("lstrip!", 0);
+    forward_bang("rstrip!", 0);
+    forward("lines", -1);
+    forward("each_line", -1);
+    forward("chars", 0);
+    forward("each_char", 0);
+    forward("succ", 0);
+    forward_bang("succ!", 0);
+    forward("next", 0);
+    forward_bang("next!", 0);
+    forward("upto", -1);
+    forward("reverse", 0);
+    forward_bang("reverse!", 0);
+    forward("count", -1);
+    forward("delete", -1);
+    forward_bang("delete!", -1);
+    forward("squeeze", -1);
+    forward_bang("squeeze!", -1);
+    forward("tr", 2);
+    forward_bang("tr!", 2);
+    forward("tr_s", 2);
+    forward_bang("tr_s!", 2);
+    forward("sum", -1);
+    forward("partition", 1);
+    forward("rpartition", 1);
+    forward("crypt", 1);
 
 #undef forward
 #undef forward_bang
