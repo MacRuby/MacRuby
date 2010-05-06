@@ -6077,6 +6077,9 @@ rval_to_c_str(VALUE rval)
 	    case T_SYMBOL:
 		return rb_sym2name(rval);
 	}
+	if (rb_obj_is_kind_of(rval, rb_cPointer)) {
+	    return (const char *)rb_pointer_get_data(rval, "^c");
+	}
 	return StringValueCStr(rval);
     }
 }

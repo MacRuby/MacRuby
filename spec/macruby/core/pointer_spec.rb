@@ -185,4 +185,14 @@ describe "A Pointer object" do
     pointer2.type.should == NSRect.type
     pointer2[0].should == NSMakeRect(10, 20, 30, 40)
   end
+
+  it "of type 'c' can be passed as a C-style char array argument" do
+    s = NSString.stringWithString('foo')
+    ptr = Pointer.new(:char, 4)
+    s.getCString(ptr, maxLength: 4, encoding: NSASCIIStringEncoding).should == true
+    ptr[0].should == 102
+    ptr[1].should == 111
+    ptr[2].should == 111
+    ptr[3].should == 0
+  end
 end
