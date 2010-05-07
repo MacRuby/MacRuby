@@ -7490,9 +7490,9 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
 
     Function *ruby2ocExcHandlerFunc = NULL;
     if (ruby2ocExcHandlerFunc == NULL) {
-	// void rb2oc_exc_handler(void);
+	// void rb_rb2oc_exc_handler(void);
 	ruby2ocExcHandlerFunc = cast<Function>(
-		module->getOrInsertFunction("rb2oc_exc_handler", VoidTy, NULL));
+		module->getOrInsertFunction("rb_rb2oc_exc_handler", VoidTy, NULL));
     }
     CallInst::Create(ruby2ocExcHandlerFunc, "", bb);
 

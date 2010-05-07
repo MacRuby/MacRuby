@@ -3566,7 +3566,7 @@ RoxorVM::pop_current_exception(int pos)
 #if !__LP64__
 extern "C"
 void
-rb2oc_exc_handler(void)
+rb_rb2oc_exc_handler(void)
 {
     VALUE exc = GET_VM()->current_exception();
     if (exc != Qnil) {
