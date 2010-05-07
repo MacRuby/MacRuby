@@ -228,6 +228,7 @@ enable_static = CONFIG["ENABLE_STATIC"] == 'yes'
 dll = CONFIG["LIBRUBY_SO"]
 lib = CONFIG["LIBRUBY"]
 arc = CONFIG["LIBRUBY_A"]
+install_version = CONFIG['INSTALL_VERSION']
 
 install?(:local, :arch, :bin, :'bin-arch') do
   puts "installing binary commands"
@@ -466,7 +467,7 @@ if RUBY_FRAMEWORK
     File.join(resources, 'English.lproj')
   rm_f File.join(base, '..', 'Current') if 
     File.symlink?(with_destdir(File.join(base, '..', 'Current')))
-  ln_sfh MACRUBY_VERSION.to_s, File.join(base, '..', 'Current')
+  ln_sfh install_version.to_s, File.join(base, '..', 'Current')
   ln_sfh 'Versions/Current/Headers', File.join(base, '../../Headers')
   ln_sfh 'Versions/Current/MacRuby', File.join(base, '../../MacRuby')
   ln_sfh 'Versions/Current/Resources', File.join(base, '../../Resources')
@@ -482,7 +483,7 @@ if RUBY_FRAMEWORK
     # Except rb_nibtool & llc!
     next if bin == 'rb_nibtool' or bin == 'llc'
     link = File.join("../../../", CONFIG['bindir'], bin)
-    link.sub!(/#{MACRUBY_VERSION}/, 'Current')
+    link.sub!(/#{install_version}/, 'Current')
     ln_sfh link, File.join(dest_bin, File.basename(bin))
   end
   # Installing man pages links.
@@ -495,13 +496,13 @@ if RUBY_FRAMEWORK
       Dir.entries(File.join(with_destdir(CONFIG['mandir']), mandir)).each do |man|
         next if man[0] == '.'
         link = File.join("../../../../../", CONFIG['mandir'], mandir, man)
-        link.sub!(/#{MACRUBY_VERSION}/, 'Current')
+        link.sub!(/#{install_version}/, 'Current')
         ln_sfh link, File.join(dest_man, File.basename(mandir), 
 	  File.basename(man))
       end
     else
       link = File.join("../../../../", CONFIG['mandir'], mandir)
-      link.sub!(/#{MACRUBY_VERSION}/, 'Current')
+      link.sub!(/#{install_version}/, 'Current')
       ln_sfh link, File.join(dest_man, File.basename(mandir))
     end
   end

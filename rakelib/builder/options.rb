@@ -77,12 +77,13 @@ NEW_RUBY_VERSION = version_h.scan(/#\s*define\s+RUBY_VERSION\s+\"([^"]+)\"/)[0][
 unless defined?(MACRUBY_VERSION)
   MACRUBY_VERSION = version_h.scan(/#\s*define\s+MACRUBY_VERSION\s+\"(.*)\"/)[0][0]
 end
+INSTALL_VERSION = b.option('install_version', MACRUBY_VERSION)
 
 uname_release_number = (ENV['UNAME_RELEASE'] or `uname -r`.scan(/^(\d+)\.\d+\.(\d+)/)[0].join('.'))
 NEW_RUBY_PLATFORM = 'universal-darwin' + uname_release_number
 
 FRAMEWORK_PATH = File.join(FRAMEWORK_INSTDIR, FRAMEWORK_NAME + '.framework')
-FRAMEWORK_VERSION = File.join(FRAMEWORK_PATH, 'Versions', MACRUBY_VERSION)
+FRAMEWORK_VERSION = File.join(FRAMEWORK_PATH, 'Versions', INSTALL_VERSION)
 FRAMEWORK_USR = File.join(FRAMEWORK_VERSION, 'usr')
 FRAMEWORK_USR_LIB = File.join(FRAMEWORK_USR, 'lib')
 FRAMEWORK_USR_LIB_RUBY = File.join(FRAMEWORK_USR_LIB, 'ruby')

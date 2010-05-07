@@ -50,6 +50,7 @@ module RbConfig
   CONFIG["DESTDIR"] = DESTDIR
   CONFIG["INSTALL"] = '/usr/bin/install -c'
   CONFIG["prefix"] = (TOPDIR || DESTDIR + "#{FRAMEWORK_USR}")
+  CONFIG["INSTALL_VERSION"] = "#{INSTALL_VERSION}"
   CONFIG["EXEEXT"] = ""
   CONFIG["ruby_install_name"] = "#{RUBY_INSTALL_NAME}"
   CONFIG["RUBY_INSTALL_NAME"] = "#{RUBY_INSTALL_NAME}"
