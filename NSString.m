@@ -211,6 +211,12 @@ nsstr_forward_m1(id rcv, SEL sel, int argc, VALUE *argv)
 }
 
 static VALUE
+nsstr_forward_0(id rcv, SEL sel)
+{
+    return nsstr_forward_m1(rcv, sel, 0, NULL);
+}
+
+static VALUE
 nsstr_forward_1(id rcv, SEL sel, VALUE arg1)
 {
     return nsstr_forward_m1(rcv, sel, 1, &arg1);
@@ -239,6 +245,12 @@ nsstr_forward_bang_m1(id rcv, SEL sel, int argc, VALUE *argv)
 	    rb_vm_current_block(), rcv_rstr, 0, sel, argc, argv);
     TRY_MOP([rcv setString:(id)rcv_rstr]);
     return ret;
+}
+
+static VALUE
+nsstr_forward_bang_0(id rcv, SEL sel)
+{
+    return nsstr_forward_bang_m1(rcv, sel, 0, NULL);
 }
 
 static VALUE
@@ -303,7 +315,7 @@ Init_NSString(void)
 
 #define pick_forwarder(arity, bang) \
     (arity == -1 ? (bang ? nsstr_forward_bang_m1 : nsstr_forward_m1)  \
-     : (arity == 0) ? (bang ? nsstr_forward_bang_1 : nsstr_forward_1) \
+     : (arity == 0) ? (bang ? nsstr_forward_bang_0 : nsstr_forward_0) \
      : (arity == 1) ? (bang ? nsstr_forward_bang_1 : nsstr_forward_1) \
      : (arity == 2) ? (bang ? nsstr_forward_bang_2 : nsstr_forward_2) \
      : (arity == 3) ? (bang ? nsstr_forward_bang_3 : nsstr_forward_3) \
