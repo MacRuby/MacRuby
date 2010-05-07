@@ -1,5 +1,7 @@
 require File.dirname(__FILE__) + "/../spec_helper"
 
+=begin
+
 class TestThreadTarget
   attr_reader :value
 
@@ -81,3 +83,5 @@ describe "NSOperations" do
     ops.each { |op| op.finished?.should == true }
   end
 end
+
+=end
