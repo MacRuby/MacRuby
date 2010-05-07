@@ -395,8 +395,8 @@ get_prepared_block()
  *     gcdq = Dispatch::Queue.new('doc')
  *     gcdg = Dispatch::Group.new
  *     @i = 42
- *     gcdq.async(g) { @i = 42 }
- *     g.wait
+ *     gcdq.async(gcdg) { @i = 42 }
+ *     gcdg.wait
  *     p @i #=> 42
  *
  */
