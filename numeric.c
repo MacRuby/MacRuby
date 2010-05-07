@@ -1,13 +1,11 @@
-/**********************************************************************
-
-  numeric.c -
-
-  $Author: akr $
-  created at: Fri Aug 13 18:33:09 JST 1993
-
-  Copyright (C) 1993-2007 Yukihiro Matsumoto
-
-**********************************************************************/
+/*
+ * MacRuby numeric types.
+ * 
+ * This file is covered by the Ruby license. See COPYING for more details.
+ *
+ * Copyright (C) 2010, Apple Inc. All rights reserved.
+ * Copyright (C) 1993-2007 Yukihiro Matsumoto
+ */
 
 #include "ruby/ruby.h"
 #include "ruby/encoding.h"
@@ -92,6 +90,7 @@ VALUE rb_cNumeric;
 VALUE rb_cFloat;
 VALUE rb_cInteger;
 VALUE rb_cFixnum;
+VALUE rb_cNSNumber;
 
 VALUE rb_eZeroDivError;
 VALUE rb_eFloatDomainError;
@@ -3304,12 +3303,26 @@ fix_even_p(VALUE num, SEL sel)
     return Qtrue;
 }
 
-void Init_NSNumber(void);
+static void *
+imp_nsnumber_to_int(void *rcv, SEL sel)
+{
+    // This is because some NSNumber subclasses must be converted to real
+    // CFNumber objects, in order to be coerced into Fixnum objects.
+    long val = 0;
+    if (!CFNumberGetValue((CFNumberRef)rcv, kCFNumberLongType, &val)) {
+	rb_raise(rb_eTypeError, "cannot get 'long' value out of NSNumber %p",
+		rcv);
+    }
+    CFNumberRef new_num = CFNumberCreate(NULL, kCFNumberLongType, &val);
+    CFMakeCollectable(new_num);
+    return (void *)new_num;
+}
 
 void
 Init_Numeric(void)
 {
-    Init_NSNumber();
+    rb_cNSNumber = (VALUE)objc_getClass("NSNumber");
+    assert(rb_cNSNumber != 0);
 
     sel_coerce = sel_registerName("coerce:");
     selDiv = sel_registerName("div:");
@@ -3493,4 +3506,7 @@ Init_Numeric(void)
     rb_objc_define_method(rb_cFloat, "nan?",      flo_is_nan_p, 0);
     rb_objc_define_method(rb_cFloat, "infinite?", flo_is_infinite_p, 0);
     rb_objc_define_method(rb_cFloat, "finite?",   flo_is_finite_p, 0);
+
+    class_replaceMethod((Class)rb_cNSNumber, sel_registerName("to_int"),
+	    (IMP)imp_nsnumber_to_int, "@@:");
 }
