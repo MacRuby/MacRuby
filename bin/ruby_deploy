@@ -43,6 +43,7 @@ class Deployer
     # Locate the MacRuby framework.
     @macruby_framework_path = Config::CONFIG['libdir'].scan(/^.+MacRuby\.framework/)[0]
     ensure_path @macruby_framework_path, "Cannot locate MacRuby.framework from rbconfig.rb"
+    @macruby_install_version = RbConfig::CONFIG["INSTALL_VERSION"]
   end
 
   def run
@@ -75,11 +76,11 @@ class Deployer
   end
 
   def app_macruby_usr
-    File.join(app_macruby, 'Versions', MACRUBY_VERSION, 'usr')
+    File.join(app_macruby, 'Versions', @macruby_install_version, 'usr')
   end
 
   def macruby_usr
-    @macruby_usr ||= ensure_path(File.join(@macruby_framework_path, 'Versions', MACRUBY_VERSION, 'usr'))
+    @macruby_usr ||= ensure_path(File.join(@macruby_framework_path, 'Versions', @macruby_install_version, 'usr'))
   end
 
   def compile_files
@@ -130,7 +131,7 @@ class Deployer
     # Only keep the Current version of the MacRuby.framework copy.
     Dir.glob(File.join(app_macruby, 'Versions/*')).select { |x|
       base = File.basename(x)
-      base != MACRUBY_VERSION and base != 'Current'
+      base != @macruby_install_version and base != 'Current'
     }.each { |x|
       rm_rf(x)
     }
@@ -146,7 +147,7 @@ class Deployer
                 File.join(@app_bundle, 'Contents/Resources/*.rbo')]
     patterns.each do |pat|
       Dir.glob(pat).each do |bin|
-        execute("#{@install_name_tool} -change #{macruby_usr}/lib/libmacruby.dylib @executable_path/../Frameworks/MacRuby.framework/Versions/#{MACRUBY_VERSION}/usr/lib/libmacruby.dylib '#{bin}'")
+        execute("#{@install_name_tool} -change #{macruby_usr}/lib/libmacruby.dylib @executable_path/../Frameworks/MacRuby.framework/Versions/#{@macruby_install_version}/usr/lib/libmacruby.dylib '#{bin}'")
       end
     end
   end
