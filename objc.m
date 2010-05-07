@@ -665,6 +665,36 @@ rb_objc_type_size(const char *type)
     return 0; // never reached
 }
 
+static NSString *
+relocated_load_path(NSString *path, NSString *macruby_path)
+{
+    NSRange r = [path rangeOfString:@"MacRuby.framework"];
+    if (r.location == NSNotFound) {
+	return nil;
+    }
+    r = NSMakeRange(0, r.location + r.length);
+    return [path stringByReplacingCharactersInRange:r withString:macruby_path];
+}
+
+void
+rb_objc_fix_relocatable_load_path(void)
+{
+    NSString *path = [[NSBundle mainBundle] privateFrameworksPath];
+    path = [path stringByAppendingPathComponent:@"MacRuby.framework"];
+
+    NSFileManager *fm = [NSFileManager defaultManager];
+    if ([fm fileExistsAtPath:path]) {
+	VALUE ary = rb_vm_load_path();
+	for (long i = 0, count = RARRAY_LEN(ary); i < count; i++) {
+	    NSString *p1 = (NSString *)RARRAY_AT(ary, i);
+	    NSString *p2 = relocated_load_path(p1, path);
+	    if (p2 != nil) {
+		rb_ary_store(ary, i, (VALUE)p2);
+	    }
+	}
+    }
+}
+
 void
 Init_ObjC(void)
 {

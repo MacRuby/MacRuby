@@ -5033,34 +5033,29 @@ extern "C"
 int
 macruby_main(const char *path, int argc, char **argv)
 {
-    char **newargv;
-    char *p1, *p2;
-    int n, i;
+    // Transform the original argv into something like this:
+    // argv[0] = original value
+    // argv[1] = -I/path-to-app-dir/(...)/Resources
+    // argv[2] = main .rb file
+    // argv[3 .. N] = rest of original argv
 
-    /*
-     * Transform the original argv into something like this:
-     * argv[0] = original value
-     * argv[1] = -I/path-to-app-dir/(...)/Resources
-     * argv[2] = main .rb file
-     * argv[3 .. N] = rest of original argv
-     */
-
-    newargv = (char **)malloc(sizeof(char *) * (argc + 2));
+    char **newargv = (char **)malloc(sizeof(char *) * (argc + 2));
     newargv[0] = argv[0];
     
-    p1 = (char *)malloc(PATH_MAX);
+    char *p1 = (char *)malloc(PATH_MAX);
     newargv[1] = (char *)resources_path(p1, PATH_MAX);
     
-    p2 = (char *)malloc(PATH_MAX);
+    char *p2 = (char *)malloc(PATH_MAX);
     snprintf(p2, PATH_MAX, "%s/%s", (path[0] != '/') ? &p1[2] : "", path);
     newargv[2] = p2;
-    
-    for (i = 1, n = 3; i < argc; i++) {
+   
+    int n = 3; 
+    for (int i = 1; i < argc; i++) {
 	if (strncmp(argv[i], "-psn_", 5) != 0) {
 	    newargv[n++] = argv[i];
 	}
     }
-    
+ 
     argv = newargv;    
     argc = n;
 
@@ -5074,6 +5069,7 @@ macruby_main(const char *path, int argc, char **argv)
 	free(newargv);
 	free(p1);
 	free(p2);
+	rb_objc_fix_relocatable_load_path();
 	return ruby_run_node(tree);
     }
     catch (...) {

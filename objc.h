@@ -261,6 +261,7 @@ void rb_objc_exception_raise(const char *name, const char *message);
 
 bool rb_objc_ignore_sel(SEL sel);
 void rb_objc_force_class_initialize(Class klass);
+void rb_objc_fix_relocatable_load_path(void);
 
 #if defined(__cplusplus)
 }
