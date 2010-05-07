@@ -111,18 +111,48 @@ str_to_unistr(VALUE str)
     return unistr;
 }
 
+// Work around ICU limitations.
 static void
 sanitize_regexp_string(UnicodeString *unistr)
 {
-    // ICU does not support [[:word::], so we need to replace all
-    // occurences by \w.
+    // Replace all occurences [[:word:]] by \w.
     UChar word_chars[10] = {'[', '[', ':', 'w', 'o', 'r', 'd', ':', ']', ']'};
     UnicodeString word_str(word_chars, 10);
     UChar repl_chars[2] = {'\\', 'w'};
     UnicodeString repl_str(repl_chars, 2);
-    int32_t pos;
-    while ((pos = unistr->indexOf(word_str)) >= 0) {
-	unistr->replace(pos, 10, repl_str);
+    unistr->findAndReplace(word_str, repl_str);
+
+    // Replace all occurences of \n (where n is a number) by the number value.
+    int32_t pos = 0;
+    char buf[11];
+    while ((pos = unistr->indexOf('\\', pos)) >= 0) {
+	int n = 0;
+	while (true) {
+	    const int i = pos + n + 1;
+	    if (i >= unistr->length()) {
+		break;
+	    }
+	    UChar c = unistr->charAt(i);
+	    if (c >= '0' && c <= '9') {
+		assert(n < 10);
+		buf[n++] = (char)c;
+	    }
+	    else {
+		break;
+	    }
+	}
+
+	if (n > 0) {
+	    buf[n] = '\0';
+	    const int l = atoi(buf);
+	    if (l < 1 || l > 9) {
+		unistr->replace(pos, n + 1, (UChar)l);
+		pos = 0;
+		continue;
+	    }
+	    // A backreference (\1 .. \9).
+	}
+	pos++;
     }
 }
 
