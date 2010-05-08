@@ -135,18 +135,23 @@ range_exclude_end_p(VALUE range, SEL sel)
 static VALUE
 range_eq(VALUE range, SEL sel, VALUE obj)
 {
-    if (range == obj)
+    if (range == obj) {
 	return Qtrue;
-    if (!rb_obj_is_instance_of(obj, rb_obj_class(range)))
+    }
+    if (!rb_obj_is_kind_of(obj, rb_cRange)) {
 	return Qfalse;
+    }
 
-    if (!rb_equal(RANGE_BEG(range), RANGE_BEG(obj)))
+    if (!rb_equal(RANGE_BEG(range), RANGE_BEG(obj))) {
 	return Qfalse;
-    if (!rb_equal(RANGE_END(range), RANGE_END(obj)))
+    }
+    if (!rb_equal(RANGE_END(range), RANGE_END(obj))) {
 	return Qfalse;
+    }
 
-    if (EXCL(range) != EXCL(obj))
+    if (EXCL(range) != EXCL(obj)) {
 	return Qfalse;
+    }
 
     return Qtrue;
 }
@@ -197,18 +202,23 @@ r_le(VALUE a, VALUE b)
 static VALUE
 range_eql(VALUE range, SEL sel, VALUE obj)
 {
-    if (range == obj)
+    if (range == obj) {
 	return Qtrue;
-    if (!rb_obj_is_instance_of(obj, rb_obj_class(range)))
+    }
+    if (!rb_obj_is_kind_of(obj, rb_cRange)) {
 	return Qfalse;
+    }
 
-    if (!rb_eql(RANGE_BEG(range), RANGE_BEG(obj)))
+    if (!rb_eql(RANGE_BEG(range), RANGE_BEG(obj))) {
 	return Qfalse;
-    if (!rb_eql(RANGE_END(range), RANGE_END(obj)))
+    }
+    if (!rb_eql(RANGE_END(range), RANGE_END(obj))) {
 	return Qfalse;
+    }
 
-    if (EXCL(range) != EXCL(obj))
+    if (EXCL(range) != EXCL(obj)) {
 	return Qfalse;
+    }
 
     return Qtrue;
 }
@@ -275,6 +285,25 @@ step_i(VALUE i, void *arg)
     }
     if (iter[0] == INT2FIX(0)) {
 	rb_yield(i);
+	iter[0] = iter[1];
+    }
+    return Qnil;
+}
+
+static VALUE
+sym_step_i(VALUE i, void *arg)
+{
+    VALUE *iter = arg;
+
+    if (FIXNUM_P(iter[0])) {
+	iter[0] -= INT2FIX(1) & ~FIXNUM_FLAG;
+    }
+    else {
+	VALUE one = INT2FIX(1);
+	iter[0] = rb_vm_call(iter[0], selMINUS,1, &one, false);
+    }
+    if (iter[0] == INT2FIX(0)) {
+	rb_yield(ID2SYM(rb_intern_str(i)));
 	iter[0] = iter[1];
     }
     return Qnil;
@@ -349,6 +378,16 @@ range_step(VALUE range, SEL sel, int argc, VALUE *argv)
 	}
 
     }
+    else if (SYMBOL_P(b) && SYMBOL_P(e)) { /* symbols are special */
+	VALUE args[2];
+	VALUE iter[2];
+
+	args[0] = rb_sym_to_s(e);
+	args[1] = EXCL(range) ? Qtrue : Qfalse;
+	iter[0] = INT2FIX(1);
+	iter[1] = step;
+	rb_objc_block_call(rb_sym_to_s(b), selUpto, cacheUpto, 2, args, sym_step_i, (VALUE)iter);
+    }
     else if (rb_obj_is_kind_of(b, rb_cNumeric) ||
 	     !NIL_P(rb_check_to_integer(b, "to_int")) ||
 	     !NIL_P(rb_check_to_integer(e, "to_int"))) {
@@ -395,6 +434,13 @@ each_i(VALUE v, void *arg)
     return Qnil;
 }
 
+static VALUE
+sym_each_i(VALUE v, void *arg)
+{
+    rb_yield(ID2SYM(rb_intern_str(v)));
+    return Qnil;
+}
+
 /*
  *  call-seq:
  *     rng.each {| i | block } => rng
@@ -437,6 +483,13 @@ range_each(VALUE range, SEL sel)
 	    rb_yield(LONG2FIX(i));
 	    RETURN_IF_BROKEN();
 	}
+    }
+    else if (SYMBOL_P(beg) && SYMBOL_P(end)) { /* symbols are special */
+	VALUE args[2];
+
+	args[0] = rb_sym_to_s(end);
+	args[1] = EXCL(range) ? Qtrue : Qfalse;
+	rb_objc_block_call(rb_sym_to_s(beg), selUpto, cacheUpto, 2, args, sym_each_i, 0);
     }
     else if (TYPE(beg) == T_STRING) {
 	VALUE args[2];
@@ -588,9 +641,9 @@ static VALUE
 range_max(VALUE range, SEL sel)
 {
     VALUE e = RANGE_END(range);
-    int ip = FIXNUM_P(e) || rb_obj_is_kind_of(e, rb_cInteger);
+    int nm = FIXNUM_P(e) || rb_obj_is_kind_of(e, rb_cNumeric);
 
-    if (rb_block_given_p() || (EXCL(range) && !ip)) {
+    if (rb_block_given_p() || (EXCL(range) && !nm)) {
 	//return rb_call_super(0, 0);
 	if (sel == NULL) {
 	    sel = sel_registerName("max");
@@ -604,7 +657,12 @@ range_max(VALUE range, SEL sel)
 	if (c > 0)
 	    return Qnil;
 	if (EXCL(range)) {
-	    if (c == 0) return Qnil;
+	    if (!FIXNUM_P(e) && !rb_obj_is_kind_of(e, rb_cInteger)) {
+		rb_raise(rb_eTypeError, "cannot exclude non Integer end value");
+	    }
+	    if (c == 0) {
+		return Qnil;
+	    }
 	    if (FIXNUM_P(e)) {
 		return LONG2NUM(FIX2LONG(e) - 1);
 	    }
