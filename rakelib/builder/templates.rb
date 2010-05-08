@@ -160,7 +160,7 @@ module RbConfig
   CONFIG["cflags"] = "$(optflags) $(debugflags) $(warnflags)"
   CONFIG["optflags"] = "-O3"
   CONFIG["debugflags"] = "-g"
-  CONFIG["warnflags"] = "-Wall -Wno-parentheses"
+  CONFIG["warnflags"] = "-Wall"
   CONFIG["LIBRUBY_LDSHARED"] = "/usr/bin/gcc -dynamiclib -undefined suppress -flat_namespace"
   CONFIG["LIBRUBY_DLDFLAGS"] = "-install_name $(libdir)/lib$(RUBY_SO_NAME).dylib -current_version $(MAJOR).$(MINOR).$(TEENY) -compatibility_version $(MAJOR).$(MINOR)"
   CONFIG["rubyw_install_name"] = ""
