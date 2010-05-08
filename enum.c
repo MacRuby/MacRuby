@@ -1053,7 +1053,6 @@ max_i(VALUE i, VALUE *memo, int argc, VALUE *argv)
     VALUE cmp;
 
     ENUM_WANT_SVALUE();
-    printf("max_i\n");
 
     if (*memo == Qundef) {
 	*memo = i;
