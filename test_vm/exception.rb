@@ -397,3 +397,14 @@ assert "b0\na1", %{
   end
   foo
 }
+
+# Ensure should be called only once
+assert ":ok", %{
+  def foo
+    raise
+  ensure
+    p :ok
+    return true
+  end
+  foo
+}
