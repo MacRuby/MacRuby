@@ -177,7 +177,7 @@ passwd_iterate(void)
     struct passwd *pw;
 
     setpwent();
-    while (pw = getpwent()) {
+    while ((pw = getpwent()) != NULL) {
 	rb_yield(setup_passwd(pw));
     }
     endpwent();
@@ -214,7 +214,7 @@ etc_passwd(VALUE obj, SEL sel)
 	passwd_blocking = Qtrue;
 	rb_ensure(passwd_iterate, 0, passwd_ensure, 0);
     }
-    if (pw = getpwent()) {
+    if ((pw = getpwent()) != NULL) {
 	return setup_passwd(pw);
     }
 #endif
@@ -277,7 +277,7 @@ etc_getpwent(VALUE obj, SEL sel)
 #ifdef HAVE_GETPWENT
     struct passwd *pw;
 
-    if (pw = getpwent()) {
+    if ((pw = getpwent()) != NULL) {
 	return setup_passwd(pw);
     }
 #endif
@@ -381,7 +381,7 @@ group_iterate(void)
     struct group *pw;
 
     setgrent();
-    while (pw = getgrent()) {
+    while ((pw = getgrent()) != NULL) {
 	rb_yield(setup_group(pw));
     }
     endgrent();
@@ -418,7 +418,7 @@ etc_group(VALUE obj, SEL sel)
 	group_blocking = Qtrue;
 	rb_ensure(group_iterate, 0, group_ensure, 0);
     }
-    if (grp = getgrent()) {
+    if ((grp = getgrent()) != NULL) {
 	return setup_group(grp);
     }
 #endif
@@ -475,7 +475,7 @@ etc_getgrent(VALUE obj, SEL sel)
 #ifdef HAVE_GETGRENT
     struct group *gr;
 
-    if (gr = getgrent()) {
+    if ((gr = getgrent()) != NULL) {
 	return setup_group(gr);
     }
 #endif
