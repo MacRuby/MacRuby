@@ -3339,27 +3339,45 @@ rb_vm_create_block_from_method(rb_vm_method_t *method)
 
 static VALUE
 rb_vm_block_call_sel(VALUE rcv, SEL sel, VALUE **dvars, rb_vm_block_t *b,
-	VALUE x)
+	VALUE args)
 {
-    if (x == Qnil) {
+    const VALUE *argv = RARRAY_PTR(args);
+    const long argc = RARRAY_LEN(args);
+    if (argc == 0) {
 	rb_raise(rb_eArgError, "no receiver given");
     }
-    return rb_vm_call(x, (SEL)dvars[0], 0, NULL, false);
+    SEL msel = argc - 1 == 0 ? (SEL)dvars[0] : (SEL)dvars[1];
+    return rb_vm_call(argv[0], msel, argc - 1, &argv[1], false);
 }
 
 extern "C"
 rb_vm_block_t *
-rb_vm_create_block_calling_sel(SEL sel)
+rb_vm_create_block_calling_mid(ID mid)
 {
     rb_vm_block_t *b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t)
-	    + sizeof(VALUE *));
+	    + (2 * sizeof(VALUE *)));
 
     b->klass = 0;
     b->proc = Qnil;
-    b->arity = rb_vm_arity(1);
     b->flags = VM_BLOCK_PROC;
     b->imp = (IMP)rb_vm_block_call_sel;
-    b->dvars[0] = (VALUE *)sel;
+
+    // Arity is -1.
+    b->arity.min = 0;
+    b->arity.max = -1;
+    b->arity.left_req = 0;
+    b->arity.real = 1;
+
+    // Prepare 2 selectors for the dispatcher later. One for 0 arity, one for
+    // 1 or more arity.
+    const char *midstr = rb_id2name(mid);
+    if (midstr[strlen(midstr) - 1] == ':') {
+	rb_raise(rb_eArgError, "invalid method name `%s'", midstr);
+    }
+    char buf[100];
+    snprintf(buf, sizeof buf, "%s:", midstr);
+    b->dvars[0] = (VALUE *)sel_registerName(midstr);
+    b->dvars[1] = (VALUE *)sel_registerName(buf);
 
     return b;
 }

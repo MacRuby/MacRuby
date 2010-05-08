@@ -557,8 +557,8 @@ rsym_inspect(VALUE sym, SEL sel)
 static VALUE
 rsym_to_proc(VALUE sym, SEL sel)
 {
-    SEL msel = sel_registerName(rb_id2name(SYM2ID(sym)));
-    rb_vm_block_t *b = rb_vm_create_block_calling_sel(msel);
+    ID mid = SYM2ID(sym);
+    rb_vm_block_t *b = rb_vm_create_block_calling_mid(mid);
     return rb_proc_alloc_with_block(rb_cProc, b);
 }
 
