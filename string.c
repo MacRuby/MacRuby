@@ -1259,6 +1259,21 @@ str_simple_transcode(rb_str_t *self, rb_encoding_t *dst_encoding)
     return str_transcode(self, self->encoding, dst_encoding,
 	    TRANSCODE_BEHAVIOR_RAISE_EXCEPTION, TRANSCODE_BEHAVIOR_RAISE_EXCEPTION, NULL);
 }
+
+static void inline
+str_concat_ascii_cstr(rb_str_t *self, char *cstr)
+{
+    long len = strlen(cstr);
+    if (self->encoding->ascii_compatible) {
+	str_concat_bytes(self, cstr, len);
+    }
+    else {
+	rb_str_t *str = RSTR(rb_enc_str_new(cstr, len, rb_encodings[ENCODING_ASCII]));
+	str = str_simple_transcode(str, self->encoding);
+	str_concat_bytes(self, str->data.bytes, str->length_in_bytes);
+    }
+}
+
 static rb_str_t *
 str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_encoding,
 	int behavior_for_invalid, int behavior_for_undefined, rb_str_t *replacement_str)
@@ -1273,7 +1288,8 @@ str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_en
     rb_str_t *dst_str = str_alloc(rb_cRubyString);
     dst_str->encoding = dst_encoding;
 
-    if (self->length_in_bytes == 0) {
+    if ((self->length_in_bytes == 0) &&
+	    (behavior_for_undefined != TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_ATTR)) {
 	return dst_str;
     }
 
@@ -1302,6 +1318,10 @@ str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_en
 	src_encoding_used = src_encoding;
     }
 
+    if (behavior_for_undefined == TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_ATTR) {
+	str_concat_ascii_cstr(dst_str, "\"");
+    }
+
     long pos_in_src = 0;
     for (;;) {
 	UChar *utf16;
@@ -1319,6 +1339,76 @@ str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_en
 	}
 
 	if (utf16_length > 0) {
+	    if ((behavior_for_undefined == TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_TEXT)
+		   || (behavior_for_undefined == TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_ATTR)) {
+		long new_utf16_length = 0;
+		for (long i = 0; i < utf16_length; ++i) {
+		    switch (utf16[i]) {
+			case '&':
+			    new_utf16_length += 5;
+			    break;
+			case '<':
+			case '>':
+			    new_utf16_length += 4;
+			    break;
+			case '"':
+			    if (behavior_for_undefined == TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_ATTR) {
+				new_utf16_length += 6;
+			    }
+			    else {
+				++new_utf16_length;
+			    }
+			    break;
+			default:
+			    ++new_utf16_length;
+		    }
+		}
+		if (new_utf16_length != utf16_length) {
+		    UChar *new_utf16 = xmalloc(UCHARS_TO_BYTES(new_utf16_length));
+		    long new_utf16_pos = 0;
+		    for (long i = 0; i < utf16_length; ++i) {
+			switch (utf16[i]) {
+			    case '&':
+				new_utf16[new_utf16_pos++] = '&';
+				new_utf16[new_utf16_pos++] = 'a';
+				new_utf16[new_utf16_pos++] = 'm';
+				new_utf16[new_utf16_pos++] = 'p';
+				new_utf16[new_utf16_pos++] = ';';
+				break;
+			    case '<':
+				new_utf16[new_utf16_pos++] = '&';
+				new_utf16[new_utf16_pos++] = 'l';
+				new_utf16[new_utf16_pos++] = 't';
+				new_utf16[new_utf16_pos++] = ';';
+				break;
+			    case '>':
+				new_utf16[new_utf16_pos++] = '&';
+				new_utf16[new_utf16_pos++] = 'g';
+				new_utf16[new_utf16_pos++] = 't';
+				new_utf16[new_utf16_pos++] = ';';
+				break;
+			    case '"':
+				if (behavior_for_undefined == TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_ATTR) {
+				    new_utf16[new_utf16_pos++] = '&';
+				    new_utf16[new_utf16_pos++] = 'q';
+				    new_utf16[new_utf16_pos++] = 'u';
+				    new_utf16[new_utf16_pos++] = 'o';
+				    new_utf16[new_utf16_pos++] = 't';
+				    new_utf16[new_utf16_pos++] = ';';
+				}
+				else {
+				    new_utf16[new_utf16_pos++] = utf16[i];
+				}
+				break;
+			    default:
+				new_utf16[new_utf16_pos++] = utf16[i];
+			}
+		    }
+		    utf16_length = new_utf16_length;
+		    utf16 = new_utf16;
+		}
+	    }
+
 	    long utf16_pos = 0;
 	    for (;;) {
 		long bytes_length;
@@ -1346,14 +1436,7 @@ str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_en
 			    {
 				char xml[10];
 				snprintf(xml, 10, "&#x%X;", c);
-				if (dst_encoding->ascii_compatible) {
-				    str_concat_bytes(dst_str, xml, strlen(xml));
-				}
-				else {
-				    rb_str_t *xml_str = RSTR(rb_str_new2(xml));
-				    xml_str = str_simple_transcode(xml_str, dst_encoding);
-				    str_concat_bytes(dst_str, xml_str->data.bytes, xml_str->length_in_bytes);
-				}
+				str_concat_ascii_cstr(dst_str, xml);
 			    }
 			    break;
 			default:
@@ -1399,6 +1482,11 @@ str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_en
 	    break;
 	}
     }
+
+    if (behavior_for_undefined == TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_ATTR) {
+	str_concat_ascii_cstr(dst_str, "\"");
+    }
+
 
     return dst_str;
 }

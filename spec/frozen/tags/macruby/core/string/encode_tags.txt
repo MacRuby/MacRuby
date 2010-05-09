@@ -1,6 +1,2 @@
 fails:String#encode! raises Encoding::ConverterNotFoundError for invalid target encodings
 fails:String#encode raises Encoding::ConverterNotFoundError for invalid target encodings
-fails:String#encode! replaces xml characters
-fails:String#encode! replaces xml characters and quotes the result
-fails:String#encode replaces xml characters
-fails:String#encode replaces xml characters and quotes the result
