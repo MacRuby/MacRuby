@@ -3,7 +3,7 @@ require File.expand_path('../options', __FILE__)
 OBJS = %w{
   array bignum class compar complex enum enumerator error eval file load proc 
   gc hash env inits io math numeric object pack parse prec dir process
-  random range rational re ruby signal sprintf st string struct time transcode
+  random range rational re ruby signal sprintf st string struct time
   util variable version thread id objc bs ucnv encoding main dln dmyext marshal
   gcd vm_eval prelude miniprelude gc-stub bridgesupport compiler dispatcher vm
   symbol debugger MacRuby MacRubyDebuggerConnector NSArray NSDictionary

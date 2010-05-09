@@ -268,6 +268,7 @@ Init_PreEncoding(void)
     add_encoding(ENCODING_ISO8859_1, ENCODING_TYPE_UCNV,    "ISO-8859-1",  1, true,  true,  "ISO8859-1", NULL);
     add_encoding(ENCODING_MACROMAN,  ENCODING_TYPE_UCNV,    "macRoman",    1, true,  true,  NULL);
     // FIXME: the ICU conversion tables do not seem to match Ruby's Japanese conversion tables
+    add_encoding(ENCODING_EUCJP,     ENCODING_TYPE_UCNV,    "EUC-JP",      1, false, true,  "eucJP", NULL);
     //add_encoding(ENCODING_EUCJP,     ENCODING_TYPE_RUBY, "EUC-JP",      1, false, true,  "eucJP", NULL);
     //add_encoding(ENCODING_SJIS,      ENCODING_TYPE_RUBY, "Shift_JIS",   1, false, true, "SJIS", NULL);
     //add_encoding(ENCODING_CP932,     ENCODING_TYPE_RUBY, "Windows-31J", 1, false, true, "CP932", "csWindows31J", NULL);

@@ -16,7 +16,6 @@ void Init_Bignum(void);
 void Init_Binding(void);
 void Init_Comparable(void);
 void Init_Complex(void);
-void Init_transcode(void);
 void Init_Dir(void);
 void Init_Enumerable(void);
 void Init_Enumerator(void);
@@ -87,7 +86,6 @@ rb_call_inits()
     Init_Struct();
     Init_Regexp();
     Init_pack();
-    Init_transcode();
     Init_marshal();
     Init_Range();
     Init_IO();

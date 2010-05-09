@@ -1248,6 +1248,17 @@ enum {
     TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_TEXT,
     TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_ATTR
 };
+
+
+static rb_str_t *
+str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_encoding,
+	int behavior_for_invalid, int behavior_for_undefined, rb_str_t *replacement_str);
+static inline rb_str_t *
+str_simple_transcode(rb_str_t *self, rb_encoding_t *dst_encoding)
+{
+    return str_transcode(self, self->encoding, dst_encoding,
+	    TRANSCODE_BEHAVIOR_RAISE_EXCEPTION, TRANSCODE_BEHAVIOR_RAISE_EXCEPTION, NULL);
+}
 static rb_str_t *
 str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_encoding,
 	int behavior_for_invalid, int behavior_for_undefined, rb_str_t *replacement_str)
@@ -1256,7 +1267,7 @@ str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_en
 	   || (behavior_for_undefined == TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING)) {
 	assert(replacement_str != NULL);
 	assert(replacement_str->encoding != NULL);
-	assert(replacement_str->encoding == dst_encoding);
+	assert((replacement_str->length_in_bytes == 0) || (replacement_str->encoding == dst_encoding));
     }
 
     rb_str_t *dst_str = str_alloc(rb_cRubyString);
@@ -1326,10 +1337,24 @@ str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_en
 			    rb_raise(rb_eUndefinedConversionError, "U+%04X from %s to %s", c, src_encoding->public_name, dst_encoding->public_name);
 			    break;
 			case TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING:
-			    str_concat_bytes(dst_str, replacement_str->data.bytes, replacement_str->length_in_bytes);
+			    if (replacement_str->length_in_bytes > 0) {
+				str_concat_bytes(dst_str, replacement_str->data.bytes, replacement_str->length_in_bytes);
+			    }
 			    break;
 			case TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_TEXT:
 			case TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_ATTR:
+			    {
+				char xml[10];
+				snprintf(xml, 10, "&#x%X;", c);
+				if (dst_encoding->ascii_compatible) {
+				    str_concat_bytes(dst_str, xml, strlen(xml));
+				}
+				else {
+				    rb_str_t *xml_str = RSTR(rb_str_new2(xml));
+				    xml_str = str_simple_transcode(xml_str, dst_encoding);
+				    str_concat_bytes(dst_str, xml_str->data.bytes, xml_str->length_in_bytes);
+				}
+			    }
 			    break;
 			default:
 			    abort();
@@ -1360,7 +1385,9 @@ str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_en
 		    }
 		    break;
 		case TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING:
-		    str_concat_bytes(dst_str, replacement_str->data.bytes, replacement_str->length_in_bytes);
+		    if (replacement_str->length_in_bytes > 0) {
+			str_concat_bytes(dst_str, replacement_str->data.bytes, replacement_str->length_in_bytes);
+		    }
 		    break;
 		default:
 		    abort();
@@ -1817,10 +1844,8 @@ rstr_encode(VALUE str, SEL sel, int argc, VALUE *argv)
 	VALUE replacement = rb_hash_aref(opt, replace_sym);
 	if (!NIL_P(replacement)) {
 	    replacement_str = str_need_string(replacement);
-	    if (replacement_str->encoding != dst_encoding) {
-		replacement_str = str_transcode(replacement_str, replacement_str->encoding,
-			dst_encoding, TRANSCODE_BEHAVIOR_RAISE_EXCEPTION,
-			TRANSCODE_BEHAVIOR_RAISE_EXCEPTION, NULL);
+	    if ((replacement_str->encoding != dst_encoding) && (replacement_str->length_in_bytes > 0)) {
+		replacement_str = str_simple_transcode(replacement_str, dst_encoding);
 	    }
 	    if ((behavior_for_invalid != TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING)
 		    && (behavior_for_undefined == TRANSCODE_BEHAVIOR_RAISE_EXCEPTION)) {
@@ -1849,9 +1874,7 @@ rstr_encode(VALUE str, SEL sel, int argc, VALUE *argv)
 	}
 	else {
 	    replacement_str = RSTR(rb_enc_str_new("?", 1, rb_encodings[ENCODING_ASCII]));
-	    replacement_str = str_transcode(replacement_str, replacement_str->encoding,
-		    dst_encoding, TRANSCODE_BEHAVIOR_RAISE_EXCEPTION,
-		    TRANSCODE_BEHAVIOR_RAISE_EXCEPTION, NULL);
+	    replacement_str = str_simple_transcode(replacement_str, dst_encoding);
 	}
     }
 
