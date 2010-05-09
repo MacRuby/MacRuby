@@ -1,9 +1,4 @@
-fails:String#encode! can convert between encodings where a multi-stage conversion path is needed
-fails:String#encode! raises UndefinedConversionError if the String contains characters invalid for the target     encoding
 fails:String#encode! raises Encoding::ConverterNotFoundError for invalid target encodings
-fails:String#encode returns self when called with only a target encoding
-fails:String#encode can convert between encodings where a multi-stage conversion path is needed
-fails:String#encode raises UndefinedConversionError if the String contains characters invalid for the target     encoding
 fails:String#encode raises Encoding::ConverterNotFoundError for invalid target encodings
 fails:String#encode! replaces xml characters
 fails:String#encode! replaces xml characters and quotes the result

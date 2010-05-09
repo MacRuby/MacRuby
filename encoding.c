@@ -258,17 +258,19 @@ add_encoding(
 void
 Init_PreEncoding(void)
 {
-    add_encoding(ENCODING_BINARY,    ENCODING_TYPE_SPECIAL, "ASCII-8BIT",  1, true,  true,  "BINARY", NULL);
-    add_encoding(ENCODING_ASCII,     ENCODING_TYPE_UCNV,    "US-ASCII",    1, true,  true,  "ASCII", "ANSI_X3.4-1968", "646", NULL);
-    add_encoding(ENCODING_UTF8,      ENCODING_TYPE_UCNV,    "UTF-8",       1, false, true,  "CP65001", NULL);
-    add_encoding(ENCODING_UTF16BE,   ENCODING_TYPE_UCNV,    "UTF-16BE",    2, false, false, NULL);
-    add_encoding(ENCODING_UTF16LE,   ENCODING_TYPE_UCNV,    "UTF-16LE",    2, false, false, NULL);
-    add_encoding(ENCODING_UTF32BE,   ENCODING_TYPE_UCNV,    "UTF-32BE",    4, false, false, "UCS-4BE", NULL);
-    add_encoding(ENCODING_UTF32LE,   ENCODING_TYPE_UCNV,    "UTF-32LE",    4, false, false, "UCS-4LE", NULL);
-    add_encoding(ENCODING_ISO8859_1, ENCODING_TYPE_UCNV,    "ISO-8859-1",  1, true,  true,  "ISO8859-1", NULL);
-    add_encoding(ENCODING_MACROMAN,  ENCODING_TYPE_UCNV,    "macRoman",    1, true,  true,  NULL);
+    add_encoding(ENCODING_BINARY,      ENCODING_TYPE_SPECIAL, "ASCII-8BIT",  1, true,  true,  "BINARY", NULL);
+    add_encoding(ENCODING_ASCII,       ENCODING_TYPE_UCNV,    "US-ASCII",    1, true,  true,  "ASCII", "ANSI_X3.4-1968", "646", NULL);
+    add_encoding(ENCODING_UTF8,        ENCODING_TYPE_UCNV,    "UTF-8",       1, false, true,  "CP65001", NULL);
+    add_encoding(ENCODING_UTF16BE,     ENCODING_TYPE_UCNV,    "UTF-16BE",    2, false, false, NULL);
+    add_encoding(ENCODING_UTF16LE,     ENCODING_TYPE_UCNV,    "UTF-16LE",    2, false, false, NULL);
+    add_encoding(ENCODING_UTF32BE,     ENCODING_TYPE_UCNV,    "UTF-32BE",    4, false, false, "UCS-4BE", NULL);
+    add_encoding(ENCODING_UTF32LE,     ENCODING_TYPE_UCNV,    "UTF-32LE",    4, false, false, "UCS-4LE", NULL);
+    add_encoding(ENCODING_ISO8859_1,   ENCODING_TYPE_UCNV,    "ISO-8859-1",  1, true,  true,  "ISO8859-1", NULL);
+    add_encoding(ENCODING_MACROMAN,    ENCODING_TYPE_UCNV,    "macRoman",    1, true,  true,  NULL);
+    add_encoding(ENCODING_MACCYRILLIC, ENCODING_TYPE_UCNV,    "macCyrillic", 1, true,  true,  NULL);
+    add_encoding(ENCODING_BIG5,        ENCODING_TYPE_UCNV,    "Big5",        1, false, true,  "CP950", NULL);
     // FIXME: the ICU conversion tables do not seem to match Ruby's Japanese conversion tables
-    add_encoding(ENCODING_EUCJP,     ENCODING_TYPE_UCNV,    "EUC-JP",      1, false, true,  "eucJP", NULL);
+    add_encoding(ENCODING_EUCJP,       ENCODING_TYPE_UCNV,    "EUC-JP",      1, false, true,  "eucJP", NULL);
     //add_encoding(ENCODING_EUCJP,     ENCODING_TYPE_RUBY, "EUC-JP",      1, false, true,  "eucJP", NULL);
     //add_encoding(ENCODING_SJIS,      ENCODING_TYPE_RUBY, "Shift_JIS",   1, false, true, "SJIS", NULL);
     //add_encoding(ENCODING_CP932,     ENCODING_TYPE_RUBY, "Windows-31J", 1, false, true, "CP932", "csWindows31J", NULL);
