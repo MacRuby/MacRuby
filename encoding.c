@@ -17,7 +17,7 @@
 
 VALUE rb_cEncoding;
 
-static rb_encoding_t *default_internal = NULL;
+rb_encoding_t *default_internal = NULL;
 static rb_encoding_t *default_external = NULL;
 rb_encoding_t *rb_encodings[ENCODINGS_COUNT];
 
@@ -28,6 +28,8 @@ static long str_undefined_length(rb_str_t *self, bool ucs2_mode) { abort(); }
 static long str_undefined_bytesize(rb_str_t *self) { abort(); }
 static character_boundaries_t str_undefined_get_character_boundaries(rb_str_t *self, long index, bool ucs2_mode) { abort(); }
 static long str_undefined_offset_in_bytes_to_index(rb_str_t *self, long offset_in_bytes, bool ucs2_mode) { abort(); }
+static void str_undefined_transcode_to_utf16(struct rb_encoding *src_enc, rb_str_t *self, long *pos, UChar **utf16, long *utf16_length) { abort(); }
+static void str_undefined_transcode_from_utf16(struct rb_encoding *dst_enc, UChar *utf16, long utf16_length, long *pos, char **bytes, long *bytes_length) { abort(); }
 
 static VALUE
 mr_enc_s_list(VALUE klass, SEL sel)
@@ -235,6 +237,10 @@ add_encoding(
 	str_undefined_get_character_boundaries;
     encoding->methods.offset_in_bytes_to_index =
 	str_undefined_offset_in_bytes_to_index;
+    encoding->methods.transcode_to_utf16 =
+	str_undefined_transcode_to_utf16;
+    encoding->methods.transcode_from_utf16 =
+	str_undefined_transcode_from_utf16;
 
     switch (rb_encoding_type) {
 	case ENCODING_TYPE_SPECIAL:

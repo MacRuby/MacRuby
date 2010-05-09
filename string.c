@@ -1242,6 +1242,141 @@ rstr_append(VALUE str, VALUE substr)
     }
 }
 
+enum {
+    TRANSCODE_BEHAVIOR_RAISE_EXCEPTION,
+    TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING,
+    TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_TEXT,
+    TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_ATTR
+};
+static rb_str_t *
+str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_encoding,
+	int behavior_for_invalid, int behavior_for_undefined, rb_str_t *replacement_str)
+{
+    if ((behavior_for_invalid == TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING)
+	   || (behavior_for_undefined == TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING)) {
+	assert(replacement_str != NULL);
+	assert(replacement_str->encoding != NULL);
+	assert(replacement_str->encoding == dst_encoding);
+    }
+
+    rb_str_t *dst_str = str_alloc(rb_cRubyString);
+    dst_str->encoding = dst_encoding;
+
+    if (self->length_in_bytes == 0) {
+	return dst_str;
+    }
+
+    if (src_encoding == self->encoding) {
+	// if the string can already be converted in UTF-16, half the job is done
+	str_try_making_data_uchars(self);
+    }
+    else {
+	// if the source encoding is not the string encoding
+	// we must be sure to start from the bytes, not UTF-16
+	str_make_data_binary(self);
+    }
+
+    rb_encoding_t *src_encoding_used;
+    rb_encoding_t *dst_encoding_used;
+    if (BINARY_ENC(dst_encoding)) {
+	dst_encoding_used = rb_encodings[ENCODING_ASCII];
+    }
+    else {
+	dst_encoding_used = dst_encoding;
+    }
+    if (BINARY_ENC(src_encoding)) {
+	src_encoding_used = rb_encodings[ENCODING_ASCII];
+    }
+    else {
+	src_encoding_used = src_encoding;
+    }
+
+    long pos_in_src = 0;
+    for (;;) {
+	UChar *utf16;
+	long utf16_length;
+	// if the encoding is native UTF-16 it's always stored in UChars
+	// but it can contain invalid bytes
+	if (str_is_stored_in_uchars(self) && !NATIVE_UTF16_ENC(self->encoding)) {
+	    utf16 = self->data.uchars;
+	    utf16_length = BYTES_TO_UCHARS(self->length_in_bytes);
+	    pos_in_src = self->length_in_bytes;
+	}
+	else {
+	    src_encoding_used->methods.transcode_to_utf16(src_encoding_used,
+		    self, &pos_in_src, &utf16, &utf16_length);
+	}
+
+	if (utf16_length > 0) {
+	    long utf16_pos = 0;
+	    for (;;) {
+		long bytes_length;
+		char *bytes;
+		dst_encoding_used->methods.transcode_from_utf16(dst_encoding_used,
+			utf16, utf16_length, &utf16_pos, &bytes, &bytes_length);
+		if (bytes_length > 0) {
+		    str_concat_bytes(dst_str, bytes, bytes_length);
+		}
+		if (utf16_pos < utf16_length) {
+		    // undefined char
+		    UChar32 c;
+		    U16_NEXT(utf16, utf16_pos, utf16_length, c);
+		    switch (behavior_for_undefined) {
+			case TRANSCODE_BEHAVIOR_RAISE_EXCEPTION:
+			    rb_raise(rb_eUndefinedConversionError, "U+%04X from %s to %s", c, src_encoding->public_name, dst_encoding->public_name);
+			    break;
+			case TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING:
+			    str_concat_bytes(dst_str, replacement_str->data.bytes, replacement_str->length_in_bytes);
+			    break;
+			case TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_TEXT:
+			case TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_ATTR:
+			    break;
+			default:
+			    abort();
+		    }
+		}
+		if (utf16_pos == utf16_length) {
+		    break;
+		}
+	    }
+	}
+
+	if (pos_in_src < self->length_in_bytes) {
+	    // invalid bytes
+	    long invalid_bytes_length = src_encoding->min_char_size;
+	    if (invalid_bytes_length + pos_in_src > self->length_in_bytes) {
+		invalid_bytes_length = self->length_in_bytes - pos_in_src;
+	    }
+	    switch (behavior_for_invalid) {
+		case TRANSCODE_BEHAVIOR_RAISE_EXCEPTION:
+		    {
+			char *bytes_list = xmalloc(invalid_bytes_length * 4);
+			char *bytes_list_pos = bytes_list;
+			for (long i = 0; i < invalid_bytes_length; ++i) {
+			    sprintf(bytes_list_pos, "\\x%02X", (unsigned char)self->data.bytes[pos_in_src+i]);
+			    bytes_list_pos += 4;
+			}
+			rb_raise(rb_eInvalidByteSequenceError, "\"%s\" on %s", bytes_list, src_encoding->public_name);
+		    }
+		    break;
+		case TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING:
+		    str_concat_bytes(dst_str, replacement_str->data.bytes, replacement_str->length_in_bytes);
+		    break;
+		default:
+		    abort();
+	    }
+	    pos_in_src += invalid_bytes_length;
+	}
+
+	if (pos_in_src == self->length_in_bytes) {
+	    break;
+	}
+    }
+
+    return dst_str;
+}
+
+
 //----------------------------------------------
 // Functions called by MacRuby
 
@@ -1583,6 +1718,170 @@ rstr_is_ascii_only(VALUE self, SEL sel)
 {
     return str_is_ruby_ascii_only(RSTR(self)) ? Qtrue : Qfalse;
 }
+
+/*
+ *  call-seq:
+ *     str.encode(encoding [, options] )   => str
+ *     str.encode(dst_encoding, src_encoding [, options] )   => str
+ *     str.encode([options])   => str
+ *
+ *  The first form returns a copy of <i>str</i> transcoded
+ *  to encoding +encoding+.
+ *  The second form returns a copy of <i>str</i> transcoded
+ *  from src_encoding to dst_encoding.
+ *  The last form returns a copy of <i>str</i> transcoded to
+ *  <code>Encoding.default_internal</code>.
+ *  By default, the first and second form raise
+ *  Encoding::UndefinedConversionError for characters that are
+ *  undefined in the destination encoding, and
+ *  Encoding::InvalidByteSequenceError for invalid byte sequences
+ *  in the source encoding. The last form by default does not raise
+ *  exceptions but uses replacement strings.
+ *  The <code>options</code> Hash gives details for conversion.
+ *
+ *  === options
+ *  The hash <code>options</code> can have the following keys:
+ *  :invalid ::
+ *    If the value is <code>:replace</code>, <code>#encode</code> replaces
+ *    invalid byte sequences in <code>str</code> with the replacement character.
+ *    The default is to raise the exception
+ *  :undef ::
+ *    If the value is <code>:replace</code>, <code>#encode</code> replaces
+ *    characters which are undefined in the destination encoding with
+ *    the replacement character.
+ *  :replace ::
+ *    Sets the replacement string to the value. The default replacement
+ *    string is "\uFFFD" for Unicode encoding forms, and "?" otherwise.
+ *  :xml ::
+ *    The value must be <code>:text</code> or <code>:attr</code>.
+ *    If the value is <code>:text</code> <code>#encode</code> replaces
+ *    undefined characters with their (upper-case hexadecimal) numeric
+ *    character references. '&', '<', and '>' are converted to "&amp;",
+ *    "&lt;", and "&gt;", respectively.
+ *    If the value is <code>:attr</code>, <code>#encode</code> also quotes
+ *    the replacement result (using '"'), and replaces '"' with "&quot;".
+ */
+extern rb_encoding_t *default_internal;
+static VALUE
+rstr_encode(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    VALUE opt = Qnil;
+    if (argc > 0) {
+        opt = rb_check_convert_type(argv[argc-1], T_HASH, "Hash", "to_hash");
+        if (!NIL_P(opt)) {
+            argc--;
+        }
+    }
+
+    rb_str_t *self = RSTR(str);
+    rb_str_t *replacement_str = NULL;
+    rb_encoding_t *src_encoding, *dst_encoding;
+    int behavior_for_invalid = TRANSCODE_BEHAVIOR_RAISE_EXCEPTION;
+    int behavior_for_undefined = TRANSCODE_BEHAVIOR_RAISE_EXCEPTION;
+    if (argc == 0) {
+	src_encoding = self->encoding;
+	dst_encoding = default_internal;
+	behavior_for_invalid = TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING;
+	behavior_for_undefined = TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING;
+    }
+    else if (argc == 1) {
+	src_encoding = self->encoding;
+	dst_encoding = rb_to_encoding(argv[0]);
+    }
+    else if (argc == 2) {
+	dst_encoding = rb_to_encoding(argv[0]);
+	src_encoding = rb_to_encoding(argv[1]);
+    }
+    else {
+	rb_raise(rb_eArgError, "wrong number of arguments (%d for 0..2)", argc);
+    }
+
+    if (!NIL_P(opt)) {
+	VALUE invalid_val = rb_hash_aref(opt, ID2SYM(rb_intern("invalid")));
+	VALUE replace_sym = ID2SYM(rb_intern("replace"));
+	if (invalid_val == replace_sym) {
+	    behavior_for_invalid = TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING;
+	}
+	VALUE undefined_val = rb_hash_aref(opt, ID2SYM(rb_intern("undefined")));
+	if (undefined_val == replace_sym) {
+	    behavior_for_undefined = TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING;
+	}
+	VALUE xml_val = rb_hash_aref(opt, ID2SYM(rb_intern("xml")));
+	if (xml_val == ID2SYM(rb_intern("text"))) {
+	    behavior_for_undefined = TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_TEXT;
+	}
+	else if (xml_val == ID2SYM(rb_intern("attr"))) {
+	    behavior_for_undefined = TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_ATTR;
+	}
+
+	VALUE replacement = rb_hash_aref(opt, replace_sym);
+	if (!NIL_P(replacement)) {
+	    replacement_str = str_need_string(replacement);
+	    if (replacement_str->encoding != dst_encoding) {
+		replacement_str = str_transcode(replacement_str, replacement_str->encoding,
+			dst_encoding, TRANSCODE_BEHAVIOR_RAISE_EXCEPTION,
+			TRANSCODE_BEHAVIOR_RAISE_EXCEPTION, NULL);
+	    }
+	    if ((behavior_for_invalid != TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING)
+		    && (behavior_for_undefined == TRANSCODE_BEHAVIOR_RAISE_EXCEPTION)) {
+		behavior_for_undefined = TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING;
+	    }
+	}
+    }
+
+    if ((replacement_str == NULL)
+	    && ((behavior_for_invalid == TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING)
+		|| (behavior_for_undefined == TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING))) {
+	if (dst_encoding == rb_encodings[ENCODING_UTF16BE]) {
+	    replacement_str = RSTR(rb_enc_str_new("\xFF\xFD", 2, dst_encoding));
+	}
+	else if (dst_encoding == rb_encodings[ENCODING_UTF32BE]) {
+	    replacement_str = RSTR(rb_enc_str_new("\0\0\xFF\xFD", 4, dst_encoding));
+	}
+	else if (dst_encoding == rb_encodings[ENCODING_UTF16LE]) {
+	    replacement_str = RSTR(rb_enc_str_new("\xFD\xFF", 2, dst_encoding));
+	}
+	else if (dst_encoding == rb_encodings[ENCODING_UTF32LE]) {
+	    replacement_str = RSTR(rb_enc_str_new("\xFD\xFF\0\0", 4, dst_encoding));
+	}
+	else if (dst_encoding == rb_encodings[ENCODING_UTF8]) {
+	    replacement_str = RSTR(rb_enc_str_new("\xEF\xBF\xBD", 3, dst_encoding));
+	}
+	else {
+	    replacement_str = RSTR(rb_enc_str_new("?", 1, rb_encodings[ENCODING_ASCII]));
+	    replacement_str = str_transcode(replacement_str, replacement_str->encoding,
+		    dst_encoding, TRANSCODE_BEHAVIOR_RAISE_EXCEPTION,
+		    TRANSCODE_BEHAVIOR_RAISE_EXCEPTION, NULL);
+	}
+    }
+
+    return (VALUE)str_transcode(self, src_encoding, dst_encoding,
+	    behavior_for_invalid, behavior_for_undefined, replacement_str);
+}
+
+/*
+ *  call-seq:
+ *     str.encode!(encoding [, options] )   => str
+ *     str.encode!(dst_encoding, src_encoding [, options] )   => str
+ *
+ *  The first form transcodes the contents of <i>str</i> from
+ *  str.encoding to +encoding+.
+ *  The second form transcodes the contents of <i>str</i> from
+ *  src_encoding to dst_encoding.
+ *  The options Hash gives details for conversion. See String#encode
+ *  for details.
+ *  Returns the string even if no changes were made.
+ */
+static VALUE
+rstr_encode_bang(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    rstr_modify(str);
+
+    VALUE new_str = rstr_encode(str, sel, argc, argv);
+    str_replace_with_string(RSTR(str), RSTR(new_str));
+    return str;
+}
+
 
 /*
  *  call-seq:
@@ -5533,6 +5832,8 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "partition", rstr_partition, 1);
     rb_objc_define_method(rb_cRubyString, "rpartition", rstr_rpartition, 1);
     rb_objc_define_method(rb_cRubyString, "crypt", rstr_crypt, 1);
+    rb_objc_define_method(rb_cRubyString, "encode", rstr_encode, -1);
+    rb_objc_define_method(rb_cRubyString, "encode!", rstr_encode_bang, -1);
 
     // MacRuby extensions.
     rb_objc_define_method(rb_cRubyString, "transform", rstr_transform, 1);

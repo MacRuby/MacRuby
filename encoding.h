@@ -116,6 +116,8 @@ typedef struct {
     long (*bytesize)(rb_str_t *);
     character_boundaries_t (*get_character_boundaries)(rb_str_t *, long, bool);
     long (*offset_in_bytes_to_index)(rb_str_t *, long, bool);
+    void (*transcode_to_utf16)(struct rb_encoding *, rb_str_t *, long *, UChar **, long *);
+    void (*transcode_from_utf16)(struct rb_encoding *, UChar *, long, long *, char **, long *);
 } encoding_methods_t;
 
 typedef struct rb_encoding {
