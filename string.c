@@ -1263,6 +1263,7 @@ str_simple_transcode(rb_str_t *self, rb_encoding_t *dst_encoding)
 static void inline
 str_concat_ascii_cstr(rb_str_t *self, char *cstr)
 {
+    str_make_data_binary(self);
     long len = strlen(cstr);
     if (self->encoding->ascii_compatible) {
 	str_concat_bytes(self, cstr, len);
