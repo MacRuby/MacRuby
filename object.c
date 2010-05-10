@@ -1493,8 +1493,9 @@ rb_obj_not_match(VALUE obj1, SEL sel, VALUE obj2)
 static VALUE
 rb_obj_cmp(VALUE obj1, SEL sel, VALUE obj2)
 {
-    if (obj1 == obj2 || rb_obj_equal(obj1, 0, obj2))
+    if (rb_obj_equal(obj1, 0, obj2) == Qtrue) {
 	return INT2FIX(0);
+    }
     return Qnil;
 }
 
