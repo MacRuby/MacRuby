@@ -2548,7 +2548,7 @@ rb_io_init_copy(VALUE dest, SEL sel, VALUE origin)
 VALUE
 rb_io_printf(VALUE out, SEL sel, int argc, VALUE *argv)
 {
-    return rb_io_write(out, sel, rb_f_sprintf(argc, argv));
+    return rb_io_write(out, rb_f_sprintf(argc, argv));
 }
 
 /*
@@ -2613,13 +2613,13 @@ rb_io_print(VALUE io, SEL sel, int argc, VALUE *argv)
         argv = &line;
     }
     while (argc--) {
-        rb_io_write(io, 0, *argv++);
+        rb_io_write(io, *argv++);
         if (!NIL_P(rb_output_fs)) {
-            rb_io_write(io, 0, rb_output_fs);
+            rb_io_write(io, rb_output_fs);
         }
     }
     if (!NIL_P(rb_output_rs)) {
-        rb_io_write(io, 0, rb_output_rs);
+        rb_io_write(io, rb_output_rs);
     }
     return Qnil;
 }
@@ -2674,7 +2674,7 @@ static VALUE
 rb_io_putc(VALUE io, SEL sel, VALUE ch)
 {
     char c = NUM2CHR(ch);
-    rb_io_write(io, sel, rb_str_new(&c, 1));
+    rb_io_write(io, rb_str_new(&c, 1));
     return ch;
 }
 
@@ -2739,7 +2739,7 @@ rb_io_puts(VALUE out, SEL sel, int argc, VALUE *argv)
     VALUE line;
     int i;
     if (argc == 0) {
-        rb_io_write(out, sel, rb_default_rs);
+        rb_io_write(out, rb_default_rs);
         return Qnil;
     }
     for (i = 0; i < argc; i++) {
@@ -2749,12 +2749,12 @@ rb_io_puts(VALUE out, SEL sel, int argc, VALUE *argv)
             continue;
         }
         line = rb_obj_as_string(argv[i]);
-        rb_io_write(out, sel, line);
+        rb_io_write(out, line);
         if (RSTRING_LEN(line) == 0
 		|| RSTRING_PTR(line)[RSTRING_LEN(line)-1] != '\n') {
             // If the last character of line was a newline, there's no reason
 	    // to write another.
-            rb_io_write(out, sel, rb_default_rs);
+            rb_io_write(out, rb_default_rs);
         }
     }
     return Qnil;
@@ -2778,12 +2778,12 @@ rb_f_puts(VALUE recv, SEL sel, int argc, VALUE *argv)
 void
 rb_p(VALUE obj, SEL sel) /* for debug print within C code */
 {
-    rb_io_write(rb_stdout, 0, rb_obj_as_string(rb_inspect(obj)));
-    rb_io_write(rb_stdout, 0, rb_default_rs);
+    rb_io_write(rb_stdout, rb_obj_as_string(rb_inspect(obj)));
+    rb_io_write(rb_stdout, rb_default_rs);
 }
 
 VALUE
-rb_io_write(VALUE v, SEL sel, VALUE i)
+rb_io_write(VALUE v, VALUE i)
 {
     io_write(v, 0, i);
     return Qnil;
@@ -2860,7 +2860,7 @@ rb_obj_display(VALUE self, SEL sel, int argc, VALUE *argv)
     if (NIL_P(port)) {
 	port = rb_stdout;
     }
-    return rb_io_write(port, 0, self);
+    return rb_io_write(port, self);
 }
 
 // static void
@@ -4478,7 +4478,7 @@ rb_write_error2(const char *mesg, long len)
 	fwrite(mesg, sizeof(char), len, stderr);
     }
     else {
-	rb_io_write(rb_stderr, 0, rb_str_new(mesg, len));
+	rb_io_write(rb_stderr, rb_str_new(mesg, len));
     }
 }
 

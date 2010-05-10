@@ -389,7 +389,7 @@ RUBY_EXTERN VALUE rb_output_fs;
 RUBY_EXTERN VALUE rb_rs;
 RUBY_EXTERN VALUE rb_default_rs;
 RUBY_EXTERN VALUE rb_output_rs;
-VALUE rb_io_write(VALUE, SEL, VALUE);
+VALUE rb_io_write(VALUE, VALUE);
 VALUE rb_io_gets(VALUE, SEL);
 VALUE rb_io_getbyte(VALUE, SEL);
 VALUE rb_io_ungetc(VALUE, SEL, VALUE);

@@ -227,7 +227,7 @@ w_nbyte(const char *s, int n, struct dump_arg *arg)
 	if (arg->taint) {
 	    OBJ_TAINT(buf);
 	}
-	rb_io_write(arg->dest, 0, buf);
+	rb_io_write(arg->dest, buf);
 	rb_str_resize(buf, 0);
     }
 #endif
@@ -904,7 +904,7 @@ dump(struct dump_call_arg *arg)
     w_object(arg->obj, arg->arg, arg->limit);
 #if 0 // unused
     if (arg->arg->dest) {
-	rb_io_write(arg->arg->dest, 0, arg->arg->str);
+	rb_io_write(arg->arg->dest, arg->arg->str);
 	rb_bstr_resize(arg->arg->str, 0);
     }
 #endif
@@ -1023,7 +1023,7 @@ type_error:
     // If we got an IO object as the port, make sure to write the bytestring
     // to it before leaving!
     if (got_io) {
-	rb_io_write(port, 0, arg->str);	
+	rb_io_write(port, arg->str);	
     }
     else {
 	rb_str_force_encoding(port, rb_encodings[ENCODING_UTF8]);
