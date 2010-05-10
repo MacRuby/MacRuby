@@ -1,2 +1,0 @@
-fails:Kernel#to_a is defined on Kernel
-fails:Kernel#to_a when the receiver is not an Array returns an Array containing self
