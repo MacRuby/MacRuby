@@ -1,11 +1,3 @@
-fails:Shell expansion in Kernel#require expands a preceding ~/ to the user's home directory for building the path to search
-fails:Shell expansion in Kernel#require adds the path to $LOADED_FEATURES
-fails:Kernel#require loads a .rb from an absolute path and returns true
-fails:Kernel#require bases the filename in $LOADED_FEATURES on the path given, not just basename
-fails:Kernel#require will not load the same file twice, returns false instead
-fails:Kernel#require checks $LOADED_FEATURES to see whether file is already loaded
-fails:Kernel#require canonicalizes relative paths
-fails:Kernel#require performs tilde expansion before storing paths in $LOADED_FEATURES
 fails:Kernel#require does not resolve completely unqualified filenames against the current working directory unless it appears in $LOAD_PATH
 fails:Kernel#require (path resolution) raises a TypeError if passed an object that has #to_path but not #to_str
 fails:Kernel#require ($LOAD_FEATURES) does not load a ./ relative path that is already stored

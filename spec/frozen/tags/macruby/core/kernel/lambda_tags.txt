@@ -1,4 +1,0 @@
-critical:Kernel.lambda returns from block into caller block
-fails:Kernel.lambda raises an ArgumentError when given too many arguments
-fails:Kernel.lambda raises an ArgumentError when given too few arguments
-fails:Kernel.lambda returns from block into caller block

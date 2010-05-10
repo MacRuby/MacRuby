@@ -1,3 +1,0 @@
-critical:Kernel.proc returns from block into caller block
-fails:Kernel.proc raises an ArgumentError when given too many arguments
-fails:Kernel.proc raises an ArgumentError when given too few arguments

@@ -1490,6 +1490,14 @@ rb_obj_not_match(VALUE obj1, SEL sel, VALUE obj2)
     return RTEST(result) ? Qfalse : Qtrue;
 }
 
+static VALUE
+rb_obj_cmp(VALUE obj1, SEL sel, VALUE obj2)
+{
+    if (obj1 == obj2 || rb_obj_equal(obj1, 0, obj2))
+	return INT2FIX(0);
+    return Qnil;
+}
+
 
 /***********************************************************************
  *
@@ -3008,6 +3016,7 @@ Init_Object(void)
     rb_objc_define_method(rb_mKernel, "=~", rb_obj_match, 1);
     rb_objc_define_method(rb_mKernel, "!~", rb_obj_not_match, 1);
     rb_objc_define_method(rb_mKernel, "eql?", rb_obj_equal, 1);
+    rb_objc_define_method(rb_mKernel, "<=>", rb_obj_cmp, 1);
 
     rb_objc_define_method(rb_cNSObject, "clone", rb_obj_clone_imp, 0);
     rb_objc_define_method(rb_cNSObject, "dup", rb_nsobj_dup, 0);

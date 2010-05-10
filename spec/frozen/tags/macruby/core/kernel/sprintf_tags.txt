@@ -1,2 +1,0 @@
-fails:Kernel#sprintf treats nil arguments as zero-width strings in %s slots
-fails:Kernel#sprintf treats nil arguments as zeroes in %d slots
