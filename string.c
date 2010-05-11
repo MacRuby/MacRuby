@@ -4791,7 +4791,7 @@ rstr_each_byte(VALUE str, SEL sel)
     RETURN_ENUMERATOR(str, 0, 0);
 
     for (long i = 0; i < RSTR(str)->length_in_bytes; i++) {
-	rb_yield(INT2FIX(RSTR(str)->data.bytes[i]));
+	rb_yield(INT2FIX((unsigned char)RSTR(str)->data.bytes[i]));
 	RETURN_IF_BROKEN();
     }
     return str;
