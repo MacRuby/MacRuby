@@ -228,7 +228,8 @@ RoxorCompiler::compile_bs_struct_new(rb_vm_bs_boxed_t *bs_boxed)
 	Value *index = ConstantInt::get(Int32Ty, i);
 	Value *arg = GetElementPtrInst::Create(argv, index, "", bb);
 	arg = new LoadInst(arg, "", bb);
-	arg = compile_conversion_to_c(ftype, arg, fval);
+	compile_conversion_to_c(ftype, arg, fval);
+	arg = new LoadInst(fval, "", bb);
 	arg = compile_conversion_to_ruby(ftype, llvm_type, arg);
 
 	fields.push_back(arg);
