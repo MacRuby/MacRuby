@@ -32,11 +32,10 @@ typedef struct {
 static rb_sym_t *
 sym_alloc(VALUE str, ID id)
 {
-    rb_sym_t *sym = (rb_sym_t *)malloc(sizeof(rb_sym_t));
+    rb_sym_t *sym = (rb_sym_t *)xmalloc(sizeof(rb_sym_t));
     assert(rb_cSymbol != 0);
     sym->klass = rb_cSymbol;
-    GC_RETAIN(str); // never released
-    sym->str = str;
+    GC_WB(&sym->str, str);
     sym->id = id;
     return sym;
 }
@@ -243,7 +242,8 @@ void
 Init_PreSymbol(void)
 {
     sym_id = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
-    id_str = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
+    id_str = CFDictionaryCreateMutable(NULL, 0, NULL,
+	    &kCFTypeDictionaryValueCallBacks);
     last_id = 1000;
 
     // Pre-register parser symbols.

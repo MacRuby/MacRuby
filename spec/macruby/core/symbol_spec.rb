@@ -13,4 +13,10 @@ describe "A Symbol" do
   it "should return self on -copy" do
     :sym.copy.__id__.should == :sym.__id__
   end
+
+  it "can have instance variables attached to it" do
+    s = :foo
+    s.instance_variable_set(:@omg, 42)
+    s.instance_variable_get(:@omg).should == 42
+  end
 end
