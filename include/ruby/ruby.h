@@ -970,7 +970,7 @@ RUBY_EXTERN VALUE rb_eLoadError;
 
 RUBY_EXTERN VALUE rb_stdin, rb_stdout, rb_stderr;
 
-static force_inline VALUE
+static inline VALUE
 rb_class_of(VALUE obj)
 {
     if (IMMEDIATE_P(obj)) {
@@ -997,7 +997,7 @@ rb_class_of(VALUE obj)
 
 int rb_objc_type(VALUE obj);
 
-static force_inline int
+static inline int
 rb_type(VALUE obj)
 {
     if (IMMEDIATE_P(obj)) {
@@ -1023,13 +1023,6 @@ rb_type(VALUE obj)
 	}
     }
     return rb_objc_type(obj);
-}
-
-static inline void
-__ignore_stupid_gcc_warnings(void)
-{
-    TYPE(INT2FIX(0));
-    CLASS_OF(INT2FIX(0));
 }
 
 static inline bool
