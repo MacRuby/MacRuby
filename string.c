@@ -4788,6 +4788,8 @@ rstr_each_char(VALUE str, SEL sel)
 static VALUE
 rstr_each_byte(VALUE str, SEL sel)
 {
+    str_make_data_binary(RSTR(str));
+
     RETURN_ENUMERATOR(str, 0, 0);
 
     for (long i = 0; i < RSTR(str)->length_in_bytes; i++) {
