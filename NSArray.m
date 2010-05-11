@@ -1141,7 +1141,7 @@ recursive_join(VALUE ary, VALUE argp, int recur)
 {
     VALUE *arg = (VALUE *)argp;
     if (recur) {
-	return rb_usascii_str_new2("[...]");
+	rb_raise(rb_eArgError, "recursive array join");
     }
     return rb_ary_join(arg[0], arg[1]);
 }
