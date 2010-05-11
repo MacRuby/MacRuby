@@ -797,22 +797,17 @@ check_dirname(volatile VALUE *dir)
  *  platforms. On Unix systems, see <code>chroot(2)</code> for more
  *  information.
  */
-#if defined(HAVE_CHROOT) && !defined(__CHECKER__)
 static VALUE
 dir_s_chroot(VALUE dir, SEL sel, VALUE path)
 {
-    const char *path_cstr = RSTRING_PTR(path);
-
     check_dirname(&path);
 
+    const char *path_cstr = RSTRING_PTR(path);
     if (chroot(path_cstr) == -1)
 	rb_sys_fail(path_cstr);
 
     return INT2FIX(0);
 }
-#else
-# define dir_s_chroot rb_f_notimplement
-#endif
 
 /*
  *  call-seq:
@@ -1838,6 +1833,29 @@ file_s_fnmatch(VALUE obj, SEL sel, int argc, VALUE *argv)
     return Qfalse;
 }
 
+VALUE rb_home_dir(VALUE user);
+
+/*
+ *  call-seq:
+ *    Dir.home()       => "/home/me"
+ *    Dir.home("root") => "/root"
+ *
+ *  Returns the home directory of the current user or the named user
+ *  if given.
+ */
+static VALUE
+dir_s_home(VALUE obj, SEL sel, int argc, VALUE *argv)
+{
+    VALUE user;
+
+    rb_scan_args(argc, argv, "01", &user);
+    if (!NIL_P(user)) {
+	SafeStringValue(user);
+	//u = StringValueCStr(user);
+    }
+    return rb_home_dir(user);
+}
+
 /*
  *  Objects of class <code>Dir</code> are directory streams representing
  *  directories in the underlying file system. They provide a variety of
@@ -1881,6 +1899,7 @@ Init_Dir(void)
     rb_objc_define_method(*(VALUE *)rb_cDir, "rmdir", dir_s_rmdir, 1);
     rb_objc_define_method(*(VALUE *)rb_cDir, "delete", dir_s_rmdir, 1);
     rb_objc_define_method(*(VALUE *)rb_cDir, "unlink", dir_s_rmdir, 1);
+    rb_objc_define_method(*(VALUE *)rb_cDir, "home", dir_s_home, -1);
 
     rb_objc_define_method(*(VALUE *)rb_cDir, "glob", dir_s_glob, -1);
     rb_objc_define_method(*(VALUE *)rb_cDir, "[]", dir_s_aref, -1);

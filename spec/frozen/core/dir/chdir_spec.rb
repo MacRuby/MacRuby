@@ -21,16 +21,16 @@ describe "Dir.chdir" do
   it "defaults to $HOME with no arguments" do
     if ENV['HOME']
     Dir.chdir(ENV['HOME'])
-    home = DirSpecs.pwd
+    home = Dir.pwd
 
     Dir.chdir
-    DirSpecs.pwd.should == home
+    Dir.pwd.should == home
     end
   end
 
   it "changes to the specified directory" do
     Dir.chdir DirSpecs.mock_dir
-    DirSpecs.pwd.should == DirSpecs.mock_dir
+    Dir.pwd.should == DirSpecs.mock_dir
   end
 
   it "returns 0 when successfully changing directory" do
@@ -81,10 +81,10 @@ describe "Dir.chdir" do
   end
 
   it "changes to the specified directory for the duration of the block" do
-    ar = Dir.chdir(DirSpecs.mock_dir) { |dir| [dir, DirSpecs.pwd] }
+    ar = Dir.chdir(DirSpecs.mock_dir) { |dir| [dir, Dir.pwd] }
     ar.should == [DirSpecs.mock_dir, DirSpecs.mock_dir]
 
-    DirSpecs.pwd.should == @original
+    Dir.pwd.should == @original
   end
 
   it "raises a SystemCallError if the directory does not exist" do
@@ -119,6 +119,6 @@ describe "Dir.chdir" do
     rescue StandardError
     end
 
-    DirSpecs.pwd.should == @original
+    Dir.pwd.should == @original
   end
 end

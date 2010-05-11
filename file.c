@@ -99,21 +99,22 @@ static SEL selToPath = 0;
 static VALUE
 rb_get_path_check(VALUE obj, int check)
 {
+    VALUE tmp;
+
     if (check) {
 	rb_check_safe_obj(obj);
-    }
-    VALUE tmp = rb_check_string_type(obj);
-    if (!NIL_P(tmp)) {
-	goto exit;
     }
 
     if (rb_vm_respond_to(obj, selToPath, true)) {
 	tmp = rb_vm_call(obj, selToPath, 0, NULL, false);
     }
     else {
-	tmp = obj;
+	tmp = rb_check_string_type(obj);
+	if (NIL_P(tmp)) {
+	    tmp = obj;
+	}
     }
-  exit:
+
     StringValueCStr(tmp);
     if (check && obj != tmp) {
 	rb_check_safe_obj(tmp);

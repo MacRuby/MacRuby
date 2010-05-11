@@ -1,1 +1,0 @@
-critical:Dir.chroot as regular user calls #to_path on non-String argument

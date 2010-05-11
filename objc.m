@@ -202,6 +202,29 @@ rb_objc_symbolize_address(void *addr, void **start, char *name,
 }
 
 VALUE
+rb_home_dir(VALUE user_name)
+{
+    NSString *user = nil;
+    NSString *home_dir = nil;
+
+    if (user_name != Qnil) {
+	user = (NSString *)user_name;
+	home_dir = NSHomeDirectoryForUser(user);
+	if (home_dir == nil) {
+	    rb_raise(rb_eArgError, "user %s doesn't exist",
+		[user UTF8String]);
+	}
+    }
+    else {
+	home_dir = NSHomeDirectory();
+	if (home_dir == nil) {
+	    return Qnil;
+	}
+    }
+    return rb_str_new2([home_dir fileSystemRepresentation]);
+}
+
+VALUE
 rb_file_expand_path(VALUE fname, VALUE dname)
 {
     NSString *res = (NSString *)FilePathValue(fname);
