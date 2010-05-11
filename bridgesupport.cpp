@@ -530,21 +530,26 @@ RoxorCore::register_bs_boxed(bs_element_type_t type, void *value)
 rb_vm_bs_boxed_t *
 RoxorCore::register_anonymous_bs_struct(const char *type)
 {
-    if (strlen(type) < 3 || type[0] != _C_STRUCT_B || type[1] != '?'
-	   || type[2] != '=') {
+    const size_t type_len = strlen(type);
+    assert(type_len > 0);
+
+    if (type_len < 3 || type[0] != _C_STRUCT_B || type[1] != '?'
+	    || type[2] != '=') {
 	// Does not look like an anonymous struct...
 	return NULL;
     }
 
     // Prepare the list of field types.
+    const size_t buf_len = type_len + 1;
+    char *buf = (char *)malloc(buf_len);
     std::vector<std::string> s_types;
-    char buf[100];
     const char *p = &type[3];
     while (*p != _C_STRUCT_E) {
-	p = GetFirstType(p, buf, sizeof buf);
+	p = GetFirstType(p, buf, buf_len);
 	assert(*p != '\0');
 	s_types.push_back(buf);
     }
+    free(buf);
 
     // Prepare the BridgeSupport structure.
     bs_element_struct_t *bs_struct = (bs_element_struct_t *)

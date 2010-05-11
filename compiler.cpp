@@ -749,6 +749,7 @@ RoxorCompiler::attach_current_line_metadata(Instruction *insn)
 		debug_compile_unit, DILocation(NULL));
 #if LLVM_TOT
 	insn->setMetadata(dbg_mdkind, loc.getNode());
+	//insn->setDebugLoc(DebugLoc::getFromDILocation(loc.getNode()));
 #else
 	context.getMetadata().addMD(dbg_mdkind, loc.getNode(), insn);
 #endif
@@ -6460,15 +6461,18 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 			    nilVal, "");
 		new StoreInst(val, proc_gvar, bb);
 
-		char buf[100];
-		const char *p = GetFirstType(type + 1, buf, sizeof(buf));
+		const size_t buf_len = strlen(type + 1) + 1;
+		assert(buf_len > 1);
+		char *buf = (char *)malloc(buf_len);
+
+		const char *p = GetFirstType(type + 1, buf, buf_len);
 		const Type *ret_type = convert_type(buf);
 		int argc = 0;
 
 		std::vector<std::string> arg_ctypes;
 		std::vector<const Type *> arg_types;
 		while (*p != _C_FPTR_E) {
-		    p = GetFirstType(p, buf, sizeof(buf));
+		    p = GetFirstType(p, buf, buf_len);
 		    arg_ctypes.push_back(std::string(buf));
 		    arg_types.push_back(convert_type(buf));
 		    argc++;
@@ -6524,7 +6528,7 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 		Value *ret_val = compile_protected_call(proc_call_f, params);
 
 		if (ret_type != VoidTy) {
-		    GetFirstType(type + 1, buf, sizeof(buf));
+		    GetFirstType(type + 1, buf, buf_len);
 		    ret_val = compile_conversion_to_c(buf, ret_val,
 			new AllocaInst(ret_type, "", bb));
 		    ReturnInst::Create(context, ret_val, bb);
@@ -6532,10 +6536,10 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 		else {
 		    ReturnInst::Create(context, bb);
 		}
-		bb = oldbb;
-		Value *ret = new BitCastInst(f, PtrTy, "", bb);
 
-		return ret;
+		bb = oldbb;
+		free(buf);
+		return new BitCastInst(f, PtrTy, "", bb);
 	    }
 	    break;
 
@@ -7043,9 +7047,12 @@ RoxorCompiler::compile_stub(const char *types, bool variadic, int min_argc,
     std::vector<const Type *> f_types;
     std::vector<Value *> params;
 
+    const size_t buf_len = strlen(types) + 1;
+    assert(buf_len > 1);
+    char *buf = (char *)malloc(buf_len);
+
     // retval
-    char buf[100];
-    const char *p = GetFirstType(types, buf, sizeof buf);
+    const char *p = GetFirstType(types, buf, buf_len);
     const Type *ret_type = convert_type(buf);
 
     Value *sret = NULL;
@@ -7083,7 +7090,7 @@ RoxorCompiler::compile_stub(const char *types, bool variadic, int min_argc,
     std::vector<unsigned int> byval_args;
     int given_argc = 0;
     bool stop_arg_type = false;
-    while ((p = GetFirstType(p, buf, sizeof buf)) != NULL && buf[0] != '\0') {
+    while ((p = GetFirstType(p, buf, buf_len)) != NULL && buf[0] != '\0') {
 	if (variadic && given_argc == min_argc) {
 	    stop_arg_type = true;
 	}
@@ -7139,7 +7146,7 @@ RoxorCompiler::compile_stub(const char *types, bool variadic, int min_argc,
 	retval = imp_call;
     }
 
-    GetFirstType(types, buf, sizeof buf);
+    GetFirstType(types, buf, buf_len);
     ret_type = convert_type(buf);
     if (self_arg != NULL && ret_type == VoidTy) {
 	// If we are calling an Objective-C method that returns void, let's
@@ -7150,6 +7157,8 @@ RoxorCompiler::compile_stub(const char *types, bool variadic, int min_argc,
 	retval = compile_conversion_to_ruby(buf, ret_type, retval);
     }
     ReturnInst::Create(context, retval, bb);
+
+    free(buf);
 
     return f;
 }
@@ -7340,7 +7349,10 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
 {
     assert(ruby_func != NULL || ruby_imp != NULL);
 
-    char buf[100];
+    const size_t buf_len = strlen(types) + 1;
+    assert(buf_len > 1);
+    char *buf = (char *)malloc(buf_len);
+
     const char *p = types;
     std::vector<const Type *> f_types;
 
@@ -7349,7 +7361,7 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
 #endif
 
     // Return value.
-    p = GetFirstType(p, buf, sizeof buf);
+    p = GetFirstType(p, buf, buf_len);
     std::string ret_type(buf);
     const Type *f_ret_type = convert_type(buf);
     const Type *f_sret_type = NULL;
@@ -7380,7 +7392,7 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
     std::vector<std::string> arg_types;
     std::vector<unsigned int> byval_args;
     for (int i = 0; i < arity.real; i++) {
-	p = GetFirstType(p, buf, sizeof buf);
+	p = GetFirstType(p, buf, buf_len);
 	const Type *t = convert_type(buf);
 	bool enough_registers = true;
 #if __LP64__
@@ -7492,7 +7504,8 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
     if (ruby2ocExcHandlerFunc == NULL) {
 	// void rb_rb2oc_exc_handler(void);
 	ruby2ocExcHandlerFunc = cast<Function>(
-		module->getOrInsertFunction("rb_rb2oc_exc_handler", VoidTy, NULL));
+		module->getOrInsertFunction("rb_rb2oc_exc_handler", VoidTy,
+		    NULL));
     }
     CallInst::Create(ruby2ocExcHandlerFunc, "", bb);
 
@@ -7501,6 +7514,8 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
 
     rescue_invoke_bb = old_rescue_invoke_bb;
 #endif
+
+    free(buf);
 
     return f;
 }
