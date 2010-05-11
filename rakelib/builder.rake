@@ -9,15 +9,6 @@ end
 
 desc "Build known objects"
 task :objects => [:config_h, :dtrace_h, :revision_h, :mark_gc] do
-  sh "/usr/bin/ruby tool/compile_prelude.rb prelude.rb miniprelude.c.new"
-  if !File.exist?('miniprelude.c') or File.read('miniprelude.c') != File.read('miniprelude.c.new')
-    mv('miniprelude.c.new', 'miniprelude.c')
-  else
-    rm('miniprelude.c.new')
-  end
-  if !File.exist?('prelude.c')
-    touch('prelude.c') # create empty file nevertheless
-  end
   if !File.exist?('parse.c') or File.mtime('parse.y') > File.mtime('parse.c')
     sh("/usr/bin/bison -o y.tab.c parse.y")
     sh("/usr/bin/sed -f ./tool/ytab.sed -e \"/^#/s!y\.tab\.c!parse.c!\" y.tab.c > parse.c.new")
@@ -38,15 +29,15 @@ task :objects => [:config_h, :dtrace_h, :revision_h, :mark_gc] do
   $builder.build
   if t == nil or File.mtime('dispatcher.o') > t
     # dispatcher.o must be marked as GC compliant to avoid a linker problem.
-    # We do not build it using -fobjc-gc because gcc generates unnecessary (and slow) write
-    # barriers.
+    # We do not build it using -fobjc-gc because gcc generates unnecessary (and slow)
+    # write barriers.
     sh "./markgc ./dispatcher.o"
   end
 end
 
 desc "Create miniruby"
 task :miniruby => :objects do
-  $builder.link_executable('miniruby', OBJS - ['prelude'])
+  $builder.link_executable('miniruby', OBJS)
 end
 
 desc "Create config file"
@@ -58,18 +49,8 @@ end
 namespace :macruby do
   desc "Build dynamic libraries for MacRuby"
   task :dylib => [:rbconfig, :miniruby] do
-=begin
-    sh("./miniruby -I. -I./lib -rrbconfig tool/compile_prelude.rb prelude.rb gem_prelude.rb gcd_prelude prelude.c.new")
-    if !File.exist?('prelude.c') or File.read('prelude.c') != File.read('prelude.c.new')
-      mv('prelude.c.new', 'prelude.c')
-      $builder.build(['prelude'])
-    else
-      rm('prelude.c.new')
-    end
-=end
-    cp('miniprelude.c', 'prelude.c')
     dylib = "lib#{RUBY_SO_NAME}.#{NEW_RUBY_VERSION}.dylib"
-    $builder.link_dylib(dylib, $builder.objs - ['main', 'gc-stub', 'miniprelude'])
+    $builder.link_dylib(dylib, $builder.objs - ['main', 'gc-stub'])
     major, minor, teeny = NEW_RUBY_VERSION.scan(/\d+/)
     ["lib#{RUBY_SO_NAME}.#{major}.#{minor}.dylib", "lib#{RUBY_SO_NAME}.dylib"].each do |dylib_alias|
       if !File.exist?(dylib_alias) or File.readlink(dylib_alias) != dylib
@@ -81,7 +62,7 @@ namespace :macruby do
 
   desc "Build static libraries for MacRuby"
   task :static => :dylib do
-    $builder.link_archive("lib#{RUBY_SO_NAME}-static.a", $builder.objs - ['main', 'gc-stub', 'miniprelude'])
+    $builder.link_archive("lib#{RUBY_SO_NAME}-static.a", $builder.objs - ['main', 'gc-stub'])
   end
 
   desc "Build MacRuby"
