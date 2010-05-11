@@ -125,6 +125,12 @@ rb_obj_equal(VALUE obj1, SEL sel, VALUE obj2)
     return obj1 == obj2 ? Qtrue : Qfalse;
 }
 
+static VALUE
+rb_nsobj_equal(VALUE obj1, SEL sel, VALUE obj2)
+{
+    return rb_objc_isEqual(obj1, obj2) ? Qtrue : Qfalse;
+}
+
 /*
  *  call-seq:
  *     !obj    => true or false
@@ -2983,8 +2989,9 @@ Init_Object(void)
     rb_objc_define_direct_method(*(VALUE *)rb_cNSObject, "new:", rb_class_new_instance_imp, -1);
 
     rb_objc_define_private_method(rb_cNSObject, "initialize", rb_obj_dummy, 0);
-    rb_objc_define_method(rb_cNSObject, "==", rb_obj_equal, 1);
+    rb_objc_define_method(rb_cRubyObject, "==", rb_obj_equal, 1);
     rb_objc_define_method(rb_cNSObject, "equal?", rb_obj_equal, 1);
+    rb_objc_define_method(rb_cNSObject, "==", rb_nsobj_equal, 1);
     rb_objc_define_method(rb_cNSObject, "!", rb_obj_not, 0);
     rb_objc_define_method(rb_cNSObject, "!=", rb_obj_not_equal, 1);
 
@@ -3017,6 +3024,7 @@ Init_Object(void)
     rb_objc_define_method(rb_mKernel, "=~", rb_obj_match, 1);
     rb_objc_define_method(rb_mKernel, "!~", rb_obj_not_match, 1);
     rb_objc_define_method(rb_mKernel, "eql?", rb_obj_equal, 1);
+    rb_objc_define_method(rb_cNSObject, "eql?", rb_nsobj_equal, 1);
     rb_objc_define_method(rb_mKernel, "<=>", rb_obj_cmp, 1);
 
     rb_objc_define_method(rb_cNSObject, "clone", rb_obj_clone_imp, 0);

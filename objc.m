@@ -630,6 +630,12 @@ rb_objc_ignore_sel(SEL sel)
 	|| sel == @selector(dealloc);
 }
 
+bool
+rb_objc_isEqual(VALUE x, VALUE y)
+{
+    return [RB2OC(x) isEqual:RB2OC(y)];
+}
+
 void
 rb_objc_force_class_initialize(Class klass)
 {

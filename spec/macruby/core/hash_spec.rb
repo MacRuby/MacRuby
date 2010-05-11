@@ -44,6 +44,16 @@ describe "An Hash object" do
     a.foo = 42
     a.foo.should == 42
   end
+
+  it "properly hashes pure Cocoa objects" do
+    a = NSCalendarDate.dateWithYear(2010, month:5, day:2, hour:0,  minute:0, second:0, timeZone:nil)
+    b = NSCalendarDate.dateWithYear(2010, month:5, day:2, hour:0,  minute:0, second:0, timeZone:nil)
+    h = {}
+    h[a] = :bad
+    h[b] = :ok
+    h.size.should == 1
+    h[a].should == :ok
+  end
 end
 
 describe "An NSDictionary object" do

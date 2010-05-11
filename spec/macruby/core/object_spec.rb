@@ -72,4 +72,13 @@ describe "An Objective-C class" do
     o.foo.should == 42
     o.bar.should == 42
   end
+
+  it "has its isEqual: method used for #== and #eql?" do
+    a = NSCalendarDate.dateWithYear(2010, month:5, day:2, hour:0,  minute:0, second:0, timeZone:nil)
+    b = NSCalendarDate.dateWithYear(2010, month:5, day:2, hour:0,  minute:0, second:0, timeZone:nil)
+    a.isEqual(b).should == true
+    (a == b).should == true
+    a.eql?(b).should == true
+    a.equal?(b).should == false
+  end
 end
