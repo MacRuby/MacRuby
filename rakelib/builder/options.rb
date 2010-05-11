@@ -47,6 +47,7 @@ ENABLE_STATIC_LIBRARY   = b.option('enable_static_library', 'no') { 'yes' }
 ENABLE_DEBUG_LOGGING    = b.option('enable_debug_logging', true) { |x| x == 'true' }
 SIMULTANEOUS_JOBS       = b.option('jobs', 1) { |x| x.to_i }
 COMPILE_STDLIB          = b.option('compile_stdlib', true) { |x| x == 'true' }
+OPTZ_LEVEL              = b.option('optz_level', 3) { |x| x.to_i }
 
 # Everything below this comment should *not* be modified.
 
@@ -69,6 +70,11 @@ end
 LLVM_CONFIG = File.join(LLVM_PATH, 'bin/llvm-config')
 unless File.exist?(LLVM_CONFIG)
   $stderr.puts "The llvm-config executable was not located as #{LLVM_CONFIG}. Please make sure LLVM is correctly installed on your machine and pass the llvm_config option to rake if necessary."
+  exit 1
+end
+
+if OPTZ_LEVEL < 0 || OPTZ_LEVEL > 3
+  $stderr.puts "Incorrect optimization level: #{OPTZ_LEVEL}"
   exit 1
 end
 
@@ -104,10 +110,12 @@ EXPORTED_SYMBOLS_LIST = "./exported_symbols_list"
 
 CC = '/usr/bin/gcc-4.2'
 CXX = '/usr/bin/g++-4.2'
-CFLAGS = "-I. -I./include -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -O3 -g -Wall -fexceptions"
+OPTZFLAG = "-O#{OPTZ_LEVEL}"
+CFLAGS = "-I. -I./include -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -g -Wall -fexceptions #{OPTZFLAG}"
 CFLAGS << " -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
 OBJC_CFLAGS = CFLAGS + " -fobjc-gc-only"
 CXXFLAGS = `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.sub(/-DNDEBUG/, '').sub(/-fno-exceptions/, '').strip
+CXXFLAGS.sub!(/-O\d/, OPTZFLAG)
 CXXFLAGS << " -I. -I./include -g -Wall #{ARCHFLAGS}"
 CXXFLAGS << " -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
 CXXFLAGS << " -DLLVM_TOT" if ENV['LLVM_TOT']
