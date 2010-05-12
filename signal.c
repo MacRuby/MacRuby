@@ -374,26 +374,6 @@ rb_enable_interrupt(void)
 }
 
 static RETSIGTYPE
-sigbus(int sig)
-{
-    rb_bug("Bus Error");
-}
-
-static int segv_received = 0;
-static RETSIGTYPE
-sigsegv(int sig)
-{
-    if (segv_received) {
-	fprintf(stderr, "SEGV recieved in SEGV handler\n");
-	exit(EXIT_FAILURE);
-    }
-    else {
-	segv_received = 1;
-	rb_bug("Segmentation fault");
-    }
-}
-
-static RETSIGTYPE
 sigpipe(int sig)
 {
     /* do nothing */
@@ -474,12 +454,6 @@ default_handler(int sig)
       case SIGUSR1:
       case SIGUSR2:
         func = sighandler;
-        break;
-      case SIGBUS:
-        func = sigbus;
-        break;
-      case SIGSEGV:
-        func = (sighandler_t)sigsegv;
         break;
       case SIGPIPE:
         func = sigpipe;
@@ -776,10 +750,6 @@ Init_signal(void)
 #ifdef RUBY_DEBUG_ENV
     if (!ruby_enable_coredump)
 #endif
-    {
-	install_sighandler(SIGBUS, sigbus);
-	install_sighandler(SIGSEGV, sigsegv);
-    }
     install_sighandler(SIGPIPE, sigpipe);
 
     init_sigchld(SIGCHLD);
