@@ -260,7 +260,7 @@ Init_PreEncoding(void)
 {
     add_encoding(ENCODING_BINARY,      ENCODING_TYPE_SPECIAL, "ASCII-8BIT",  1, true,  true,  "BINARY", NULL);
     add_encoding(ENCODING_ASCII,       ENCODING_TYPE_UCNV,    "US-ASCII",    1, true,  true,  "ASCII", "ANSI_X3.4-1968", "646", NULL);
-    add_encoding(ENCODING_UTF8,        ENCODING_TYPE_UCNV,    "UTF-8",       1, false, true,  "CP65001", NULL);
+    add_encoding(ENCODING_UTF8,        ENCODING_TYPE_UCNV,    "UTF-8",       1, false, true,  "CP65001", "locale", NULL);
     add_encoding(ENCODING_UTF16BE,     ENCODING_TYPE_UCNV,    "UTF-16BE",    2, false, false, NULL);
     add_encoding(ENCODING_UTF16LE,     ENCODING_TYPE_UCNV,    "UTF-16LE",    2, false, false, NULL);
     add_encoding(ENCODING_UTF32BE,     ENCODING_TYPE_UCNV,    "UTF-32BE",    4, false, false, "UCS-4BE", NULL);
