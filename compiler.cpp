@@ -4686,26 +4686,21 @@ rescan_args:
 	case NODE_ALIAS:
 	    {
 		if (aliasFunc == NULL) {
-		    // void rb_vm_alias2(VALUE outer, ID from, ID to,
-		    //	unsigned char dynamic_class);
+		    // void rb_vm_alias2(VALUE outer, VALUE from_sym,
+		    //		VALUE to_sym, unsigned char dynamic_class);
 		    aliasFunc = cast<Function>(module->getOrInsertFunction(
 				"rb_vm_alias2",
 				VoidTy, RubyObjTy, IntTy, IntTy, Int8Ty,
 				NULL));
 		}
 
-		assert(nd_type(node->u1.node) == NODE_LIT);
-		assert(nd_type(node->u2.node) == NODE_LIT);
-		assert(TYPE(node->u1.node->nd_lit) == T_SYMBOL);
-		assert(TYPE(node->u2.node->nd_lit) == T_SYMBOL);
-
-		ID from = SYM2ID(node->u1.node->nd_lit);
-		ID to = SYM2ID(node->u2.node->nd_lit);
+		assert(node->u1.node != NULL);
+		assert(node->u2.node != NULL);
 
 		std::vector<Value *> params;
 		params.push_back(compile_current_class());
-		params.push_back(compile_id(from));
-		params.push_back(compile_id(to));
+		params.push_back(compile_node(node->u1.node));
+		params.push_back(compile_node(node->u2.node));
 		params.push_back(ConstantInt::get(Int8Ty,
 			    dynamic_class ? 1 : 0));
 

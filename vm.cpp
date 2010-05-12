@@ -1609,7 +1609,7 @@ rb_vm_to_ary(VALUE obj)
 extern "C" void rb_print_undef(VALUE, ID, int);
 
 static void
-rb_vm_alias_method(Class klass, Method method, ID name, bool noargs)
+vm_alias_method(Class klass, Method method, ID name, bool noargs)
 {
     IMP imp = method_getImplementation(method);
     if (UNAVAILABLE_IMP(imp)) {
@@ -1638,41 +1638,15 @@ rb_vm_alias_method(Class klass, Method method, ID name, bool noargs)
     }
 }
 
-extern "C"
-void
-rb_vm_alias2(VALUE outer, ID name, ID def, unsigned char dynamic_class)
+static void
+vm_alias(VALUE outer, ID name, ID def)
 {
-    if (dynamic_class) {
-	Class k = GET_VM()->get_current_class();
-	if (k != NULL) {
-	    outer = (VALUE)k;
-	}
-    }
     rb_frozen_class_p(outer);
     if (outer == rb_cObject) {
         rb_secure(4);
     }
 
     VALUE dest = outer;
-    // XXX this isn't quite working yet.
-#if 0
-    // When aliasing a method on String, Array or Hash, we must be careful to
-    // pick the implementation from the NSCF class and register it into the
-    // non-mutable NS class, to make sure the machinery works.
-    if (outer == rb_cNSMutableString || outer == rb_cNSString) {
-	outer = rb_cCFString;
-	dest = rb_cString;
-    }
-    else if (outer == rb_cNSMutableArray || outer == rb_cNSArray) {
-	outer = rb_cCFArray;
-	dest = rb_cArray;
-    }
-    else if (outer == rb_cNSMutableHash || outer == rb_cNSHash) {
-	outer = rb_cCFHash;
-	dest = rb_cHash;
-    }
-#endif
-
     Class klass = (Class)outer;
     Class dest_klass = (Class)dest;
 
@@ -1691,18 +1665,36 @@ rb_vm_alias2(VALUE outer, ID name, ID def, unsigned char dynamic_class)
 	rb_print_undef((VALUE)klass, def, 0);
     }
     if (def_method1 != NULL) {
-	rb_vm_alias_method(dest_klass, def_method1, name, true);
+	vm_alias_method(dest_klass, def_method1, name, true);
     }
     if (def_method2 != NULL) {
-	rb_vm_alias_method(dest_klass, def_method2, name, false);
+	vm_alias_method(dest_klass, def_method2, name, false);
     }
+}
+
+extern "C"
+void
+rb_vm_alias2(VALUE outer, VALUE name, VALUE def, unsigned char dynamic_class)
+{
+    if (dynamic_class) {
+	Class k = GET_VM()->get_current_class();
+	if (k != NULL) {
+	    outer = (VALUE)k;
+	}
+    }
+
+    // Given arguments should always be symbols (compiled as such).
+    assert(TYPE(name) == T_SYMBOL);
+    assert(TYPE(def) == T_SYMBOL);
+
+    vm_alias(outer, SYM2ID(name), SYM2ID(def));
 }
 
 extern "C"
 void
 rb_vm_alias(VALUE outer, ID name, ID def)
 {
-    rb_vm_alias2(outer, name, def, false);
+    vm_alias(outer, name, def);
 }
 
 extern "C"
