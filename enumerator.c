@@ -300,6 +300,22 @@ rb_enumeratorize(VALUE obj, SEL sel, int argc, VALUE *argv)
 	    argc, argv);
 }
 
+static VALUE
+enumerator_block_call(VALUE obj, VALUE (*func)(ANYARGS), VALUE arg)
+{
+    struct enumerator *e;
+    int argc = 0;
+    const VALUE *argv = 0;
+
+    e = enumerator_ptr(obj);
+    if (e->args != 0) {
+	argc = RARRAY_LEN(e->args);
+	argv = RARRAY_PTR(e->args);
+    }
+    return rb_objc_block_call(e->obj, e->sel, NULL, argc, (VALUE *)argv,
+	    func, arg);
+}
+
 /*
  *  call-seq:
  *    enum.each {...}
@@ -311,53 +327,89 @@ rb_enumeratorize(VALUE obj, SEL sel, int argc, VALUE *argv)
 static VALUE
 enumerator_each(VALUE obj, SEL sel)
 {
-    struct enumerator *e;
-    int argc = 0;
-    const VALUE *argv = 0;
-
-    if (!rb_block_given_p()) return obj;
-    e = enumerator_ptr(obj);
-    if (e->args != 0) {
-	argc = RARRAY_LEN(e->args);
-	argv = RARRAY_PTR(e->args);
+    if (!rb_block_given_p()) {
+	return obj;
     }
-    return rb_objc_block_call(e->obj, e->sel, NULL, argc, (VALUE *)argv,
-	    enumerator_each_i, (VALUE)e);
+    return enumerator_block_call(obj, enumerator_each_i, obj);
 }
 
 static VALUE
-enumerator_with_index_i(VALUE val, VALUE *memo)
+enumerator_with_index_i(VALUE val, VALUE m, int argc, VALUE *argv)
 {
-    val = rb_yield_values(2, val, INT2FIX(*memo));
+    VALUE idx;
+    VALUE *memo = (VALUE *)m;
+
+    idx = INT2FIX(*memo);
     ++*memo;
-    return val;
+
+    if (argc <= 1)
+	return rb_yield_values(2, val, idx);
+
+    return rb_yield_values(2, rb_ary_new4(argc, argv), idx);
 }
 
 /*
  *  call-seq:
- *    e.with_index {|(*args), idx| ... }
+ *    e.with_index(offset = 0) {|(*args), idx| ... }
  *    e.with_index
  *
  *  Iterates the given block for each elements with an index, which
- *  start from 0.  If no block is given, returns an enumerator.
+ *  starts from +offset+.  If no block is given, returns an enumerator.
  *
  */
 static VALUE
-enumerator_with_index(VALUE obj, SEL sel)
+enumerator_with_index(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
-    struct enumerator *e;
-    VALUE memo = 0;
-    int argc = 0;
-    const VALUE *argv = 0;
+    VALUE memo;
 
-    RETURN_ENUMERATOR(obj, 0, 0);
-    e = enumerator_ptr(obj);
-    if (e->args != 0) {
-	argc = RARRAY_LEN(e->args);
-	argv = RARRAY_PTR(e->args);
+    rb_scan_args(argc, argv, "01", &memo);
+    RETURN_ENUMERATOR(obj, argc, argv);
+    memo = NIL_P(memo) ? 0 : (VALUE)NUM2LONG(memo);
+    return enumerator_block_call(obj, enumerator_with_index_i, (VALUE)&memo);
+}
+
+/*
+ *  call-seq:
+ *    e.each_with_index {|(*args), idx| ... }
+ *    e.each_with_index
+ *
+ *  Same as Enumeartor#with_index, except each_with_index does not
+ *  receive an offset argument.
+ *
+ */
+static VALUE
+enumerator_each_with_index(VALUE obj, SEL sel)
+{
+    return enumerator_with_index(obj, sel, 0, NULL);
+}
+
+static VALUE
+enumerator_with_object_i(VALUE val, VALUE memo, int argc, VALUE *argv)
+{
+    if (argc <= 1) {
+	return rb_yield_values(2, val, memo);
     }
-    return rb_objc_block_call(e->obj, e->sel, NULL, argc, (VALUE *)argv,
-	    enumerator_with_index_i, (VALUE)&memo);
+
+    return rb_yield_values(2, rb_ary_new4(argc, argv), memo);
+}
+
+/*
+ *  call-seq:
+ *    e.with_object(obj) {|(*args), memo_obj| ... }
+ *    e.with_object(obj)
+ *
+ *  Iterates the given block for each element with an arbitrary
+ *  object given, and returns the initially given object.
+ *
+ *  If no block is given, returns an enumerator.
+ *
+ */
+static VALUE
+enumerator_with_object(VALUE obj, SEL sel, VALUE memo)
+{
+    RETURN_ENUMERATOR(obj, 1, &memo);
+    enumerator_block_call(obj, enumerator_with_object_i, memo);
+    return memo;
 }
 
 #if 0
@@ -461,8 +513,10 @@ Init_Enumerator(void)
     rb_objc_define_method(rb_cEnumerator, "initialize", enumerator_initialize, -1);
     rb_objc_define_method(rb_cEnumerator, "initialize_copy", enumerator_init_copy, 1);
     rb_objc_define_method(rb_cEnumerator, "each", enumerator_each, 0);
-    rb_objc_define_method(rb_cEnumerator, "each_with_index", enumerator_with_index, 0);
-    rb_objc_define_method(rb_cEnumerator, "with_index", enumerator_with_index, 0);
+    rb_objc_define_method(rb_cEnumerator, "each_with_index", enumerator_each_with_index, 0);
+    rb_objc_define_method(rb_cEnumerator, "each_with_object", enumerator_with_object, 1);
+    rb_objc_define_method(rb_cEnumerator, "with_index", enumerator_with_index, -1);
+    rb_objc_define_method(rb_cEnumerator, "with_object", enumerator_with_object, 1);
     rb_objc_define_method(rb_cEnumerator, "next", enumerator_next, 0);
     rb_objc_define_method(rb_cEnumerator, "rewind", enumerator_rewind, 0);
 
