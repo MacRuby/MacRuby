@@ -408,3 +408,18 @@ assert ":ok", %{
   end
   foo
 }
+
+assert ":ok", %{
+  def foo
+    begin
+      raise "bad"
+    rescue
+      raise "ok"
+    end
+  end
+  begin
+    foo
+  rescue => e
+    p e.message.intern
+  end
+}
