@@ -14,6 +14,7 @@
 #include "ruby/util.h"
 #include "vm.h"
 #include "id.h"
+#include "array.h"
 
 VALUE rb_mEnumerable;
 static ID id_each, id_eqq, id_next, id_size;
@@ -391,6 +392,48 @@ enum_collect(VALUE obj, SEL sel)
 
     ary = rb_ary_new();
     rb_objc_block_call(obj, selEach, cacheEach, 0, 0, collect_i, ary);
+
+    return ary;
+}
+
+static VALUE
+flat_map_i(VALUE i, VALUE ary, int argc, VALUE *argv)
+{
+    VALUE tmp;
+
+    i = enum_yield(argc, argv);
+    tmp = rb_check_array_type(i);
+
+    if (NIL_P(tmp)) {
+	rb_ary_push(ary, i);
+    }
+    else {
+	rb_ary_concat(ary, tmp);
+    }
+    return Qnil;
+}
+
+/*
+ *  call-seq:
+ *     enum.flat_map       {| obj | block }  => array
+ *     enum.collect_concat {| obj | block }  => array
+ *
+ *  Returns a new array with the concatenated results of running
+ *  <em>block</em> once for every element in <i>enum</i>.
+ *
+ *     [[1,2],[3,4]].flat_map {|i| i }   #=> [1, 2, 3, 4]
+ *
+ */
+
+static VALUE
+enum_flat_map(VALUE obj, SEL sel)
+{
+    VALUE ary;
+
+    RETURN_ENUMERATOR(obj, 0, 0);
+
+    ary = rb_ary_new();
+    rb_objc_block_call(obj, selEach, cacheEach, 0, 0, flat_map_i, ary);
 
     return ary;
 }
@@ -1445,6 +1488,191 @@ enum_reverse_each(VALUE obj, SEL sel, int argc, VALUE *argv)
     return obj;
 }
 
+static VALUE
+each_val_i(VALUE i, VALUE p, int argc, VALUE *argv)
+{
+    ENUM_WANT_SVALUE();
+    rb_yield(i);
+    return Qnil;
+}
+
+/*
+ *  call-seq:
+ *     enum.each_entry {|obj| block}  => enum
+ *
+ *  Calls <i>block</i> once for each element in <i>self</i>, passing that
+ *  element as a parameter, converting multiple values from yield to an
+ *  array.
+ *
+ *     class Foo
+ *       include Enumerable
+ *       def each
+ *         yield 1
+ *         yield 1,2
+ *       end
+ *     end
+ *     Foo.new.each_entry{|o| print o, " -- "}
+ *
+ *  produces:
+ *
+ *     1 -- [1, 2] --
+ */
+
+static VALUE
+enum_each_entry(VALUE obj, SEL sel, int argc, VALUE *argv)
+{
+    RETURN_ENUMERATOR(obj, argc, argv);
+    rb_objc_block_call(obj, selEach, cacheEach, argc, argv, each_val_i, 0);
+    return obj;
+}
+
+static VALUE
+each_slice_i(VALUE i, VALUE *memo, int argc, VALUE *argv)
+{
+    VALUE ary = memo[0];
+    VALUE v = Qnil;
+    long size = (long)memo[1];
+    ENUM_WANT_SVALUE();
+
+    rb_ary_push(ary, i);
+
+    if (RARRAY_LEN(ary) == size) {
+	v = rb_yield(ary);
+	memo[0] = rb_ary_new2(size);
+    }
+
+    return v;
+}
+
+/*
+ *  call-seq:
+ *    e.each_slice(n) {...}
+ *    e.each_slice(n)
+ *
+ *  Iterates the given block for each slice of <n> elements.  If no
+ *  block is given, returns an enumerator.
+ *
+ *  e.g.:
+ *      (1..10).each_slice(3) {|a| p a}
+ *      # outputs below
+ *      [1, 2, 3]
+ *      [4, 5, 6]
+ *      [7, 8, 9]
+ *      [10]
+ *
+ */
+static VALUE
+enum_each_slice(VALUE obj, SEL sel, VALUE n)
+{
+    long size = NUM2LONG(n);
+    VALUE args[2], ary;
+
+    if (size <= 0) {
+	rb_raise(rb_eArgError, "invalid slice size");
+    }
+    RETURN_ENUMERATOR(obj, 1, &n);
+    args[0] = rb_ary_new2(size);
+    args[1] = (VALUE)size;
+
+    rb_objc_block_call(obj, selEach, cacheEach, 0, 0, each_slice_i, (VALUE)args);
+
+    ary = args[0];
+    if (RARRAY_LEN(ary) > 0) {
+	rb_yield(ary);
+    }
+
+    return Qnil;
+}
+
+static VALUE
+each_cons_i(VALUE i, VALUE *memo, int argc, VALUE *argv)
+{
+    VALUE ary = memo[0];
+    VALUE v = Qnil;
+    long size = (long)memo[1];
+    ENUM_WANT_SVALUE();
+
+    if (RARRAY_LEN(ary) == size) {
+	rb_ary_shift(ary);
+    }
+    rb_ary_push(ary, i);
+    if (RARRAY_LEN(ary) == size) {
+	v = rb_yield(rb_ary_dup(ary));
+    }
+    return v;
+}
+
+/*
+ *  call-seq:
+ *    each_cons(n) {...}
+ *    each_cons(n)
+ *
+ *  Iterates the given block for each array of consecutive <n>
+ *  elements.  If no block is given, returns an enumerator.
+ *
+ *  e.g.:
+ *      (1..10).each_cons(3) {|a| p a}
+ *      # outputs below
+ *      [1, 2, 3]
+ *      [2, 3, 4]
+ *      [3, 4, 5]
+ *      [4, 5, 6]
+ *      [5, 6, 7]
+ *      [6, 7, 8]
+ *      [7, 8, 9]
+ *      [8, 9, 10]
+ *
+ */
+static VALUE
+enum_each_cons(VALUE obj, SEL sel, VALUE n)
+{
+    long size = NUM2LONG(n);
+    VALUE args[2];
+
+    if (size <= 0) {
+	rb_raise(rb_eArgError, "invalid size");
+    }
+    RETURN_ENUMERATOR(obj, 1, &n);
+    args[0] = rb_ary_new2(size);
+    args[1] = (VALUE)size;
+
+    rb_objc_block_call(obj, selEach, cacheEach, 0, 0, each_cons_i, (VALUE)args);
+
+    return Qnil;
+}
+
+static VALUE
+each_with_object_i(VALUE i, VALUE memo, int argc, VALUE *argv)
+{
+    ENUM_WANT_SVALUE();
+    return rb_yield_values(2, i, memo);
+}
+
+/*
+ *  call-seq:
+ *    each_with_object(obj) {|(*args), memo_obj| ... }
+ *    each_with_object(obj)
+ *
+ *  Iterates the given block for each element with an arbitrary
+ *  object given, and returns the initially given object.
+ *
+ *  If no block is given, returns an enumerator.
+ *
+ *  e.g.:
+ *      evens = (1..10).each_with_object([]) {|i, a| a << i*2 }
+ *      # => [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]
+ *
+ */
+static VALUE
+enum_each_with_object(VALUE obj, SEL sel, VALUE memo)
+{
+    RETURN_ENUMERATOR(obj, 1, &memo);
+
+    rb_objc_block_call(obj, selEach, cacheEach, 0, 0,
+	each_with_object_i, (VALUE)memo);
+
+    return memo;
+}
 
 static VALUE
 zip_ary(VALUE val, NODE *memo, int argc, VALUE *argv)
@@ -1553,24 +1781,28 @@ enum_zip(VALUE obj, SEL sel, int argc, VALUE *argv)
     ID conv;
     NODE *memo;
     VALUE result = Qnil;
+    VALUE args = rb_ary_new4(argc, argv);
     int allary = Qtrue;
 
-    for (i=0; i<argc; i++) {
-	if (TYPE(argv[i]) != T_ARRAY) {
+    for (i = 0; i < argc; i++) {
+	VALUE ary = rb_check_array_type(argv[i]);
+	if (NIL_P(ary)) {
 	    allary = Qfalse;
 	    break;
 	}
+	rary_store(args, i, ary);
     }
     if (!allary) {
 	conv = rb_intern("to_enum");
-	for (i=0; i<argc; i++) {
-	    argv[i] = rb_funcall(argv[i], conv, 1, ID2SYM(id_each));
+	for (i = 0; i < argc; i++) {
+	    VALUE res = rb_funcall(argv[i], conv, 1, ID2SYM(id_each));
+	    rary_store(args, i, res);
 	}
     }
     if (!rb_block_given_p()) {
 	result = rb_ary_new();
     }
-    memo = rb_node_newnode(NODE_MEMO, result, rb_ary_new4(argc, argv), 0);
+    memo = rb_node_newnode(NODE_MEMO, result, args, 0);
     rb_objc_block_call(obj, selEach, cacheEach, 0, 0, allary ? zip_ary : zip_i, (VALUE)memo);
 
     return result;
@@ -1579,8 +1811,10 @@ enum_zip(VALUE obj, SEL sel, int argc, VALUE *argv)
 static VALUE
 take_i(VALUE i, VALUE *arg, int argc, VALUE *argv)
 {
-    if (arg[1]-- == 0) rb_iter_break();
     rb_ary_push(arg[0], enum_values_pack(argc, argv));
+    if (--arg[1] == 0) {
+	rb_iter_break();
+    }
     return Qnil;
 }
 
@@ -1605,8 +1839,11 @@ enum_take(VALUE obj, SEL sel, VALUE n)
 	rb_raise(rb_eArgError, "attempt to take negative size");
     }
 
-    args[1] = len;
+    if (len == 0) {
+	return rb_ary_new2(0);
+    }
     args[0] = rb_ary_new();
+    args[1] = len;
     rb_objc_block_call(obj, selEach, cacheEach, 0, 0, take_i, (VALUE)args);
     return args[0];
 }
@@ -1615,7 +1852,9 @@ enum_take(VALUE obj, SEL sel, VALUE n)
 static VALUE
 take_while_i(VALUE i, VALUE *ary, int argc, VALUE *argv)
 {
-    if (!RTEST(enum_yield(argc, argv))) rb_iter_break();
+    if (!RTEST(enum_yield(argc, argv))) {
+	rb_iter_break();
+    }
     rb_ary_push(*ary, enum_values_pack(argc, argv));
     return Qnil;
 }
@@ -1823,6 +2062,8 @@ Init_Enumerable(void)
     rb_objc_define_method(rb_mEnumerable, "reject", enum_reject, 0);
     rb_objc_define_method(rb_mEnumerable, "collect", enum_collect, 0);
     rb_objc_define_method(rb_mEnumerable, "map", enum_collect, 0);
+    rb_objc_define_method(rb_mEnumerable, "flat_map", enum_flat_map, 0);
+    rb_objc_define_method(rb_mEnumerable, "collect_concat", enum_flat_map, 0);
     rb_objc_define_method(rb_mEnumerable, "inject", enum_inject, -1);
     rb_objc_define_method(rb_mEnumerable, "reduce", enum_inject, -1);
     rb_objc_define_method(rb_mEnumerable, "partition", enum_partition, 0);
@@ -1842,6 +2083,10 @@ Init_Enumerable(void)
     rb_objc_define_method(rb_mEnumerable, "include?", enum_member, 1);
     rb_objc_define_method(rb_mEnumerable, "each_with_index", enum_each_with_index, -1);
     rb_objc_define_method(rb_mEnumerable, "reverse_each", enum_reverse_each, -1);
+    rb_objc_define_method(rb_mEnumerable, "each_entry", enum_each_entry, -1);
+    rb_objc_define_method(rb_mEnumerable, "each_slice", enum_each_slice, 1);
+    rb_objc_define_method(rb_mEnumerable, "each_cons", enum_each_cons, 1);
+    rb_objc_define_method(rb_mEnumerable, "each_with_object", enum_each_with_object, 1);
     rb_objc_define_method(rb_mEnumerable, "zip", enum_zip, -1);
     rb_objc_define_method(rb_mEnumerable, "take", enum_take, 1);
     rb_objc_define_method(rb_mEnumerable, "take_while", enum_take_while, 0);
