@@ -1,1 +1,0 @@
-fails:Hash#shift removes a pair from hash and return it
