@@ -65,6 +65,20 @@
 #define DBL_EPSILON 2.2204460492503131e-16
 #endif
 
+#ifdef HAVE_INFINITY
+#elif BYTE_ORDER == LITTLE_ENDIAN
+const unsigned char rb_infinity[] = "\x00\x00\x80\x7f";
+#else
+const unsigned char rb_infinity[] = "\x7f\x80\x00\x00";
+#endif
+
+#ifdef HAVE_NAN
+#elif BYTE_ORDER == LITTLE_ENDIAN
+const unsigned char rb_nan[] = "\x00\x00\xc0\x7f";
+#else
+const unsigned char rb_nan[] = "\x7f\xc0\x00\x00";
+#endif
+
 #ifndef HAVE_ROUND
 double
 round(double x)
@@ -732,7 +746,7 @@ flodivmod(double x, double y, double *divp, double *modp)
 {
     double div, mod;
 
-    if (y == 0) {
+    if (y == 0.0) {
 	rb_num_zerodiv();
     }
 #ifdef HAVE_FMOD
@@ -798,13 +812,7 @@ dbl2ival(double d)
 	d = round(d);
 	return LONG2FIX((long)d);
     }
-    else if (isnan(d) || isinf(d)) {
-	/* special case: cannot return integer value */
-	return rb_float_new(d);
-    }
-    else {
-	return rb_dbl2big(d);
-    }
+    return rb_dbl2big(d);
 }
 
 /*
@@ -983,12 +991,23 @@ flo_cmp(VALUE x, SEL sel, VALUE y)
     double a, b;
 
     a = RFLOAT_VALUE(x);
+    if (isnan(a)) {
+	return Qnil;
+    }
     switch (TYPE(y)) {
       case T_FIXNUM:
 	b = (double)FIX2LONG(y);
 	break;
 
       case T_BIGNUM:
+	if (isinf(a)) {
+	    if (a > 0.0) {
+		return INT2FIX(1);
+	    }
+	    else {
+		return INT2FIX(-1);
+	    }
+	}
 	b = rb_big2dbl(y);
 	break;
 
@@ -997,6 +1016,13 @@ flo_cmp(VALUE x, SEL sel, VALUE y)
 	break;
 
       default:
+	if (isinf(a) && (!rb_respond_to(y, rb_intern("infinite?")) ||
+			 !RTEST(rb_funcall(y, rb_intern("infinite?"), 0, 0)))) {
+	    if (a > 0.0) {
+		return INT2FIX(1);
+	    }
+	    return INT2FIX(-1);
+	}
 	return rb_num_coerce_cmp(x, y, rb_intern("<=>"));
     }
     return rb_dbl_cmp(a, b);
@@ -3475,6 +3501,8 @@ Init_Numeric(void)
     rb_define_const(rb_cFloat, "MIN", DOUBLE2NUM(DBL_MIN));
     rb_define_const(rb_cFloat, "MAX", DOUBLE2NUM(DBL_MAX));
     rb_define_const(rb_cFloat, "EPSILON", DOUBLE2NUM(DBL_EPSILON));
+    rb_define_const(rb_cFloat, "INFINITY", DBL2NUM(INFINITY));
+    rb_define_const(rb_cFloat, "NAN", DBL2NUM(NAN));
 
     rb_objc_define_method(rb_cFloat, "to_s", flo_to_s, 0);
     rb_objc_define_method(rb_cFloat, "coerce", flo_coerce, 1);

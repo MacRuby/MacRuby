@@ -1281,6 +1281,7 @@ VALUE
 rb_big_cmp(VALUE x, VALUE y)
 {
     long xlen = RBIGNUM_LEN(x);
+    BDIGIT *xds, *yds;
 
     switch (TYPE(y)) {
       case T_FIXNUM:
@@ -1291,7 +1292,15 @@ rb_big_cmp(VALUE x, VALUE y)
 	break;
 
       case T_FLOAT:
-	return rb_dbl_cmp(rb_big2dbl(x), RFLOAT_VALUE(y));
+	{
+	    double a = RFLOAT_VALUE(y);
+
+	    if (isinf(a)) {
+		if (a > 0.0) return INT2FIX(-1);
+		else return INT2FIX(1);
+	    }
+	    return rb_dbl_cmp(rb_big2dbl(x), a);
+	}
 
       default:
 	return rb_num_coerce_cmp(x, y, rb_intern("<=>"));
@@ -1304,9 +1313,12 @@ rb_big_cmp(VALUE x, VALUE y)
     if (xlen > RBIGNUM_LEN(y))
 	return (RBIGNUM_SIGN(x)) ? INT2FIX(1) : INT2FIX(-1);
 
-    while(xlen-- && (BDIGITS(x)[xlen]==BDIGITS(y)[xlen]));
+    xds = BDIGITS(x);
+    yds = BDIGITS(y);
+
+    while(xlen-- && (xds[xlen]==yds[xlen]));
     if (-1 == xlen) return INT2FIX(0);
-    return (BDIGITS(x)[xlen] > BDIGITS(y)[xlen]) ?
+    return (xds[xlen] > yds[xlen]) ?
 	(RBIGNUM_SIGN(x) ? INT2FIX(1) : INT2FIX(-1)) :
 	    (RBIGNUM_SIGN(x) ? INT2FIX(-1) : INT2FIX(1));
 }

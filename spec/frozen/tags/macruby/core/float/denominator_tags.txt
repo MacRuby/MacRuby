@@ -1,1 +1,0 @@
-fails:Float#denominator converts self to a Rational and returns the denominator

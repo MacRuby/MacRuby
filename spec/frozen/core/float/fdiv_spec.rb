@@ -8,7 +8,7 @@ ruby_version_is "1.9" do
     end
 
     it "performs floating-point division between self and a Fixnum" do
-      8.9.fdiv(7).should == 1.2714285714285716
+      8.9.fdiv(7).should be_close(1.2714285714285716, TOLERANCE)
     end
 
     it "performs floating-point division between self and a Bignum" do
