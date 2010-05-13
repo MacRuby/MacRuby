@@ -1,1 +1,0 @@
-fails:File.lstat returns a File::Stat object with symlink properties for a symlink

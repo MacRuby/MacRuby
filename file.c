@@ -141,14 +141,9 @@ apply2files(void (*func)(const char *, void *), VALUE vargs, void *arg)
     volatile VALUE path;
 
     rb_secure(4);
-    for (i=0; i<RARRAY_LEN(vargs); i++) {
-		path = rb_check_string_type(RARRAY_AT(vargs, i));
-		if (NIL_P(path))
-		{
-			// should we check for to_path too? i find it to be a hideous idiom.
-			rb_raise(rb_eTypeError, "paths must be strings or coerceable into strings");
-		}
-		(*func)(StringValueCStr(path), arg);
+    for (i = 0; i < RARRAY_LEN(vargs); i++) {
+	path = rb_get_path(RARRAY_AT(vargs, i));
+	(*func)(StringValueCStr(path), arg);
     }
 
     return RARRAY_LEN(vargs);
@@ -1268,14 +1263,14 @@ rb_file_writable_real_p(VALUE obj, SEL sel, VALUE fname)
 static VALUE
 rb_file_world_writable_p(VALUE obj, SEL sel, VALUE fname)
 {
-#ifdef S_IWOTH
     struct stat st;
 
-    if (rb_stat(fname, &st) < 0) return Qfalse;
-    if ((st.st_mode & (S_IWOTH)) == S_IWOTH) {
-	return UINT2NUM(st.st_mode & (S_IRUGO|S_IWUGO|S_IXUGO));
+    if (rb_stat(fname, &st) < 0) {
+	return Qnil;
     }
-#endif
+    if ((st.st_mode & (S_IWOTH)) == S_IWOTH) {
+	return UINT2NUM(st.st_mode & (S_IRUGO | S_IWUGO | S_IXUGO));
+    }
     return Qnil;
 }
 
@@ -1533,6 +1528,17 @@ rb_file_s_size(VALUE klass, SEL sel, VALUE fname)
 }
 
 static VALUE
+rb_file_size(VALUE obj, SEL sel)
+{
+    struct stat st;
+    struct rb_io_t *io = ExtractIOStruct(obj);
+    if (fstat(io->fd, &st) == -1) {
+	rb_sys_fail(RSTRING_PTR(io->path));
+    }
+    return OFFT2NUM(st.st_size);
+}
+
+static VALUE
 rb_file_ftype(const struct stat *st)
 {
     const char *t;
@@ -1759,11 +1765,10 @@ rb_file_s_chmod(VALUE rcv, SEL sel, int argc, VALUE *argv)
 
     rb_secure(2);
     rb_scan_args(argc, argv, "1*", &vmode, &rest);
-	vmode = rb_check_to_integer(vmode, "to_int");
-	if (NIL_P(vmode))
-	{
-		rb_raise(rb_eTypeError, "chmod() takes a numeric argument");
-	}
+    vmode = rb_check_to_integer(vmode, "to_int");
+    if (NIL_P(vmode)) {
+	rb_raise(rb_eTypeError, "chmod() takes a numeric argument");
+    }
     mode = NUM2INT(vmode);
 
     n = apply2files(chmod_internal, rest, &mode);
@@ -2376,6 +2381,32 @@ rb_file_s_expand_path(VALUE rcv, SEL sel, int argc, VALUE *argv)
     return rb_file_expand_path(fname, dname);
 }
 
+/*
+ *  call-seq:
+ *     File.absolute_path(file_name [, dir_string] ) -> abs_file_name
+ *  
+ *  Converts a pathname to an absolute pathname. Relative paths are
+ *  referenced from the current working directory of the process unless
+ *  <i>dir_string</i> is given, in which case it will be used as the
+ *  starting point. If the given pathname starts with a ``<code>~</code>''
+ *  it is NOT expanded, it is treated as a normal directory name.
+ *     
+ *     File.absolute_path("~oracle/bin")       #=> "<relative_path>/~oracle/bin"
+ */
+
+VALUE
+rb_file_s_absolute_path(VALUE rcv, SEL sel, int argc, VALUE *argv)
+{
+    VALUE fname, dname;
+
+    if (argc == 1) {
+	return rb_file_absolute_path(argv[0], Qnil);
+    }
+    rb_scan_args(argc, argv, "11", &fname, &dname);
+
+    return rb_file_absolute_path(fname, dname);
+}
+
 static int
 rmext(const char *p, int l1, const char *e)
 {
@@ -2589,6 +2620,9 @@ rb_file_join(VALUE ary, VALUE sep)
 		break;
 
 	    case T_ARRAY:
+		if (ary == tmp) {
+		    rb_raise(rb_eArgError, "recursive array");
+		}
 		tmp = rb_file_join(tmp, sep);
 		break;
 
@@ -2596,14 +2630,19 @@ rb_file_join(VALUE ary, VALUE sep)
 		FilePathStringValue(tmp);
 	}
 
+#define uchar_at_is_sep(str, pos) (rb_str_get_uchar(str, pos) == sep_char)
 	if (i > 0 && !NIL_P(sep)) {
 	    const long res_len = rb_str_chars_len(res);
 	    const long tmp_len = rb_str_chars_len(tmp);
 
-	    if (res_len > 0
-		    && rb_str_get_uchar(res, res_len - 1) == sep_char) {
-		if (tmp_len > 0 && rb_str_get_uchar(tmp, 0) == sep_char) {
-		    rb_str_delete(res, res_len - 1, 1);
+	    if (res_len > 0 && uchar_at_is_sep(res, res_len - 1)) {
+		if (tmp_len > 0 && uchar_at_is_sep(tmp, 0)) {
+		    long nb_sep_char = 1;
+		    while (nb_sep_char < res_len
+			&& uchar_at_is_sep(res, res_len - nb_sep_char - 1)) {
+			nb_sep_char++;
+		    }
+		    rb_str_delete(res, res_len - nb_sep_char, nb_sep_char);
 		}
 	    }
 	    else if (tmp_len == 0
@@ -2612,6 +2651,7 @@ rb_file_join(VALUE ary, VALUE sep)
 	    } 
 	}
 	rb_str_concat(res, tmp);
+#undef uchar_at_is_sep
     }
     return res;
 }
@@ -3968,6 +4008,7 @@ Init_File(void)
     rb_objc_define_method(rb_ccFile, "umask", rb_file_s_umask, -1);
     rb_objc_define_method(rb_ccFile, "truncate", rb_file_s_truncate, 2);
     rb_objc_define_method(rb_ccFile, "expand_path", rb_file_s_expand_path, -1);
+    rb_objc_define_method(rb_ccFile, "absolute_path", rb_file_s_absolute_path, -1);
     rb_objc_define_method(rb_ccFile, "basename", rb_file_s_basename, -1);
     rb_objc_define_method(rb_ccFile, "dirname", rb_file_s_dirname, 1);
     rb_objc_define_method(rb_ccFile, "extname", rb_file_s_extname, 1);
@@ -3988,6 +4029,7 @@ Init_File(void)
     rb_objc_define_method(rb_cFile, "atime", rb_file_atime, 0);
     rb_objc_define_method(rb_cFile, "mtime", rb_file_mtime, 0);
     rb_objc_define_method(rb_cFile, "ctime", rb_file_ctime, 0);
+    rb_objc_define_method(rb_cFile, "size", rb_file_size, 0);
 
     rb_objc_define_method(rb_cFile, "chmod", rb_file_chmod, 1);
     rb_objc_define_method(rb_cFile, "chown", rb_file_chown, 2);

@@ -317,6 +317,7 @@ void rb_thread_atfork_before_exec(void);
 VALUE rb_exec_recursive(VALUE(*)(VALUE, VALUE, int),VALUE,VALUE);
 /* file.c */
 VALUE rb_file_expand_path(VALUE, VALUE);
+VALUE rb_file_absolute_path(VALUE, VALUE);
 void rb_file_const(const char*, VALUE);
 int rb_find_file_ext(VALUE*, const char* const*);
 VALUE rb_find_file(VALUE);

@@ -224,12 +224,21 @@ rb_home_dir(VALUE user_name)
     return rb_str_new2([home_dir fileSystemRepresentation]);
 }
 
-VALUE
-rb_file_expand_path(VALUE fname, VALUE dname)
+static BOOL
+is_absolute_path(NSString *path, int expand_tilde)
+{
+    if (!expand_tilde && [path isAbsolutePath] && [path hasPrefix:@"~"]) {
+	return NO;
+    }
+    return [path isAbsolutePath];    
+}
+
+static VALUE
+file_expand_path(VALUE fname, VALUE dname, int absolute)
 {
     NSString *res = (NSString *)FilePathValue(fname);
 
-    if ([res isAbsolutePath]) {
+    if (is_absolute_path(res, !absolute)) {
 	NSString *tmp = [res stringByResolvingSymlinksInPath];
 	// Make sure we don't have an invalid user path.
 	if ([res hasPrefix:@"~"] && [tmp isEqualTo:res]) {
@@ -244,8 +253,8 @@ rb_file_expand_path(VALUE fname, VALUE dname)
 	    ? (NSString *)FilePathValue(dname)
 	    : [[NSFileManager defaultManager] currentDirectoryPath];
 
-	if (![dir isAbsolutePath]) {
-	    dir = (NSString *)rb_file_expand_path((VALUE)dir, Qnil);
+	if (!is_absolute_path(dir, !absolute)) {
+	    dir = (NSString *)file_expand_path((VALUE)dir, Qnil, 0);
 	}
 
 	// stringByStandardizingPath does not expand "/." to "/".
@@ -259,6 +268,18 @@ rb_file_expand_path(VALUE fname, VALUE dname)
     }
 
     return rb_str_new2([res fileSystemRepresentation]);
+}
+
+VALUE
+rb_file_expand_path(VALUE fname, VALUE dname)
+{
+    return file_expand_path(fname, dname, 0);
+}
+
+VALUE
+rb_file_absolute_path(VALUE fname, VALUE dname)
+{
+    return file_expand_path(fname, dname, 1);
 }
 
 static VALUE
