@@ -3812,6 +3812,7 @@ rb_vm_is_eh_active(int argc, ...)
 		VALUE obj2 = RARRAY_AT(obj, j);
 		if (rb_obj_is_kind_of(current_exception, obj2)) {
 		    active = 1;
+		    break;
 		}
 	    }
 	}
@@ -3830,7 +3831,7 @@ extern "C"
 void
 rb_vm_pop_exception(int pos)
 {
-    GET_VM()->pop_current_exception();
+    GET_VM()->pop_current_exception(pos);
 }
 
 extern "C"
