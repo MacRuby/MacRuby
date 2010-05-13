@@ -3472,30 +3472,6 @@ rb_vm_get_special(char code)
     return val;
 }
 
-extern "C"
-VALUE
-rb_iseq_compile(VALUE src, VALUE file, VALUE line)
-{
-    // TODO
-    return NULL;
-}
-
-extern "C"
-VALUE
-rb_iseq_eval(VALUE iseq)
-{
-    // TODO
-    return Qnil;
-}
-
-extern "C"
-VALUE
-rb_iseq_new(NODE *node, VALUE filename)
-{
-    // TODO
-    return Qnil;
-}
-
 static inline void
 __vm_raise(void)
 {

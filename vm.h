@@ -502,26 +502,6 @@ void rb_vm_register_finalizer(rb_vm_finalizer_t *finalizer);
 void rb_vm_unregister_finalizer(rb_vm_finalizer_t *finalizer);
 void rb_vm_call_finalizer(rb_vm_finalizer_t *finalizer);
 
-VALUE rb_iseq_compile(VALUE src, VALUE file, VALUE line);
-VALUE rb_iseq_eval(VALUE iseq);
-VALUE rb_iseq_new(NODE *node, VALUE filename);
-
-#if 0 // TODO
-#if ENABLE_DEBUG_LOGGING 
-# include <libgen.h>
-extern bool ruby_dlog_enabled;
-extern FILE *ruby_dlog_file;
-# define DLOG(mod, fmt, args...)                                          \
-    if (UNLIKELY(ruby_dlog_enabled)) {                                    \
-        fprintf(ruby_dlog_file, "%s:%d %s ",                              \
-                basename((char *)rb_sourcefile()), rb_sourceline(), mod); \
-        fprintf(ruby_dlog_file, fmt, ##args);                             \
-        fprintf(ruby_dlog_file, "\n");                                    \
-    }
-# endif
-#endif
-#define DLOG(mod, fmt, args...)
-
 #if defined(__cplusplus)
 }
 

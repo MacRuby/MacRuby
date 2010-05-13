@@ -488,8 +488,6 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
     }                                                   \
   } while (0)                                           \
 
-  //DLOG("MDLOSX", "Loading bridge support file `%s'", path);
-  
   reader = xmlNewTextReaderFilename(path);
   if (reader == NULL)
     BAIL("cannot create XML text reader for file at path `%s'", path);
