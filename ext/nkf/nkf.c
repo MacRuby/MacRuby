@@ -63,18 +63,13 @@ rb_nkf_putchar(unsigned int c)
 
 rb_encoding* rb_nkf_enc_get(const char *name)
 {
-    int idx = rb_enc_find_index(name);
-    if (idx < 0) {
-	nkf_encoding *nkf_enc = nkf_enc_find(name);
-	idx = rb_enc_find_index(nkf_enc_name(nkf_enc_to_base_encoding(nkf_enc)));
-	if (idx < 0) {
-	    idx = rb_define_dummy_encoding(name);
-	} else {
-	    rb_encoding *rb_enc = rb_enc_from_index(idx);
-	    idx = rb_enc_replicate(name, rb_enc);
-	}
+    rb_encoding *enc = rb_enc_find(name);
+    if (enc == NULL) {
+	// Encoding is not known, use BINARY instead.
+	enc = rb_enc_find("BINARY");
+	assert(enc != NULL);
     }
-    return rb_enc_from_index(idx);
+    return enc;
 }
 
 int nkf_split_options(const char *arg)
@@ -156,18 +151,19 @@ rb_nkf_convert(VALUE obj, VALUE opt, VALUE src)
 
     input_ctr = 0;
     StringValue(src);
-    input = (unsigned char *)RSTRING_PTR(src);
-    i_len = RSTRING_LEN(src);
-    result = rb_str_new(0, i_len*3 + 10);
+    src = rb_str_bstr(src);
+    input = rb_bstr_bytes(src);
+    i_len = rb_bstr_length(src);
+    result = rb_bstr_new();
+    rb_bstr_resize(result, i_len*3 + 10);
 
     output_ctr = 0;
-    output     = (unsigned char *)RSTRING_PTR(result);
-    o_len      = RSTRING_LEN(result);
+    output     = rb_bstr_bytes(result);
+    o_len      = rb_bstr_length(result);
     *output    = '\0';
 
     kanji_convert(NULL);
-    rb_str_set_len(result, output_ctr);
-    OBJ_INFECT(result, src);
+    rb_bstr_set_length(result, output_ctr);
 
     rb_enc_associate(result, rb_nkf_enc_get(nkf_enc_name(output_encoding)));
 
