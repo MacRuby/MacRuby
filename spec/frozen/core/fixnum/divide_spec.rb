@@ -6,8 +6,18 @@ describe "Fixnum#/" do
     (3 / 2).should == 1
   end
 
-  it "supports dividing negative numbers" do
-    (-1 / 10).should == -1
+  not_compliant_on :macruby do
+    it "supports dividing negative numbers" do
+      (-1 / 10).should == -1
+    end
+  end
+
+  deviates_on :macruby do
+    it "supports dividing negative numbers" do
+      # bc, gdb, etc. behave the same way (using the closest integer, instead
+      # of the smallest one like ruby)
+      (-31 / 10).should == -3
+    end
   end
   
   it "raises a ZeroDivisionError if the given argument is zero and not a Float" do
