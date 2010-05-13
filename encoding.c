@@ -405,6 +405,24 @@ rb_enc_mbmaxlen(rb_encoding_t *enc)
     return enc->single_byte_encoding ? 1 : 10; // XXX 10?
 }
 
+rb_encoding *
+rb_ascii8bit_encoding(void)
+{
+    return rb_encodings[ENCODING_BINARY];
+}
+
+rb_encoding *
+rb_utf8_encoding(void)
+{
+    return rb_encodings[ENCODING_UTF8];
+}
+
+rb_encoding *
+rb_usascii_encoding(void)
+{
+    return rb_encodings[ENCODING_ASCII];
+}
+
 rb_encoding_t *
 rb_locale_encoding(void)
 {

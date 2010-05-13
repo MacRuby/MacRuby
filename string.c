@@ -6664,3 +6664,14 @@ rb_str_casecmp(VALUE str1, VALUE str2)
 {
     return str_case_compare(str_need_string(str1), str_need_string(str2));
 }
+
+VALUE
+rb_enc_associate(VALUE str, rb_encoding *enc)
+{
+    if (!IS_RSTR(str)) {
+	rb_raise(rb_eArgError, "cannot change the encoding of an NSString");
+    }
+    assert(enc != NULL);
+    RSTR(str)->encoding = enc;
+    return str;
+}
