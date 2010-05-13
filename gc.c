@@ -231,7 +231,7 @@ rb_gc_enable(VALUE self, SEL sel)
 
     auto_collector_reenable(__auto_zone);
     dont_gc = Qfalse;
-    return old;
+    return old ? Qtrue : Qfalse;
 }
 
 /*
@@ -253,7 +253,7 @@ rb_gc_disable(VALUE self, SEL sel)
 
     auto_collector_disable(__auto_zone);
     dont_gc = Qtrue;
-    return old;
+    return old ? Qtrue : Qfalse;
 }
 
 VALUE rb_mGC;
@@ -1064,7 +1064,7 @@ Init_GC(void)
     rb_objc_define_module_function(rb_mGC, "stress", gc_stress_get, 0);
     rb_objc_define_module_function(rb_mGC, "stress=", gc_stress_set, 1);
     rb_objc_define_module_function(rb_mGC, "count", gc_count, 0);
-    rb_objc_define_module_function(rb_mGC, "garbage_collect", rb_gc_start, 0);
+    rb_objc_define_method(rb_mGC, "garbage_collect", rb_gc_start, 0);
 
     rb_mObSpace = rb_define_module("ObjectSpace");
     rb_objc_define_module_function(rb_mObSpace, "each_object", os_each_obj, -1);
