@@ -1,2 +1,4 @@
 fails:Matrix#det returns the determinant of a Matrices containing 0 as first entry
 fails:Matrix#det returns 1 for an empty Matrix
+fails:Matrix#det returns the determinant even for Matrices containing 0 as first entry
+fails:Matrix#det raises an error for rectangular matrices

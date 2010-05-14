@@ -1,0 +1,9 @@
+fails:Matrix.build returns a Matrix object of the given size
+fails:Matrix.build builds the Matrix using the given block
+fails:Matrix.build iterates through the first row, then the second, ...
+fails:Matrix.build returns an Enumerator is no block is given
+fails:Matrix.build requires integers as parameters
+fails:Matrix.build requires non-negative integers
+fails:Matrix.build returns empty Matrix if one argument is zero
+fails:Matrix.build tries to calls :to_int on arguments
+fails:Matrix.build builds an nxn Matrix when given only one argument

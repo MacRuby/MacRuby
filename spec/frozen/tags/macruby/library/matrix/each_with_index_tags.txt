@@ -1,0 +1,3 @@
+fails:Matrix#each_with_index returns an Enumerator when called without a block
+fails:Matrix#each_with_index returns self
+fails:Matrix#each_with_index yields the elements starting with the those of the first row

@@ -1,0 +1,5 @@
+fails:Matrix#real? returns true for matrices with all real entries
+fails:Matrix#real? returns true for empty matrices
+fails:Matrix#real? returns false if one element is a Complex
+fails:Matrix#real returns a matrix with the real part of the elements of the receiver
+fails:Matrix#real returns empty matrices on the same size if empty

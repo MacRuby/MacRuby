@@ -7,3 +7,4 @@ fails:Module#autoload does not remove the constant from the constant table if th
 fails:Module#autoload does not load the file when refering to the constant in defined?
 fails:Module#autoload calls #to_path on non-String filename arguments
 fails:Module#autoload calls #to_path on non-string filenames
+fails:Module#autoload does NOT raise a NameError when the autoload file did not define the constant and a module is opened with the same name

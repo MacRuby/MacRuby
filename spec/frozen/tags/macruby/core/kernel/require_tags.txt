@@ -25,3 +25,7 @@ fails:Kernel.require ($LOAD_FEATURES) loads a ../ relative path for a file alrea
 fails:Kernel.require ($LOAD_FEATURES) does not load a non-canonical path for a file already loaded
 fails:Kernel.require (shell expansion) does not perform tilde expansion before storing paths in $LOADED_FEATURES
 fails:Kernel.require (shell expansion) performs tilde expansion before storing paths in $LOADED_FEATURES
+fails:Kernel#require (shell expansion) performs tilde expansion on a .rb file before storing paths in $LOADED_FEATURES
+fails:Kernel#require (shell expansion) performs tilde expansion on a non-extensioned file before storing paths in $LOADED_FEATURES
+fails:Kernel.require (shell expansion) performs tilde expansion on a .rb file before storing paths in $LOADED_FEATURES
+fails:Kernel.require (shell expansion) performs tilde expansion on a non-extensioned file before storing paths in $LOADED_FEATURES

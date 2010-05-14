@@ -1,0 +1,6 @@
+fails:Digest::SHA256.file raises a Errno::EISDIR when passed a path that is a directory
+fails:Digest::SHA256.file raises a Errno::ENOENT when passed a path that does not exist
+fails:Digest::SHA256.file raises a TypeError when passed nil
+fails:Digest::SHA256.file when passed a path to a file that exists returns a Digest::SHA256 object
+fails:Digest::SHA256.file when passed a path to a file that exists returns a Digest::SHA256 object with the correct digest
+fails:Digest::SHA256.file when passed a path to a file that exists calls #to_str on an object and returns the Digest::SHA256 with the result

@@ -1,1 +1,5 @@
 critical:BigDecimal#sqrt returns sqrt of self with at least the given precision
+fails:BigDecimal#sqrt returns square root of 2 with desired precision
+fails:BigDecimal#sqrt returns square root of 3 with desired precision
+fails:BigDecimal#sqrt returns square root of 0.9E-99999 with desired precision
+fails:BigDecimal#sqrt returns square root of 121 with desired precision

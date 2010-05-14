@@ -5,3 +5,4 @@ fails:Dispatch::Source of type file: VNODE fires with data showing mask of vnode
 fails:Dispatch::Source Timer fires every interval thereafter
 fails:Dispatch::Source of type file: VNODE does close file when cancelled given IO
 fails:Dispatch::Source of type file: WRITE does close file when cancelled given IO
+fails:Dispatch::Source of type PROC fires on process event with event mask data

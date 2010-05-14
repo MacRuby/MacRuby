@@ -1,1 +1,2 @@
 fails:Float#to_s returns a string representation of self
+fails:Float#to_s outputs the necessary number of digits to represent the float
