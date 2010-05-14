@@ -2109,10 +2109,59 @@ RoxorCompiler::optimized_immediate_op(SEL sel, Value *leftVal, Value *rightVal,
 	res = BinaryOperator::CreateSub(leftVal, rightVal, "", bb);
     }
     else if (sel == selDIV) {
-	res = float_op
-	    ? BinaryOperator::CreateFDiv(leftVal, rightVal, "", bb)
-	    : BinaryOperator::CreateSDiv(leftVal, rightVal, "", bb);
-		
+	if (float_op) {
+	    res = BinaryOperator::CreateFDiv(leftVal, rightVal, "", bb);
+	}
+	else {
+	    // Fixnum division in Ruby is not a simple matter of returning the
+	    // division result. We must round up the result in case one of the
+	    // operands is negative.
+
+	    Value *normal_res = BinaryOperator::CreateSDiv(leftVal, rightVal,
+		    "", bb);
+
+	    ICmpInst *left_negative = new ICmpInst(*bb, ICmpInst::ICMP_SLT,
+		    leftVal, zeroVal);
+
+	    ICmpInst *right_negative = new ICmpInst(*bb, ICmpInst::ICMP_SLT,
+		    rightVal, zeroVal);
+
+	    Function *f = bb->getParent();
+	    BasicBlock *negative_bb = BasicBlock::Create(context, "", f);
+	    BasicBlock *check_right_bb = BasicBlock::Create(context, "", f);
+	    BasicBlock *try_right_bb = BasicBlock::Create(context, "", f);
+	    BasicBlock *hack_res_bb = BasicBlock::Create(context, "", f);
+	    BasicBlock *merge_bb = BasicBlock::Create(context, "", f);
+
+	    BranchInst::Create(check_right_bb, try_right_bb, left_negative, bb);
+
+	    bb = check_right_bb;
+	    BranchInst::Create(merge_bb, negative_bb, right_negative, bb);
+
+	    bb = try_right_bb;
+	    BranchInst::Create(negative_bb, merge_bb, right_negative, bb);
+
+	    bb = negative_bb;
+	    Value *rem = BinaryOperator::CreateSRem(leftVal, rightVal,
+		    "", bb);
+	    ICmpInst *hack_result = new ICmpInst(*bb, ICmpInst::ICMP_EQ,
+		    rem, zeroVal);
+	    BranchInst::Create(merge_bb, hack_res_bb, hack_result, bb);
+
+	    bb = hack_res_bb;
+	    Value *hacked_res = BinaryOperator::CreateSub(normal_res,
+		    ConstantInt::get(IntTy, 1), "", bb);
+	    BranchInst::Create(merge_bb, bb);
+ 
+	    bb = merge_bb;	
+	    PHINode *pn = PHINode::Create(IntTy, "", bb);
+	    pn->addIncoming(hacked_res, hack_res_bb);
+	    pn->addIncoming(normal_res, check_right_bb);
+	    pn->addIncoming(normal_res, try_right_bb);
+	    pn->addIncoming(normal_res, negative_bb);
+
+	    return pn;
+	}
     }
     else if (sel == selMULT) {
 	res = BinaryOperator::CreateMul(leftVal, rightVal, "", bb);
@@ -2312,6 +2361,15 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 			res_val = res == 1 ? trueVal : falseVal;
 		    }
 		    else if (FIXABLE(res)) {
+			if (sel == selDIV) {
+			    // MRI compliant negative fixnum division.
+			    long x = leftImm.long_val();
+			    long y = rightImm.long_val();
+			    if (((x < 0 && y >= 0) || (x >= 0 && y < 0))
+				    && (x % y) != 0) {
+				res--;
+			    }
+			}
 			res_val = ConstantInt::get(RubyObjTy, LONG2FIX(res));
 		    }
 		}
