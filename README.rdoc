@@ -40,7 +40,7 @@ http://macruby.org
   option, where `N' stands for the number of cores you'd like to use. So for a
   Core Duo the command would look like:
   
-    $ UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" ENABLE_OPTIMIZED=1 make -j2
+    $ env UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" CC=/usr/bin/gcc CXX=/usr/bin/g++ make -j2
   
 === Build Instructions
 
