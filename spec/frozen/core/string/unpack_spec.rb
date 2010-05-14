@@ -369,10 +369,24 @@ describe "String#unpack with 'IiLlSs' directives" do
       "\377\377\377\377".unpack("I").should == [4294967295]
       "\000\000\000\000\000\000\000\000".unpack("I*").should == [0,0]
     end
+    big_endian do
+      "\000\001\000\000".unpack("i").should == [65536]
+      "\000\001\000\000\000\001\000\000".unpack("i2").should == [65536, 65536]
+      "\000\001\000\000\000\001\000\000hello".unpack("i2a5").should == [65536, 65536, "hello"]
+      "\377\377\377\377".unpack("i").should == [-1]
+      "\377\377\377\377".unpack("I").should == [4294967295]
+      "\000\000\000\000\000\000\000\000".unpack("I*").should == [0,0]
+    end
   end
 
   it "ignores the result if there aren't 4 bytes" do
     little_endian do
+      "\000".unpack("I").should == [nil]
+      "\000".unpack("I2").should == [nil, nil]
+      "\000".unpack("I*").should == []
+      "\000\000\000\000\000\000\000\000\000".unpack("I*").should == [0,0]
+    end
+    big_endian do
       "\000".unpack("I").should == [nil]
       "\000".unpack("I2").should == [nil, nil]
       "\000".unpack("I*").should == []
@@ -390,10 +404,23 @@ describe "String#unpack with 'lL'" do
       "\377\377\377\377".unpack("l").should == [-1]
       "\377\377\377\377".unpack("L").should == [4294967295]
     end
+    big_endian do
+      "\000\001\000\000".unpack("l").should == [65536]
+      "\000\001\000\000\000\001\000\000".unpack("l2").should == [65536, 65536]
+      "\000\001\000\000\000\001\000\000hello".unpack("l2a5").should == [65536, 65536, "hello"]
+      "\377\377\377\377".unpack("l").should == [-1]
+      "\377\377\377\377".unpack("L").should == [4294967295]
+    end
   end
 
   it "ignores the result if there aren't 4 bytes" do
     little_endian do
+      "\000".unpack("L").should == [nil]
+      "\000".unpack("L2").should == [nil, nil]
+      "\000".unpack("L*").should == []
+      "\000\000\000\000\000\000\000\000\000".unpack("I*").should == [0,0]
+    end
+    big_endian do
       "\000".unpack("L").should == [nil]
       "\000".unpack("L2").should == [nil, nil]
       "\000".unpack("L*").should == []
@@ -480,6 +507,8 @@ describe "String#unpack with 'M' directive" do
     expected = "A fax has arrived from remote ID ''.\r\n------------------------------------------------------------\r\nTime: 3/9/2006 3:50:52 PM\r\nReceived from remote ID: \r\nInbound user ID XXXXXXXXXX, routing code XXXXXXXXX\r\nResult: (0/352;0/0) Successful Send\r\nPage record: 1 - 1\r\nElapsed time: 00:58 on channel 11\r\n"
 
     input.unpack("M").first.should == expected
+
+    "abc=02def=\ncat=\n=01=\n".unpack("M9M3M4").should == ["abc\002defcat\001", "", ""]
   end
 end
 

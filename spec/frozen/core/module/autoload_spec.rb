@@ -114,6 +114,31 @@ describe "Module#autoload" do
     ScratchPad.recorded.should be_nil
   end
 
+  it "ignores the autoload request if the file is already loaded" do
+    filename = fixture(__FILE__, "autoload_s.rb")
+
+    require filename
+
+    ScratchPad.recorded.should == :loaded
+    ScratchPad.clear
+
+    ModuleSpecs::Autoload.autoload :S, filename
+    ModuleSpecs::Autoload.autoload?(:S).should be_nil
+  end
+
+  it "retains the autoload even if the request to require fails" do
+    filename = fixture(__FILE__, "a_path_that_should_not_exist.rb")
+
+    ModuleSpecs::Autoload.autoload :NotThere, filename
+    ModuleSpecs::Autoload.autoload?(:NotThere).should == filename
+
+    lambda {
+      require filename
+    }.should raise_error(LoadError)
+
+    ModuleSpecs::Autoload.autoload?(:NotThere).should == filename
+  end
+
   it "allows multiple autoload constants for a single file" do
     filename = fixture(__FILE__, "autoload_lm.rb")
     ModuleSpecs::Autoload.autoload :L, filename
@@ -205,20 +230,19 @@ describe "Module#autoload" do
     ModuleSpecs::Autoload::U::V::X.should == :autoload_uvx
   end
 
-  # TODO: Remove duplicate specs (this one and that which follows it) when ruby_bug is fixed
-  ruby_bug "#1745", "1.9" do
-    # [ruby-core:19127]
-    it "raises a NameError when the autoload file did not define the constant and a module is opened with the same name" do
-      lambda do
-        module ModuleSpecs::Autoload
-          class W
-            autoload :Y, fixture(__FILE__, "autoload_w.rb")
+  ruby_version_is "1.9" do
+    # [ruby-core:19127] [ruby-core:29941]
+    it "does NOT raise a NameError when the autoload file did not define the constant and a module is opened with the same name" do
+      module ModuleSpecs::Autoload
+        class W
+          autoload :Y, fixture(__FILE__, "autoload_w.rb")
 
-            class Y
-            end
+          class Y
           end
         end
-      end.should raise_error(NameError)
+      end
+
+      ModuleSpecs::Autoload::W::Y.should be_kind_of(Class)
       ScratchPad.recorded.should == :loaded
     end
   end

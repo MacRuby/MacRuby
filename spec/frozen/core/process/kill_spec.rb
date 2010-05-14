@@ -21,6 +21,18 @@ describe "Process.kill" do
   end
 
   platform_is_not :windows do
+    it "accepts symbols as signal names" do
+      begin
+        flag = false
+        @saved_trap = Signal.trap("HUP") { flag = true }
+        Process.kill(:HUP, Process.pid).should == 1
+        sleep 0.5
+        flag.should == true
+      ensure
+        Signal.trap("HUP", @saved_trap)
+      end
+    end
+
     it "tests for the existence of a process without sending a signal" do
       Process.kill(0, 0).should == 1
       pid = Process.fork {

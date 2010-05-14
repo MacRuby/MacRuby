@@ -1,8 +1,11 @@
 require File.expand_path('../../spec_helper', __FILE__)
 require File.expand_path('../../fixtures/code_loading', __FILE__)
 require File.expand_path('../shared/__LINE__', __FILE__)
+require File.expand_path('../shared/pseudo_variable', __FILE__)
 
-describe "The __LINE__ constant" do
+describe "The __LINE__ pseudo-variable" do
+  it_behaves_like :language_pseudo_variable, "__FILE__", "/an/example/file/path.rb".dump
+
   before :each do
     ScratchPad.record []
   end
@@ -24,18 +27,18 @@ ScratchPad << __LINE__
   end
 end
 
-describe "The __LINE__ constant" do
+describe "The __LINE__ pseudo-variable" do
   it_behaves_like :language___LINE__, :require, CodeLoadingSpecs::Method.new
 end
 
-describe "The __LINE__ constant" do
+describe "The __LINE__ pseudo-variable" do
   it_behaves_like :language___LINE__, :require, Kernel
 end
 
-describe "The __LINE__ constant" do
+describe "The __LINE__ pseudo-variable" do
   it_behaves_like :language___LINE__, :load, CodeLoadingSpecs::Method.new
 end
 
-describe "The __LINE__ constant" do
+describe "The __LINE__ pseudo-variable" do
   it_behaves_like :language___LINE__, :load, Kernel
 end
