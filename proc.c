@@ -503,20 +503,15 @@ method_arity(VALUE method)
 static VALUE
 proc_arity(VALUE self, SEL sel)
 {
-    rb_vm_block_t *b;
-    GetProcPtr(self, b);
-
-    int arity = b->arity.min;
-    if (b->arity.min != b->arity.max) {
-	arity = -arity - 1;
-    }
-    return INT2FIX(arity);
+    return INT2FIX(rb_proc_arity(self));
 }
 
 int
 rb_proc_arity(VALUE proc)
 {
-    return FIX2INT(proc_arity(proc, 0));
+    rb_vm_block_t *b;
+    GetProcPtr(proc, b);
+    return rb_vm_arity_n(b->arity);
 }
 
 #if 0
@@ -974,7 +969,6 @@ rb_mod_define_method(VALUE mod, SEL sel, int argc, VALUE *argv)
 	rb_raise(rb_eArgError, "wrong number of arguments (%d for 1)", argc);
     }
 
-    SEL method_sel = sel_registerName(rb_id2name(id));
     if (rb_obj_is_method(body)) {
 	// TODO
 	abort();
@@ -998,7 +992,8 @@ rb_mod_define_method(VALUE mod, SEL sel, int argc, VALUE *argv)
     else {
 	rb_vm_block_t *proc;
 	GetProcPtr(body, proc);
-	rb_vm_define_method3((Class)mod, method_sel, proc);
+
+	rb_vm_define_method3((Class)mod, id, proc);
     }
 
     return body;

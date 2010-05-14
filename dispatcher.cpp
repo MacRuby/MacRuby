@@ -1864,10 +1864,7 @@ rb_vm_get_method(VALUE klass, VALUE obj, ID mid, int scope)
 	new_node = NULL;
     }
     else {
-	arity = node->arity.min;
-	if (node->arity.min != node->arity.max) {
-	    arity = -arity - 1;
-	}
+	arity = rb_vm_arity_n(node->arity);
 	new_node = (rb_vm_method_node_t *)xmalloc(sizeof(rb_vm_method_node_t));
 	memcpy(new_node, node, sizeof(rb_vm_method_node_t));
     }

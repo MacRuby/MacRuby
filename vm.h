@@ -175,6 +175,16 @@ rb_vm_arity(int argc)
     return arity;
 }
 
+static inline int
+rb_vm_arity_n(rb_vm_arity_t arity)
+{
+    int n = arity.min;
+    if (arity.min != arity.max) {
+	n = -n - 1;
+    }
+    return n;
+}
+
 static inline rb_vm_arity_t
 rb_vm_node_arity(NODE *node)
 {
@@ -293,7 +303,7 @@ rb_vm_method_node_t *rb_vm_define_method(Class klass, SEL sel, IMP imp,
 	NODE *node, bool direct);
 rb_vm_method_node_t *rb_vm_define_method2(Class klass, SEL sel,
 	rb_vm_method_node_t *node, long flags, bool direct);
-void rb_vm_define_method3(Class klass, SEL sel, rb_vm_block_t *node);
+void rb_vm_define_method3(Class klass, ID mid, rb_vm_block_t *node);
 bool rb_vm_resolve_method(Class klass, SEL sel);
 void *rb_vm_undefined_imp(void *rcv, SEL sel);
 void *rb_vm_removed_imp(void *rcv, SEL sel);

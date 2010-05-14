@@ -386,8 +386,9 @@ rb_make_exception(int argc, VALUE *argv)
 	mesg = rb_exc_new2(rb_eRuntimeError, "");
 	break;
       case 1:
-	if (NIL_P(argv[0]))
+	if (NIL_P(argv[0])) {
 	    break;
+	}
 	if (TYPE(argv[0]) == T_STRING) {
 	    mesg = rb_exc_new3(rb_eRuntimeError, argv[0]);
 	    break;

@@ -7576,21 +7576,6 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
 Function *
 RoxorCompiler::compile_block_caller(rb_vm_block_t *block)
 {
-    // VALUE foo(VALUE rcv, SEL sel, int argc, VALUE *argv)
-    // {
-    //     return rb_vm_block_eval2(block, rcv, sel, argc, argv);
-    // }
-    Function *f = cast<Function>(module->getOrInsertFunction("",
-		RubyObjTy, RubyObjTy, PtrTy, Int32Ty, RubyObjPtrTy,
-		NULL));
-    Function::arg_iterator arg = f->arg_begin();
-    Value *rcv = arg++;
-    Value *sel = arg++;
-    Value *argc = arg++;
-    Value *argv = arg++;
-
-    bb = BasicBlock::Create(context, "EntryBlock", f);
-
     if (blockEvalFunc == NULL) {
 	// VALUE rb_vm_block_eval2(rb_vm_block_t *b, VALUE self, SEL sel,
 	//	int argc, const VALUE *argv)
@@ -7599,6 +7584,60 @@ RoxorCompiler::compile_block_caller(rb_vm_block_t *block)
 		    RubyObjTy, PtrTy, RubyObjTy, PtrTy, Int32Ty, RubyObjPtrTy,
 		    NULL));
     }
+
+    Function *f;
+    Value *rcv;
+    Value *sel;
+    Value *argc;
+    Value *argv;
+
+    const int arity = rb_vm_arity_n(block->arity);
+    if (arity < 0) {
+	// VALUE foo(VALUE rcv, SEL sel, int argc, VALUE *argv)
+	// {
+	//     return rb_vm_block_eval2(block, rcv, sel, argc, argv);
+	// }
+	f = cast<Function>(module->getOrInsertFunction("",
+		    RubyObjTy, RubyObjTy, PtrTy, Int32Ty, RubyObjPtrTy,
+		    NULL));
+	Function::arg_iterator arg = f->arg_begin();
+	rcv = arg++;
+	sel = arg++;
+	argc = arg++;
+	argv = arg++;
+
+	bb = BasicBlock::Create(context, "EntryBlock", f);
+    }
+    else {
+	// VALUE foo(VALUE rcv, SEL sel, VALUE arg1, ...)
+	// {
+	//     VALUE argv[n] = {arg1, ...};
+	//     return rb_vm_block_eval2(block, rcv, sel, n, argv);
+	// }
+	std::vector<const Type *> stub_types;
+	stub_types.push_back(RubyObjTy);
+	stub_types.push_back(PtrTy);
+	for (int i = 0; i < arity; i++) {
+	    stub_types.push_back(RubyObjTy);
+	}
+	FunctionType *ft = FunctionType::get(RubyObjTy, stub_types, false);
+	f = cast<Function>(module->getOrInsertFunction("", ft));
+
+	Function::arg_iterator arg = f->arg_begin();
+	rcv = arg++;
+	sel = arg++;
+	argc = ConstantInt::get(Int32Ty, arity);
+
+	bb = BasicBlock::Create(context, "EntryBlock", f);
+
+	argv = new AllocaInst(RubyObjTy, argc, "", bb);
+	for (int i = 0; i < arity; i++) {
+	    Value *index = ConstantInt::get(Int32Ty, i);
+	    Value *slot = GetElementPtrInst::Create(argv, index, "", bb);
+	    new StoreInst(arg++, slot, "", bb);
+	}
+    }
+
     std::vector<Value *> params;
     params.push_back(compile_const_pointer(block));
     params.push_back(rcv);
@@ -7608,7 +7647,7 @@ RoxorCompiler::compile_block_caller(rb_vm_block_t *block)
 
     Value *retval = compile_protected_call(blockEvalFunc, params);
 
-    ReturnInst::Create(context, retval, bb);
+    ReturnInst::Create(context, retval, bb);	
 
     return f;
 }

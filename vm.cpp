@@ -2676,15 +2676,27 @@ rb_vm_define_method2(Class klass, SEL sel, rb_vm_method_node_t *node,
 
 extern "C"
 void
-rb_vm_define_method3(Class klass, SEL sel, rb_vm_block_t *block)
+rb_vm_define_method3(Class klass, ID mid, rb_vm_block_t *block)
 {
     assert(block != NULL);
 
+    SEL sel;
+    const int arity = rb_vm_arity_n(block->arity);
+    const char *mid_name = rb_id2name(mid);
+    if (arity > 0) {
+	char buf[100];
+	snprintf(buf, sizeof buf, "%s:", mid_name);
+	sel = sel_registerName(buf);
+    }
+    else {
+	sel = sel_registerName(mid_name);
+    }
+
     Function *func = RoxorCompiler::shared->compile_block_caller(block);
     IMP imp = GET_CORE()->compile(func);
-    NODE *body = rb_vm_cfunc_node_from_imp(klass, -1, imp, 0);
-    rb_objc_retain(body);
-    rb_objc_retain(block);
+    NODE *body = rb_vm_cfunc_node_from_imp(klass, arity, imp, 0);
+    GC_RETAIN(body);
+    GC_RETAIN(block);
 
     rb_vm_define_method(klass, sel, imp, body, false);
 }
