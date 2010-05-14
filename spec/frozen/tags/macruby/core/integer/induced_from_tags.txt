@@ -1,2 +1,0 @@
-critical:Integer.induced_from with [Float] returns a Bignum when the passed Float is out of Fixnum's range
-critical:Integer.induced_from returns the passed argument when passed a Bignum or Fixnum
