@@ -1,2 +1,0 @@
-fails:IO#readpartial discards the existing buffer content upon successful read
-fails:IO#readpartial discards the existing buffer content upon error

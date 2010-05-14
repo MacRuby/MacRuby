@@ -6,3 +6,6 @@ fails:Dispatch::Source Timer fires every interval thereafter
 fails:Dispatch::Source of type file: VNODE does close file when cancelled given IO
 fails:Dispatch::Source of type file: WRITE does close file when cancelled given IO
 fails:Dispatch::Source of type PROC fires on process event with event mask data
+fails:Dispatch::Source of type DATA_ADD coalesces data for source in event handler
+fails:Dispatch::Source of type DATA_OR fires event handler on merge
+fails:Dispatch::Source of type DATA_OR coalesces data for source in event handler

@@ -1,1 +1,0 @@
-fails:Module#name preserves the encoding in which the class was defined

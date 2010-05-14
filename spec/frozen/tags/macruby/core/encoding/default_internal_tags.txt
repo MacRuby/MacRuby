@@ -1,1 +1,0 @@
-fails:Encoding.default_internal returns `nil' by default

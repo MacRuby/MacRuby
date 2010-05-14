@@ -1,28 +1,24 @@
 critical:Array#pack with format 'M' properly handles recursive arrays
+critical:Array#pack with format 'M' does not check whether the pack argument responds to #to_s before call #to_s
 fails:Array#pack returns a untrusted string when the format is untrusted
 fails:Array#pack returns a untrusted string when the format is untrusted even if the given format is empty
 fails:Array#pack returns a untrusted string when a pack argument is untrusted
+fails:Array#pack with the empty format returns an empty String in US-ASCII
+fails:Array#pack with format 'A' treats a multibyte character just as a byte sequence
+fails:Array#pack with format 'A' returns result in ASCII-8BIT
 fails:Array#pack with format 'A' cuts byte sequence even if it breaks a multibyte character
+fails:Array#pack with format 'a' treats a multibyte character just as a byte sequence
+fails:Array#pack with format 'a' returns result in ASCII-8BIT
 fails:Array#pack with format 'a' cuts byte sequence even if it breaks a multibyte character
+fails:Array#pack with format 'Z' treats a multibyte character just as a byte sequence
+fails:Array#pack with format 'Z' returns result in ASCII-8BIT
 fails:Array#pack with format 'Z' cuts byte sequence even if it breaks a multibyte character
 fails:Array#pack with format 'H' fills low-nibble of the last byte with 0 when count is odd even if pack argument has insufficient length
 fails:Array#pack with format 'M' ignores star parameter
-critical:Array#pack with format 'M' does not check whether the pack argument responds to #to_s before call #to_s
-fails:Array#pack with format 'U' returns a UTF-8 string
-fails:Array#pack with format 'm' ignores star parameter
-fails:Array#pack just ignores unknown format
-fails:Array#pack with format 'n' does not raise a RangeError even when a pack argument is >= 2**64
-fails:Array#pack just ignores unknown format
-fails:Array#pack with format 'n' does not raise a RangeError even when a pack argument is >= 2**64
-fails:Array#pack with format 'A' treats a multibyte character just as a byte sequence
-fails:Array#pack with format 'A' returns result in ASCII-8BIT
-fails:Array#pack with format 'a' treats a multibyte character just as a byte sequence
-fails:Array#pack with format 'a' returns result in ASCII-8BIT
-fails:Array#pack with format 'Z' treats a multibyte character just as a byte sequence
-fails:Array#pack with format 'Z' returns result in ASCII-8BIT
-fails:Array#pack with the empty format returns an empty String in US-ASCII
 fails:Array#pack with format 'M' returns an US-ASCII string
+fails:Array#pack with format 'm' ignores star parameter
 fails:Array#pack with format 'm' returns an US-ASCII string
 fails:Array#pack with format 'U' regards a integer as a Unicode codepoint and encodes into UTF-8 byte sequence
+fails:Array#pack with format 'U' returns a UTF-8 string
 fails:Array#pack with format 'u' returns an US-ASCII string
 fails:Array#pack with format 'x' returns an US-ASCII string

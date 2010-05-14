@@ -1,3 +1,0 @@
-fails:Struct.new creates a constant in Struct namespace by assigning to constant
-fails:Struct.new accepts Fixnums as Symbols unless fixnum.to_sym.nil?
-fails:Struct.new raises an ArgumentError if fixnum#to_sym is nil

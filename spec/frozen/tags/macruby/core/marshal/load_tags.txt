@@ -1,12 +1,11 @@
 critical:Marshal::load calls the proc for recursively visited data
-fails:Marshal::load loads an extended Object
-fails:Marshal::load loads a 1...2
+fails:Marshal::load preserves hash ivars when hash contains a string having ivar
 fails:Marshal::load loads a 1..2
+fails:Marshal::load loads a 1...2
+fails:Marshal::load loads a 'a'..'b'
+fails:Marshal::load loads a Bignum -2**64
 fails:Marshal::load loads a Bignum -2**63
 fails:Marshal::load loads a Bignum 2**64
 fails:Marshal::load loads a Bignum 2**90
-fails:Marshal::load loads a Bignum -2**64
-fails:Marshal::load loads a 'a'..'b'
-fails:Marshal::load returns an untrusted object if source is untrusted
-fails:Marshal::load preserves hash ivars when hash contains a string having ivar
 fails:Marshal::load loads a Random
+fails:Marshal::load returns an untrusted object if source is untrusted

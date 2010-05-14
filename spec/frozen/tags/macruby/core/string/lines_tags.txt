@@ -1,5 +1,3 @@
-fails:String#lines appends multiple successive newlines together when the separator is an empty string
+fails:String#lines yields paragraphs (broken by 2 or more successive newlines) when passed ''
 fails:String#lines yields subclass instances for subclasses
 fails:String#lines does not care if the string is modified while substituting
-fails:String#lines accept string-like separator
-fails:String#lines yields paragraphs (broken by 2 or more successive newlines) when passed ''

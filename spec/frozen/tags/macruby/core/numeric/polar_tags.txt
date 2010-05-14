@@ -1,1 +1,0 @@
-fails:Numeric#polar treats NaN like a positive number

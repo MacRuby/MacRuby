@@ -1,3 +1,0 @@
-fails:Encoding.default_external= takes an Encoding instance
-fails:Encoding.default_external= takes a string name of an encoding
-fails:Encoding.default_external= assigns the default external encoding to be used for IO
