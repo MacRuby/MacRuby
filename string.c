@@ -2573,7 +2573,7 @@ rstr_format(VALUE str, SEL sel, VALUE arg)
  *     a.concat(33)   #=> "hello world!"
  */
 
-static VALUE
+VALUE
 rstr_concat(VALUE self, SEL sel, VALUE other)
 {
     rstr_modify(self);

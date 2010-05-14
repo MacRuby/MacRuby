@@ -303,6 +303,7 @@ VALUE rstr_swapcase(VALUE str, SEL sel);
 VALUE rstr_capitalize(VALUE str, SEL sel);
 VALUE rstr_upcase(VALUE str, SEL sel);
 VALUE rstr_downcase(VALUE str, SEL sel);
+VALUE rstr_concat(VALUE self, SEL sel, VALUE other);
 
 // The following functions should always been prefered over anything else,
 // especially if this "else" is RSTRING_PTR and RSTRING_LEN.

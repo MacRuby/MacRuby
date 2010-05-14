@@ -1347,21 +1347,12 @@ rb_vm_fast_shift(VALUE obj, VALUE other, struct mcache *cache,
 		 unsigned char overriden)
 {
     if (overriden == 0) {
-	switch (TYPE(obj)) {
-	    case T_ARRAY:
-		if (*(VALUE *)obj == rb_cRubyArray) {
-		    return rary_push_m(obj, 0, other);
-		}
-		break;
-
-#if 0 // TODO
-	    case T_STRING:
-		if (*(VALUE *)obj == rb_cCFString) {
-		    rb_str_concat(obj, other);
-		    return obj;
-		}
-		break;
-#endif
+	VALUE klass = CLASS_OF(obj);
+	if (klass == rb_cRubyArray) {
+	    return rary_push_m(obj, 0, other);
+	}
+	else if (klass == rb_cRubyString) {
+	    return rstr_concat(obj, 0, other);
 	}
     }
     return __rb_vm_dispatch(GET_VM(), cache, 0, obj, NULL, selLTLT, NULL, 0, 1,
@@ -1373,19 +1364,14 @@ VALUE
 rb_vm_fast_aref(VALUE obj, VALUE other, struct mcache *cache,
 		unsigned char overriden)
 {
-    if (overriden == 0)
-	switch (TYPE(obj)) {
-	    case T_ARRAY:
-		if (*(VALUE *)obj == rb_cRubyArray) {
-		    return rary_aref(obj, 0, 1, &other);
-		}
-		break;
-
-	    case T_HASH:
-		if (*(VALUE *)obj == rb_cRubyHash) {
-		    return rhash_aref(obj, 0, other);
-		}
-		break;
+    if (overriden == 0) {
+	VALUE klass = CLASS_OF(obj);
+	if (klass == rb_cRubyArray) {
+	    return rary_aref(obj, 0, 1, &other);
+	}
+	else if (klass == rb_cRubyHash) {
+	    return rhash_aref(obj, 0, other);
+	}
     }
     return __rb_vm_dispatch(GET_VM(), cache, 0, obj, NULL, selAREF, NULL, 0, 1,
 	    &other);
@@ -1397,21 +1383,15 @@ rb_vm_fast_aset(VALUE obj, VALUE other1, VALUE other2, struct mcache *cache,
 		unsigned char overriden)
 {
     if (overriden == 0) {
-	switch (TYPE(obj)) {
-	    case T_ARRAY:
-		if (*(VALUE *)obj == rb_cRubyArray) {
-		    if (TYPE(other1) == T_FIXNUM) {
-			rary_store(obj, FIX2LONG(other1), other2);
-			return other2;
-		    }
-		}
-		break;
-
-	    case T_HASH:
-		if (*(VALUE *)obj == rb_cRubyHash) {
-		    return rhash_aset(obj, 0, other1, other2);
-		}
-		break;
+	VALUE klass = CLASS_OF(obj);
+	if (klass == rb_cRubyArray) {
+	    if (TYPE(other1) == T_FIXNUM) {
+		rary_store(obj, FIX2LONG(other1), other2);
+		return other2;
+	    }
+	}
+	else if (klass == rb_cRubyHash) {
+	    return rhash_aset(obj, 0, other1, other2);
 	}
     }
     VALUE args[2] = { other1, other2 };
