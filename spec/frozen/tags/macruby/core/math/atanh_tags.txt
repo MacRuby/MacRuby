@@ -1,5 +1,3 @@
-fails:Math.atanh raises an Errno::EDOM if x = 1.0
-fails:Math.atanh raises an Errno::EDOM if x = -1.0
 fails:Math.atanh raises an Math::DomainError for arguments greater than 1.0
 fails:Math.atanh raises an Math::DomainError for arguments less than -1.0
 fails:Math#atanh raises an Math::DomainError for arguments greater than 1.0

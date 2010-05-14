@@ -14,6 +14,11 @@
 #include <errno.h>
 
 VALUE rb_mMath;
+VALUE rb_eMathDomainError;
+
+#define numberof(array) (int)(sizeof(array) / sizeof((array)[0]))
+#define domain_error(msg) \
+    rb_raise(rb_eMathDomainError, "Numerical argument is out of domain - " #msg);
 
 static VALUE
 to_flo(VALUE x)
@@ -31,31 +36,11 @@ to_flo(VALUE x)
     return rb_convert_type(x, T_FLOAT, "Float", "to_f");
 }
 
-#define Need_Float(x) (x) = to_flo(x)
+#define Need_Float(x) do {if (TYPE(x) != T_FLOAT) {(x) = to_flo(x);}} while(0)
 #define Need_Float2(x,y) do {\
     Need_Float(x);\
     Need_Float(y);\
 } while (0)
-
-static void
-domain_check(double x, const char *msg)
-{
-    while(1) {
-	if (errno) {
-	    rb_sys_fail(msg);
-	}
-	if (isnan(x)) {
-#if defined(EDOM)
-	    errno = EDOM;
-#elif defined(ERANGE)
-	    errno = ERANGE;
-#endif
-	    continue;
-	}
-	break;
-    }
-}
-
 
 /*
  *  call-seq:
@@ -69,8 +54,17 @@ domain_check(double x, const char *msg)
 VALUE
 math_atan2(VALUE obj, SEL sel, VALUE y, VALUE x)
 {
+    double dx, dy;
     Need_Float2(y, x);
-    return DOUBLE2NUM(atan2(RFLOAT_VALUE(y), RFLOAT_VALUE(x)));
+    dx = RFLOAT_VALUE(x);
+    dy = RFLOAT_VALUE(y);
+    if (dx == 0.0 && dy == 0.0) {
+	domain_error("atan2");
+    }
+    if (isinf(dx) && isinf(dy)) {
+	domain_error("atan2");
+    }
+    return DBL2NUM(atan2(dy, dx));
 }
 
 
@@ -131,13 +125,16 @@ math_tan(VALUE obj, SEL sel, VALUE x)
 static VALUE
 math_acos(VALUE obj, SEL sel, VALUE x)
 {
-    double d;
+    double d0, d;
 
     Need_Float(x);
-    errno = 0;
-    d = acos(RFLOAT_VALUE(x));
-    domain_check(d, "acos");
-    return DOUBLE2NUM(d);
+    d0 = RFLOAT_VALUE(x);
+    /* check for domain error */
+    if (d0 < -1.0 || 1.0 < d0) {
+	domain_error("acos");
+    }
+    d = acos(d0);
+    return DBL2NUM(d);
 }
 
 /*
@@ -150,13 +147,16 @@ math_acos(VALUE obj, SEL sel, VALUE x)
 static VALUE
 math_asin(VALUE obj, SEL sel, VALUE x)
 {
-    double d;
+    double d0, d;
 
     Need_Float(x);
-    errno = 0;
-    d = asin(RFLOAT_VALUE(x));
-    domain_check(d, "asin");
-    return DOUBLE2NUM(d);
+    d0 = RFLOAT_VALUE(x);
+    /* check for domain error */
+    if (d0 < -1.0 || 1.0 < d0) {
+	domain_error("asin");
+    }
+    d = asin(d0);
+    return DBL2NUM(d);
 }
 
 /*
@@ -252,13 +252,16 @@ math_tanh(VALUE obj, SEL sel, VALUE x)
 static VALUE
 math_acosh(VALUE obj, SEL sel, VALUE x)
 {
-    double d;
+    double d0, d;
 
     Need_Float(x);
-    errno = 0;
-    d = acosh(RFLOAT_VALUE(x));
-    domain_check(d, "acosh");
-    return DOUBLE2NUM(d);
+    d0 = RFLOAT_VALUE(x);
+    /* check for domain error */
+    if (d0 < 1.0) {
+	domain_error("acosh");
+    }
+    d = acosh(d0);
+    return DBL2NUM(d);
 }
 
 /*
@@ -285,13 +288,19 @@ math_asinh(VALUE obj, SEL sel, VALUE x)
 static VALUE
 math_atanh(VALUE obj, SEL sel, VALUE x)
 {
-    double d;
+    double d0, d;
 
     Need_Float(x);
-    errno = 0;
-    d = atanh(RFLOAT_VALUE(x));
-    domain_check(d, "atanh");
-    return DOUBLE2NUM(d);
+    d0 = RFLOAT_VALUE(x);
+    /* check for domain error */
+    if (d0 <  -1.0 || +1.0 <  d0) {
+	domain_error("atanh");
+    }
+    /* check for pole error */
+    if (d0 == -1.0) return DBL2NUM(-INFINITY);
+    if (d0 == +1.0) return DBL2NUM(+INFINITY);
+    d = atanh(d0);
+    return DBL2NUM(d);
 }
 
 /*
@@ -308,15 +317,6 @@ math_exp(VALUE obj, SEL sel, VALUE x)
     return DOUBLE2NUM(exp(RFLOAT_VALUE(x)));
 }
 
-#if defined __CYGWIN__
-# include <cygwin/version.h>
-# if CYGWIN_VERSION_DLL_MAJOR < 1005
-#  define nan(x) nan()
-# endif
-# define log(x) ((x) < 0.0 ? nan("") : log(x))
-# define log10(x) ((x) < 0.0 ? nan("") : log10(x))
-#endif
-
 /*
  *  call-seq:
  *     Math.log(numeric)    => float
@@ -331,18 +331,25 @@ VALUE
 math_log(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     VALUE x, base;
-    double d;
+    double d0, d;
 
     rb_scan_args(argc, argv, "11", &x, &base);
     Need_Float(x);
-    errno = 0;
-    d = log(RFLOAT_VALUE(x));
-    if (!NIL_P(base)) {
+    d0 = RFLOAT_VALUE(x);
+    /* check for domain error */
+    if (d0 < 0.0) {
+	domain_error("log");
+    }
+    /* check for pole error */
+    if (d0 == 0.0) {
+	return DBL2NUM(-INFINITY);
+    }
+    d = log(d0);
+    if (argc == 2) {
 	Need_Float(base);
 	d /= log(RFLOAT_VALUE(base));
     }
-    domain_check(d, "log");
-    return DOUBLE2NUM(d);
+    return DBL2NUM(d);
 }
 
 #ifndef log2
@@ -367,15 +374,20 @@ extern double log2(double);
 static VALUE
 math_log2(VALUE obj, SEL sel, VALUE x)
 {
-    double d;
+    double d0, d;
 
     Need_Float(x);
-    errno = 0;
-    d = log2(RFLOAT_VALUE(x));
-    if (errno) {
-	rb_sys_fail("log2");
+    d0 = RFLOAT_VALUE(x);
+    /* check for domain error */
+    if (d0 < 0.0) {
+	domain_error("log2");
     }
-    return DOUBLE2NUM(d);
+    /* check for pole error */
+    if (d0 == 0.0) {
+	return DBL2NUM(-INFINITY);
+    }
+    d = log2(d0);
+    return DBL2NUM(d);
 }
 
 /*
@@ -388,13 +400,20 @@ math_log2(VALUE obj, SEL sel, VALUE x)
 static VALUE
 math_log10(VALUE obj, SEL sel, VALUE x)
 {
-    double d;
+    double d0, d;
 
     Need_Float(x);
-    errno = 0;
-    d = log10(RFLOAT_VALUE(x));
-    domain_check(d, "log10");
-    return DOUBLE2NUM(d);
+    d0 = RFLOAT_VALUE(x);
+    /* check for domain error */
+    if (d0 < 0.0) {
+	domain_error("log10");
+    }
+    /* check for pole error */
+    if (d0 == 0.0) {
+	return DBL2NUM(-INFINITY);
+    }
+    d = log10(d0);
+    return DBL2NUM(d);
 }
 
 /*
@@ -407,13 +426,19 @@ math_log10(VALUE obj, SEL sel, VALUE x)
 VALUE
 math_sqrt(VALUE obj, SEL sel, VALUE x)
 {
-    double d;
+    double d0, d;
 
     Need_Float(x);
-    errno = 0;
-    d = sqrt(RFLOAT_VALUE(x));
-    domain_check(d, "sqrt");
-    return DOUBLE2NUM(d);
+    d0 = RFLOAT_VALUE(x);
+    /* check for domain error */
+    if (d0 < 0.0) {
+	domain_error("sqrt");
+    }
+    if (d0 == 0.0) {
+	return DBL2NUM(0.0);
+    }
+    d = sqrt(d0);
+    return DBL2NUM(d);
 }
 
 /*
@@ -522,50 +547,91 @@ math_erfc(VALUE obj, SEL sel, VALUE x)
  *
  *  Calculates the gamma function of x.
  *
- *  Note that gamma(n) is same as fact(n-1) for integer n >= 0.
- *  However gamma(n) returns float and possibly has error in calculation.
+ *  Note that gamma(n) is same as fact(n-1) for integer n > 0.
+ *  However gamma(n) returns float and can be an approximation.
  *
  *   def fact(n) (1..n).inject(1) {|r,i| r*i } end
- *   0.upto(25) {|i| p [i, Math.gamma(i+1), fact(i)] }
- *   =>
- *   [0, 1.0, 1]
- *   [1, 1.0, 1]
- *   [2, 2.0, 2]
- *   [3, 6.0, 6]
- *   [4, 24.0, 24]
- *   [5, 120.0, 120]
- *   [6, 720.0, 720]
- *   [7, 5040.0, 5040]
- *   [8, 40320.0, 40320]
- *   [9, 362880.0, 362880]
- *   [10, 3628800.0, 3628800]
- *   [11, 39916800.0, 39916800]
- *   [12, 479001599.999999, 479001600]
- *   [13, 6227020800.00001, 6227020800]
- *   [14, 87178291199.9998, 87178291200]
- *   [15, 1307674368000.0, 1307674368000]
- *   [16, 20922789888000.0, 20922789888000]
- *   [17, 3.55687428096001e+14, 355687428096000]
- *   [18, 6.40237370572799e+15, 6402373705728000]
- *   [19, 1.21645100408832e+17, 121645100408832000]
- *   [20, 2.43290200817664e+18, 2432902008176640000]
- *   [21, 5.10909421717094e+19, 51090942171709440000]
- *   [22, 1.12400072777761e+21, 1124000727777607680000]
- *   [23, 2.58520167388851e+22, 25852016738884976640000]
- *   [24, 6.20448401733239e+23, 620448401733239439360000]
- *   [25, 1.5511210043331e+25, 15511210043330985984000000]
+ *   1.upto(26) {|i| p [i, Math.gamma(i), fact(i-1)] }
+ *   #=> [1, 1.0, 1]
+ *   #   [2, 1.0, 1]
+ *   #   [3, 2.0, 2]
+ *   #   [4, 6.0, 6]
+ *   #   [5, 24.0, 24]
+ *   #   [6, 120.0, 120]
+ *   #   [7, 720.0, 720]
+ *   #   [8, 5040.0, 5040]
+ *   #   [9, 40320.0, 40320]
+ *   #   [10, 362880.0, 362880]
+ *   #   [11, 3628800.0, 3628800]
+ *   #   [12, 39916800.0, 39916800]
+ *   #   [13, 479001600.0, 479001600]
+ *   #   [14, 6227020800.0, 6227020800]
+ *   #   [15, 87178291200.0, 87178291200]
+ *   #   [16, 1307674368000.0, 1307674368000]
+ *   #   [17, 20922789888000.0, 20922789888000]
+ *   #   [18, 355687428096000.0, 355687428096000]
+ *   #   [19, 6.402373705728e+15, 6402373705728000]
+ *   #   [20, 1.21645100408832e+17, 121645100408832000]
+ *   #   [21, 2.43290200817664e+18, 2432902008176640000]
+ *   #   [22, 5.109094217170944e+19, 51090942171709440000]
+ *   #   [23, 1.1240007277776077e+21, 1124000727777607680000]
+ *   #   [24, 2.5852016738885062e+22, 25852016738884976640000]
+ *   #   [25, 6.204484017332391e+23, 620448401733239439360000]
+ *   #   [26, 1.5511210043330954e+25, 15511210043330985984000000]
  *
  */
 
 static VALUE
 math_gamma(VALUE obj, SEL sel, VALUE x)
 {
-    double d;
+    static const double fact_table[] = {
+        /* fact(0) */ 1.0,
+        /* fact(1) */ 1.0,
+        /* fact(2) */ 2.0,
+        /* fact(3) */ 6.0,
+        /* fact(4) */ 24.0,
+        /* fact(5) */ 120.0,
+        /* fact(6) */ 720.0,
+        /* fact(7) */ 5040.0,
+        /* fact(8) */ 40320.0,
+        /* fact(9) */ 362880.0,
+        /* fact(10) */ 3628800.0,
+        /* fact(11) */ 39916800.0,
+        /* fact(12) */ 479001600.0,
+        /* fact(13) */ 6227020800.0,
+        /* fact(14) */ 87178291200.0,
+        /* fact(15) */ 1307674368000.0,
+        /* fact(16) */ 20922789888000.0,
+        /* fact(17) */ 355687428096000.0,
+        /* fact(18) */ 6402373705728000.0,
+        /* fact(19) */ 121645100408832000.0,
+        /* fact(20) */ 2432902008176640000.0,
+        /* fact(21) */ 51090942171709440000.0,
+        /* fact(22) */ 1124000727777607680000.0,
+        /* fact(23)=25852016738884976640000 needs 56bit mantissa which is
+         * impossible to represent exactly in IEEE 754 double which have
+         * 53bit mantissa. */
+    };
+    double d0, d;
+    double intpart, fracpart;
     Need_Float(x);
-    errno = 0;
-    d = tgamma(RFLOAT_VALUE(x));
-    domain_check(d, "gamma");
-    return DOUBLE2NUM(d);
+    d0 = RFLOAT_VALUE(x);
+    /* check for domain error */
+    if (isinf(d0) && signbit(d0)) {
+	domain_error("gamma");
+    }
+    fracpart = modf(d0, &intpart);
+    if (fracpart == 0.0) {
+	if (intpart < 0) {
+	    domain_error("gamma");
+	}
+	if (0 < intpart &&
+	    intpart - 1 < (double)numberof(fact_table)) {
+	    return DBL2NUM(fact_table[(int)intpart - 1]);
+	}
+    }
+    d = tgamma(d0);
+    return DBL2NUM(d);
 }
 
 /*
@@ -585,15 +651,22 @@ math_gamma(VALUE obj, SEL sel, VALUE x)
 static VALUE
 math_lgamma(VALUE obj, SEL sel, VALUE x)
 {
-    double d;
-    int sign;
+    double d0, d;
+    int sign = 1;
     VALUE v;
     Need_Float(x);
-    errno = 0;
-    d = lgamma_r(RFLOAT_VALUE(x), &sign);
-    domain_check(d, "lgamma");
-    v = DOUBLE2NUM(d);
+    d0 = RFLOAT_VALUE(x);
+    /* check for domain error */
+    if (isinf(d0)) {
+	if (signbit(d0)) {
+	    domain_error("lgamma");
+	}
+	return rb_assoc_new(DBL2NUM(INFINITY), INT2FIX(1));
+    }
+    d = lgamma_r(d0, &sign);
+    v = DBL2NUM(d);
     return rb_assoc_new(v, INT2FIX(sign));
+
 }
 
 /*
@@ -608,6 +681,7 @@ void
 Init_Math(void)
 {
     rb_mMath = rb_define_module("Math");
+    rb_eMathDomainError = rb_define_class_under(rb_mMath, "DomainError", rb_eStandardError);
 
 #ifdef M_PI
     rb_define_const(rb_mMath, "PI", DOUBLE2NUM(M_PI));
