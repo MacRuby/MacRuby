@@ -346,7 +346,7 @@ rb_class2name(VALUE klass)
 const char *
 rb_obj_classname(VALUE obj)
 {
-    return rb_class2name(CLASS_OF(obj));
+    return rb_class2name(rb_class_real(CLASS_OF(obj), true));
 }
 
 struct trace_var {
