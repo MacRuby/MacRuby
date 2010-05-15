@@ -476,13 +476,6 @@ struct RBasic {
     VALUE flags;
 };
 
-struct RObject {
-    struct RBasic basic;
-    CFMutableDictionaryRef tbl;   /* dynamic ivars (runtime) */
-    unsigned int num_slots;
-    VALUE *slots;                 /* static ivars (compilation) */
-};
-
 #define RCLASS_SUPER(m) ((VALUE)class_getSuperclass((Class)m))
 #define RCLASS_SET_SUPER(m, s) (class_setSuperclass((Class)m, (Class)s))
 #define RCLASS_META(m) (class_isMetaClass((Class)m))
@@ -619,7 +612,6 @@ struct RBignum {
 
 #define R_CAST(st)   (struct st*)
 #define RBASIC(obj)  (R_CAST(RBasic)(obj))
-#define ROBJECT(obj) (R_CAST(RObject)(obj))
 #define RDATA(obj)   (R_CAST(RData)(obj))
 #define RSTRUCT(obj) (R_CAST(RStruct)(obj))
 #define RBIGNUM(obj) (R_CAST(RBignum)(obj))

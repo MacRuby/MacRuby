@@ -13,6 +13,15 @@
 extern "C" {
 #endif
 
+typedef struct rb_object {
+    struct RBasic basic;
+    CFMutableDictionaryRef tbl;   /* dynamic ivars (runtime) */
+    unsigned int num_slots;
+    VALUE *slots;                 /* static ivars (compilation) */
+} rb_object_t;
+
+#define ROBJECT(o) ((rb_object_t *)o)
+
 typedef struct {
     short min;		// min number of args that we accept
     short max;		// max number of args that we accept (-1 if rest)
@@ -337,7 +346,7 @@ VALUE rb_vm_catch(VALUE tag);
 VALUE rb_vm_throw(VALUE tag, VALUE value);
 
 static inline void
-rb_vm_regrow_robject_slots(struct RObject *obj, unsigned int new_num_slot)
+rb_vm_regrow_robject_slots(rb_object_t *obj, unsigned int new_num_slot)
 {
     unsigned int i;
     VALUE *new_slots = (VALUE *)xrealloc(obj->slots,
@@ -354,7 +363,7 @@ rb_vm_regrow_robject_slots(struct RObject *obj, unsigned int new_num_slot)
 static inline VALUE
 rb_vm_get_ivar_from_slot(VALUE obj, int slot) 
 {
-    struct RObject *robj = (struct RObject *)obj;
+    rb_object_t *robj = ROBJECT(obj);
     assert(slot >= 0);
     if ((unsigned int)slot >= robj->num_slots)  {
 	return Qnil;
@@ -365,7 +374,7 @@ rb_vm_get_ivar_from_slot(VALUE obj, int slot)
 static inline void
 rb_vm_set_ivar_from_slot(VALUE obj, VALUE val, int slot) 
 {
-    struct RObject *robj = (struct RObject *)obj;
+    rb_object_t *robj = ROBJECT(obj);
     assert(slot >= 0);
     if ((unsigned int)slot >= robj->num_slots)  {
 	rb_vm_regrow_robject_slots(robj, (unsigned int)slot);
@@ -440,10 +449,9 @@ bool rb_vm_aot_feature_load(const char *name);
 static inline VALUE
 rb_robject_allocate_instance(VALUE klass)
 {
-    struct RObject *obj;
-    int num_slots = 10;
+    const int num_slots = 10;
 
-    obj = (struct RObject *)rb_objc_newobj(sizeof(struct RObject));
+    rb_object_t *obj = (rb_object_t *)rb_objc_newobj(sizeof(rb_object_t));
     GC_WB(&obj->slots, xmalloc_ptrs(num_slots * sizeof(VALUE)));
 
     OBJSETUP(obj, klass, T_OBJECT);
