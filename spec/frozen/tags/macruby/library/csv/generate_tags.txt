@@ -1,5 +1,0 @@
-fails:CSV.generate creates a BasicWriter
-fails:CSV.generate accepts a field separator
-fails:CSV.generate accepts a row separator
-fails:CSV.generate creates a BasicWriter to use in a block
-fails:CSV.generate creates a BasicWriter with ; as the separator inside the block

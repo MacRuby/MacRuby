@@ -1,1 +1,0 @@
-fails:"CSV.parse_row parses 'foo\nbar' one row at a time"

@@ -1,1 +1,0 @@
-fails:ERB#def_module return unnamed module which has instance method to render eRuby

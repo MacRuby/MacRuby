@@ -1,6 +1,0 @@
-fails:"CSV.parse_line parses '\n' into [[nil]]"
-fails:"CSV.parse_line parses '\nfoo' into [[nil],['foo']]"
-fails:"CSV.parse_line parses '\n\nbar' into [[nil],[nil],'bar']]"
-fails:CSV.parse_line parses 'foo' into [['foo']] with a separator of ;
-fails:CSV.parse_line parses 'foo;bar' into [['foo','bar']] with a separator of ;
-fails:"CSV.parse_line parses 'foo;bar\nbaz;quz' into [['foo','bar'],['baz','quz']] with a separator of ;"

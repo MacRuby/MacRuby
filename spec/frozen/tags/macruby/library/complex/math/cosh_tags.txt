@@ -1,2 +1,0 @@
-fails:Math#cosh! raises a TypeError when passed a Complex number
-fails:Math.cosh! raises a TypeError when passed a Complex number

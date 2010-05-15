@@ -1,4 +1,3 @@
-fails:Matrix#determinant returns the determinant of a Matrices containing 0 as first entry
 fails:Matrix#determinant returns 1 for an empty Matrix
 fails:Matrix#determinant returns the determinant even for Matrices containing 0 as first entry
 fails:Matrix#determinant raises an error for rectangular matrices

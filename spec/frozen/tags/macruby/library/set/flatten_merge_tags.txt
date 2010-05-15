@@ -1,2 +1,0 @@
-fails:Set#flatten_merge flattens the passed Set and merges it into self
-fails:Set#flatten_merge raises an ArgumentError when trying to flatten a recursive Set

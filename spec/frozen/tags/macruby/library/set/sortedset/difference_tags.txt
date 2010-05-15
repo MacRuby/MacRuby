@@ -1,1 +1,0 @@
-fails:SortedSet#difference raises an ArgumentError when passed a non-Enumerable

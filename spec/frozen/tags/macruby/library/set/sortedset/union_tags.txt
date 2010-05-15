@@ -1,2 +1,0 @@
-fails:SortedSet#union raises an ArgumentError when passed a non-Enumerable
-fails:SortedSet#| raises an ArgumentError when passed a non-Enumerable

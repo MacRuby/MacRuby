@@ -1,2 +1,0 @@
-fails:CGI::TagMaker#nOE_element_def when passed element returns code for the passed element
-fails:CGI::TagMaker#nOE_element_def when passed element automatically converts the tag to capital letters

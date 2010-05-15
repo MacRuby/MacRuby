@@ -1,9 +1,0 @@
-fails:Rational#** when passed [Rational] returns Rational.new!(1, 1) when the passed argument is 0
-fails:Rational#** when passed [Rational] returns Rational.new!(1, 1) when self is 1
-fails:Rational#** when passed [Rational] returns Rational.new!(0, 1) when self is 0
-fails:Rational#** when passed [Rational] returns a Complex number when self is negative
-fails:Rational#** when passed [Integer] returns the Rational value of self raised to the passed argument
-fails:Rational#** when passed [Integer] returns Rational.new!(1, 1) when the passed argument is 0
-fails:Rational#** when passed [Float] returns self converted to Float and raised to the passed argument
-fails:Rational#** when passed [Float] returns 1.0 when the passed argument is 0
-fails:Rational#** when passed [Float] returns NaN if self is negative and the passed argument is not 0

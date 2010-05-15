@@ -1,2 +1,0 @@
-fails:Set#intersection raises an ArgumentError when passed a non-Enumerable
-fails:Set#& raises an ArgumentError when passed a non-Enumerable

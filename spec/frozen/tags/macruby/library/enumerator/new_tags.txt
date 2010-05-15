@@ -1,3 +1,0 @@
-fails:Enumerator.new creates a new custom enumerator with the given object, iterator and arguments
-fails:Enumerator.new creates a new custom enumerator that responds to #each
-fails:Enumerator.new creates a new custom enumerator that runs correctly

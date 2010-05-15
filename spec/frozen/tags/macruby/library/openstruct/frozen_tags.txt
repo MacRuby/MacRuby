@@ -1,2 +1,2 @@
-fails:OpenStruct.new when frozen is not writeable
 critical:OpenStruct.new when frozen creates a frozen clone
+fails:OpenStruct.new when frozen is not writeable

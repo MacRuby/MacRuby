@@ -1,2 +1,0 @@
-fails:Math#cos! raises a TypeError when passed a Complex number
-fails:Math.cos! raises a TypeError when passed a Complex number

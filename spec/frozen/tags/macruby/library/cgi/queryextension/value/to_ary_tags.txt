@@ -1,2 +1,0 @@
-fails:CGI::QueryExtension::Value#to_ary returns an Array containing self
-fails:CGI::QueryExtension::Value#to_ary when alternative values for self are set returns an array containing the alternative values

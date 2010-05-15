@@ -1,1 +1,0 @@
-fails:ERB#def_class return an unnamed class which has instance method to render eRuby script

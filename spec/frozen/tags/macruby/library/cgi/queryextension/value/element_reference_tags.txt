@@ -1,1 +1,0 @@
-fails:CGI::QueryExtension::Value#[] when passed index returns the alternative value with the passed index

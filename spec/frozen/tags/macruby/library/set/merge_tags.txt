@@ -1,1 +1,0 @@
-fails:Set#merge raises an ArgumentError when passed a non-Enumerable

@@ -1,2 +1,0 @@
-fails:Math#asinh! raises a TypeError when passed a Complex number
-fails:Math.asinh! raises a TypeError when passed a Complex number

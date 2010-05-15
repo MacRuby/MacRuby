@@ -1,2 +1,0 @@
-fails:Math#atan2! raises a TypeError when passed a Complex number
-fails:Math.atan2! raises a TypeError when passed a Complex number

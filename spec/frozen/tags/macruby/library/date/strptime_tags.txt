@@ -1,2 +1,1 @@
-fails:Date#strptime should be able to show the week number with the week starting on sunday and monday
 fails:Date#strptime parses a week number for a week starting on Monday

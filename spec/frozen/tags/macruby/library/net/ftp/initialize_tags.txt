@@ -1,1 +1,0 @@
-fails:Net::FTP#initialize sets self into binary mode

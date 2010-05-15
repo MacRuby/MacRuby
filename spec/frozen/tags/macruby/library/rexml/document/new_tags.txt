@@ -1,1 +1,0 @@
-fails:REXML::Document#new does not perform XML validation
