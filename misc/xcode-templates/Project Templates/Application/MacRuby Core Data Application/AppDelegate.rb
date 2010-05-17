@@ -10,24 +10,19 @@ class AppDelegate
   attr_writer :window
 
   # Returns the support folder for the application, used to store the Core Data
-  # store file.  This code uses a folder named "MyGreatApp" for
+  # store file.  This code uses a folder named "ÇPROJECTNAMEÈ" for
   # the content, either in the NSApplicationSupportDirectory location or (if the
   # former cannot be found), the system's temporary directory.
   def applicationSupportFolder
     paths = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, true)
-    basePath = (paths.count > 0) ? paths[0] : NSTemporaryDirectory()
-    return basePath.stringByAppendingPathComponent("ÇPROJECTNAMEÈ")
+    basePath = paths[0] || NSTemporaryDirectory()
+    basePath.stringByAppendingPathComponent("ÇPROJECTNAMEÈ")
   end
 
   # Creates and returns the managed object model for the application 
   # by merging all of the models found in the application bundle.
   def managedObjectModel
-    if @managedObjectModel
-      return @managedObjectModel
-    end
-    
-    @managedObjectModel = NSManagedObjectModel.mergedModelFromBundles(nil)
-    return @managedObjectModel
+    @managedObjectModel ||= NSManagedObjectModel.mergedModelFromBundles(nil)
   end
 
 
@@ -36,46 +31,44 @@ class AppDelegate
   # store for the application to it.  (The folder for the store is created, 
   # if necessary.)
   def persistentStoreCoordinator
-    if @persistentStoreCoordinator
-      return @persistentStoreCoordinator
+    unless @persistentStoreCoordinator
+      error = Pointer.new_with_type('@')
+    
+      fileManager = NSFileManager.defaultManager
+      applicationSupportFolder = self.applicationSupportFolder
+    
+      unless fileManager.fileExistsAtPath(applicationSupportFolder, isDirectory:nil)
+        fileManager.createDirectoryAtPath(applicationSupportFolder, attributes:nil)
+      end
+    
+      url = NSURL.fileURLWithPath(applicationSupportFolder.stringByAppendingPathComponent("ÇPROJECTNAMEÈ.xml"))
+      @persistentStoreCoordinator = NSPersistentStoreCoordinator.alloc.initWithManagedObjectModel(self.managedObjectModel)
+      unless @persistentStoreCoordinator.addPersistentStoreWithType(NSXMLStoreType, configuration:nil, URL:url, options:nil, error:error)
+        NSApplication.sharedApplication.presentError(error[0])
+      end
     end
 
-    error = Pointer.new_with_type('@')
-    
-    fileManager = NSFileManager.defaultManager
-    applicationSupportFolder = self.applicationSupportFolder
-    
-    if !fileManager.fileExistsAtPath(applicationSupportFolder, isDirectory:nil)
-      fileManager.createDirectoryAtPath(applicationSupportFolder, attributes:nil)
-    end
-    
-    url = NSURL.fileURLWithPath(applicationSupportFolder.stringByAppendingPathComponent("ÇPROJECTNAMEÈ.xml"))
-    @persistentStoreCoordinator = NSPersistentStoreCoordinator.alloc.initWithManagedObjectModel(self.managedObjectModel)
-    if !@persistentStoreCoordinator.addPersistentStoreWithType(NSXMLStoreType, configuration:nil, URL:url, options:nil, error:error)
-      NSApplication.sharedApplication.presentError(error[0])
-    end
-
-    return @persistentStoreCoordinator
+    @persistentStoreCoordinator
   end
 
   # Returns the managed object context for the application (which is already
   # bound to the persistent store coordinator for the application.) 
   def managedObjectContext
-    return @managedObjectContext if @managedObjectContext
-    
-    coordinator = self.persistentStoreCoordinator
-    if coordinator
-      @managedObjectContext = NSManagedObjectContext.alloc.init
-      @managedObjectContext.setPersistentStoreCoordinator(coordinator)
+    unless @managedObjectContext
+      coordinator = self.persistentStoreCoordinator
+      if coordinator
+        @managedObjectContext = NSManagedObjectContext.new
+        @managedObjectContext.setPersistentStoreCoordinator(coordinator)
+      end
     end
     
-    return @managedObjectContext
+    @managedObjectContext
   end
 
   # Returns the NSUndoManager for the application.  In this case, the manager
   # returned is that of the managed object context for the application.
   def windowWillReturnUndoManager(window)
-    return self.managedObjectContext.undoManager
+    self.managedObjectContext.undoManager
   end
 
   # Performs the save action for the application, which is to send the save:
@@ -83,7 +76,7 @@ class AppDelegate
   # are presented to the user.
   def saveAction(sender)
     error = Pointer.new_with_type('@')
-    if !self.managedObjectContext.save(error)
+    unless self.managedObjectContext.save(error)
       NSApplication.sharedApplication.presentError(error[0])
     end
   end
@@ -95,9 +88,9 @@ class AppDelegate
     error = Pointer.new_with_type('@')
     reply = NSTerminateNow
     
-    if self.managedObjectContext
-      if self.managedObjectContext.commitEditing
-        if self.managedObjectContext.hasChanges and !self.managedObjectContext.save(error)
+    if managedObjectContext
+      if managedObjectContext.commitEditing
+        if managedObjectContext.hasChanges && (not managedObjectContext.save(error))
           # This error handling simply presents error information in a panel with an 
           # "Ok" button, which does not include any attempt at error recovery (meaning, 
           # attempting to fix the error.)  As a result, this implementation will 
@@ -123,7 +116,7 @@ class AppDelegate
       end
     end
     
-    return reply
+    reply
   end
 
 end
