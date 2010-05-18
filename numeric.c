@@ -265,7 +265,7 @@ num_uplus(VALUE num, SEL sel)
 
 /*
  *  call-seq:
- *     num.i  ->  Complex(0,num)
+ *     num.i  =>  Complex(0,num)
  *
  *  Returns the corresponding imaginary number.
  *  Not available for complex numbers.
