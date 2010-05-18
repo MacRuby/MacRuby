@@ -11,6 +11,7 @@ OBJS = %w{
 
 EXTENSIONS = %w{
   ripper digest etc readline libyaml fcntl socket zlib bigdecimal openssl json
+  nkf
 }.sort
 
 class Builder
