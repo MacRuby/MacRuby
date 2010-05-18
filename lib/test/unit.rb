@@ -16,12 +16,12 @@ module Test
       while arg = original_argv.shift
         case arg
         when '-v'
-          minitest_argv << '-v'
-        when '-n', '--name'
           minitest_argv << arg
-          minitest_argv << original_argv.shift
-        when '-x'
-          reject << original_argv.shift
+        when /\A(-n)(.+)?/, /\A(--name)=?\b(.+)?/
+          minitest_argv << $1
+          minitest_argv << ($2 || original_argv.shift)
+        when /\A-x(.+)?/
+          reject << ($1 || original_argv.shift)
         else
           files << arg
         end
@@ -32,7 +32,7 @@ module Test
       end
 
       files.map! {|f|
-        f = f.gsub(Regexp.compile(Regexp.quote(File::ALT_SEPARATOR)), File::SEPARATOR) if File::ALT_SEPARATOR
+        f = f.tr(File::ALT_SEPARATOR, File::SEPARATOR) if File::ALT_SEPARATOR
         if File.directory? f
           Dir["#{f}/**/test_*.rb"]
         elsif File.file? f
@@ -45,14 +45,14 @@ module Test
 
       reject_pat = Regexp.union(reject.map {|r| /#{r}/ })
       files.reject! {|f| reject_pat =~ f }
-        
+
       files.each {|f|
-        d = File.dirname(File.expand_path(f))
+        d = File.dirname(path = File.expand_path(f))
         unless $:.include? d
           $: << d
         end
         begin
-          require f
+          require path
         rescue LoadError
           puts "#{f}: #{$!}"
         end

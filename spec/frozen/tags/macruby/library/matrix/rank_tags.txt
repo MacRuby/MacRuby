@@ -1,2 +1,1 @@
 critical:Matrix#rank doesn't loop forever
-fails:Matrix#rank works for some easy rectangular matrices

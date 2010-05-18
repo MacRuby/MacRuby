@@ -11,9 +11,9 @@ class CGI
   # Standard internet newline sequence
   EOL = CR + LF
 
-  REVISION = '$Id: core.rb 21825 2009-01-28 09:21:49Z yugui $' #:nodoc:
+  REVISION = '$Id: core.rb 27581 2010-05-01 23:54:39Z nobu $' #:nodoc:
 
-  NEEDS_BINMODE = true if /WIN/i.match(RUBY_PLATFORM) 
+  NEEDS_BINMODE = File::BINARY != 0
 
   # Path separators in different environments.
   PATH_SEPARATOR = {'UNIX'=>'/', 'WINDOWS'=>'\\', 'MACINTOSH'=>':'}
@@ -33,22 +33,16 @@ class CGI
     "METHOD_NOT_ALLOWED"  => "405 Method Not Allowed",
     "NOT_ACCEPTABLE"      => "406 Not Acceptable",
     "LENGTH_REQUIRED"     => "411 Length Required",
-    "PRECONDITION_FAILED" => "412 Rrecondition Failed",
+    "PRECONDITION_FAILED" => "412 Precondition Failed",
     "SERVER_ERROR"        => "500 Internal Server Error",
     "NOT_IMPLEMENTED"     => "501 Method Not Implemented",
     "BAD_GATEWAY"         => "502 Bad Gateway",
     "VARIANT_ALSO_VARIES" => "506 Variant Also Negotiates"
   }
 
-  # Abbreviated day-of-week names specified by RFC 822
-  RFC822_DAYS = %w[ Sun Mon Tue Wed Thu Fri Sat ]
-
-  # Abbreviated month names specified by RFC 822
-  RFC822_MONTHS = %w[ Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec ]
-
   # :startdoc:
 
-  def env_table 
+  def env_table
     ENV
   end
 
@@ -79,7 +73,7 @@ class CGI
   # status:: the HTTP status code, returned as the Status header.  See the
   #          list of available status codes below.
   # server:: the server software, returned as the Server header.
-  # connection:: the connection type, returned as the Connection header (for 
+  # connection:: the connection type, returned as the Connection header (for
   #              instance, "close".
   # length:: the length of the content that will be sent, returned as the
   #          Content-Length header.
@@ -89,19 +83,19 @@ class CGI
   #           object, returned as the Expires header.
   # cookie:: a cookie or cookies, returned as one or more Set-Cookie headers.
   #          The value can be the literal string of the cookie; a CGI::Cookie
-  #          object; an Array of literal cookie strings or Cookie objects; or a 
+  #          object; an Array of literal cookie strings or Cookie objects; or a
   #          hash all of whose values are literal cookie strings or Cookie objects.
   #          These cookies are in addition to the cookies held in the
   #          @output_cookies field.
   #
   # Other header lines can also be set; they are appended as key: value.
-  # 
+  #
   #   header
   #     # Content-Type: text/html
-  # 
+  #
   #   header("text/plain")
   #     # Content-Type: text/plain
-  # 
+  #
   #   header("nph"        => true,
   #          "status"     => "OK",  # == "200 OK"
   #            # "status"     => "200 GOOD",
@@ -116,9 +110,9 @@ class CGI
   #          "cookie"     => [cookie1, cookie2],
   #          "my_header1" => "my_value"
   #          "my_header2" => "my_value")
-  # 
+  #
   # The status codes are:
-  # 
+  #
   #   "OK"                  --> "200 OK"
   #   "PARTIAL_CONTENT"     --> "206 Partial Content"
   #   "MULTIPLE_CHOICES"    --> "300 Multiple Choices"
@@ -137,8 +131,8 @@ class CGI
   #   "NOT_IMPLEMENTED"     --> "501 Method Not Implemented"
   #   "BAD_GATEWAY"         --> "502 Bad Gateway"
   #   "VARIANT_ALSO_VARIES" --> "506 Variant Also Negotiates"
-  # 
-  # This method does not perform charset conversion. 
+  #
+  # This method does not perform charset conversion.
   def header(options='text/html')
     if options.is_a?(String)
       content_type = options
@@ -277,13 +271,13 @@ class CGI
   #     # Content-Length: 6
   #     #
   #     # string
-  # 
+  #
   #   cgi.out("text/plain") { "string" }
   #     # Content-Type: text/plain
   #     # Content-Length: 6
   #     #
   #     # string
-  # 
+  #
   #   cgi.out("nph"        => true,
   #           "status"     => "OK",  # == "200 OK"
   #           "server"     => ENV['SERVER_SOFTWARE'],
@@ -296,16 +290,16 @@ class CGI
   #           "cookie"     => [cookie1, cookie2],
   #           "my_header1" => "my_value",
   #           "my_header2" => "my_value") { "string" }
-  # 
+  #
   # Content-Length is automatically calculated from the size of
   # the String returned by the content block.
   #
   # If ENV['REQUEST_METHOD'] == "HEAD", then only the header
   # is outputted (the content block is still required, but it
   # is ignored).
-  # 
+  #
   # If the charset is "iso-2022-jp" or "euc-jp" or "shift_jis" then
-  # the content is converted to this charset, and the language is set 
+  # the content is converted to this charset, and the language is set
   # to "ja".
   def out(options = "text/html") # :yield:
 
@@ -358,7 +352,7 @@ class CGI
 
   # Mixin module. It provides the follow functionality groups:
   #
-  # 1. Access to CGI environment variables as methods.  See 
+  # 1. Access to CGI environment variables as methods.  See
   #    documentation to the CGI class for a list of these variables.
   #
   # 2. Access to cookies, including the cookies attribute.
@@ -408,7 +402,7 @@ class CGI
     # values is an Array.
     attr_reader :params
 
-    # Get the uploaed files as a hash of name=>values pairs
+    # Get the uploaded files as a hash of name=>values pairs
     attr_reader :files
 
     # Set all the parameters.
@@ -440,7 +434,13 @@ class CGI
         ## create body (StringIO or Tempfile)
         body = create_body(bufsize < content_length)
         class << body
-          alias local_path path
+          if method_defined?(:path)
+            alias local_path path
+          else
+            def local_path
+              nil
+            end
+          end
           attr_reader :original_filename, :content_type
         end
         ## find head and boundary
@@ -549,12 +549,17 @@ class CGI
             %|(offline mode: enter name=value pairs on standard input)\n|
           )
         end
-        readlines.join(' ').gsub(/\n/, '')
-      end.gsub(/\\=/, '%3D').gsub(/\\&/, '%26')
+        array = readlines rescue nil
+        if not array.nil?
+            array.join(' ').gsub(/\n/n, '')
+        else
+            ""
+        end
+      end.gsub(/\\=/n, '%3D').gsub(/\\&/n, '%26')
 
       words = Shellwords.shellwords(string)
 
-      if words.find{|x| /=/.match(x) }
+      if words.find{|x| /=/n.match(x) }
         words.join('&')
       else
         words.join('+')
@@ -617,7 +622,7 @@ class CGI
 
     # Get the value for the parameter with a given key.
     #
-    # If the parameter has multiple values, only the first will be 
+    # If the parameter has multiple values, only the first will be
     # retrieved; use #params() to get the array of values.
     def [](key)
       params = @params[key]
@@ -658,7 +663,7 @@ class CGI
   # This default value default is "UTF-8"
   # If you want to change the default accept character set
   # when create a new CGI instance, set this:
-  # 
+  #
   #   CGI.accept_charset = "EUC-JP"
   #
 
@@ -700,11 +705,11 @@ class CGI
   #
   # == block
   #
-  # When you use a block, you can write a process 
+  # When you use a block, you can write a process
   # that query encoding is invalid. Example:
   #
   #   encoding_error={}
-  #   cgi=CGI.new(:accept_charset=>"EUC-JP") do |name,value| 
+  #   cgi=CGI.new(:accept_charset=>"EUC-JP") do |name,value|
   #     encoding_error[key] = value
   #   end
   #

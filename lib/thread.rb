@@ -20,7 +20,7 @@ if $DEBUG
   Thread.abort_on_exception = true
 end
 
-# 
+#
 # ConditionVariable objects augment class Mutex. Using condition variables,
 # it is possible to suspend while in the middle of a critical section until a
 # resource becomes available.
@@ -31,7 +31,7 @@ end
 #
 #   mutex = Mutex.new
 #   resource = ConditionVariable.new
-#   
+#
 #   a = Thread.new {
 #     mutex.synchronize {
 #       # Thread 'a' now needs the resource
@@ -39,7 +39,7 @@ end
 #       # 'a' can now have the resource
 #     }
 #   }
-#   
+#
 #   b = Thread.new {
 #     mutex.synchronize {
 #       # Thread 'b' has finished using the resource
@@ -55,20 +55,28 @@ class ConditionVariable
     @waiters = []
     @waiters_mutex = Mutex.new
   end
-  
+
   #
   # Releases the lock held in +mutex+ and waits; reacquires the lock on wakeup.
   #
-  def wait(mutex)
+  # If +timeout+ is given, this method returns after +timeout+ seconds passed,
+  # even if no other thread doesn't signal.
+  #
+  def wait(mutex, timeout=nil)
     begin
       # TODO: mutex should not be used
       @waiters_mutex.synchronize do
         @waiters.push(Thread.current)
       end
-      mutex.sleep
+      mutex.sleep timeout
+    ensure
+      @waiters_mutex.synchronize do
+        @waiters.delete(Thread.current)
+      end
     end
+    self
   end
-  
+
   #
   # Wakes up the first thread in line waiting for this lock.
   #
@@ -79,8 +87,9 @@ class ConditionVariable
     rescue ThreadError
       retry
     end
+    self
   end
-    
+
   #
   # Wakes up all threads waiting for this lock.
   #
@@ -93,10 +102,11 @@ class ConditionVariable
     end
     for t in waiters0
       begin
-	t.run
+        t.run
       rescue ThreadError
       end
     end
+    self
   end
 end
 
@@ -106,9 +116,9 @@ end
 # Example:
 #
 #   require 'thread'
-#   
+#
 #   queue = Queue.new
-#   
+#
 #   producer = Thread.new do
 #     5.times do |i|
 #       sleep rand(i) # simulate expense
@@ -116,7 +126,7 @@ end
 #       puts "#{i} produced"
 #     end
 #   end
-#   
+#
 #   consumer = Thread.new do
 #     5.times do |i|
 #       value = queue.pop
@@ -124,7 +134,7 @@ end
 #       puts "consumed #{value}"
 #     end
 #   end
-#   
+#
 #   consumer.join
 #
 class Queue
@@ -144,7 +154,6 @@ class Queue
   # Pushes +obj+ to the queue.
   #
   def push(obj)
-    t = nil
     @mutex.synchronize{
       @que.push obj
       begin
@@ -154,10 +163,6 @@ class Queue
         retry
       end
     }
-    begin
-      t.run if t
-    rescue ThreadError
-    end
   end
 
   #
@@ -176,8 +181,8 @@ class Queue
   # thread isn't suspended, and an exception is raised.
   #
   def pop(non_block=false)
-    while true
-      @mutex.synchronize{
+    @mutex.synchronize{
+      while true
         if @que.empty?
           raise ThreadError, "queue empty" if non_block
           @waiting.push Thread.current
@@ -185,8 +190,8 @@ class Queue
         else
           return @que.shift
         end
-      }
-    end
+      end
+    }
   end
 
   #
@@ -289,14 +294,13 @@ class SizedQueue < Queue
   # until space becomes available.
   #
   def push(obj)
-    t = nil
     @mutex.synchronize{
       while true
-        break if @que.length <= @max
+        break if @que.length < @max
         @queue_wait.push Thread.current
         @mutex.sleep
       end
-    
+
       @que.push obj
       begin
         t = @waiting.shift
@@ -305,11 +309,6 @@ class SizedQueue < Queue
         retry
       end
     }
-    
-    begin
-      t.run if t
-    rescue ThreadError
-    end
   end
 
   #
@@ -327,7 +326,6 @@ class SizedQueue < Queue
   #
   def pop(*args)
     retval = super
-    t = nil
     @mutex.synchronize {
       if @que.length < @max
         begin
@@ -338,10 +336,6 @@ class SizedQueue < Queue
         end
       end
     }
-    begin
-      t.run if t
-    rescue ThreadError
-    end
     retval
   end
 

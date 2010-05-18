@@ -1,12 +1,12 @@
 #
-#   shell/process-controller.rb - 
+#   shell/process-controller.rb -
 #   	$Release Version: 0.7 $
-#   	$Revision: 20880 $
+#   	$Revision: 26986 $
 #   	by Keiju ISHITSUKA(keiju@ruby-lang.org)
 #
 # --
 #
-#   
+#
 #
 require "forwardable"
 
@@ -26,7 +26,7 @@ class Shell
     class<<self
       extend Forwardable
 
-      def_delegator("@ProcessControllersMonitor", 
+      def_delegator("@ProcessControllersMonitor",
 		    "synchronize", "process_controllers_exclusive")
 
       def active_process_controllers
@@ -118,7 +118,7 @@ class Shell
     def waiting_jobs
       @waiting_jobs
     end
-    
+
     def jobs_exist?
       @jobs_sync.synchronize(:SH) do
 	@active_jobs.empty? or @waiting_jobs.empty?
@@ -158,7 +158,7 @@ class Shell
 	else
 	  command = @waiting_jobs.shift
 #	  command.notify "job(%id) pre-start.", @shell.debug?
-	  
+
 	  return unless command
 	end
 	@active_jobs.push command
@@ -191,7 +191,7 @@ class Shell
 	@active_jobs.delete command
 	ProcessController.inactivate(self)
 	if @active_jobs.empty?
-	  command.notify("start_jon in ierminate_jon(%id)", Shell::debug?)
+	  command.notify("start_job in terminate_job(%id)", Shell::debug?)
 	  start_job
 	end
       end
@@ -253,7 +253,7 @@ class Shell
 	  end
 
 	  pid = fork {
-	    Thread.list.each do |th| 
+	    Thread.list.each do |th|
 #	      th.kill unless [Thread.main, Thread.current].include?(th)
 	      th.kill unless Thread.current == th
 	    end
@@ -261,7 +261,7 @@ class Shell
 	    STDIN.reopen(pipe_peer_in)
 	    STDOUT.reopen(pipe_peer_out)
 
-	    ObjectSpace.each_object(IO) do |io| 
+	    ObjectSpace.each_object(IO) do |io|
 	      if ![STDIN, STDOUT, STDERR].include?(io)
 		io.close unless io.closed?
 	      end
@@ -281,13 +281,13 @@ class Shell
 	  command.notify("job(%id) start to waiting finish.", @shell.debug?)
 	  _pid = Process.waitpid(pid, nil)
 	rescue Errno::ECHILD
-	  command.notify "warn: job(%id) was done already waitipd."
+	  command.notify "warn: job(%id) was done already waitpid."
 	  _pid = true
 	  #	rescue
 	  #	  STDERR.puts $!
 	ensure
 	  command.notify("Job(%id): Wait to finish when Process finished.", @shell.debug?)
-	  # when the process ends, wait until the command termintes
+	  # when the process ends, wait until the command terminates
 	  if USING_AT_EXIT_WHEN_PROCESS_EXIT or _pid
 	  else
 	    command.notify("notice: Process finishing...",
@@ -295,9 +295,9 @@ class Shell
 			   "You can use Shell#transact or Shell#check_point for more safe execution.")
 	    redo
 	  end
-	  
+
 #	  command.notify "job(%id) pre-pre-finish.", @shell.debug?
-	  @job_monitor.synchronize do 
+	  @job_monitor.synchronize do
 #	    command.notify "job(%id) pre-finish.", @shell.debug?
 	    terminate_job(command)
 #	    command.notify "job(%id) pre-finish2.", @shell.debug?

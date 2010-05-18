@@ -25,24 +25,17 @@ module REXML
     #
     # Nat Price gave me some good ideas for the API.
     class BaseParser
-      if String.method_defined? :encode
-        # Oniguruma / POSIX [understands unicode]
-        LETTER = '[[:alpha:]]'
-        DIGIT = '[[:digit:]]'
-      else
-        # Ruby < 1.9 [doesn't understand unicode]
-        LETTER = 'a-zA-Z'
-        DIGIT = '\d'
-      end
+      LETTER = '[:alpha:]'
+      DIGIT = '[:digit:]'
 
       COMBININGCHAR = '' # TODO
       EXTENDER = ''      # TODO
 
-      NCNAME_STR= "[#{LETTER}_:][-#{LETTER}#{DIGIT}._:#{COMBININGCHAR}#{EXTENDER}]*"
+      NCNAME_STR= "[#{LETTER}_:][-[:alnum:]._:#{COMBININGCHAR}#{EXTENDER}]*"
       NAME_STR= "(?:(#{NCNAME_STR}):)?(#{NCNAME_STR})"
       UNAME_STR= "(?:#{NCNAME_STR}:)?#{NCNAME_STR}"
 
-      NAMECHAR = '[\-\w\d\.:]'
+      NAMECHAR = '[\-\w\.:]'
       NAME = "([\\w:]#{NAMECHAR}*)"
       NMTOKEN = "(?:#{NAMECHAR})+"
       NMTOKENS = "#{NMTOKEN}(\\s+#{NMTOKEN})*"
@@ -66,7 +59,7 @@ module REXML
 
       VERSION = /\bversion\s*=\s*["'](.*?)['"]/um
       ENCODING = /\bencoding\s*=\s*["'](.*?)['"]/um
-      STANDALONE = /\bstandalone\s*=\s["'](.*?)['"]/um
+      STANDALONE = /\bstandalone\s*=\s*["'](.*?)['"]/um
 
       ENTITY_START = /^\s*<!ENTITY/
       IDENTITY = /^([!\*\w\-]+)(\s+#{NCNAME_STR})?(\s+["'](.*?)['"])?(\s+['"](.*?)["'])?/u
@@ -105,11 +98,11 @@ module REXML
 
       EREFERENCE = /&(?!#{NAME};)/
 
-      DEFAULT_ENTITIES = { 
-        'gt' => [/&gt;/, '&gt;', '>', />/], 
-        'lt' => [/&lt;/, '&lt;', '<', /</], 
-        'quot' => [/&quot;/, '&quot;', '"', /"/], 
-        "apos" => [/&apos;/, "&apos;", "'", /'/] 
+      DEFAULT_ENTITIES = {
+        'gt' => [/&gt;/, '&gt;', '>', />/],
+        'lt' => [/&lt;/, '&lt;', '<', /</],
+        'quot' => [/&quot;/, '&quot;', '"', /"/],
+        "apos" => [/&apos;/, "&apos;", "'", /'/]
       }
 
 
@@ -180,9 +173,9 @@ module REXML
       # Peek at the +depth+ event in the stack.  The first element on the stack
       # is at depth 0.  If +depth+ is -1, will parse to the end of the input
       # stream and return the last event, which is always :end_document.
-      # Be aware that this causes the stream to be parsed up to the +depth+ 
-      # event, so you can effectively pre-parse the entire document (pull the 
-      # entire thing into memory) using this method.  
+      # Be aware that this causes the stream to be parsed up to the +depth+
+      # event, so you can effectively pre-parse the entire document (pull the
+      # entire thing into memory) using this method.
       def peek depth=0
         raise %Q[Illegal argument "#{depth}"] if depth < -1
         temp = []
@@ -265,7 +258,7 @@ module REXML
         if @document_status == :in_doctype
           md = @source.match(/\s*(.*?>)/um)
           case md[1]
-          when SYSTEMENTITY 
+          when SYSTEMENTITY
             match = @source.match( SYSTEMENTITY, true )[1]
             return [ :externalentity, match ]
 
@@ -344,7 +337,7 @@ module REXML
               #md = @source.match_to_consume( '>', CLOSE_MATCH)
               md = @source.match( CLOSE_MATCH, true )
               raise REXML::ParseException.new( "Missing end tag for "+
-                "'#{last_tag}' (got \"#{md[1]}\")", 
+                "'#{last_tag}' (got \"#{md[1]}\")",
                 @source) unless last_tag == md[1]
               return [ :end_element, last_tag ]
             elsif @source.buffer[1] == ?!
@@ -377,7 +370,7 @@ module REXML
               unless md
                 # Check for missing attribute quotes
                 raise REXML::ParseException.new("missing attribute quote", @source) if @source.match(MISSING_ATTRIBUTE_QUOTES )
-                raise REXML::ParseException.new("malformed XML: missing tag start", @source) 
+                raise REXML::ParseException.new("malformed XML: missing tag start", @source)
               end
               attributes = {}
               prefixes = Set.new
@@ -386,7 +379,7 @@ module REXML
               if md[4].size > 0
                 attrs = md[4].scan( ATTRIBUTE_PATTERN )
                 raise REXML::ParseException.new( "error parsing attributes: [#{attrs.join ', '}], excess = \"#$'\"", @source) if $' and $'.strip.size > 0
-                attrs.each { |a,b,c,d,e| 
+                attrs.each { |a,b,c,d,e|
                   if b == "xmlns"
                     if c == "xml"
                       if d != "http://www.w3.org/XML/1998/namespace"
@@ -409,10 +402,10 @@ module REXML
                     raise REXML::ParseException.new( msg, @source, self)
                   end
 
-                  attributes[a] = e 
+                  attributes[a] = e
                 }
               end
-        
+
               # Verify that all of the prefixes have been defined
               for prefix in prefixes
                 unless @nsstack.find{|k| k.member?(prefix)}
@@ -466,7 +459,7 @@ module REXML
         # Doing it like this rather than in a loop improves the speed
         copy.gsub!( EREFERENCE, '&amp;' )
         entities.each do |key, value|
-          copy.gsub!( value, "&#{key};" ) unless entity_filter and 
+          copy.gsub!( value, "&#{key};" ) unless entity_filter and
                                       entity_filter.include?(entity)
         end if entities
         copy.gsub!( EREFERENCE, '&amp;' )

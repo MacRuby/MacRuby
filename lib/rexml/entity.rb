@@ -25,12 +25,12 @@ module REXML
     # Create a new entity.  Simple entities can be constructed by passing a
     # name, value to the constructor; this creates a generic, plain entity
     # reference. For anything more complicated, you have to pass a Source to
-    # the constructor with the entity definiton, or use the accessor methods.
+    # the constructor with the entity definition, or use the accessor methods.
     # +WARNING+: There is no validation of entity state except when the entity
     # is read from a stream.  If you start poking around with the accessors,
     # you can easily create a non-conformant Entity.  The best thing to do is
     # dump the stupid DTDs and use XMLSchema instead.
-    # 
+    #
     #  e = Entity.new( 'amp', '&' )
     def initialize stream, value=nil, parent=nil, reference=false
       super(parent)
@@ -38,7 +38,7 @@ module REXML
       if stream.kind_of? Array
         @name = stream[1]
         if stream[-1] == '%'
-          @reference = true 
+          @reference = true
           stream.pop
         else
           @reference = false

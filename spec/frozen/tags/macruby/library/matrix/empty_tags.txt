@@ -1,8 +1,0 @@
-fails:Matrix#empty? returns true when the Matrix is empty
-fails:Matrix#empty? returns false when the Matrix has elements
-fails:Matrix#empty? doesn't accept any parameter
-fails:Matrix.empty returns an empty matrix of the requested size
-fails:Matrix.empty has arguments defaulting to 0
-fails:Matrix.empty does not accept more than two parameters
-fails:Matrix.empty raises an error if both dimensions are > 0
-fails:Matrix.empty raises an error if any dimension is < 0

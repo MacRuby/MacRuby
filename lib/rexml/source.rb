@@ -69,9 +69,9 @@ module REXML
     # usual scan() method.  For one thing, the pattern argument has some
     # requirements; for another, the source can be consumed.  You can easily
     # confuse this method.  Originally, the patterns were easier
-    # to construct and this method more robust, because this method 
-    # generated search regexes on the fly; however, this was 
-    # computationally expensive and slowed down the entire REXML package 
+    # to construct and this method more robust, because this method
+    # generated search regexes on the fly; however, this was
+    # computationally expensive and slowed down the entire REXML package
     # considerably, since this is by far the most commonly called method.
     # @param pattern must be a Regexp, and must be in the form of
     # /^\s*(#{your pattern, with no groups})(.*)/.  The first group
@@ -162,6 +162,15 @@ module REXML
         @line_break = ">"
       end
       super( @source.eof? ? str : str+@source.readline( @line_break ) )
+
+      if !@to_utf and
+          @buffer.respond_to?(:force_encoding) and
+          @source.respond_to?(:external_encoding) and
+          @source.external_encoding != ::Encoding::UTF_8
+        @force_utf8 = true
+      else
+        @force_utf8 = false
+      end
     end
 
     def scan(pattern, cons=false)
@@ -174,11 +183,7 @@ module REXML
       if rv.size == 0
         until @buffer =~ pattern or @source.nil?
           begin
-            # READLINE OPT
-            #str = @source.read(@block_size)
-            str = @source.readline(@line_break)
-            str = decode(str) if @to_utf and str
-            @buffer << str
+            @buffer << readline
           rescue Iconv::IllegalSequence
             raise
           rescue
@@ -193,12 +198,7 @@ module REXML
 
     def read
       begin
-        str = @source.readline(@line_break)
-        str = decode(str) if @to_utf and str 
-        @buffer << str
-        if not @to_utf and @buffer.respond_to? :force_encoding
-          @buffer.force_encoding Encoding::UTF_8
-        end
+        @buffer << readline
       rescue Exception, NameError
         @source = nil
       end
@@ -213,9 +213,7 @@ module REXML
       @buffer = $' if cons and rv
       while !rv and @source
         begin
-          str = @source.readline(@line_break)
-          str = decode(str) if @to_utf and str
-          @buffer << str
+          @buffer << readline
           rv = pattern.match(@buffer)
           @buffer = $' if cons and rv
         rescue
@@ -225,7 +223,7 @@ module REXML
       rv.taint
       rv
     end
-    
+
     def empty?
       super and ( @source.nil? || @source.eof? )
     end
@@ -253,6 +251,19 @@ module REXML
         line = -1
       end
       [pos, lineno, line]
+    end
+
+    private
+    def readline
+      str = @source.readline(@line_break)
+      return nil if str.nil?
+
+      if @to_utf
+        decode(str)
+      else
+        str.force_encoding(::Encoding::UTF_8) if @force_utf8
+        str
+      end
     end
   end
 end

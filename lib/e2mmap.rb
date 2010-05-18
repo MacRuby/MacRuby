@@ -56,7 +56,7 @@ module Exception2MessageMapper
     super
     cl.bind(self) unless cl < E2MM
   end
-  
+
   def bind(cl)
     self.module_eval %[
       def Raise(err = nil, *rest)
@@ -88,7 +88,7 @@ module Exception2MessageMapper
   def def_e2message(c, m)
     E2MM.def_e2message(self, c, m)
   end
-  
+
   # def_exception(n, m, s)
   #	    n:  exception_name
   #	    m:  message_form
@@ -115,7 +115,7 @@ module Exception2MessageMapper
     E2MM.instance_eval{@MessageMap[[k, c]] = m}
     c
   end
-  
+
   # E2MM.def_exception(k, n, m, s)
   #	    k:  class to define exception under.
   #	    n:  exception_name
@@ -146,7 +146,7 @@ module Exception2MessageMapper
       E2MM.Fail E2MM, ErrNotRegisteredException, err.inspect
     end
   end
-  class <<E2MM
+  class << E2MM
     alias Fail Raise
   end
 
@@ -160,12 +160,12 @@ module Exception2MessageMapper
     end
     nil
   end
-  class <<self
+  class << self
     alias message e2mm_message
   end
 
-  E2MM.def_exception(E2MM, 
-		     :ErrNotRegisteredException, 
+  E2MM.def_exception(E2MM,
+		     :ErrNotRegisteredException,
 		     "not registerd exception(%s)")
 end
 

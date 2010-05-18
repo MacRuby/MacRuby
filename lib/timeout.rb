@@ -46,8 +46,13 @@ module Timeout
     begin
       x = Thread.current
       y = Thread.start {
-        sleep sec
-        x.raise exception, "execution expired" if x.alive?
+        begin
+          sleep sec
+        rescue => e
+          x.raise e
+        else
+          x.raise exception, "execution expired" if x.alive?
+        end
       }
       return yield(sec)
     rescue exception => e
@@ -63,7 +68,7 @@ module Timeout
       raise Error, e.message, e.backtrace
     ensure
       if y and y.alive?
-        y.kill 
+        y.kill
         y.join # make sure y is dead.
       end
     end
@@ -85,24 +90,3 @@ end
 # Another name for Timeout::Error, defined for backwards compatibility with
 # earlier versions of timeout.rb.
 TimeoutError = Timeout::Error
-
-if __FILE__ == $0
-  p timeout(5) {
-    45
-  }
-  p timeout(5, TimeoutError) {
-    45
-  }
-  p timeout(nil) {
-    54
-  }
-  p timeout(0) {
-    54
-  }
-  p timeout(5) {
-    loop {
-      p 10
-      sleep 1
-    }
-  }
-end

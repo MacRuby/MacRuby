@@ -4,8 +4,10 @@ module CMath
 
   alias exp! exp
   alias log! log
+  alias log2! log2
   alias log10! log10
   alias sqrt! sqrt
+  alias cbrt! cbrt
 
   alias sin! sin
   alias cos! cos
@@ -28,8 +30,9 @@ module CMath
     if z.real?
       exp!(z)
     else
-      Complex(exp!(z.real) * cos!(z.imag),
-	      exp!(z.real) * sin!(z.imag))
+      ere = exp!(z.real)
+      Complex(ere * cos!(z.imag),
+	      ere * sin!(z.imag))
     end
   end
 
@@ -38,8 +41,7 @@ module CMath
     if z.real? and z >= 0 and (b.nil? or b >= 0)
       log!(*args)
     else
-      r, theta = z.polar
-      a = Complex(log!(r.abs), theta)
+      a = Complex(log!(z.abs), z.arg)
       if b
 	a /= log(b)
       end
@@ -47,8 +49,16 @@ module CMath
     end
   end
 
+  def log2(z)
+    if z.real? and z >= 0
+      log2!(z)
+    else
+      log(z) / log!(2)
+    end
+  end
+
   def log10(z)
-    if z.real?
+    if z.real? and z >= 0
       log10!(z)
     else
       log(z) / log!(10)
@@ -63,13 +73,22 @@ module CMath
 	sqrt!(z)
       end
     else
-      if z.imag < 0
+      if z.imag < 0 ||
+	  (z.imag == 0 && z.imag.to_s[0] == '-')
 	sqrt(z.conjugate).conjugate
       else
 	r = z.abs
 	x = z.real
 	Complex(sqrt!((r + x) / 2), sqrt!((r - x) / 2))
       end
+    end
+  end
+
+  def cbrt(z)
+    if z.real? and z >= 0
+      cbrt!(z)
+    else
+      Complex(z) ** (1.0/3)
     end
   end
 
@@ -95,7 +114,7 @@ module CMath
     if z.real?
       tan!(z)
     else
-      sin(z)/cos(z)
+      sin(z) / cos(z)
     end
   end
 
@@ -129,7 +148,7 @@ module CMath
     if z.real? and z >= -1 and z <= 1
       asin!(z)
     else
-      Complex(0, -1.0) * log(Complex(0, 1.0) * z + sqrt(1.0 - z * z))
+      (-1.0).i * log(1.0.i * z + sqrt(1.0 - z * z))
     end
   end
 
@@ -137,7 +156,7 @@ module CMath
     if z.real? and z >= -1 and z <= 1
       acos!(z)
     else
-      Complex(0, -1.0) * log(z + Complex(0, 1.0) * sqrt(1.0 - z * z))
+      (-1.0).i * log(z + 1.0.i * sqrt(1.0 - z * z))
     end
   end
 
@@ -145,7 +164,7 @@ module CMath
     if z.real?
       atan!(z)
     else
-      Complex(0, 1.0) * log((Complex(0, 1.0) + z) / (Complex(0, 1.0) - z)) / 2.0
+      1.0.i * log((1.0.i + z) / (1.0.i - z)) / 2.0
     end
   end
 
@@ -153,15 +172,7 @@ module CMath
     if y.real? and x.real?
       atan2!(y,x)
     else
-      Complex(0, -1.0) * log((x + Complex(0, 1.0) * y) / sqrt(x * x + y * y))
-    end
-  end
-
-  def acosh(z)
-    if z.real? and z >= 1
-      acosh!(z)
-    else
-      log(z + sqrt(z * z - 1.0))
+      (-1.0).i * log((x + 1.0.i * y) / sqrt(x * x + y * y))
     end
   end
 
@@ -170,6 +181,14 @@ module CMath
       asinh!(z)
     else
       log(z + sqrt(1.0 + z * z))
+    end
+  end
+
+  def acosh(z)
+    if z.real? and z >= 1
+      acosh!(z)
+    else
+      log(z + sqrt(z * z - 1.0))
     end
   end
 
@@ -185,10 +204,14 @@ module CMath
   module_function :exp
   module_function :log!
   module_function :log
+  module_function :log2!
+  module_function :log2
   module_function :log10!
   module_function :log10
   module_function :sqrt!
   module_function :sqrt
+  module_function :cbrt!
+  module_function :cbrt
 
   module_function :sin!
   module_function :sin
@@ -220,8 +243,6 @@ module CMath
   module_function :atanh!
   module_function :atanh
 
-  module_function :log2
-  module_function :cbrt
   module_function :frexp
   module_function :ldexp
   module_function :hypot

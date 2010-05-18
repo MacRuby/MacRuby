@@ -1,5 +1,3 @@
-#!/usr/bin/env ruby
-
 # Define a task library for running unit tests.
 
 require 'rake'
@@ -10,7 +8,7 @@ module Rake
   # Create a task that runs a set of tests.
   #
   # Example:
-  #  
+  #
   #   Rake::TestTask.new do |t|
   #     t.libs << "test"
   #     t.test_files = FileList['test/test*.rb']
@@ -63,7 +61,7 @@ module Rake
     # * :rake -- Rake provided test loading script (default).
     # * :testrb -- Ruby provided test loading script.
     # * :direct -- Load tests using command line loader.
-    # 
+    #
     attr_accessor :loader
 
     # Array of commandline options to pass to ruby when running test loader.
@@ -105,11 +103,11 @@ module Rake
             when :direct
               "-e 'ARGV.each{|f| load f}'"
             when :testrb
-              "-S testrb #{fix}"
+              "-S testrb"
             when :rake
               rake_loader
             end
-          @ruby_opts.unshift( "-I#{lib_path}" )
+          @ruby_opts.unshift( "-I\"#{lib_path}\"" )
           @ruby_opts.unshift( "-w" ) if @warning
           ruby @ruby_opts.join(" ") +
             " \"#{run_code}\" " +
@@ -133,15 +131,6 @@ module Rake
         result += FileList[ @pattern ].to_a if @pattern
         FileList[result]
       end
-    end
-
-    def fix # :nodoc:
-      case RUBY_VERSION
-      when '1.8.2'
-        find_file 'rake/ruby182_test_unit_fix'
-      else
-        nil
-      end || ''
     end
 
     def rake_loader # :nodoc:

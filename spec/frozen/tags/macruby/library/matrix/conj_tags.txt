@@ -1,2 +1,0 @@
-fails:Matrix#conj returns a matrix with all entries 'conjugated'
-fails:Matrix#conj returns empty matrices on the same size if empty

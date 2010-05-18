@@ -8,11 +8,9 @@ module RSS
         "#{part[0, 1].upcase}#{part[1..-1]}"
       end.join("")
     end
-    
+
     def get_file_and_line_from_caller(i=0)
-      bt = caller
-      i = bt.size - 1 if i >= bt.size
-      file, line, = bt[i].split(':')
+      file, line, = caller[i].split(':')
       line = line.to_i
       line += 1 if i.zero?
       [file, line]
@@ -23,7 +21,7 @@ module RSS
       s.to_s.gsub(/&/, "&amp;").gsub(/\"/, "&quot;").gsub(/>/, "&gt;").gsub(/</, "&lt;")
     end
     alias h html_escape
-    
+
     # If +value+ is an instance of class +klass+, return it, else
     # create a new instance of +klass+ with value +value+.
     def new_with_value_if_need(klass, value)

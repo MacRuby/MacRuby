@@ -1,37 +1,18 @@
 #
 # tmpdir - retrieve temporary directory path
 #
-# $Id: tmpdir.rb 19513 2008-09-24 05:39:39Z usa $
+# $Id: tmpdir.rb 27667 2010-05-08 03:25:17Z nobu $
 #
 
 require 'fileutils'
+begin
+  require 'etc.so'
+rescue LoadError
+end
 
 class Dir
 
-  @@systmpdir = '/tmp'
-
-  begin
-    require 'Win32API'
-    CSIDL_LOCAL_APPDATA = 0x001c
-    max_pathlen = 260
-    windir = "\0"*(max_pathlen+1)
-    begin
-      getdir = Win32API.new('shell32', 'SHGetFolderPath', 'LLLLP', 'L')
-      raise RuntimeError if getdir.call(0, CSIDL_LOCAL_APPDATA, 0, 0, windir) != 0
-      windir = File.expand_path(windir.rstrip)
-    rescue RuntimeError
-      begin
-        getdir = Win32API.new('kernel32', 'GetSystemWindowsDirectory', 'PL', 'L')
-      rescue RuntimeError
-        getdir = Win32API.new('kernel32', 'GetWindowsDirectory', 'PL', 'L')
-      end
-      len = getdir.call(windir, windir.size)
-      windir = File.expand_path(windir[0, len])
-    end
-    temp = File.join(windir.untaint, 'temp')
-    @@systmpdir = temp if File.directory?(temp) and File.writable?(temp)
-  rescue LoadError
-  end
+  @@systmpdir ||= defined?(Etc.systmpdir) ? Etc.systmpdir : '/tmp'
 
   ##
   # Returns the operating system's temporary file path.
@@ -41,12 +22,11 @@ class Dir
     if $SAFE > 0
       tmp = @@systmpdir
     else
-      for dir in [ENV['TMPDIR'], ENV['TMP'], ENV['TEMP'],
-	          ENV['USERPROFILE'], @@systmpdir, '/tmp']
-	if dir and File.directory?(dir) and File.writable?(dir)
+      for dir in [ENV['TMPDIR'], ENV['TMP'], ENV['TEMP'], @@systmpdir, '/tmp']
+	if dir and stat = File.stat(dir) and stat.directory? and stat.writable?
 	  tmp = dir
 	  break
-	end
+	end rescue nil
       end
       File.expand_path(tmp)
     end
@@ -96,34 +76,8 @@ class Dir
   #    FileUtils.remove_entry_secure dir
   #  end
   #
-  def Dir.mktmpdir(prefix_suffix=nil, tmpdir=nil)
-    case prefix_suffix
-    when nil
-      prefix = "d"
-      suffix = ""
-    when String
-      prefix = prefix_suffix
-      suffix = ""
-    when Array
-      prefix = prefix_suffix[0]
-      suffix = prefix_suffix[1]
-    else
-      raise ArgumentError, "unexpected prefix_suffix: #{prefix_suffix.inspect}"
-    end
-    tmpdir ||= Dir.tmpdir
-    t = Time.now.strftime("%Y%m%d")
-    n = nil
-    begin
-      path = "#{tmpdir}/#{prefix}#{t}-#{$$}-#{rand(0x100000000).to_s(36)}"
-      path << "-#{n}" if n
-      path << suffix
-      Dir.mkdir(path, 0700)
-    rescue Errno::EEXIST
-      n ||= 0
-      n += 1
-      retry
-    end
-
+  def Dir.mktmpdir(prefix_suffix=nil, *rest)
+    path = Tmpname.create(prefix_suffix || "d", *rest) {|n| mkdir(n, 0700)}
     if block_given?
       begin
         yield path
@@ -131,6 +85,58 @@ class Dir
         FileUtils.remove_entry_secure path
       end
     else
+      path
+    end
+  end
+
+  module Tmpname # :nodoc:
+    module_function
+
+    def tmpdir
+      Dir.tmpdir
+    end
+
+    def make_tmpname(prefix_suffix, n)
+      case prefix_suffix
+      when String
+        prefix = prefix_suffix
+        suffix = ""
+      when Array
+        prefix = prefix_suffix[0]
+        suffix = prefix_suffix[1]
+      else
+        raise ArgumentError, "unexpected prefix_suffix: #{prefix_suffix.inspect}"
+      end
+      t = Time.now.strftime("%Y%m%d")
+      path = "#{prefix}#{t}-#{$$}-#{rand(0x100000000).to_s(36)}"
+      path << "-#{n}" if n
+      path << suffix
+    end
+
+    def create(basename, *rest)
+      if opts = Hash.try_convert(rest[-1])
+        opts = opts.dup if rest.pop.equal?(opts)
+        max_try = opts.delete(:max_try)
+        opts = [opts]
+      else
+        opts = []
+      end
+      tmpdir, = *rest
+      if $SAFE > 0 and tmpdir.tainted?
+        tmpdir = '/tmp'
+      else
+        tmpdir ||= tmpdir()
+      end
+      n = nil
+      begin
+        path = File.expand_path(make_tmpname(basename, n), tmpdir)
+        yield(path, n, *opts)
+      rescue Errno::EEXIST
+        n ||= 0
+        n += 1
+        retry if !max_try or n < max_try
+        raise "cannot generate temporary name using `#{basename}' under `#{tmpdir}'"
+      end
       path
     end
   end

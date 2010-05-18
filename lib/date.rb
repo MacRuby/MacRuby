@@ -1,7 +1,7 @@
 #
 # date.rb - date and time library
 #
-# Author: Tadayoshi Funaba 1998-2008
+# Author: Tadayoshi Funaba 1998-2010
 #
 # Documentation: William Webber <william@williamwebber.com>
 #
@@ -927,7 +927,7 @@ class Date
 	  elem[e] = d.__send__(e)
 	end
 	elem[:wnum1] ||= 0
-	elem[:wday]  ||= 0
+	elem[:wday]  ||= 1
       end
     end
 
@@ -1371,6 +1371,12 @@ class Date
     case other
     when Numeric; return @ajd <=> other
     when Date;    return @ajd <=> other.ajd
+    else
+      begin
+        l, r = other.coerce(self)
+        return l <=> r
+      rescue NoMethodError
+      end
     end
     nil
   end
@@ -1385,6 +1391,9 @@ class Date
     case other
     when Numeric; return jd == other
     when Date;    return jd == other.jd
+    else
+      l, r = other.coerce(self)
+      return l === r
     end
     false
   end
@@ -1407,7 +1416,10 @@ class Date
     y, m = (year * 12 + (mon - 1) + n).divmod(12)
     m,   = (m + 1)                    .divmod(1)
     d = mday
-    d -= 1 until jd2 = _valid_civil?(y, m, d, @sg)
+    until jd2 = _valid_civil?(y, m, d, @sg)
+      d -= 1
+      raise ArgumentError, 'invalid date' unless d > 0
+    end
     self + (jd2 - jd)
   end
 
@@ -1775,7 +1787,7 @@ class Time
   def to_datetime
     jd = DateTime.__send__(:civil_to_jd, year, mon, mday, DateTime::ITALY)
     fr = DateTime.__send__(:time_to_day_fraction, hour, min, [sec, 59].min) +
-      Rational(nsec, 86400_000_000_000)
+      Rational(subsec, 86400)
     of = Rational(utc_offset, 86400)
     DateTime.new!(DateTime.__send__(:jd_to_ajd, jd, fr, of),
 		  of, DateTime::ITALY)
@@ -1805,7 +1817,7 @@ class Date
     t = Time.now
     jd = civil_to_jd(t.year, t.mon, t.mday, sg)
     fr = time_to_day_fraction(t.hour, t.min, [t.sec, 59].min) +
-      Rational(t.nsec, 86400_000_000_000)
+      Rational(t.subsec, 86400)
     of = Rational(t.utc_offset, 86400)
     new!(jd_to_ajd(jd, fr, of), of, sg)
   end

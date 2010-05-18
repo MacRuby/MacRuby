@@ -1,2 +1,0 @@
-fails:CGI#initialize when passed no arguments does not extend self with CGI::HtmlExtension
-fails:CGI#initialize when passed no arguments does not extend self with any of the other HTML modules
