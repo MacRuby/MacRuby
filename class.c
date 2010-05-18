@@ -21,6 +21,7 @@
 #include "class.h"
 
 extern st_table *rb_class_tbl;
+extern VALUE rb_cRubyObject;
 
 void
 rb_objc_class_sync_version(Class ocklass, Class ocsuper)
@@ -28,11 +29,7 @@ rb_objc_class_sync_version(Class ocklass, Class ocsuper)
     const long super_version = RCLASS_VERSION(ocsuper);
     long klass_version = RCLASS_VERSION(ocklass);
 
-    if ((super_version & RCLASS_NO_IV_SLOTS) == RCLASS_NO_IV_SLOTS) {
-	klass_version |= RCLASS_NO_IV_SLOTS;
-    }
-
-    if (ocsuper == (Class)rb_cObject
+    if (ocsuper == (Class)rb_cRubyObject
 	|| (super_version & RCLASS_IS_OBJECT_SUBCLASS)
 	    == RCLASS_IS_OBJECT_SUBCLASS) {
 	klass_version |= RCLASS_IS_OBJECT_SUBCLASS;
@@ -138,8 +135,6 @@ rb_define_object_special_methods(VALUE klass)
     class_replaceMethod((Class)klass, selCopyWithZone, 
 	    (IMP)rb_obj_imp_copyWithZone, method_getTypeEncoding(m));
 }
-
-extern VALUE rb_cRubyObject;
 
 static VALUE
 rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
@@ -349,7 +344,7 @@ rb_singleton_class_clone(VALUE obj)
 	}
 
 	rb_singleton_class_attached(RBASIC(clone)->klass, (VALUE)clone);
-	if (RCLASS_SUPER(clone) == rb_cNSObject) {
+	if (RCLASS_SUPER(clone) == rb_cRubyObject) {
 	    long v = RCLASS_VERSION(clone) ^ RCLASS_IS_OBJECT_SUBCLASS;
 	    RCLASS_SET_VERSION(clone, v);
 	}
@@ -376,7 +371,7 @@ rb_make_singleton_class(VALUE super)
 {
     VALUE klass = rb_objc_create_class(NULL, super);
     long v = RCLASS_VERSION(klass);
-    if (super == rb_cNSObject) {
+    if (super == rb_cRubyObject) {
 	v ^= RCLASS_IS_OBJECT_SUBCLASS;
     }
     v |= RCLASS_IS_RUBY_CLASS;
@@ -1318,10 +1313,6 @@ rb_objc_type(VALUE obj)
 	    // Type is not available, let's compute it. 	    
 	    if (k == (Class)rb_cSymbol) {
 		type = T_SYMBOL;
-		goto done;
-	    }
-	    if (k == (Class)rb_cFixnum) {
-		type = T_FIXNUM;
 		goto done;
 	    }
 	    if ((type = foundation_type(k)) != 0) {

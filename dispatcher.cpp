@@ -670,7 +670,7 @@ recache2:
 
 	    // Enable helpers for classes which are not RubyObject based.
 	    if ((RCLASS_VERSION(klass) & RCLASS_IS_OBJECT_SUBCLASS)
-		!= RCLASS_IS_OBJECT_SUBCLASS) {
+		    != RCLASS_IS_OBJECT_SUBCLASS) {
 		// Let's try to see if we are not given a helper selector.
 		SEL new_sel = helper_sel(selname, selname_len);
 		if (new_sel != NULL) {

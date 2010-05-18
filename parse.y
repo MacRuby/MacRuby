@@ -10085,7 +10085,6 @@ void
 Init_ripper(void)
 {
     VALUE Ripper = rb_define_class("Ripper", rb_cObject);
-    RCLASS_SET_VERSION_FLAG(Ripper, RCLASS_NO_IV_SLOTS);
     rb_define_const(Ripper, "Version", rb_usascii_str_new2(RIPPER_VERSION));
     rb_objc_define_method(*(VALUE *)Ripper, "alloc", ripper_s_allocate, 0);
     rb_objc_define_method(Ripper, "initialize", ripper_initialize, -1);

@@ -511,20 +511,6 @@ rb_obj_instance_eval(VALUE self, SEL sel, VALUE top, int argc, VALUE *argv)
     }
     else {
 	switch (TYPE(self)) {
-#if 0
-	    case T_CLASS:
-	    case T_MODULE:
-		if (RCLASS_RUBY(self)) {
-		    VALUE sself = rb_make_singleton_class(RCLASS_SUPER(self));
-		    RCLASS_SET_SUPER(self, sself);
-		    self = sself;
-		}
-		else {
-		    klass = rb_singleton_class(self);
-		    break;
-		}
-		// fall through
-#endif
 	    default:
 		klass = rb_singleton_class(self);
 		switch (TYPE(top)) {

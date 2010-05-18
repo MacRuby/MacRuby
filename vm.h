@@ -13,15 +13,6 @@
 extern "C" {
 #endif
 
-typedef struct rb_object {
-    struct RBasic basic;
-    CFMutableDictionaryRef tbl;   /* dynamic ivars (runtime) */
-    unsigned int num_slots;
-    VALUE *slots;                 /* static ivars (compilation) */
-} rb_object_t;
-
-#define ROBJECT(o) ((rb_object_t *)o)
-
 typedef struct {
     short min;		// min number of args that we accept
     short max;		// max number of args that we accept (-1 if rest)
@@ -338,48 +329,79 @@ bool rb_vm_respond_to2(VALUE obj, VALUE klass, SEL sel, bool priv, bool check_ov
 VALUE rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv);
 void rb_vm_push_methods(VALUE ary, VALUE mod, bool include_objc_methods,
 	int (*filter) (VALUE, ID, VALUE));
-int rb_vm_find_class_ivar_slot(VALUE klass, ID name);
-void rb_vm_each_ivar_slot(VALUE obj, int (*func)(ANYARGS), void *ctx);
+void rb_vm_ivar_set(VALUE obj, ID name, VALUE val, void *cache);
 void rb_vm_set_outer(VALUE klass, VALUE under);
 VALUE rb_vm_get_outer(VALUE klass);
 VALUE rb_vm_catch(VALUE tag);
 VALUE rb_vm_throw(VALUE tag, VALUE value);
 
+typedef struct {
+    ID name;
+    VALUE value; 
+} rb_object_ivar_slot_t;
+
+#define SLOT_CACHE_VIRGIN	-2
+#define SLOT_CACHE_CANNOT	-1
+
+typedef struct {
+    struct RBasic basic;
+    rb_object_ivar_slot_t *slots;
+    unsigned int num_slots;
+} rb_object_t;
+
+#define ROBJECT(o) ((rb_object_t *)o)
+
 static inline void
 rb_vm_regrow_robject_slots(rb_object_t *obj, unsigned int new_num_slot)
 {
-    unsigned int i;
-    VALUE *new_slots = (VALUE *)xrealloc(obj->slots,
-	    sizeof(VALUE) * (new_num_slot + 1));
+    rb_object_ivar_slot_t *new_slots =
+	(rb_object_ivar_slot_t *)xrealloc(obj->slots,
+		sizeof(rb_object_ivar_slot_t) * (new_num_slot + 1));
     if (new_slots != obj->slots) {
 	GC_WB(&obj->slots, new_slots);
     }
+
+    unsigned int i;
     for (i = obj->num_slots; i <= new_num_slot; i++) {
-	obj->slots[i] = Qundef;
+	obj->slots[i].name = 0;
+	obj->slots[i].value = Qundef;
     }
     obj->num_slots = new_num_slot + 1;
 }
+
+int rb_vm_get_ivar_slot(VALUE obj, ID name, bool create);
 
 static inline VALUE
 rb_vm_get_ivar_from_slot(VALUE obj, int slot) 
 {
     rb_object_t *robj = ROBJECT(obj);
-    assert(slot >= 0);
-    if ((unsigned int)slot >= robj->num_slots)  {
-	return Qnil;
-    }
-    return robj->slots[slot];
+    return robj->slots[slot].value;
 }
 
 static inline void
 rb_vm_set_ivar_from_slot(VALUE obj, VALUE val, int slot) 
 {
     rb_object_t *robj = ROBJECT(obj);
-    assert(slot >= 0);
-    if ((unsigned int)slot >= robj->num_slots)  {
-	rb_vm_regrow_robject_slots(robj, (unsigned int)slot);
+    GC_WB(&robj->slots[slot].value, val);
+}
+
+static inline VALUE
+rb_robject_allocate_instance(VALUE klass)
+{
+    const int num_slots = 10;
+
+    rb_object_t *obj = (rb_object_t *)rb_objc_newobj(sizeof(rb_object_t));
+    GC_WB(&obj->slots, xmalloc(sizeof(rb_object_ivar_slot_t) * num_slots));
+
+    OBJSETUP(obj, klass, T_OBJECT);
+    obj->num_slots = num_slots;
+
+    int i;
+    for (i = 0; i < num_slots; i++) {
+	obj->slots[i].name = 0;
+	obj->slots[i].value = Qundef;
     }
-    GC_WB(&robj->slots[slot], val);
+    return (VALUE)obj;
 }
 
 // Defined in proc.c
@@ -446,26 +468,6 @@ Class rb_vm_get_current_class(void);
 
 bool rb_vm_aot_feature_load(const char *name);
 
-static inline VALUE
-rb_robject_allocate_instance(VALUE klass)
-{
-    const int num_slots = 10;
-
-    rb_object_t *obj = (rb_object_t *)rb_objc_newobj(sizeof(rb_object_t));
-    GC_WB(&obj->slots, xmalloc_ptrs(num_slots * sizeof(VALUE)));
-
-    OBJSETUP(obj, klass, T_OBJECT);
-
-    ROBJECT(obj)->tbl = NULL;
-    ROBJECT(obj)->num_slots = num_slots;
-
-    int i;
-    for (i = 0; i < num_slots; i++) {
-	ROBJECT(obj)->slots[i] = Qundef;
-    }
-    return (VALUE)obj;
-}
-
 void rb_vm_raise(VALUE exception);
 void rb_vm_raise_current_exception(void);
 VALUE rb_vm_current_exception(void);
@@ -525,6 +527,11 @@ void rb_vm_call_finalizer(rb_vm_finalizer_t *finalizer);
 
 #include "bridgesupport.h"
 
+struct icache {
+    VALUE klass;
+    int slot;
+};
+
 typedef struct {
     Function *func;
     rb_vm_arity_t arity;
@@ -532,12 +539,11 @@ typedef struct {
 } rb_vm_method_source_t;
 
 typedef VALUE rb_vm_objc_stub_t(IMP imp, id self, SEL sel, int argc,
-				const VALUE *argv);
+	const VALUE *argv);
 typedef VALUE rb_vm_c_stub_t(IMP imp, int argc, const VALUE *argv);
 #define rb_vm_long_arity_stub_t rb_vm_objc_stub_t
 typedef VALUE rb_vm_long_arity_bstub_t(IMP imp, id self, SEL sel,
-				       VALUE dvars, rb_vm_block_t *b,
-				       int argc, const VALUE *argv);
+	VALUE dvars, rb_vm_block_t *b, int argc, const VALUE *argv);
 
 struct mcache {
 #define MCACHE_RCALL 0x1 // Ruby call
@@ -635,9 +641,6 @@ class RoxorCore {
 	// Method and constant caches.
 	std::map<SEL, struct mcache *> mcache;
 	std::map<ID, struct ccache *> ccache;
-
-	// Instance variable slots cache.
-	std::map<Class, std::map<ID, int> *> ivar_slots;
 
 	// Optimized selectors redefinition cache.
 	std::map<SEL, GlobalVariable *> redefined_ops_gvars;
@@ -803,25 +806,6 @@ class RoxorCore {
 	struct ccache *constant_cache_get(ID path);
 	void const_defined(ID path);
 	
-	std::map<ID, int> *get_ivar_slots(Class klass, bool create=true) {
-	    std::map<Class, std::map<ID, int> *>::iterator iter = 
-		ivar_slots.find(klass);
-	    if (iter == ivar_slots.end()) {
-		if (create) {
-		    std::map<ID, int> *map = new std::map<ID, int>;
-		    ivar_slots[klass] = map;
-		    return map;
-		}
-		else {
-		    return NULL;
-		}
-	    }
-	    return iter->second;
-	}
-	int find_ivar_slot(VALUE klass, ID name, bool create);
-	void each_ivar_slot(VALUE obj, int (*func)(ANYARGS), void *ctx);
-	bool class_can_have_ivar_slots(VALUE klass);
-
 	struct rb_vm_outer *get_outer(Class klass);
 	void set_outer(Class klass, Class mod);
 

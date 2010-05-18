@@ -11,7 +11,7 @@
 extern "C" {
 #endif
 
-#define RCLASS_IS_OBJECT_SUBCLASS    (1<<1)  /* class is a true RBObject subclass */
+#define RCLASS_IS_OBJECT_SUBCLASS    (1<<1)  /* class is a true RubyObject subclass */
 #define RCLASS_IS_RUBY_CLASS         (1<<2)  /* class was created from Ruby */
 #define RCLASS_IS_MODULE             (1<<3)  /* class represents a Ruby Module */
 #define RCLASS_IS_SINGLETON	     (1<<4)  /* class represents a singleton */
@@ -23,7 +23,6 @@ extern "C" {
 #define RCLASS_SCOPE_PROTECTED	     (1<<13)  /* class opened for protected methods */
 #define RCLASS_SCOPE_MOD_FUNC	     (1<<14)  /* class opened for module_function methods */
 #define RCLASS_KVO_CHECK_DONE	     (1<<15)  /* class created by KVO and flags merged */
-#define RCLASS_NO_IV_SLOTS	     (1<<16)  /* class cannot hold ivar slots (T_DATA & friends) */
 
 unsigned long rb_class_get_flags(Class k);
 void rb_class_set_flags(Class k, unsigned long flags);

@@ -78,7 +78,7 @@ class RoxorCompiler {
 
 	std::map<ID, Value *> lvars;
 	std::vector<ID> dvars;
-	std::map<ID, Value *> ivar_slots_cache;
+	std::map<ID, void *> ivars_slots_cache;
 	std::map<std::string, GlobalVariable *> static_strings;
 	std::map<CFHashCode, GlobalVariable *> static_ustrings;
 
@@ -358,8 +358,7 @@ class RoxorCompiler {
 					  const Type *llvm_type, Value *val);
 	void compile_debug_trap(void);
 
-	Value *compile_slot_cache(ID id);
-	virtual Value *gen_slot_cache(ID id);
+	virtual Value *compile_slot_cache(ID id);
 	ICmpInst *is_value_a_fixnum(Value *val);
 	void compile_ivar_slots(Value *klass, BasicBlock::InstListType &list, 
 				BasicBlock::InstListType::iterator iter);
@@ -413,8 +412,7 @@ class RoxorAOTCompiler : public RoxorCompiler {
 	Value *compile_id(ID id);
 	Value *compile_immutable_literal(VALUE val);
 	Value *compile_global_entry(NODE *node);
-
-	Value *gen_slot_cache(ID id);
+	Value *compile_slot_cache(ID id);
 
 	Constant *
 	compile_const_pointer(void *ptr, const PointerType *type=NULL) {

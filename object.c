@@ -196,23 +196,16 @@ init_copy(VALUE dest, VALUE obj)
     rb_gc_copy_finalizer(dest, obj);
     switch (TYPE(obj)) {
 	case T_OBJECT:
-	    if (ROBJECT(obj)->tbl != NULL) {
-		CFMutableDictionaryRef new_tbl;
-		new_tbl = CFDictionaryCreateMutableCopy(NULL, 0, (CFDictionaryRef)ROBJECT(obj)->tbl);
-		assert(new_tbl != NULL);
-		GC_WB(&ROBJECT(dest)->tbl, new_tbl);
-		CFMakeCollectable(new_tbl);
-	    }
-	    else {
-		ROBJECT(dest)->tbl = NULL;
-	    }
 	    if (ROBJECT(obj)->num_slots > 0) {
 		if (ROBJECT(dest)->num_slots < ROBJECT(obj)->num_slots) {
 		    rb_vm_regrow_robject_slots(ROBJECT(dest),
 			    ROBJECT(obj)->num_slots);
 		}
 		for (int i = 0; i < ROBJECT(obj)->num_slots; i++) {
-		    GC_WB(&ROBJECT(dest)->slots[i], ROBJECT(obj)->slots[i]);
+		    rb_object_ivar_slot_t *dest_sl = &ROBJECT(dest)->slots[i];
+		    rb_object_ivar_slot_t *orig_sl = &ROBJECT(obj)->slots[i];
+		    dest_sl->name = orig_sl->name;
+		    GC_WB(&dest_sl->value, orig_sl->value);
 		}
 	    }
 	    ROBJECT(dest)->num_slots = ROBJECT(obj)->num_slots;
@@ -293,8 +286,9 @@ rb_obj_clone_imp(VALUE obj, SEL sel)
     }
 
     init_copy(clone, obj);
-    if (OBJ_FROZEN(obj))
+    if (OBJ_FROZEN(obj)) {
 	OBJ_FREEZE(clone);
+    }
 
     return clone;
 }
@@ -464,26 +458,14 @@ static VALUE
 rb_obj_inspect(VALUE obj, SEL sel)
 {
     if (TYPE(obj) == T_OBJECT) {
-        bool has_ivar = false;
-
-	if (ROBJECT(obj)->tbl != NULL
-		&& CFDictionaryGetCount(ROBJECT(obj)->tbl) > 0) {
-	    has_ivar = true;
-	}
-	else {
-	    for (int i = 0; i < ROBJECT(obj)->num_slots; i++) {
-		if (ROBJECT(obj)->slots[i] != Qundef) {
-		    has_ivar = true;
-		    break;
-		}
+	for (int i = 0; i < ROBJECT(obj)->num_slots; i++) {
+	    if (ROBJECT(obj)->slots[i].value != Qundef) {
+		// There is at least an ivar.
+		const char *c = rb_obj_classname(obj);
+		VALUE str = rb_sprintf("#<%s:%p", c, (void*)obj);
+		return rb_exec_recursive(inspect_obj, obj, str);
 	    }
 	}
-
-        if (has_ivar) {
-            const char *c = rb_obj_classname(obj);
-            VALUE str = rb_sprintf("#<%s:%p", c, (void*)obj);
-            return rb_exec_recursive(inspect_obj, obj, str);
-        }
     }
     return rb_funcall(obj, rb_intern("to_s"), 0, 0);
 }
@@ -2960,10 +2942,8 @@ Init_Object(void)
 	    "BasicObject", 0);
     rb_const_set(rb_cObject, rb_intern("BasicObject"), rb_cBasicObject);
     rb_cModule = boot_defclass("Module", rb_cNSObject);
-    RCLASS_SET_VERSION_FLAG(rb_cModule, RCLASS_NO_IV_SLOTS);
     rb_define_object_special_methods(rb_cModule);
     rb_cClass =  boot_defclass("Class",  rb_cModule);
-    RCLASS_SET_VERSION_FLAG(rb_cClass, RCLASS_NO_IV_SLOTS);
     rb_cRubyObject = boot_defclass("RubyObject", rb_cObject);
     RCLASS_SET_VERSION_FLAG(rb_cRubyObject, RCLASS_IS_SINGLETON);
     RCLASS_SET_VERSION_FLAG(rb_cRubyObject, RCLASS_IS_OBJECT_SUBCLASS);

@@ -980,7 +980,7 @@ rb_class_ivar_dict(VALUE mod)
     }
     return generic_ivar_dict(mod, false);
 }
-
+ 
 void
 rb_class_ivar_set_dict(VALUE mod, CFMutableDictionaryRef dict)
 {
@@ -1018,30 +1018,15 @@ ivar_get(VALUE obj, ID id, bool warn, bool undef)
 {
     VALUE val;
 
-    const int slot = rb_vm_find_class_ivar_slot(CLASS_OF(obj), id);
-    if (slot != -1) {
-	val = rb_vm_get_ivar_from_slot(obj, slot);
-	if (val != Qundef) {
-	    return val;
-	}
-    }
-
     switch (TYPE(obj)) {
 	case T_OBJECT:
 	    {
-		val = Qundef;
-
-		if (ROBJECT(obj)->tbl != NULL) {
-		    if (!CFDictionaryGetValueIfPresent(
-				(CFDictionaryRef)ROBJECT(obj)->tbl,
-				(const void *)id,
-				(const void **)&val)) {
-			val = Qundef;
+		const int slot = rb_vm_get_ivar_slot(obj, id, false);
+		if (slot != -1) {
+		    val = rb_vm_get_ivar_from_slot(obj, slot);
+		    if (val != Qundef) {
+			return val;
 		    }
-		}
-
-		if (val != Qundef) {
-		    return val;
 		}
 	    }
 	    break;
@@ -1090,27 +1075,13 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
 	rb_error_frozen("object");
     }
 
-    const int slot = rb_vm_find_class_ivar_slot(CLASS_OF(obj), id);
-    if (slot != -1) {
-	rb_vm_set_ivar_from_slot(obj, val, slot);
-	return val;
-    }
-
     switch (TYPE(obj)) {
 	case T_OBJECT:
 	    {
-		if (ROBJECT(obj)->tbl == NULL) {
-		    CFMutableDictionaryRef tbl;
-
-		    tbl = CFDictionaryCreateMutable(NULL, 0, NULL, 
-			    &rb_cfdictionary_value_cb);
-
-		    GC_WB(&ROBJECT(obj)->tbl, tbl);
-		    CFMakeCollectable(tbl);
-		}
-
-		CFDictionarySetValue(ROBJECT(obj)->tbl, 
-			(const void *)id, (const void *)val);
+		const int slot = rb_vm_get_ivar_slot(obj, id, true);
+		assert(slot >= 0);
+		rb_vm_set_ivar_from_slot(obj, val, slot);
+		return val;
 	    }
 	    break;
 
@@ -1133,30 +1104,14 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
 VALUE
 rb_ivar_defined(VALUE obj, ID id)
 {
-    VALUE val;
-
-    const int slot = rb_vm_find_class_ivar_slot(CLASS_OF(obj), id);
-    if (slot != -1) {
-	if (rb_vm_get_ivar_from_slot(obj, slot) != Qundef) {
-	    return Qtrue;
-	}
-    }
-
     switch (TYPE(obj)) {
 	case T_OBJECT:
 	    {
-		val = Qundef;
-
-		if (ROBJECT(obj)->tbl != NULL) {
-		    if (CFDictionaryGetValueIfPresent(
-				(CFDictionaryRef)ROBJECT(obj)->tbl,
-				(const void *)id, NULL)) {
-			val = Qtrue;
+		const int slot = rb_vm_get_ivar_slot(obj, id, false);
+		if (slot != -1) {
+		    if (rb_vm_get_ivar_from_slot(obj, slot) != Qundef) {
+			return Qtrue;
 		    }
-		}
-
-		if (val != Qundef) {
-		    return Qtrue;
 		}
 	    }
 	    break;
@@ -1182,33 +1137,36 @@ void
 rb_ivar_foreach(VALUE obj, int (*func)(ANYARGS), st_data_t arg)
 {
     switch (TYPE(obj)) {
-      case T_OBJECT:
-	  rb_vm_each_ivar_slot(obj, func, (void *)arg);
-	  if (ROBJECT(obj)->tbl != NULL) {
-	      CFDictionaryApplyFunction(ROBJECT(obj)->tbl, 
-		      (CFDictionaryApplierFunction)func, (void *)arg);
-	  }
-	  return;
+	case T_OBJECT:
+	    for (unsigned int i = 0; i < ROBJECT(obj)->num_slots; i++) {
+		ID name = ROBJECT(obj)->slots[i].name;
+		VALUE value = ROBJECT(obj)->slots[i].value;
+		if (name != 0 && value != Qundef) {
+		    func(name, value, arg);
+		}
+	    }
+	    break;
 
       case T_CLASS:
       case T_MODULE:
-	  {
-	      CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(obj);
-	      if (iv_dict != NULL) {
-		  ivar_dict_foreach(iv_dict, func, arg);
-	      }
-	  }
-	  return;
+	    {
+		CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(obj);
+		if (iv_dict != NULL) {
+		    ivar_dict_foreach(iv_dict, func, arg);
+		}
+	    }
+	    break;
 
       case T_NATIVE:
       default:
-	  {
-	      CFDictionaryRef obj_dict = generic_ivar_dict(obj, false);
-	      if (obj_dict != NULL) {
-		  CFDictionaryApplyFunction(obj_dict, (CFDictionaryApplierFunction)func,
-			  (void *)arg);
-	      }
-	  }
+	    {
+		CFDictionaryRef obj_dict = generic_ivar_dict(obj, false);
+		if (obj_dict != NULL) {
+		    CFDictionaryApplyFunction(obj_dict,
+			    (CFDictionaryApplierFunction)func, (void *)arg);
+		}
+	    }
+	    break;
     }
 }
 
@@ -1288,14 +1246,7 @@ rb_obj_remove_instance_variable(VALUE obj, SEL sel, VALUE name)
 
     switch (TYPE(obj)) {
 	case T_OBJECT:
-	    // TODO support slots
-	    if (ROBJECT(obj)->tbl != NULL) {
-		if (CFDictionaryGetValueIfPresent(ROBJECT(obj)->tbl, (const void *)id, (const void **)val)) {
-		    CFDictionaryRemoveValue(ROBJECT(obj)->tbl, 
-			    (const void *)id);
-		    return val;
-		}
-	    }
+	    // TODO
 	    break;
 
 	case T_CLASS:

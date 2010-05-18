@@ -21,7 +21,6 @@ bool rb_objc_get_types(VALUE recv, Class klass, SEL sel, Method m,
 bool rb_objc_supports_forwarding(VALUE recv, SEL sel);
 
 void rb_objc_define_kvo_setter(VALUE klass, ID mid);
-VALUE rb_vm_set_kvo_ivar(VALUE obj, ID name, VALUE val);
 
 static inline IMP
 rb_objc_install_method(Class klass, SEL sel, IMP imp)

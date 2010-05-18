@@ -1112,64 +1112,57 @@ RoxorCompiler::compile_binding(void)
 	    "", bb);
 }
 
-Value *
-RoxorCompiler::gen_slot_cache(ID id)
+extern "C"
+struct icache *
+rb_vm_ivar_slot_allocate(void)
 {
-    int *slot = (int *)malloc(sizeof(int));
-    *slot = -1;
-    return compile_const_pointer(slot, Int32PtrTy);
-}
-
-Value *
-RoxorAOTCompiler::gen_slot_cache(ID id)
-{
-    GlobalVariable *gvar = new GlobalVariable(*RoxorCompiler::module,
-	    Int32PtrTy, false, GlobalValue::InternalLinkage,
-	    Constant::getNullValue(Int32PtrTy), "");
-    ivar_slots.push_back(gvar);
-    return new LoadInst(gvar, "");
+    struct icache *icache = (struct icache *)malloc(sizeof(struct icache));
+    icache->klass = 0;
+    icache->slot = SLOT_CACHE_VIRGIN;
+    return icache;
 }
 
 Value *
 RoxorCompiler::compile_slot_cache(ID id)
 {
-    if (inside_eval || current_block || !current_instance_method
-	|| current_module) {
-	return compile_const_pointer(NULL, Int32PtrTy);
-    }
-
-    std::map<ID, Value *>::iterator iter = ivar_slots_cache.find(id);
-    Value *slot;
-    if (iter == ivar_slots_cache.end()) {
-#if ROXOR_COMPILER_DEBUG
-	printf("allocating a new slot for ivar %s\n", rb_id2name(id));
-#endif
-	slot = gen_slot_cache(id);
-	ivar_slots_cache[id] = slot;
+    std::map<ID, void *>::iterator iter = ivars_slots_cache.find(id);
+    void *cache = NULL;
+    if (iter == ivars_slots_cache.end()) {
+	cache = rb_vm_ivar_slot_allocate();
+	ivars_slots_cache[id] = cache;
     }
     else {
-	slot = iter->second;
+	cache = iter->second;
     }
+    return compile_const_pointer(cache);
+}
 
-    Instruction *slot_insn = dyn_cast<Instruction>(slot);
-    if (slot_insn != NULL) {
-	Instruction *insn = slot_insn->clone();
-	BasicBlock::InstListType &list = bb->getInstList();
-	list.insert(list.end(), insn);
-	return insn;
+Value *
+RoxorAOTCompiler::compile_slot_cache(ID id)
+{
+    std::map<ID, void *>::iterator iter = ivars_slots_cache.find(id);
+    GlobalVariable *gvar = NULL;
+    if (iter == ivars_slots_cache.end()) {
+	gvar = new GlobalVariable(*RoxorCompiler::module,
+		PtrTy, false, GlobalValue::InternalLinkage,
+		compile_const_pointer(NULL), "");
+	ivar_slots.push_back(gvar);
+	ivars_slots_cache[id] = gvar;
     }
     else {
-	return slot;
+	gvar = (GlobalVariable *)iter->second;
     }
+    return new LoadInst(gvar, "", bb);
 }
 
 Value *
 RoxorCompiler::compile_ivar_read(ID vid)
 {
     if (getIvarFunc == NULL) {
-	// VALUE rb_vm_ivar_get(VALUE obj, ID name, int *slot_cache);
-	getIvarFunc = cast<Function>(module->getOrInsertFunction("rb_vm_ivar_get",
-		    RubyObjTy, RubyObjTy, IntTy, Int32PtrTy, NULL)); 
+	// VALUE rb_vm_ivar_get(VALUE obj, ID name, struct icache *cache);
+	getIvarFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_vm_ivar_get",
+		    RubyObjTy, RubyObjTy, IntTy, PtrTy, NULL)); 
     }
 
     std::vector<Value *> params;
@@ -1185,11 +1178,11 @@ Value *
 RoxorCompiler::compile_ivar_assignment(ID vid, Value *val)
 {
     if (setIvarFunc == NULL) {
-	// void rb_vm_ivar_set(VALUE obj, ID name, VALUE val, int *slot_cache);
+	// void rb_vm_ivar_set(VALUE obj, ID name, VALUE val,
+	// 	struct icache *cache);
 	setIvarFunc = 
 	    cast<Function>(module->getOrInsertFunction("rb_vm_ivar_set",
-			VoidTy, RubyObjTy, IntTy, RubyObjTy, Int32PtrTy,
-			NULL)); 
+			VoidTy, RubyObjTy, IntTy, RubyObjTy, PtrTy, NULL)); 
     }
 
     std::vector<Value *> params;
@@ -3000,57 +2993,6 @@ RoxorCompiler::compile_set_current_scope(Value *klass, Value *scope)
 }
 
 void
-RoxorCompiler::compile_ivar_slots(Value *klass,
-	BasicBlock::InstListType &list, 
-	BasicBlock::InstListType::iterator list_iter)
-{
-    if (ivar_slots_cache.size() > 0) {
-	if (prepareIvarSlotFunc == NULL) {
-	    // void rb_vm_prepare_class_ivar_slot(VALUE klass, ID name,
-	    // 		int *slot_cache);
-	    prepareIvarSlotFunc = cast<Function>(
-		    module->getOrInsertFunction(
-			"rb_vm_prepare_class_ivar_slot", 
-			VoidTy, RubyObjTy, IntTy, Int32PtrTy, NULL));
-	}
-	for (std::map<ID, Value *>::iterator iter
-		= ivar_slots_cache.begin();
-	     iter != ivar_slots_cache.end();
-	     ++iter) {
-
-	    ID ivar_name = iter->first;
-	    Value *ivar_slot = iter->second;
-	    std::vector<Value *> params;
-
-	    params.push_back(klass);
-
-	    Value *id_val = compile_id(ivar_name);
-	    if (Instruction::classof(id_val)) {
-		Instruction *insn = cast<Instruction>(id_val);
-		insn->removeFromParent();
-		list.insert(list_iter, insn);
-	    }
-	    params.push_back(id_val);
-
-	    Instruction *slot_insn = dyn_cast<Instruction>(ivar_slot);
-	    if (slot_insn != NULL) {
-		Instruction *insn = slot_insn->clone();
-		list.insert(list_iter, insn);
-		params.push_back(insn);
-	    }
-	    else {
-		params.push_back(ivar_slot);
-	    }
-
-	    CallInst *call = CallInst::Create(prepareIvarSlotFunc, 
-		    params.begin(), params.end(), "");
-
-	    list.insert(list_iter, call);
-	}
-    }
-}
-
-void
 RoxorCompiler::compile_node_error(const char *msg, NODE *node)
 {
     int t = nd_type(node);
@@ -4115,10 +4057,6 @@ RoxorCompiler::compile_node(NODE *node)
 			current_block_chain = false;
 			dynamic_class = false;
 
-			std::map<ID, Value *> old_ivar_slots_cache
-			    = ivar_slots_cache;
-			ivar_slots_cache.clear();
-
 			new StoreInst(classVal, current_opened_class, bb);
 
 			current_module = nd_type(node) == NODE_MODULE;
@@ -4128,12 +4066,18 @@ RoxorCompiler::compile_node(NODE *node)
 			bool old_block_declaration = block_declaration;
 			block_declaration = false;
 
+			std::map<ID, void *> old_ivars_slots_cache
+			    = ivars_slots_cache;
+			old_ivars_slots_cache.clear();
+
 			DEBUG_LEVEL_INC();
 			Value *val = compile_node(body);
 			assert(Function::classof(val));
 			Function *f = cast<Function>(val);
 			GET_CORE()->optimize(f);
 			DEBUG_LEVEL_DEC();
+
+			ivars_slots_cache = old_ivars_slots_cache;
 
 			block_declaration = old_block_declaration;
 
@@ -4147,15 +4091,10 @@ RoxorCompiler::compile_node(NODE *node)
 			dynamic_class = old_dynamic_class;
 			compile_set_current_scope(classVal, defaultScope);
 
-			BasicBlock::InstListType &list = bb->getInstList();
-			compile_ivar_slots(classVal, list, list.end());
-
 			current_self = old_self;
 			current_opened_class = old_class;
 			current_module = old_current_module;
 			current_block_chain = old_current_block_chain;
-
-			ivar_slots_cache = old_ivar_slots_cache;
 
 			return val;
 		    }
@@ -5575,15 +5514,7 @@ RoxorCompiler::compile_main_function(NODE *node)
 
     Value *val = compile_node(node);
     assert(Function::classof(val));
-    Function *function = cast<Function>(val);
-
-    Value *klass = ConstantInt::get(RubyObjTy, (long)rb_cTopLevel);
-    BasicBlock::InstListType &list = 
-	function->getEntryBlock().getInstList();
-    compile_ivar_slots(klass, list, list.begin());
-    ivar_slots_cache.clear();
-
-    return function;
+    return cast<Function>(val);
 }
 
 Function *
@@ -5979,33 +5910,11 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	list.insert(list.begin(), load);
     }
 
-    // Compile ivar slots.
-
-    if (!ivar_slots_cache.empty()) {
-	GlobalVariable *toplevel = compile_const_global_string("TopLevel");
-
-	std::vector<Value *> idxs;
-	idxs.push_back(ConstantInt::get(Int32Ty, 0));
-	idxs.push_back(ConstantInt::get(Int32Ty, 0));
-	Instruction *load = GetElementPtrInst::Create(toplevel,
-		idxs.begin(), idxs.end(), "");
-
-	std::vector<Value *> params;
-	params.push_back(load);
-
-	Instruction *call = CallInst::Create(objcGetClassFunc, params.begin(),
-		params.end(), "");
-
-	compile_ivar_slots(call, list, list.begin());
-	ivar_slots_cache.clear();
-
-	list.insert(list.begin(), call);
-	list.insert(list.begin(), load);
-    }
+    // Instance variable slots.
 
     Function *ivarSlotAlloc = cast<Function>(module->getOrInsertFunction(
 		"rb_vm_ivar_slot_allocate",
-		Int32PtrTy, NULL));
+		PtrTy, NULL));
 
     for (std::vector<GlobalVariable *>::iterator i = ivar_slots.begin();
 	 i != ivar_slots.end();
@@ -6014,12 +5923,9 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	GlobalVariable *gvar = *i;
 
 	Instruction *call = CallInst::Create(ivarSlotAlloc, "");
-	Instruction *assign1 =
-	    new StoreInst(ConstantInt::getSigned(Int32Ty, -1), call, "");
-	Instruction *assign2 = new StoreInst(call, gvar, "");
+	Instruction *assign = new StoreInst(call, gvar, "");
 
-	list.insert(list.begin(), assign2);
-	list.insert(list.begin(), assign1);
+	list.insert(list.begin(), assign);
 	list.insert(list.begin(), call);
     }
 
@@ -6039,14 +5945,7 @@ RoxorCompiler::compile_read_attr(ID name)
 
     bb = BasicBlock::Create(context, "EntryBlock", f);
 
-    // This disables ivar slot generation.
-    // TODO: make it work
-    const bool old_current_instance_method = current_instance_method;
-    current_instance_method = false;
-
     Value *val = compile_ivar_read(name);
-
-    current_instance_method = old_current_instance_method;
 
     ReturnInst::Create(context, val, bb);
 
@@ -6066,19 +5965,21 @@ RoxorCompiler::compile_write_attr(ID name)
 
     bb = BasicBlock::Create(context, "EntryBlock", f);
 
+    if (setKVOIvarFunc == NULL) {
+	    setKVOIvarFunc =
+	    cast<Function>(module->getOrInsertFunction("rb_vm_set_kvo_ivar",
+	            RubyObjTy, RubyObjTy, RubyObjTy, RubyObjTy, Int32PtrTy,
+		    NULL));
+    }
+
     std::vector<Value *> params;
     params.push_back(current_self);
     params.push_back(compile_id(name));
     params.push_back(new_val);
-
-    if (setKVOIvarFunc == NULL) {
-	    setKVOIvarFunc =
-	    cast<Function>(module->getOrInsertFunction("rb_vm_set_kvo_ivar",
-	            RubyObjTy, RubyObjTy, RubyObjTy, RubyObjTy, NULL));
-    }
+    params.push_back(compile_slot_cache(name));
 
     Value *val = CallInst::Create(setKVOIvarFunc,
-	params.begin(), params.end(), "", bb);
+	    params.begin(), params.end(), "", bb);
 
     ReturnInst::Create(context, val, bb);
 

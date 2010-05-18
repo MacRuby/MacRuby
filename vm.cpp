@@ -1044,76 +1044,6 @@ RoxorCore::const_defined(ID path)
     }
 }
 
-inline int
-RoxorCore::find_ivar_slot(VALUE klass, ID name, bool create)
-{
-    VALUE k = klass;
-    int slot = 0;
-
-    while (k != 0) {
-	std::map <ID, int> *slots = get_ivar_slots((Class)k);
-	std::map <ID, int>::iterator iter = slots->find(name);
-	if (iter != slots->end()) {
-#if ROXOR_VM_DEBUG
-	    printf("prepare ivar %s slot as %d (already prepared in class %s)\n",
-		    rb_id2name(name), iter->second, class_getName((Class)k));
-#endif
-	    return iter->second;
-	}
-	slot += slots->size();
-	k = RCLASS_SUPER(k);
-    }
-
-    if (create) {
-#if ROXOR_VM_DEBUG
-	printf("prepare ivar %s slot as %d (new in class %s)\n",
-		rb_id2name(name), slot, class_getName((Class)klass));
-#endif
-	get_ivar_slots((Class)klass)->insert(std::pair<ID, int>(name, slot));
-	return slot;
-    }
-    else {
-	return -1;
-    }
-}
-
-void
-RoxorCore::each_ivar_slot(VALUE obj, int (*func)(ANYARGS),
-	void *ctx)
-{
-    VALUE k = *(VALUE *)obj;
-
-    while (k != 0) {
-	std::map <ID, int> *slots = get_ivar_slots((Class)k, false);
-	if (slots != NULL) {
-	    for (std::map <ID, int>::iterator iter = slots->begin();
-		 iter != slots->end();
-		 ++iter) {
-		ID name = iter->first;
-		int slot = iter->second;
-		VALUE value = rb_vm_get_ivar_from_slot(obj, slot);
-		if (value != Qundef) {
-		    func(name, value, ctx);
-		}
-	    }
-	}
-	k = RCLASS_SUPER(k);
-    }
-}
-
-inline bool
-RoxorCore::class_can_have_ivar_slots(VALUE klass)
-{
-    const long klass_version = RCLASS_VERSION(klass);
-    if ((klass_version & RCLASS_IS_RUBY_CLASS) != RCLASS_IS_RUBY_CLASS
-	|| (klass_version & RCLASS_IS_OBJECT_SUBCLASS)
-	    != RCLASS_IS_OBJECT_SUBCLASS
-	|| (klass_version & RCLASS_NO_IV_SLOTS) == RCLASS_NO_IV_SLOTS) {
-	return false;
-    }
-    return true;
-}
-
 extern "C"
 bool
 rb_vm_running(void)
@@ -1494,47 +1424,125 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
     return klass;
 }
 
+#define LIKELY(x)   (__builtin_expect((x), 1))
+#define UNLIKELY(x) (__builtin_expect((x), 0))
+
 extern "C"
-int *
-rb_vm_ivar_slot_allocate(void)
+int
+rb_vm_get_ivar_slot(VALUE obj, ID name, bool create)
 {
-    return (int *)malloc(sizeof(int));
+    if (TYPE(obj) == T_OBJECT) {
+        unsigned int i;
+        for (i = 0; i < ROBJECT(obj)->num_slots; i++) {
+            if (ROBJECT(obj)->slots[i].name == name) {
+                return i;
+            }
+        }
+	if (create) {
+	    for (i = 0; i < ROBJECT(obj)->num_slots; i++) {
+		if (ROBJECT(obj)->slots[i].value == Qundef) {
+		    ROBJECT(obj)->slots[i].name = name;
+		    return i;
+		}
+	    }
+	    const int new_slot = ROBJECT(obj)->num_slots;
+	    rb_vm_regrow_robject_slots(ROBJECT(obj), new_slot + 1);
+	    ROBJECT(obj)->slots[new_slot].name = name;
+	    return new_slot;
+	}
+    }
+    return -1;
 }
 
 extern "C"
 VALUE
-rb_vm_ivar_get(VALUE obj, ID name, int *slot_cache)
+rb_vm_ivar_get(VALUE obj, ID name, struct icache *cache)
 {
 #if ROXOR_VM_DEBUG
-    printf("get ivar <%s %p>.%s slot %d\n",
+    printf("get ivar <%s %p>.%s cache klass %p slot %d\n",
 	    class_getName((Class)CLASS_OF(obj)), (void *)obj,
-	    rb_id2name(name), slot_cache == NULL ? -1 : *slot_cache);
+	    rb_id2name(name), (void *)cache->klass, cache->slot);
 #endif
-    if (slot_cache == NULL || *slot_cache == -1) {
-	return rb_ivar_get(obj, name);
-    }
-    else {
-	VALUE val = rb_vm_get_ivar_from_slot(obj, *slot_cache);
+
+    VALUE klass = CLASS_OF(obj);
+    if (LIKELY(klass == cache->klass)) {
+use_slot:
+	VALUE val = Qundef;
+	if ((unsigned int)cache->slot < ROBJECT(obj)->num_slots) {
+	    rb_object_ivar_slot_t *slot = &ROBJECT(obj)->slots[cache->slot];
+	    if (slot->name == name) {
+		val = slot->value;
+	    }
+	    else {
+		goto recache;
+	    }
+	}
 	return val == Qundef ? Qnil : val;
     }
+    else {
+	goto recache;
+    }
+
+    if (cache->slot == SLOT_CACHE_VIRGIN) {
+recache:
+	const int slot = rb_vm_get_ivar_slot(obj, name, true);
+	if (slot >= 0) {
+	    cache->klass = klass;
+	    cache->slot = slot;
+	    goto use_slot;
+	}
+	cache->klass = 0;
+	cache->slot = SLOT_CACHE_CANNOT;
+    }
+
+    assert(cache->slot == SLOT_CACHE_CANNOT);
+    return rb_ivar_get(obj, name);
 }
 
 extern "C"
 void
-rb_vm_ivar_set(VALUE obj, ID name, VALUE val, int *slot_cache)
+rb_vm_ivar_set(VALUE obj, ID name, VALUE val, void *cache_ptr)
 {
+    struct icache *cache = (struct icache *)cache_ptr;
+
 #if ROXOR_VM_DEBUG
-    printf("set ivar %p.%s slot %d new_val %p\n", (void *)obj, 
-	    rb_id2name(name), 
-	    slot_cache == NULL ? -1 : *slot_cache,
-	    (void *)val);
+    printf("set ivar <%s %p>.%s cache klass %p slot %d val %p\n",
+	    class_getName((Class)CLASS_OF(obj)), (void *)obj,
+	    rb_id2name(name), (void *)cache->klass, cache->slot, (void *)val);
 #endif
-    if (slot_cache == NULL || *slot_cache == -1) {
-	rb_ivar_set(obj, name, val);
+
+    VALUE klass = CLASS_OF(obj);
+    if (LIKELY(klass == cache->klass)) {
+use_slot:
+	if ((unsigned int)cache->slot < ROBJECT(obj)->num_slots) {
+	    rb_object_ivar_slot_t *slot = &ROBJECT(obj)->slots[cache->slot];
+	    if (slot->name == name) {
+		if ((ROBJECT(obj)->basic.flags & FL_FREEZE) == FL_FREEZE) {
+		    rb_error_frozen("object");
+		}
+		GC_WB(&slot->value, val);
+		return;
+	    }
+	}
+	goto recache;
     }
     else {
-	rb_vm_set_ivar_from_slot(obj, val, *slot_cache);
+	goto recache;
     }
+
+    if (cache->slot == SLOT_CACHE_VIRGIN) {
+recache:
+	const int slot = rb_vm_get_ivar_slot(obj, name, true);
+	if (slot >= 0) {
+	    cache->klass = klass;
+	    cache->slot = slot;
+	    goto use_slot;
+	}
+	cache->slot = SLOT_CACHE_CANNOT;
+    }
+
+    assert(cache->slot == SLOT_CACHE_CANNOT);
+    rb_ivar_set(obj, name, val);
 }
 
 extern "C"
@@ -1775,37 +1783,6 @@ rb_vm_defined(VALUE self, int type, VALUE what, VALUE what2)
     }
 
     return str == NULL ? Qnil : rb_str_new2(str);
-}
-
-extern "C"
-void
-rb_vm_prepare_class_ivar_slot(VALUE klass, ID name, int *slot_cache)
-{
-    assert(slot_cache != NULL);
-    assert(*slot_cache == -1);
-
-    if (GET_CORE()->class_can_have_ivar_slots(klass)) {
-	*slot_cache = GET_CORE()->find_ivar_slot(klass, name, true);
-    }
-}
-
-extern "C"
-int
-rb_vm_find_class_ivar_slot(VALUE klass, ID name)
-{
-    if (GET_CORE()->class_can_have_ivar_slots(klass)) {
-	return GET_CORE()->find_ivar_slot(klass, name, false);
-    }
-    return -1;
-}
-
-extern "C"
-void
-rb_vm_each_ivar_slot(VALUE obj, int (*func)(ANYARGS), void *ctx)
-{
-    if (GET_CORE()->class_can_have_ivar_slots(CLASS_OF(obj))) {
-	GET_CORE()->each_ivar_slot(obj, func, ctx);	
-    } 
 }
 
 static bool

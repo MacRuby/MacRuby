@@ -538,16 +538,18 @@ rb_objc_define_kvo_setter(VALUE klass, ID mid)
 }
 
 VALUE
-rb_vm_set_kvo_ivar(VALUE obj, ID name, VALUE val)
+rb_vm_set_kvo_ivar(VALUE obj, ID name, VALUE val, void *cache)
 {
-    NSString *key = NULL;
     if (enable_kvo_notifications) {
-	key = [(NSString *)rb_id2str(name) substringFromIndex:1]; // skip '@' prefix
+	NSString *key = [(NSString *)rb_id2str(name) substringFromIndex:1]; // skip '@' prefix
 	[(id)obj willChangeValueForKey:key];
-    }
-    rb_ivar_set(obj, name, val);
-    if (enable_kvo_notifications) {
+
+	rb_vm_ivar_set(obj, name, val, cache);
+
 	[(id)obj didChangeValueForKey:key];
+    }
+    else {
+	rb_vm_ivar_set(obj, name, val, cache);
     }
     return val;
 }
