@@ -5968,7 +5968,7 @@ RoxorCompiler::compile_write_attr(ID name)
     if (setKVOIvarFunc == NULL) {
 	    setKVOIvarFunc =
 	    cast<Function>(module->getOrInsertFunction("rb_vm_set_kvo_ivar",
-	            RubyObjTy, RubyObjTy, RubyObjTy, RubyObjTy, Int32PtrTy,
+	            RubyObjTy, RubyObjTy, RubyObjTy, RubyObjTy, PtrTy,
 		    NULL));
     }
 
