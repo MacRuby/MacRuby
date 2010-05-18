@@ -1274,11 +1274,13 @@ module FileUtils
     end
 
     def copy_file(dest)
-      File.open(path()) do |s|
-        File.open(dest, 'wb') do |f|
-          IO.copy_stream(s, f)
-        end
-      end
+      IO.copy_stream(path(), dest)
+      # XXX This hangs using a lot of CPU in MacRuby
+      # File.open(path()) do |s|
+      #   File.open(dest, 'wb') do |f|
+      #     IO.copy_stream(s, f)
+      #   end
+      # end
     end
 
     def copy_metadata(path)
