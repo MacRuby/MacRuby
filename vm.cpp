@@ -1458,26 +1458,22 @@ extern "C"
 VALUE
 rb_vm_ivar_get(VALUE obj, ID name, struct icache *cache)
 {
-#if ROXOR_VM_DEBUG
-    printf("get ivar <%s %p>.%s cache klass %p slot %d\n",
-	    class_getName((Class)CLASS_OF(obj)), (void *)obj,
-	    rb_id2name(name), (void *)cache->klass, cache->slot);
-#endif
-
     VALUE klass = CLASS_OF(obj);
     if (LIKELY(klass == cache->klass)) {
 use_slot:
-	VALUE val = Qundef;
 	if ((unsigned int)cache->slot < ROBJECT(obj)->num_slots) {
 	    rb_object_ivar_slot_t *slot = &ROBJECT(obj)->slots[cache->slot];
 	    if (slot->name == name) {
-		val = slot->value;
-	    }
-	    else {
-		goto recache;
+#if ROXOR_VM_DEBUG
+		printf("get ivar <%s %p> %s slot %d -> %p\n",
+			class_getName((Class)CLASS_OF(obj)), (void *)obj,
+			rb_id2name(name), cache->slot, (void *)slot->value);
+#endif
+		VALUE val = slot->value;
+		return val == Qundef ? Qnil : val;
 	    }
 	}
-	return val == Qundef ? Qnil : val;
+	goto recache;
     }
     else {
 	goto recache;
@@ -1496,6 +1492,10 @@ recache:
     }
 
     assert(cache->slot == SLOT_CACHE_CANNOT);
+#if ROXOR_VM_DEBUG
+    printf("get ivar <%s %p> %s without slot\n",
+	    class_getName((Class)CLASS_OF(obj)), (void *)obj, rb_id2name(name));
+#endif
     return rb_ivar_get(obj, name);
 }
 
@@ -1504,13 +1504,6 @@ void
 rb_vm_ivar_set(VALUE obj, ID name, VALUE val, void *cache_ptr)
 {
     struct icache *cache = (struct icache *)cache_ptr;
-
-#if ROXOR_VM_DEBUG
-    printf("set ivar <%s %p>.%s cache klass %p slot %d val %p\n",
-	    class_getName((Class)CLASS_OF(obj)), (void *)obj,
-	    rb_id2name(name), (void *)cache->klass, cache->slot, (void *)val);
-#endif
-
     VALUE klass = CLASS_OF(obj);
     if (LIKELY(klass == cache->klass)) {
 use_slot:
@@ -1520,6 +1513,11 @@ use_slot:
 		if ((ROBJECT(obj)->basic.flags & FL_FREEZE) == FL_FREEZE) {
 		    rb_error_frozen("object");
 		}
+#if ROXOR_VM_DEBUG
+		printf("set ivar <%s %p> %s to %p slot %d\n",
+			class_getName((Class)CLASS_OF(obj)), (void *)obj,
+			rb_id2name(name), (void *)val, cache->slot);
+#endif
 		GC_WB(&slot->value, val);
 		return;
 	    }
@@ -1542,6 +1540,11 @@ recache:
     }
 
     assert(cache->slot == SLOT_CACHE_CANNOT);
+#if ROXOR_VM_DEBUG
+    printf("set ivar <%s %p> %s to %p without slot\n",
+	    class_getName((Class)CLASS_OF(obj)), (void *)obj,
+	    rb_id2name(name), (void *)val);
+#endif
     rb_ivar_set(obj, name, val);
 }
 
@@ -5200,6 +5203,15 @@ rb_vm_finalize(void)
 	    GET_CORE()->get_functions_compiled());
 #endif
 
+
+    if (getenv("VM_VERIFY_IR") != NULL) {
+	printf("Verifying IR...\n");
+	if (verifyModule(*RoxorCompiler::module, PrintMessageAction)) {
+	    printf("Error during module verification\n");
+	    exit(1);
+	}
+	printf("Good!\n");
+    }
 
     // XXX: deleting the core is not safe at this point because there might be
     // threads still running and trying to unregister.
