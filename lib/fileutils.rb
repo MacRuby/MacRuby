@@ -1178,9 +1178,11 @@ module FileUtils
     end
 
     def entries
-      opts = {}
-      opts[:encoding] = "UTF-8" if /mswin|mignw/ =~ RUBY_PLATFORM
-      Dir.entries(path(), opts)\
+      # XXX MacRuby Dir.entries method only takes one argument for now
+      # opts = {}
+      # opts[:encoding] = "UTF-8" if /mswin|mignw/ =~ RUBY_PLATFORM
+      # Dir.entries(path(), opts)\
+      Dir.entries(path())\
           .reject {|n| n == '.' or n == '..' }\
           .map {|n| Entry_.new(prefix(), join(rel(), n.untaint)) }
     end
