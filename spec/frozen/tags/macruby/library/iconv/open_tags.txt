@@ -1,0 +1,6 @@
+fails:Iconv.open creates a new encoding converter
+fails:Iconv.open when called from a subclass of Iconv instantiates an object of that class
+fails:Iconv.open raises an Iconv::InvalidEncoding exception when an encoding cannot be found
+fails:Iconv.open with a block invokes the block exactly once
+fails:Iconv.open with a block yields the converter
+fails:Iconv.open with a block returns the result of the block

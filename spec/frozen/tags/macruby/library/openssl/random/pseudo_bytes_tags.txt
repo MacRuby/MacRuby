@@ -1,0 +1,3 @@
+critical:OpenSSL::Random#pseudo_bytes generates a random binary string of specified length
+critical:OpenSSL::Random#pseudo_bytes generates different binary strings with subsequent invocations
+critical:OpenSSL::Random#pseudo_bytes raises ArgumentError on negative arguments

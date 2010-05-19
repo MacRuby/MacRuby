@@ -1,0 +1,3 @@
+fails:Iconv#close ignores multiple calls
+fails:Iconv#close does not raise an exception if called inside an .open block
+fails:Iconv#close returns a string containing the byte sequence to change the output buffer to its initial shift state

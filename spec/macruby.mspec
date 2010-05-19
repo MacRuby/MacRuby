@@ -17,7 +17,6 @@ class MSpecScript
     '^core/kernel/callcc_spec.rb',
     
     # Currently not working on MacRuby
-    '^core/encoding',
     '^core/io'
   ]
   
@@ -25,26 +24,20 @@ class MSpecScript
   set :library, [
     'library',
     
-     # Currently not working on MacRuby
-     '^library/cgi/htmlextension', # runs fine when run separately, it seems another spec brings IO in a wrong state
-     '^library/continuation',
-     '^library/erb',
-     '^library/fiber',
-     '^library/iconv',
-     '^library/generator',
-     '^library/openssl',
-     '^library/net/http', # due to '/fixtures/http_server' loaded in net/http/http/active_spec.rb  (webrick)
-     '^library/net/ftp', # exists the specs when running using rake spec:library and reaching net/ftp/chdir_spec.rb
-     '^library/prime',  # hangs probably because of timeout
-     '^library/set', # sortedset is segfaulting
-     '^library/syslog',    
-    # disabled the zlib specs for now because of a random GC crash
-    # that seems to occur in gzipfile/closed_spec.rb
-    '^library/zlib/adler32_spec.rb',
-    '^library/zlib/crc32_spec.rb',
-    '^library/zlib/crc_table_spec.rb',
-    '^library/zlib/deflate',
-    '^library/zlib/inflate'
+    # Obsolete in 1.9
+    '^library/fiber', # now part of core
+    '^library/syslog',
+
+    # Not supported in MacRuby
+    '^library/continuation',
+
+    # Tons of IO issues
+    '^library/net/http', # due to '/fixtures/http_server' loaded in net/http/http/active_spec.rb  (webrick)
+    '^library/net/ftp', # exists the specs when running using rake spec:library and reaching net/ftp/chdir_spec.rb
+    # Currently not working on MacRuby
+    '^library/cgi/htmlextension', # runs fine when run separately, it seems another spec brings IO in a wrong state
+    '^library/erb/new_spec.rb', # Loading issues
+    '^library/prime/each_spec.rb',  # hangs because of timeout, but if the spec is tagged, crashes at the end, even when tagging everything
   ]
   
   # Prepend the paths with the proper prefix
