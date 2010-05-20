@@ -382,6 +382,11 @@ str_try_making_data_uchars(rb_str_t *self)
     if (str_is_stored_in_uchars(self)) {
 	return true;
     }
+    else if (NATIVE_UTF16_ENC(self->encoding)) {
+	// sometimes the flag might not already be set so set it
+	str_set_stored_in_uchars(self, true);
+	return true;
+    }
     else if (NON_NATIVE_UTF16_ENC(self->encoding)) {
 	str_invert_byte_order(self);
 	return true;
@@ -1486,6 +1491,10 @@ str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_en
 
     if (behavior_for_undefined == TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_ATTR) {
 	str_concat_ascii_cstr(dst_str, "\"");
+    }
+
+    if (NATIVE_UTF16_ENC(dst_str->encoding)) {
+	str_set_stored_in_uchars(dst_str, true);
     }
 
 
