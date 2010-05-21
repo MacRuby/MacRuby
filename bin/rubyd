@@ -213,7 +213,7 @@ next                       Go to the next expression.
 continue                   Continue the program's execution.
 run                        Start the program's execution.
 stop                       Stop the program's execution.
-list <line>                Print the next 10 lines at given or current line.
+list [line]                Print the next 10 lines at given or current line.
 backtrace                  Show current backtrace.
 backtrace full             Show a full backtrace (for every thread).
 thread <thread-id>         Switch to the given thread.
