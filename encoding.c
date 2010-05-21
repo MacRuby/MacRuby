@@ -155,19 +155,39 @@ define_encoding_constant(const char *name, rb_encoding_t *encoding)
 	return;
     }
 
+    if (strcmp(name, "locale") == 0) {
+	// there is no constant for locale
+	return;
+    }
+
     char *name_copy = strdup(name);
     if ((c >= 'a') && (c <= 'z')) {
 	// the first character must be upper case
 	name_copy[0] = c - ('a' - 'A');
     }
 
+    bool has_lower_case = false;
     // '.' and '-' must be transformed into '_'
     for (int i = 0; name_copy[i]; ++i) {
 	if ((name_copy[i] == '.') || (name_copy[i] == '-')) {
 	    name_copy[i] = '_';
 	}
+	else if ((name_copy[i] >= 'a') && (name_copy[i] <= 'z')) {
+	    has_lower_case = true;
+	}
     }
     rb_define_const(rb_cEncoding, name_copy, (VALUE)encoding);
+    // if the encoding name has lower case characters,
+    // also define it in upper case
+    if (has_lower_case) {
+	for (int i = 0; name_copy[i]; ++i) {
+	    if ((name_copy[i] >= 'a') && (name_copy[i] <= 'z')) {
+		name_copy[i] = name_copy[i] - 'a' + 'A';
+	    }
+	}
+	rb_define_const(rb_cEncoding, name_copy, (VALUE)encoding);
+    }
+
     free(name_copy);
 }
 
