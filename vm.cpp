@@ -266,8 +266,9 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 	    std::string path;
 	    for (std::vector<EmittedFunctionDetails::LineStart>::const_iterator iter = Details.LineStarts.begin(); iter != Details.LineStarts.end(); ++iter) {
 #if LLVM_TOT
-		MDNode *scope = iter->Loc.getScope(F.getContext());
-		DILocation dil = DILocation(scope);
+		//MDNode *scope = iter->Loc.getScope(F.getContext());
+		//DILocation dil = DILocation(scope);
+		DILocation dil = Details.MF->getDILocation(iter->Loc);
 		if (path.size() == 0) {
 		    DIScope scope = dil.getScope();
 		    path.append(scope.getDirectory());
