@@ -259,7 +259,7 @@ rb_gc_disable(VALUE self, SEL sel)
 VALUE rb_mGC;
 
 void
-rb_gc_assign_weak_ref(const void *value, void *const*location)
+rb_gc_assign_weak_ref(const void *value, const void **location)
 {
     auto_assign_weak_reference(__auto_zone, value, location, NULL);
 }

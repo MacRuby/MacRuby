@@ -267,9 +267,8 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 	    std::string path;
 	    for (std::vector<EmittedFunctionDetails::LineStart>::const_iterator iter = Details.LineStarts.begin(); iter != Details.LineStarts.end(); ++iter) {
 #if LLVM_TOT
-		//MDNode *scope = iter->Loc.getScope(F.getContext());
-		//DILocation dil = DILocation(scope);
-		DILocation dil = Details.MF->getDILocation(iter->Loc);
+		MDNode *scope = iter->Loc.getAsMDNode(F.getContext());
+		DILocation dil = DILocation(scope);
 		if (path.size() == 0) {
 		    DIScope scope = dil.getScope();
 		    path.append(scope.getDirectory());
@@ -2777,14 +2776,6 @@ rb_vm_get_block(VALUE obj)
     return rb_proc_get_block(proc);
 }
 
-extern "C"
-void*
-rb_gc_read_weak_ref(void **referrer);
-
-extern "C"
-void
-rb_gc_assign_weak_ref(const void *value, void *const*location);
-
 static const int VM_LVAR_USES_SIZE = 8;
 enum {
     VM_LVAR_USE_TYPE_BLOCK   = 1,
@@ -2816,7 +2807,7 @@ rb_vm_add_lvar_use(rb_vm_var_uses **var_uses, void *use,
     }
 
     const int current_index = (*var_uses)->uses_count;
-    rb_gc_assign_weak_ref(use, &(*var_uses)->uses[current_index]);
+    rb_gc_assign_weak_ref(use, (const void **)&(*var_uses)->uses[current_index]);
     (*var_uses)->use_types[current_index] = use_type;
     ++(*var_uses)->uses_count;
 }
@@ -2927,7 +2918,7 @@ use_found:
 		}
 
 		// indicate to the GC that we do not have a reference here anymore
-		rb_gc_assign_weak_ref(NULL, &current->uses[use_index]);
+		rb_gc_assign_weak_ref(NULL, (const void **)&current->uses[use_index]);
 	    }
 	}
 	void *old_current = current;
@@ -4633,10 +4624,19 @@ Init_PreVM(void)
     kernel_end = kernel_beg + kernel_i386_bc_len - 1;
 #endif
 
+#if LLVM_TOT
+    MemoryBuffer *mbuf = MemoryBuffer::getMemBuffer(StringRef(kernel_beg,
+		kernel_end - kernel_beg));
+#else
     MemoryBuffer *mbuf = MemoryBuffer::getMemBuffer(kernel_beg, kernel_end);
+#endif
     assert(mbuf != NULL);
-    RoxorCompiler::module = ParseBitcodeFile(mbuf, getGlobalContext());
+    std::string err;
+    RoxorCompiler::module = ParseBitcodeFile(mbuf, getGlobalContext(), &err);
     delete mbuf;
+    if (RoxorCompiler::module == NULL) {
+	printf("kernel bitcode couldn't be read: %s\n", err.c_str());
+    }
     assert(RoxorCompiler::module != NULL);
 
     RoxorCompiler::module->setTargetTriple(TARGET_TRIPLE);
