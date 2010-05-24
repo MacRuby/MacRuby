@@ -42,8 +42,12 @@ task :objects => [:config_h, :dtrace_h, :revision_h, :mark_gc] do
     includes = CFLAGS.scan(/-I[^\s]+/).join(' ')
     ARCHS.each do |x| 
       output = "kernel-#{x}.bc"
+      # Compile the IR for the kernel.c source file & optimize it.
       sh "#{llvm_gcc} -arch #{x} -fexceptions #{includes} --emit-llvm -c kernel.c -o #{output}"
       sh "#{opt} -O3 #{output} -o=#{output}"
+      # Convert the bitcode into a C static array. We append a null byte to the bitcode file because
+      # xxd doesn't, and it's needed by the bitcode reader later at runtime.
+      sh "/bin/dd if=/dev/zero count=1 bs=1 conv=notrunc >> #{output} 2>/dev/null"
       sh "/usr/bin/xxd -i #{output} >> kernel_data.c"
       sh "/bin/rm #{output}"
     end

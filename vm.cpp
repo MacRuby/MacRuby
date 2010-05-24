@@ -4621,14 +4621,16 @@ Init_PreVM(void)
     // To not corrupt stack pointer (essential for backtracing).
     llvm::NoFramePointerElim = true;
 
+    // Retrieve the kernel bitcode for the right architecture. We substract
+    // 1 to the length because it's NULL terminated.
     const char *kernel_beg;
     const char *kernel_end;
 #if __LP64__
     kernel_beg = (const char *)kernel_x86_64_bc;
-    kernel_end = kernel_beg + kernel_x86_64_bc_len;
+    kernel_end = kernel_beg + kernel_x86_64_bc_len - 1;
 #else
     kernel_beg = (const char *)kernel_i386_bc;
-    kernel_end = kernel_beg + kernel_i386_bc_len;
+    kernel_end = kernel_beg + kernel_i386_bc_len - 1;
 #endif
 
     MemoryBuffer *mbuf = MemoryBuffer::getMemBuffer(kernel_beg, kernel_end);
