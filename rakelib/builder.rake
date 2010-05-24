@@ -39,9 +39,10 @@ task :objects => [:config_h, :dtrace_h, :revision_h, :mark_gc] do
       $stderr.puts "Cannot locate opt in given LLVM path: #{LLVM_PATH}"
     end
     sh "echo '' > kernel_data.c"
+    includes = CFLAGS.scan(/-I[^\s]+/).join(' ')
     ARCHS.each do |x| 
       output = "kernel-#{x}.bc"
-      sh "#{llvm_gcc} -arch #{x} -fexceptions -I. -I./include --emit-llvm -c kernel.c -o #{output}"
+      sh "#{llvm_gcc} -arch #{x} -fexceptions #{includes} --emit-llvm -c kernel.c -o #{output}"
       sh "#{opt} -O3 #{output} -o=#{output}"
       sh "/usr/bin/xxd -i #{output} >> kernel_data.c"
       sh "/bin/rm #{output}"
