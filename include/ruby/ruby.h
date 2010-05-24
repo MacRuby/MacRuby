@@ -176,11 +176,9 @@ typedef unsigned LONG_LONG ID;
 #define INT2FIX(i) ((VALUE)(((SIGNED_VALUE)(i))<<2 | FIXNUM_FLAG))
 #define LONG2FIX(i) INT2FIX(i)
 #define rb_fix_new(v) INT2FIX(v)
-VALUE rb_int2inum(SIGNED_VALUE);
 #define INT2NUM(v) rb_int2inum(v)
 #define LONG2NUM(v) INT2NUM(v)
 #define rb_int_new(v) rb_int2inum(v)
-VALUE rb_uint2inum(VALUE);
 #define UINT2NUM(v) rb_uint2inum(v)
 #define ULONG2NUM(v) UINT2NUM(v)
 #define rb_uint_new(v) rb_uint2inum(v)
@@ -188,9 +186,7 @@ VALUE rb_uint2inum(VALUE);
 #define TIMET2NUM(t) LONG2NUM(t)
 
 #ifdef HAVE_LONG_LONG
-VALUE rb_ll2inum(LONG_LONG);
 #define LL2NUM(v) rb_ll2inum(v)
-VALUE rb_ull2inum(unsigned LONG_LONG);
 #define ULL2NUM(v) rb_ull2inum(v)
 #endif
 
@@ -238,7 +234,6 @@ VALUE rb_ull2inum(unsigned LONG_LONG);
 
 #define IMMEDIATE_P(x) ((VALUE)(x) & IMMEDIATE_MASK)
 
-
 #if __LP64__
 #define VOODOO_DOUBLE(d) (*(VALUE*)(&d))
 #define DBL2FIXFLOAT(d) (VOODOO_DOUBLE(d) | FIXFLOAT_FLAG)
@@ -274,7 +269,8 @@ enum ruby_special_consts {
 
 // We can't directly cast a void* to a double, so we cast it to a union
 // and then extract its double member. Hacky, but effective.
-static inline double coerce_ptr_to_double(VALUE v)
+static inline double
+coerce_ptr_to_double(VALUE v)
 {
     union {
 	VALUE val;
@@ -300,6 +296,47 @@ static inline double coerce_ptr_to_double(VALUE v)
 #define NIL_P(v) ((VALUE)(v) == Qnil)
 
 #define CLASS_OF(v) rb_class_of((VALUE)(v))
+
+VALUE rb_uint2big(VALUE);
+VALUE rb_int2big(SIGNED_VALUE);
+VALUE rb_ull2big(unsigned long long n);
+VALUE rb_ll2big(long long n);
+
+static inline VALUE
+rb_uint2inum(VALUE n)
+{
+    if (POSFIXABLE(n)) {
+	return LONG2FIX(n);
+    }
+    return rb_uint2big(n);
+}
+
+static inline VALUE
+rb_int2inum(SIGNED_VALUE n)
+{
+    if (FIXABLE(n)) {
+	return LONG2FIX(n);
+    }
+    return rb_int2big(n);
+}
+
+static inline VALUE
+rb_ull2inum(unsigned long long n)
+{
+    if (POSFIXABLE(n)) {
+	return LONG2FIX(n);
+    }
+    return rb_ull2big(n);
+}
+
+static inline VALUE
+rb_ll2inum(long long n)
+{
+    if (FIXABLE(n)) {
+	return LONG2FIX(n);
+    }
+    return rb_ll2big(n);
+}
 
 enum ruby_value_type {
     RUBY_T_NONE   = 0x00,
@@ -426,7 +463,12 @@ unsigned long rb_fix2uint(VALUE);
 #ifdef HAVE_LONG_LONG
 LONG_LONG rb_num2ll(VALUE);
 unsigned LONG_LONG rb_num2ull(VALUE);
-# define NUM2LL(x) (FIXNUM_P(x)?FIX2LONG(x):rb_num2ll((VALUE)x))
+static inline long long
+__num2ll(VALUE obj)
+{
+    return FIXNUM_P(obj) ? FIX2LONG(obj) : rb_num2ll(obj);
+}
+# define NUM2LL(x) __num2ll((VALUE)x)
 # define NUM2ULL(x) rb_num2ull((VALUE)x)
 #endif
 

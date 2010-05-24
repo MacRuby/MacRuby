@@ -701,6 +701,7 @@ rb_boxed_objc_type(VALUE rcv, SEL sel)
     return rb_ivar_get(rcv, boxed_ivar_type);
 }
 
+extern "C"
 bool
 rb_boxed_is_type(VALUE klass, const char *type)
 {
@@ -764,6 +765,7 @@ rb_pointer_init_type(rb_vm_pointer_t *ptr, VALUE type)
     assert(ptr->type_size > 0);
 }
 
+extern "C"
 VALUE
 rb_pointer_new(const char *type_str, void *val, size_t len)
 {
@@ -779,6 +781,7 @@ rb_pointer_new(const char *type_str, void *val, size_t len)
 
 static VALUE rb_pointer_aset(VALUE rcv, SEL sel, VALUE idx, VALUE val);
 
+extern "C"
 VALUE
 rb_pointer_new2(const char *type_str, VALUE rval)
 {
@@ -828,6 +831,7 @@ rb_pointer_s_new(VALUE rcv, SEL sel, int argc, VALUE *argv)
 	    xmalloc(GET_CORE()->get_sizeof(type_str) * rlen), rlen);
 }
 
+extern "C"
 void *
 rb_pointer_get_data(VALUE rcv, const char *type)
 {
@@ -1115,17 +1119,7 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 	    if (!CFDictionaryGetValueIfPresent(rb_cObject_dict,
 			(const void *)name, NULL)) {
 
-		VALUE val;
-#if 0 // this is likely not needed anymore
-	    	if (bs_strconst->nsstring) {
-		    CFStringRef string = CFStringCreateWithCString(NULL,
-			    bs_strconst->value, kCFStringEncodingUTF8);
-		    val = (VALUE)string;
-	    	}
-	    	else {
-#endif
-		    val = rb_str_new2(bs_strconst->value);
-//	    	}
+		VALUE val = rb_str_new2(bs_strconst->value);
 		CFDictionarySetValue(rb_cObject_dict, (const void *)name, 
 			(const void *)val);
 	    }

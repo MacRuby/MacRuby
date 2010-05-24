@@ -294,6 +294,7 @@ int rb_vm_thread_safe_level(rb_vm_thread_t *thread);
 VALUE rb_vm_top_self(void);
 void rb_vm_const_is_defined(ID path);
 VALUE rb_vm_resolve_const_value(VALUE val, VALUE klass, ID name);
+VALUE rb_vm_const_lookup(VALUE outer, ID path, bool lexical, bool defined);
 bool rb_vm_lookup_method(Class klass, SEL sel, IMP *pimp,
 	rb_vm_method_node_t **pnode);
 bool rb_vm_lookup_method2(Class klass, ID mid, SEL *psel, IMP *pimp,
@@ -329,7 +330,6 @@ bool rb_vm_respond_to2(VALUE obj, VALUE klass, SEL sel, bool priv, bool check_ov
 VALUE rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv);
 void rb_vm_push_methods(VALUE ary, VALUE mod, bool include_objc_methods,
 	int (*filter) (VALUE, ID, VALUE));
-void rb_vm_ivar_set(VALUE obj, ID name, VALUE val, void *cache);
 void rb_vm_set_outer(VALUE klass, VALUE under);
 VALUE rb_vm_get_outer(VALUE klass);
 VALUE rb_vm_catch(VALUE tag);
@@ -502,16 +502,6 @@ void rb_vm_finalize(void);
 void rb_vm_load_bridge_support(const char *path, const char *framework_path,
 	int options);
 
-typedef enum {
-    SCOPE_DEFAULT = 0,	// public for everything but Object
-    SCOPE_PUBLIC,
-    SCOPE_PRIVATE,
-    SCOPE_PROTECTED,
-    SCOPE_MODULE_FUNC,
-} rb_vm_scope_t;
-
-void rb_vm_set_current_scope(VALUE mod, rb_vm_scope_t scope);
-
 typedef struct {
     VALUE klass;
     VALUE objid;
@@ -522,15 +512,20 @@ void rb_vm_register_finalizer(rb_vm_finalizer_t *finalizer);
 void rb_vm_unregister_finalizer(rb_vm_finalizer_t *finalizer);
 void rb_vm_call_finalizer(rb_vm_finalizer_t *finalizer);
 
-#if defined(__cplusplus)
-}
-
-#include "bridgesupport.h"
-
 struct icache {
     VALUE klass;
     int slot;
 };
+
+struct ccache {
+    VALUE outer;
+    VALUE val;
+};
+
+#if defined(__cplusplus)
+}
+
+#include "bridgesupport.h"
 
 typedef struct {
     Function *func;
@@ -570,11 +565,6 @@ struct mcache {
 #define rcache cache->as.rcall
 #define ocache cache->as.ocall
 #define fcache cache->as.fcall
-};
-
-struct ccache {
-    VALUE outer;
-    VALUE val;
 };
 
 // For rb_vm_define_class()
@@ -620,16 +610,16 @@ class RoxorCore {
 	pthread_mutex_t gl;
 
 	// State.
+	bool inlining_enabled;
 	bool running;
 	bool abort_on_exception;
 	VALUE loaded_features;
 	VALUE load_path;
 	VALUE default_random;
 
-	// Signals
+	// Signals.
 	std::map<int, VALUE> trap_cmd;
-	// Safety level at the time trap is set
-	std::map<int, int>   trap_level;
+	std::map<int, int> trap_level;
 
 	// Cache to avoid compiling the same Function twice.
 	std::map<Function *, IMP> JITcache;
@@ -711,10 +701,8 @@ class RoxorCore {
 	void register_thread(VALUE thread);
 	void unregister_thread(VALUE thread);
 
-	void optimize(Function *func) {
-	    fpm->run(*func);
-	}
-	IMP compile(Function *func);
+	void optimize(Function *func);
+	IMP compile(Function *func, bool optimize=true);
 	void delenda(Function *func);
 
 	void load_bridge_support(const char *path, const char *framework_path,

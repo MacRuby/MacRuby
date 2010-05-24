@@ -173,6 +173,9 @@ TypeArity(const char *type)
     return arity;
 }
 
+id rb_objc_numeric2nsnumber(VALUE obj);
+VALUE rb_objc_nsnumber2numeric(id obj);
+
 static inline id
 rb_rval_to_ocid(VALUE obj)
 {
@@ -186,37 +189,11 @@ rb_rval_to_ocid(VALUE obj)
         if (obj == Qnil) {
             return (id)kCFNull;
         }
-	if (FIXNUM_P(obj)) {
-	    // TODO: this could be optimized in case we can fit the fixnum
-	    // into an immediate NSNumber directly.
-	    long val = FIX2LONG(obj);
-	    CFNumberRef number = CFNumberCreate(NULL, kCFNumberLongType, &val);
-	    CFMakeCollectable(number);
-	    return (id)number;
-	}
-	if (FIXFLOAT_P(obj)) {
-	    double val = NUM2DBL(obj);
-	    CFNumberRef number = CFNumberCreate(NULL, kCFNumberDoubleType,
-		    &val);
-	    CFMakeCollectable(number);
-	    return (id)number;
+	if (IMMEDIATE_P(obj)) {
+	    return rb_objc_numeric2nsnumber(obj);
 	}
     }
     return (id)obj;
-}
-
-static inline bool
-rb_objc_obj_is_nsnumber(id obj)
-{
-    Class k = object_getClass(obj); // might be an immediate
-    do {
-	if (k == (Class)rb_cNSNumber) {
-	    return true;
-	}
-	k = class_getSuperclass(k);
-    }
-    while (k != NULL);
-    return false;
 }
 
 static inline VALUE
@@ -231,26 +208,7 @@ rb_ocid_to_rval(id obj)
     if (obj == (id)kCFNull || obj == nil) {
 	return Qnil;
     }
-
-    if (rb_objc_obj_is_nsnumber(obj)) {
-	// TODO: this could be optimized in case the object is an immediate.
-	if (CFNumberIsFloatType((CFNumberRef)obj)) {
-	    double v = 0;
-	    assert(CFNumberGetValue((CFNumberRef)obj, kCFNumberDoubleType, &v));
-	    return DOUBLE2NUM(v);
-	}
-	else {
-	    long v = 0;
-	    assert(CFNumberGetValue((CFNumberRef)obj, kCFNumberLongType, &v));
-	    return LONG2FIX(v);
-	}
-    }
-
-    if (((unsigned long)obj & 0x1) == 0x1) {
-	rb_bug("unknown Objective-C immediate: %p\n", obj);
-    }
-
-    return (VALUE)obj;
+    return rb_objc_nsnumber2numeric(obj);
 }
 
 #define RB2OC(obj) (rb_rval_to_ocid((VALUE)obj))
@@ -262,6 +220,8 @@ bool rb_objc_ignore_sel(SEL sel);
 bool rb_objc_isEqual(VALUE x, VALUE y); 
 void rb_objc_force_class_initialize(Class klass);
 void rb_objc_fix_relocatable_load_path(void);
+
+extern bool rb_objc_enable_ivar_set_kvo_notifications;
 
 #if defined(__cplusplus)
 }

@@ -428,7 +428,7 @@ str_length(rb_str_t *self, bool ucs2_mode)
     if (self->length_in_bytes == 0) {
 	return 0;
     }
-    if (str_is_stored_in_uchars(self)) {
+    if (str_try_making_data_uchars(self)) {
 	long length;
 	if (ucs2_mode) {
 	    length = BYTES_TO_UCHARS(self->length_in_bytes);
@@ -4401,6 +4401,9 @@ rstr_justify(int argc, VALUE *argv, VALUE str, char mode)
     const long len = str_length(RSTR(str), true);
     long width = NUM2LONG(w);
     str = rb_str_new3(str);
+    if (str_is_stored_in_uchars(RSTR(padstr))) {
+	str_try_making_data_uchars(RSTR(str));
+    }
     if (width < 0 || width <= len) {
 	return str;
     }

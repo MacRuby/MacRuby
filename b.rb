@@ -1,6 +1,6 @@
 def bench(e, options)
   puts e
-  ['./miniruby', 'ruby19'].each do |r|
+  ['./miniruby', 'ruby1.9'].each do |r|
     puts `#{r} -v`.strip
     line = File.exist?(e) ? "#{r} \"#{e}\"" : "#{r} -e \"#{e}\""
     n = options.include?('--no-rehearsal') ? 1 : 3

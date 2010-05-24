@@ -428,6 +428,11 @@ rhash_rehash(VALUE hash, SEL sel)
  *
  */
 
+VALUE
+rhash_call_default(VALUE hash, VALUE key)
+{
+    return rb_vm_call_with_cache(defaultCache, hash, selDefault, 1, &key);
+}
 
 VALUE
 rhash_aref(VALUE hash, SEL sel, VALUE key)
@@ -438,8 +443,7 @@ rhash_aref(VALUE hash, SEL sel, VALUE key)
 		&& RHASH(hash)->ifnone == Qnil) {
 	    return Qnil;
 	}
-	return rb_vm_call_with_cache(defaultCache, hash, selDefault,
-		1, &key);
+	return rhash_call_default(hash, key);
     }
     return val;
 }
@@ -902,8 +906,8 @@ rhash_aset(VALUE hash, SEL sel, VALUE key, VALUE val)
 {
     rhash_modify(hash);
     if (TYPE(key) == T_STRING) {
-	key = rb_str_dup(key);
-	OBJ_FREEZE(key);
+        key = rb_str_dup(key);
+        OBJ_FREEZE(key);
     }
     st_insert(RHASH(hash)->tbl, key, val);
     return val;

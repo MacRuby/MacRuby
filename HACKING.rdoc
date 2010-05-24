@@ -124,6 +124,11 @@ The following environment variables might help you debug easy bugs.
 * VM_VERIFY_IR: set it to any value to force a LLVM module verification before
   the interpreter quits.
 
+* VM_OPT_LEVEL: set it either to 0, 1, 2 or 3 to change the optimization level
+  of the LLVM code generator.
+
+* VM_DISABLE_INLINING: set it to any value to disable function inlining.
+
 * DYLD_LIBRARY_PATH: in case you are debugging a Cocoa application, set this 
   variable to "." before starting gdb, and you won't have to re-install MacRuby
   every time you re-compile it.

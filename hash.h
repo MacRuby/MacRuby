@@ -73,6 +73,18 @@ rhash_lookup(VALUE hash, VALUE key)
 }
 
 static inline VALUE
+rhash_store(VALUE hash, VALUE key, VALUE val)
+{
+    rhash_modify(hash);
+    if (TYPE(key) == T_STRING) {
+        key = rb_str_dup(key);
+        OBJ_FREEZE(key);
+    }
+    st_insert(RHASH(hash)->tbl, key, val);
+    return val;
+}
+
+static inline VALUE
 rhash_delete_key(VALUE hash, VALUE key)
 {
     VALUE val;
@@ -87,6 +99,7 @@ VALUE rhash_aref(VALUE hash, SEL sel, VALUE key);
 VALUE rhash_aset(VALUE hash, SEL sel, VALUE key, VALUE val);
 VALUE rhash_keys(VALUE hash, SEL sel);
 VALUE rhash_has_key(VALUE hash, SEL sel, VALUE key);
+VALUE rhash_call_default(VALUE hash, VALUE key);
 VALUE rhash_set_default(VALUE hash, SEL sel, VALUE ifnone);
 
 #if defined(__cplusplus)

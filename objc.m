@@ -367,7 +367,7 @@ reload_protocols(void)
 #endif
 }
 
-static bool enable_kvo_notifications = false;
+bool rb_objc_enable_ivar_set_kvo_notifications = false;
 
 VALUE
 rb_require_framework(VALUE recv, SEL sel, int argc, VALUE *argv)
@@ -481,7 +481,7 @@ success:
     reload_class_constants();
     reload_protocols();
 
-    enable_kvo_notifications = true;
+    rb_objc_enable_ivar_set_kvo_notifications = true;
 
     return loaded ? Qfalse : Qtrue;
 }
@@ -535,23 +535,6 @@ rb_objc_define_kvo_setter(VALUE klass, ID mid)
 		"(method `%s')",
 		mid_name, rb_class2name(klass), buf);
     }
-}
-
-VALUE
-rb_vm_set_kvo_ivar(VALUE obj, ID name, VALUE val, void *cache)
-{
-    if (enable_kvo_notifications) {
-	NSString *key = [(NSString *)rb_id2str(name) substringFromIndex:1]; // skip '@' prefix
-	[(id)obj willChangeValueForKey:key];
-
-	rb_vm_ivar_set(obj, name, val, cache);
-
-	[(id)obj didChangeValueForKey:key];
-    }
-    else {
-	rb_vm_ivar_set(obj, name, val, cache);
-    }
-    return val;
 }
 
 VALUE
@@ -666,6 +649,65 @@ rb_objc_exception_raise(const char *name, const char *message)
 	reason:[NSString stringWithUTF8String:message] userInfo:nil] raise];
 }
 
+id
+rb_objc_numeric2nsnumber(VALUE obj)
+{
+    if (FIXNUM_P(obj)) {
+	// TODO: this could be optimized in case we can fit the fixnum
+	// into an immediate NSNumber directly.
+	long val = FIX2LONG(obj);
+	CFNumberRef number = CFNumberCreate(NULL, kCFNumberLongType, &val);
+	CFMakeCollectable(number);
+	return (id)number;
+    }
+    if (FIXFLOAT_P(obj)) {
+	double val = NUM2DBL(obj);
+	CFNumberRef number = CFNumberCreate(NULL, kCFNumberDoubleType,
+		&val);
+	CFMakeCollectable(number);
+	return (id)number;
+    }
+    abort();
+}
+
+static inline bool
+rb_objc_obj_is_nsnumber(id obj)
+{
+    Class k = object_getClass(obj); // might be an immediate
+    do {
+	if (k == (Class)rb_cNSNumber) {
+	    return true;
+	}
+	k = class_getSuperclass(k);
+    }
+    while (k != NULL);
+    return false;
+}
+
+VALUE
+rb_objc_nsnumber2numeric(id obj)
+{
+    if (rb_objc_obj_is_nsnumber(obj)) {
+	// TODO: this could be optimized in case the object is an immediate.
+	if (CFNumberIsFloatType((CFNumberRef)obj)) {
+	    double v = 0;
+	    assert(CFNumberGetValue((CFNumberRef)obj, kCFNumberDoubleType, &v));
+	    return DOUBLE2NUM(v);
+	}
+	else {
+	    long v = 0;
+	    assert(CFNumberGetValue((CFNumberRef)obj, kCFNumberLongType, &v));
+	    return LONG2FIX(v);
+	}
+    }
+
+    if (((unsigned long)obj & 0x1) == 0x1) {
+	rb_bug("unknown Objective-C immediate: %p\n", obj);
+    }
+
+    return (VALUE)obj;
+}
+
 bool
 rb_objc_ignore_sel(SEL sel)
 {
@@ -745,6 +787,18 @@ rb_objc_fix_relocatable_load_path(void)
 	    }
 	}
     }
+}
+
+void
+rb_objc_willChangeValueForKey(id obj, NSString *key)
+{
+    [obj willChangeValueForKey:key];
+}
+
+void
+rb_objc_didChangeValueForKey(id obj, NSString *key)
+{
+    [obj didChangeValueForKey:key];
 }
 
 void

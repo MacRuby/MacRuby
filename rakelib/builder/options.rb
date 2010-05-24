@@ -105,7 +105,7 @@ RUBY_VENDOR_ARCHLIB = File.join(RUBY_VENDOR_LIB2, NEW_RUBY_PLATFORM)
 
 INSTALL_NAME = File.join(FRAMEWORK_USR_LIB, 'lib' + RUBY_SO_NAME + '.dylib')
 ARCHFLAGS = ARCHS.map { |a| '-arch ' + a }.join(' ')
-LLVM_MODULES = "core jit nativecodegen bitwriter"
+LLVM_MODULES = "core jit nativecodegen bitwriter bitreader"
 EXPORTED_SYMBOLS_LIST = "./exported_symbols_list"
 
 CC = '/usr/bin/gcc-4.2'

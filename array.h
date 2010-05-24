@@ -89,6 +89,39 @@ rary_entry(VALUE ary, long offset)
     return rary_elt(ary, offset);
 }
 
+void rary_reserve(VALUE ary, size_t newlen);
+
+static inline void
+rary_store(VALUE ary, long idx, VALUE item)
+{
+    if (idx < 0) {
+        const long len = RARY(ary)->len;
+        idx += len;
+        if (idx < 0) {
+            rb_raise(rb_eIndexError, "index %ld out of array",
+                    idx - len);
+        }
+    }
+    size_t uidx = (size_t)idx;
+    if (uidx >= RARY(ary)->len) {
+        rary_reserve(ary, uidx + 1);
+	size_t i;
+        for (i = RARY(ary)->len; i < uidx + 1; i++) {
+            rary_elt_set(ary, i, Qnil);
+        }
+        RARY(ary)->len = uidx + 1;
+    }
+    rary_elt_set(ary, uidx, item);
+}
+
+static inline void
+rary_push(VALUE ary, VALUE item)
+{
+    rary_reserve(ary, RARY(ary)->len + 1);
+    rary_elt_set(ary, RARY(ary)->len, item);
+    RARY(ary)->len++;
+}
+
 static inline void
 rb_ary_modify(VALUE ary)
 {
@@ -120,7 +153,6 @@ VALUE rary_unshift(VALUE ary, SEL sel, int argc, VALUE *argv);
 VALUE rary_each(VALUE ary, SEL sel);
 VALUE rary_sort(VALUE ary, SEL sel);
 VALUE rary_sort_bang(VALUE ary, SEL sel);
-void rary_store(VALUE ary, long idx, VALUE item);
 VALUE rary_subseq(VALUE ary, long beg, long len);
 void rary_insert(VALUE ary, long idx, VALUE val);
 

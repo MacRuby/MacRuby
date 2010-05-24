@@ -9,8 +9,6 @@
 #ifndef __COMPILER_H_
 #define __COMPILER_H_
 
-#if defined(__cplusplus)
-
 // For the dispatcher.
 #define DISPATCH_VCALL		1  // no receiver, no argument
 #define DISPATCH_FCALL		2  // no receiver, one or more arguments
@@ -30,6 +28,8 @@
 #define DEFINED_LCONST	5
 #define DEFINED_SUPER	6
 #define DEFINED_METHOD	7
+
+#if defined(__cplusplus)
 
 class RoxorCompiler {
     public:
@@ -59,6 +59,8 @@ class RoxorCompiler {
 		const rb_vm_arity_t &arity, const char *types);
 	Function *compile_block_caller(rb_vm_block_t *block);
 	Function *compile_mri_stub(void *imp, const int arity);
+
+	void inline_function_calls(Function *f);
 
 	const Type *convert_type(const char *type);
 
@@ -138,6 +140,9 @@ class RoxorCompiler {
 	Function *fastEqFunc;
 	Function *fastNeqFunc;
 	Function *fastEqqFunc;
+	Function *fastArefFunc;
+	Function *fastAsetFunc;
+	Function *fastShiftFunc;
 	Function *whenSplatFunc;
 	Function *prepareBlockFunc;
 	Function *pushBindingFunc;
@@ -151,17 +156,20 @@ class RoxorCompiler {
 	Function *prepareIvarSlotFunc;
 	Function *getIvarFunc;
 	Function *setIvarFunc;
-	Function *setKVOIvarFunc;
+	Function *willChangeValueFunc;
+	Function *didChangeValueFunc;
 	Function *definedFunc;
 	Function *undefFunc;
 	Function *aliasFunc;
 	Function *valiasFunc;
 	Function *newHashFunc;
+	Function *storeHashFunc;
 	Function *toAFunc;
 	Function *toAryFunc;
 	Function *catArrayFunc;
 	Function *dupArrayFunc;
 	Function *newArrayFunc;
+	Function *asetArrayFunc;
 	Function *newStructFunc;
 	Function *newOpaqueFunc;
 	Function *newPointerFunc;
@@ -196,8 +204,6 @@ class RoxorCompiler {
 	Function *returnedFromBlockFunc;
 	Function *checkReturnFromBlockFunc;
 	Function *setHasEnsureFunc;
-	Function *longjmpFunc;
-	Function *setjmpFunc;
 	Function *setScopeFunc;
 	Function *setCurrentClassFunc;
 	Function *getCacheFunc;
@@ -205,6 +211,37 @@ class RoxorCompiler {
 	Function *getFFStateFunc;
 	Function *setFFStateFunc;
 	Function *takeOwnershipFunc;
+	Function *ocvalToRvalFunc;
+	Function *charToRvalFunc;
+	Function *ucharToRvalFunc;
+	Function *shortToRvalFunc;
+	Function *ushortToRvalFunc;
+	Function *intToRvalFunc;
+	Function *uintToRvalFunc;
+	Function *longToRvalFunc;
+	Function *ulongToRvalFunc;
+	Function *longLongToRvalFunc;
+	Function *ulongLongToRvalFunc;
+	Function *floatToRvalFunc;
+	Function *doubleToRvalFunc;
+	Function *selToRvalFunc;
+	Function *charPtrToRvalFunc;
+	Function *rvalToOcvalFunc;
+	Function *rvalToBoolFunc;
+	Function *rvalToCharFunc;
+	Function *rvalToUcharFunc;
+	Function *rvalToShortFunc;
+	Function *rvalToUshortFunc;
+	Function *rvalToIntFunc;
+	Function *rvalToUintFunc;
+	Function *rvalToLongFunc;
+	Function *rvalToUlongFunc;
+	Function *rvalToLongLongFunc;
+	Function *rvalToUlongLongFunc;
+	Function *rvalToFloatFunc;
+	Function *rvalToDoubleFunc;
+	Function *rvalToSelFunc;
+	Function *rvalToCharPtrFunc;
 
 	Constant *zeroVal;
 	Constant *oneVal;
@@ -239,6 +276,16 @@ class RoxorCompiler {
 
 	void compile_node_error(const char *msg, NODE *node);
 
+	Function *
+	get_function(const char *name) {
+	    Function *f = module->getFunction(name);
+	    if (f == NULL) {
+		printf("function %s cannot be found!\n", name);
+		abort();
+	    }
+	    return f;
+	}
+
 	virtual Constant *
 	compile_const_pointer(void *ptr, const PointerType *type=NULL) {
 	    if (type == NULL) {
@@ -258,6 +305,8 @@ class RoxorCompiler {
 	    return compile_const_pointer(ptr, PtrPtrTy);
 	}
 
+	bool should_inline_function(Function *f);
+
 	Function *compile_scope(NODE *node);
 	Instruction *compile_protected_call(Value *imp,
 		std::vector<Value *> &params);
@@ -276,7 +325,6 @@ class RoxorCompiler {
 		NODE *body);
 	Value *compile_dispatch_call(std::vector<Value *> &params);
 	Value *compile_when_splat(Value *comparedToVal, Value *splatVal);
-	Value *compile_fast_op_call(SEL sel, Value *selfVal, Value *comparedToVal);
 	Value *compile_attribute_assign(NODE *node, Value *extra_val);
 	virtual Value *compile_prepare_block_args(Function *func, int *flags);
 	Value *compile_block_create(void);
@@ -353,26 +401,19 @@ class RoxorCompiler {
 	Value *compile_xmalloc(size_t len);
 
 	Value *compile_conversion_to_c(const char *type, Value *val,
-				       Value *slot);
+		Value *slot);
 	Value *compile_conversion_to_ruby(const char *type,
-					  const Type *llvm_type, Value *val);
+		const Type *llvm_type, Value *val);
 	void compile_debug_trap(void);
 
 	virtual Value *compile_slot_cache(ID id);
-	ICmpInst *is_value_a_fixnum(Value *val);
-	void compile_ivar_slots(Value *klass, BasicBlock::InstListType &list, 
-				BasicBlock::InstListType::iterator iter);
-	bool unbox_ruby_constant(Value *val, VALUE *rval);
-	Value *optimized_immediate_op(SEL sel, Value *leftVal, Value *rightVal,
-		bool float_op, bool *is_predicate);
-	Value *compile_double_coercion(Value *val, Value *mask,
-		BasicBlock *fallback_bb, Function *f);
 	void compile_keep_vars(BasicBlock *startBB, BasicBlock *mergeBB);
 
 	SEL mid_to_sel(ID mid, int arity);
 
 	Value *compile_get_ffstate(GlobalVariable *ffstate);
-	Value *compile_set_ffstate(Value *val, Value *expected, GlobalVariable *ffstate, BasicBlock *mergeBB, Function *f);
+	Value *compile_set_ffstate(Value *val, Value *expected,
+		GlobalVariable *ffstate, BasicBlock *mergeBB, Function *f);
 	Value *compile_ff2(NODE *current_node);
 	Value *compile_ff3(NODE *current_node);
 

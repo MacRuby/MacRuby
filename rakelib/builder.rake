@@ -25,6 +25,28 @@ task :objects => [:config_h, :dtrace_h, :revision_h, :mark_gc] do
   if !File.exist?('node_name.inc') or File.mtime('include/ruby/node.h') > File.mtime('node_name.inc')
     sh("/usr/bin/ruby -n tool/node_name.rb include/ruby/node.h > node_name.inc")
   end
+  if !File.exist?('kernel_data.c') or File.mtime('kernel.c') > File.mtime('kernel_data.c')
+    # Locate llvm-gcc...
+    path = ENV['PATH'].split(':')
+    path.unshift('/Developer/usr/bin')
+    llvm_gcc = path.map { |x| File.join(x, 'llvm-gcc') }.find { |x| File.exist?(x) }
+    unless llvm_gcc
+      $stderr.puts "Cannot locate llvm-gcc in given path: #{path}"
+      exit 1
+    end
+    opt = File.join(LLVM_PATH, 'bin/opt')
+    unless File.exist?(opt)
+      $stderr.puts "Cannot locate opt in given LLVM path: #{LLVM_PATH}"
+    end
+    sh "echo '' > kernel_data.c"
+    ARCHS.each do |x| 
+      output = "kernel-#{x}.bc"
+      sh "#{llvm_gcc} -arch #{x} -fexceptions -I. -I./include --emit-llvm -c kernel.c -o #{output}"
+      sh "#{opt} -O3 #{output} -o=#{output}"
+      sh "/usr/bin/xxd -i #{output} >> kernel_data.c"
+      sh "/bin/rm #{output}"
+    end
+  end
   t = File.exist?('dispatcher.o') ? File.mtime('dispatcher.o') : nil
   $builder.build
   if t == nil or File.mtime('dispatcher.o') > t
@@ -68,14 +90,6 @@ namespace :macruby do
   desc "Build MacRuby"
   task :build => :dylib do
     $builder.link_executable(RUBY_INSTALL_NAME, ['main', 'gc-stub'], "-L. -l#{RUBY_SO_NAME} -lobjc")
-  end
-
-  # Generates a list of weak symbols in libmacruby.dylib. You must not pass a unexported symbols list to
-  # rake when calling this command.
-  task :weak_symbols => :dylib do
-    sh("nm -m -P -arch i386 libmacruby.1.9.0.dylib | grep 'weak external' | grep -v 'undefined' | egrep -v '__ZT[IS]' | awk '{print$5}' > /tmp/syms-i386")
-    sh("nm -m -P -arch x86_64 libmacruby.1.9.0.dylib | grep 'weak external' | grep -v 'undefined' | egrep -v '__ZT[IS]' | awk '{print$5}' > /tmp/syms-x86_64")
-    sh("cat /tmp/syms-i386 /tmp/syms-x86_64 | uniq > unexported_symbols.list")
   end
 end
 
@@ -163,7 +177,7 @@ namespace :clean do
   desc "Clean local build files"
   task :local do
     $builder.clean
-    list = ['parse.c', 'lex.c', INSTALLED_LIST, 'Makefile', RUBY_INSTALL_NAME, 'miniruby']
+    list = ['parse.c', 'lex.c', INSTALLED_LIST, 'Makefile', RUBY_INSTALL_NAME, 'miniruby', 'kernel_data.c']
     list.concat(Dir['*.inc'])
     list.concat(Dir['lib*.{dylib,a}'])
     list.each { |x| rm_f(x) }

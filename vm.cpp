@@ -30,7 +30,8 @@
 #include <llvm/Target/TargetSelect.h>
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Support/raw_ostream.h>
-#include <llvm/Support/PrettyStackTrace.h> // Including PST to disable it
+#include <llvm/Support/PrettyStackTrace.h>
+#include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Intrinsics.h>
 #include <llvm/Bitcode/ReaderWriter.h>
 #include <llvm/LLVMContext.h>
@@ -302,6 +303,7 @@ RoxorCore::RoxorCore(void)
 {
     running = false;
     abort_on_exception = false;
+    inlining_enabled = getenv("VM_DISABLE_INLINING") == NULL;
 
     pthread_assert(pthread_mutex_init(&gl, 0));
 
@@ -326,8 +328,30 @@ RoxorCore::RoxorCore(void)
 
     InitializeNativeTarget();
 
+    CodeGenOpt::Level opt = CodeGenOpt::Default;
+    const char *env_str = getenv("VM_OPT_LEVEL");
+    if (env_str != NULL) {
+	const int tmp = atoi(env_str);
+	if (tmp >= 0 && tmp <= 3) {
+	    switch (tmp) {
+		case 0:
+		    opt = CodeGenOpt::None;
+		    break;
+		case 1:
+		    opt = CodeGenOpt::Less;
+		    break;
+		case 2:
+		    opt = CodeGenOpt::Default;
+		    break;
+		case 3:
+		    opt = CodeGenOpt::Aggressive;
+		    break;
+	    }
+	}
+    }
+
     std::string err;
-    ee = ExecutionEngine::createJIT(emp, &err, jmm, CodeGenOpt::None, false);
+    ee = ExecutionEngine::createJIT(emp, &err, jmm, opt, false);
     if (ee == NULL) {
 	fprintf(stderr, "error while creating JIT: %s\n", err.c_str());
 	abort();
@@ -497,8 +521,17 @@ RoxorVM::debug_exceptions(void)
     return s;
 }
 
+void
+RoxorCore::optimize(Function *func)
+{
+    if (inlining_enabled) {
+	RoxorCompiler::shared->inline_function_calls(func);
+    }
+    fpm->run(*func);
+}
+
 IMP
-RoxorCore::compile(Function *func)
+RoxorCore::compile(Function *func, bool run_optimize)
 {
     std::map<Function *, IMP>::iterator iter = JITcache.find(func);
     if (iter != JITcache.end()) {
@@ -511,15 +544,19 @@ RoxorCore::compile(Function *func)
     if (!ruby_aot_compile) {
 	if (verifyModule(*RoxorCompiler::module, PrintMessageAction)) {
 	    printf("Error during module verification\n");
-	    exit(1);
+	    abort();
 	}
     }
 
     uint64_t start = mach_absolute_time();
 #endif
 
-    // Optimize & compile.
-    optimize(func);
+    // Optimize if needed.
+    if (run_optimize) {
+	optimize(func);
+    }
+
+    // Compile & cache.
     IMP imp = (IMP)ee->getPointerToFunction(func);
     JITcache[func] = imp;
 
@@ -807,7 +844,7 @@ RoxorCore::is_large_struct_type(const Type *type)
 	&& ee->getTargetData()->getTypeSizeInBits(type) > LARGE_STRUCT_SIZE;
 }
 
-inline GlobalVariable *
+GlobalVariable *
 RoxorCore::redefined_op_gvar(SEL sel, bool create)
 {
     std::map <SEL, GlobalVariable *>::iterator iter =
@@ -816,10 +853,11 @@ RoxorCore::redefined_op_gvar(SEL sel, bool create)
     if (iter == redefined_ops_gvars.end()) {
 	if (create) {
 	    gvar = new GlobalVariable(*RoxorCompiler::module,
-		    Type::getInt1Ty(context),
+		    Type::getInt8Ty(context),
 		    ruby_aot_compile ? true : false,
 		    GlobalValue::InternalLinkage,
-		    ConstantInt::getFalse(context), "");
+		    ConstantInt::get(Type::getInt8Ty(context), 0),
+		    "");
 	    assert(gvar != NULL);
 	    redefined_ops_gvars[sel] = gvar;
 	}
@@ -830,7 +868,7 @@ RoxorCore::redefined_op_gvar(SEL sel, bool create)
     return gvar;
 }
 
-inline bool
+bool
 RoxorCore::should_invalidate_inline_op(SEL sel, Class klass)
 {
     if (sel == selEq || sel == selEqq || sel == selNeq) {
@@ -899,7 +937,6 @@ RoxorCore::method_added(Class klass, SEL sel)
 	    }
 	}
     }
-
 }
 
 void
@@ -1144,26 +1181,6 @@ rb_vm_set_abort_on_exception(bool flag)
     GET_CORE()->set_abort_on_exception(flag);
 }
 
-extern "C"
-void 
-rb_vm_set_const(VALUE outer, ID id, VALUE obj, unsigned char dynamic_class)
-{
-    if (dynamic_class) {
-	Class k = GET_VM()->get_current_class();
-	if (k != NULL) {
-	    outer = (VALUE)k;
-	}
-    }
-#if ROXOR_VM_DEBUG
-    printf("define const %s::%s to %p\n", 
-	    class_getName((Class)outer), 
-	    rb_id2name(id),
-	    (void *)obj);
-#endif
-    rb_const_set(outer, id, obj);
-    GET_CORE()->const_defined(id);
-}
-
 static inline VALUE
 rb_const_get_direct(VALUE klass, ID id)
 {
@@ -1202,9 +1219,11 @@ retry:
     return Qundef;
 }
 
-static VALUE
+extern "C"
+VALUE
 rb_vm_const_lookup(VALUE outer, ID path, bool lexical, bool defined)
 {
+    rb_vm_check_if_module(outer);
     if (lexical) {
 	// Let's do a lexical lookup before a hierarchical one, by looking for
 	// the given constant in all modules under the given outer.
@@ -1223,51 +1242,6 @@ rb_vm_const_lookup(VALUE outer, ID path, bool lexical, bool defined)
 
     // Nothing was found earlier so here we do a hierarchical lookup.
     return defined ? rb_const_defined(outer, path) : rb_const_get(outer, path);
-}
-
-static inline void
-check_if_module(VALUE mod)
-{
-    switch (TYPE(mod)) {
-	case T_CLASS:
-	case T_MODULE:
-	    break;
-
-	default:
-	    rb_raise(rb_eTypeError, "%s is not a class/module",
-		    RSTRING_PTR(rb_inspect(mod)));
-    }
-}
-
-extern "C"
-VALUE
-rb_vm_get_const(VALUE outer, struct ccache *cache, ID path, int flags)
-{
-    const bool lexical_lookup = (flags & CONST_LOOKUP_LEXICAL);
-    const bool dynamic_class = (flags & CONST_LOOKUP_DYNAMIC_CLASS);
-
-    if (dynamic_class) {
-	Class k = GET_VM()->get_current_class();
-	if (lexical_lookup && k != NULL) {
-	    outer = (VALUE)k;
-	}
-    }
-
-    assert(cache != NULL);
-
-    VALUE val;
-    if (cache->outer == outer && cache->val != Qundef) {
-	val = cache->val;
-    }
-    else {
-	check_if_module(outer);
-	val = rb_vm_const_lookup(outer, path, lexical_lookup, false);
-	assert(val != Qundef);
-	cache->outer = outer;
-	cache->val = val;
-    }
-
-    return val;
 }
 
 extern "C"
@@ -1343,7 +1317,7 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
 	unsigned char dynamic_class)
 {
     assert(path > 0);
-    check_if_module(outer);
+    rb_vm_check_if_module(outer);
 
     if (dynamic_class) {
 	Class k = GET_VM()->get_current_class();
@@ -1355,7 +1329,7 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
     VALUE klass = get_klass_const(outer, path, dynamic_class);
     if (klass != Qundef) {
 	// Constant is already defined.
-	check_if_module(klass);
+	rb_vm_check_if_module(klass);
 	if (!(flags & DEFINE_MODULE) && super != 0) {
 	    if (rb_class_real(RCLASS_SUPER(klass), true) != super) {
 		rb_raise(rb_eTypeError, "superclass mismatch for class %s",
@@ -1424,9 +1398,6 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
     return klass;
 }
 
-#define LIKELY(x)   (__builtin_expect((x), 1))
-#define UNLIKELY(x) (__builtin_expect((x), 0))
-
 extern "C"
 int
 rb_vm_get_ivar_slot(VALUE obj, ID name, bool create)
@@ -1452,169 +1423,6 @@ rb_vm_get_ivar_slot(VALUE obj, ID name, bool create)
 	}
     }
     return -1;
-}
-
-extern "C"
-VALUE
-rb_vm_ivar_get(VALUE obj, ID name, struct icache *cache)
-{
-    VALUE klass = CLASS_OF(obj);
-    if (LIKELY(klass == cache->klass)) {
-use_slot:
-	if ((unsigned int)cache->slot < ROBJECT(obj)->num_slots) {
-	    rb_object_ivar_slot_t *slot = &ROBJECT(obj)->slots[cache->slot];
-	    if (slot->name == name) {
-#if ROXOR_VM_DEBUG
-		printf("get ivar <%s %p> %s slot %d -> %p\n",
-			class_getName((Class)CLASS_OF(obj)), (void *)obj,
-			rb_id2name(name), cache->slot, (void *)slot->value);
-#endif
-		VALUE val = slot->value;
-		return val == Qundef ? Qnil : val;
-	    }
-	}
-	goto recache;
-    }
-    else {
-	goto recache;
-    }
-
-    if (cache->slot == SLOT_CACHE_VIRGIN) {
-recache:
-	const int slot = rb_vm_get_ivar_slot(obj, name, true);
-	if (slot >= 0) {
-	    cache->klass = klass;
-	    cache->slot = slot;
-	    goto use_slot;
-	}
-	cache->klass = 0;
-	cache->slot = SLOT_CACHE_CANNOT;
-    }
-
-    assert(cache->slot == SLOT_CACHE_CANNOT);
-#if ROXOR_VM_DEBUG
-    printf("get ivar <%s %p> %s without slot\n",
-	    class_getName((Class)CLASS_OF(obj)), (void *)obj, rb_id2name(name));
-#endif
-    return rb_ivar_get(obj, name);
-}
-
-extern "C"
-void
-rb_vm_ivar_set(VALUE obj, ID name, VALUE val, void *cache_ptr)
-{
-    struct icache *cache = (struct icache *)cache_ptr;
-    VALUE klass = CLASS_OF(obj);
-    if (LIKELY(klass == cache->klass)) {
-use_slot:
-	if ((unsigned int)cache->slot < ROBJECT(obj)->num_slots) {
-	    rb_object_ivar_slot_t *slot = &ROBJECT(obj)->slots[cache->slot];
-	    if (slot->name == name) {
-		if ((ROBJECT(obj)->basic.flags & FL_FREEZE) == FL_FREEZE) {
-		    rb_error_frozen("object");
-		}
-#if ROXOR_VM_DEBUG
-		printf("set ivar <%s %p> %s to %p slot %d\n",
-			class_getName((Class)CLASS_OF(obj)), (void *)obj,
-			rb_id2name(name), (void *)val, cache->slot);
-#endif
-		GC_WB(&slot->value, val);
-		return;
-	    }
-	}
-	goto recache;
-    }
-    else {
-	goto recache;
-    }
-
-    if (cache->slot == SLOT_CACHE_VIRGIN) {
-recache:
-	const int slot = rb_vm_get_ivar_slot(obj, name, true);
-	if (slot >= 0) {
-	    cache->klass = klass;
-	    cache->slot = slot;
-	    goto use_slot;
-	}
-	cache->slot = SLOT_CACHE_CANNOT;
-    }
-
-    assert(cache->slot == SLOT_CACHE_CANNOT);
-#if ROXOR_VM_DEBUG
-    printf("set ivar <%s %p> %s to %p without slot\n",
-	    class_getName((Class)CLASS_OF(obj)), (void *)obj,
-	    rb_id2name(name), (void *)val);
-#endif
-    rb_ivar_set(obj, name, val);
-}
-
-extern "C"
-VALUE
-rb_vm_cvar_get(VALUE klass, ID id, unsigned char check,
-	unsigned char dynamic_class)
-{
-    if (dynamic_class) {
-	Class k = GET_VM()->get_current_class();
-	if (k != NULL) {
-	    klass = (VALUE)k;
-	}
-    }
-    return rb_cvar_get2(klass, id, check);
-}
-
-extern "C"
-VALUE
-rb_vm_cvar_set(VALUE klass, ID id, VALUE val, unsigned char dynamic_class)
-{
-    if (dynamic_class) {
-	Class k = GET_VM()->get_current_class();
-	if (k != NULL) {
-	    klass = (VALUE)k;
-	}
-    }
-    rb_cvar_set(klass, id, val);
-    return val;
-}
-
-extern "C"
-VALUE
-rb_vm_ary_cat(VALUE ary, VALUE obj)
-{
-    if (TYPE(obj) == T_ARRAY) {
-	rb_ary_concat(ary, obj);
-    }
-    else {
-	VALUE ary2 = rb_check_convert_type(obj, T_ARRAY, "Array", "to_a");
-	if (!NIL_P(ary2)) {
-	    rb_ary_concat(ary, ary2);
-	}
-	else {
-	    rb_ary_push(ary, obj);
-	}
-    }
-    return ary;
-}
-
-extern "C"
-VALUE
-rb_vm_to_a(VALUE obj)
-{
-    VALUE ary = rb_check_convert_type(obj, T_ARRAY, "Array", "to_a");
-    if (NIL_P(ary)) {
-	ary = rb_ary_new3(1, obj);
-    }
-    return ary;
-}
-
-extern "C"
-VALUE
-rb_vm_to_ary(VALUE obj)
-{
-    VALUE ary = rb_check_convert_type(obj, T_ARRAY, "Array", "to_ary");
-    if (NIL_P(ary)) {
-	ary = rb_ary_new3(1, obj);
-    }
-    return ary;
 }
 
 extern "C" void rb_print_undef(VALUE, ID, int);
@@ -1974,7 +1782,7 @@ RoxorCore::resolve_method(Class klass, SEL sel, Function *func,
     if (iter == objc_to_ruby_stubs.end()) {
 	Function *objc_func = RoxorCompiler::shared->compile_objc_stub(func,
 		imp, arity, types);
-	objc_imp = compile(objc_func);
+	objc_imp = compile(objc_func, false);
 	objc_to_ruby_stubs[imp] = objc_imp;
     }
     else {
@@ -2690,7 +2498,7 @@ rb_vm_generate_mri_stub(void *imp, const int arity)
 	// Not needed!
 	return imp;
     }
-    return (void *)GET_CORE()->compile(func); 
+    return (void *)GET_CORE()->compile(func, false); 
 }
 
 void
@@ -2811,46 +2619,6 @@ rb_vm_remove_method(Class klass, ID name)
 
 extern "C"
 VALUE
-rb_vm_masgn_get_elem_before_splat(VALUE ary, int offset)
-{
-    if (offset < RARRAY_LEN(ary)) {
-	return RARRAY_AT(ary, offset);
-    }
-    return Qnil;
-}
-
-extern "C"
-VALUE
-rb_vm_masgn_get_elem_after_splat(VALUE ary, int before_splat_count, int after_splat_count, int offset)
-{
-    int len = RARRAY_LEN(ary);
-    if (len < before_splat_count + after_splat_count) {
-	offset += before_splat_count;
-	if (offset < len) {
-	    return RARRAY_AT(ary, offset);
-	}
-    }
-    else {
-	offset += len - after_splat_count;
-	return RARRAY_AT(ary, offset);
-    }
-    return Qnil;
-}
-
-extern "C"
-VALUE
-rb_vm_masgn_get_splat(VALUE ary, int before_splat_count, int after_splat_count) {
-    int len = RARRAY_LEN(ary);
-    if (len > before_splat_count + after_splat_count) {
-	return rb_ary_subseq(ary, before_splat_count, len - before_splat_count - after_splat_count);
-    }
-    else {
-	return rb_ary_new();
-    }
-}
-
-extern "C"
-VALUE
 rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv)
 {
     if (argc == 0 || !SYMBOL_P(argv[0])) {
@@ -2921,7 +2689,7 @@ RoxorCore::gen_large_arity_stub(int argc, bool is_block)
     if (iter == stubs.end()) {
 	Function *f = RoxorCompiler::shared->compile_long_arity_stub(argc,
 		is_block);
-	stub = (void *)compile(f);
+	stub = (void *)compile(f, false);
 	stubs.insert(std::make_pair(argc, stub));
     }
     else {
@@ -3429,41 +3197,6 @@ class_respond_to(Class klass, SEL sel)
 }
 #endif
 
-extern "C"
-VALUE
-rb_vm_get_special(char code)
-{
-    VALUE backref = rb_backref_get();
-    if (backref == Qnil) {
-	return Qnil;
-    }
-
-    VALUE val;
-    switch (code) {
-	case '&':
-	    val = rb_reg_last_match(backref);
-	    break;
-	case '`':
-	    val = rb_reg_match_pre(backref);
-	    break;
-	case '\'':
-	    val = rb_reg_match_post(backref);
-	    break;
-	case '+':
-	    val = rb_reg_match_last(backref);
-	    break;
-	default:
-	    {
-		const int index = (int)code;
-		// Boundaries check is done in rb_reg_nth_match().
-		val = rb_reg_nth_match(index, backref);
-	    }
-	    break;
-    }
-
-    return val;
-}
-
 static inline void
 __vm_raise(void)
 {
@@ -3950,7 +3683,7 @@ extern "C" void rb_node_release(NODE *node);
 extern "C"
 VALUE
 rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
-	  bool inside_eval)
+	bool inside_eval)
 {
     RoxorVM *vm = GET_VM();
     RoxorCompiler *compiler = RoxorCompiler::shared;
@@ -3969,7 +3702,7 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 	vm->pop_current_binding(false);
     }
 
-    // JIT compile the function.
+    // Optimize & compile the function.
     IMP imp = GET_CORE()->compile(function);
 
     // Register it for symbolication.
@@ -4054,7 +3787,7 @@ rb_vm_aot_compile(NODE *node)
     // Force a module verification.
     if (verifyModule(*RoxorCompiler::module, PrintMessageAction)) {
 	printf("Error during module verification\n");
-	exit(1);
+	abort();
     }
 
     // Optimize the IR.
@@ -4813,66 +4546,6 @@ rb_vm_get_current_class(void)
     return GET_VM()->get_current_class();
 }
 
-extern "C"
-void
-rb_vm_set_current_scope(VALUE mod, rb_vm_scope_t scope)
-{
-    if (scope == SCOPE_DEFAULT) {
-	scope = mod == rb_cObject ? SCOPE_PRIVATE : SCOPE_PUBLIC;
-    }
-    long v = RCLASS_VERSION(mod);
-#if ROXOR_VM_DEBUG
-    const char *scope_name = NULL;
-#endif
-    switch (scope) {
-	case SCOPE_PUBLIC:
-#if ROXOR_VM_DEBUG
-	    scope_name = "public";
-#endif
-	    v &= ~RCLASS_SCOPE_PRIVATE;
-	    v &= ~RCLASS_SCOPE_PROTECTED;
-	    v &= ~RCLASS_SCOPE_MOD_FUNC;
-	    break;
-
-	case SCOPE_PRIVATE:
-#if ROXOR_VM_DEBUG
-	    scope_name = "private";
-#endif
-	    v |= RCLASS_SCOPE_PRIVATE;
-	    v &= ~RCLASS_SCOPE_PROTECTED;
-	    v &= ~RCLASS_SCOPE_MOD_FUNC;
-	    break;
-
-	case SCOPE_PROTECTED:
-#if ROXOR_VM_DEBUG
-	    scope_name = "protected";
-#endif
-	    v &= ~RCLASS_SCOPE_PRIVATE;
-	    v |= RCLASS_SCOPE_PROTECTED;
-	    v &= ~RCLASS_SCOPE_MOD_FUNC;
-	    break;
-
-	case SCOPE_MODULE_FUNC:
-#if ROXOR_VM_DEBUG
-	    scope_name = "module_func";
-#endif
-	    v &= ~RCLASS_SCOPE_PRIVATE;
-	    v &= ~RCLASS_SCOPE_PROTECTED;
-	    v |= RCLASS_SCOPE_MOD_FUNC;
-	    break;
-
-	case SCOPE_DEFAULT:
-	    abort(); // handled earlier
-    }
-
-#if ROXOR_VM_DEBUG
-    printf("changing scope of %s (%p) to %s\n",
-	    class_getName((Class)mod), (void *)mod, scope_name);
-#endif
-
-    RCLASS_SET_VERSION(mod, v);
-}
-
 static VALUE
 builtin_ostub1(IMP imp, id self, SEL sel, int argc, VALUE *argv)
 {
@@ -4933,6 +4606,8 @@ class_has_custom_resolver(Class klass)
 # define TARGET_TRIPLE "i386-apple-darwin"
 #endif
 
+#include "kernel_data.c"
+
 extern "C"
 void 
 Init_PreVM(void)
@@ -4946,7 +4621,22 @@ Init_PreVM(void)
     // To not corrupt stack pointer (essential for backtracing).
     llvm::NoFramePointerElim = true;
 
-    RoxorCompiler::module = new llvm::Module("Roxor", getGlobalContext());
+    const char *kernel_beg;
+    const char *kernel_end;
+#if __LP64__
+    kernel_beg = (const char *)kernel_x86_64_bc;
+    kernel_end = kernel_beg + kernel_x86_64_bc_len;
+#else
+    kernel_beg = (const char *)kernel_i386_bc;
+    kernel_end = kernel_beg + kernel_i386_bc_len;
+#endif
+
+    MemoryBuffer *mbuf = MemoryBuffer::getMemBuffer(kernel_beg, kernel_end);
+    assert(mbuf != NULL);
+    RoxorCompiler::module = ParseBitcodeFile(mbuf, getGlobalContext());
+    delete mbuf;
+    assert(RoxorCompiler::module != NULL);
+
     RoxorCompiler::module->setTargetTriple(TARGET_TRIPLE);
     RoxorCore::shared = new RoxorCore();
     RoxorVM::main = new RoxorVM();
@@ -5205,12 +4895,11 @@ rb_vm_finalize(void)
 
 
     if (getenv("VM_VERIFY_IR") != NULL) {
-	printf("Verifying IR...\n");
 	if (verifyModule(*RoxorCompiler::module, PrintMessageAction)) {
 	    printf("Error during module verification\n");
-	    exit(1);
+	    abort();
 	}
-	printf("Good!\n");
+	printf("IR verified!\n");
     }
 
     // XXX: deleting the core is not safe at this point because there might be

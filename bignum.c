@@ -270,20 +270,6 @@ rb_int2big(SIGNED_VALUE n)
     return big;
 }
 
-VALUE
-rb_uint2inum(VALUE n)
-{
-    if (POSFIXABLE(n)) return LONG2FIX(n);
-    return rb_uint2big(n);
-}
-
-VALUE
-rb_int2inum(SIGNED_VALUE n)
-{
-    if (FIXABLE(n)) return LONG2FIX(n);
-    return rb_int2big(n);
-}
-
 #ifdef HAVE_LONG_LONG
 
 void
@@ -628,8 +614,8 @@ rb_str_to_inum(VALUE str, int base, int badcheck)
 
 #if HAVE_LONG_LONG
 
-static VALUE
-rb_ull2big(unsigned LONG_LONG n)
+VALUE
+rb_ull2big(unsigned long long n)
 {
     BDIGIT_DBL num = n;
     long i = 0;
@@ -649,8 +635,8 @@ rb_ull2big(unsigned LONG_LONG n)
     return big;
 }
 
-static VALUE
-rb_ll2big(LONG_LONG n)
+VALUE
+rb_ll2big(long long n)
 {
     long neg = 0;
     VALUE big;
@@ -664,20 +650,6 @@ rb_ll2big(LONG_LONG n)
 	RBIGNUM_SET_SIGN(big, 0);
     }
     return big;
-}
-
-VALUE
-rb_ull2inum(unsigned LONG_LONG n)
-{
-    if (POSFIXABLE(n)) return LONG2FIX(n);
-    return rb_ull2big(n);
-}
-
-VALUE
-rb_ll2inum(LONG_LONG n)
-{
-    if (FIXABLE(n)) return LONG2FIX(n);
-    return rb_ll2big(n);
 }
 
 #endif  /* HAVE_LONG_LONG */

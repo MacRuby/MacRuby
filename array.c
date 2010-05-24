@@ -89,27 +89,6 @@ rary_erase(VALUE ary, size_t idx, size_t len)
     return item;
 }
 
-void
-rary_store(VALUE ary, long idx, VALUE item)
-{
-    if (idx < 0) {
-	const long len = RARY(ary)->len;
-	idx += len;
-	if (idx < 0) {
-	    rb_raise(rb_eIndexError, "index %ld out of array",
-		    idx - len);
-	}
-    }
-    if (idx >= RARY(ary)->len) {
-	rary_reserve(ary, idx + 1);
-	for (size_t i = RARY(ary)->len; i < idx + 1; i++) {
-	    rary_elt_set(ary, i, Qnil);
-	}
-	RARY(ary)->len = idx + 1;
-    }
-    rary_elt_set(ary, idx, item);
-}
-
 static void
 rary_resize(VALUE ary, size_t newlen)
 {
@@ -216,8 +195,6 @@ rb_ary_new(void)
 {
     return rb_ary_new2(ARY_DEFAULT_SIZE);
 }
-
-static void rary_push(VALUE ary, VALUE item);
 
 VALUE
 rb_ary_new3(long n, ...)
@@ -487,14 +464,6 @@ rary_push_m(VALUE ary, SEL sel, VALUE item)
  *     a.push("d", "e", "f")  
  *             #=> ["a", "b", "c", "d", "e", "f"]
  */
-
-static void
-rary_push(VALUE ary, VALUE item)
-{
-    rary_reserve(ary, RARY(ary)->len + 1);
-    rary_elt_set(ary, RARY(ary)->len, item);
-    RARY(ary)->len++;
-}
 
 static VALUE
 rary_push_m2(VALUE ary, SEL sel, int argc, VALUE *argv)

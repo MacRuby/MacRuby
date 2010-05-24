@@ -10,6 +10,16 @@
 #define __BRIDGESUPPORT_H_
 
 #if defined(__cplusplus)
+extern "C" {
+#endif
+
+void *rb_pointer_get_data(VALUE rcv, const char *type);
+VALUE rb_pointer_new(const char *type_str, void *val, size_t len);
+VALUE rb_pointer_new2(const char *type_str, VALUE val);
+bool rb_boxed_is_type(VALUE klass, const char *type);
+
+#if defined(__cplusplus)
+} // extern "C"
 
 #include "bs.h"
 
@@ -24,12 +34,6 @@ typedef struct rb_vm_bs_boxed {
     Type *type;
     VALUE klass;
 } rb_vm_bs_boxed_t;
-
-VALUE rb_pointer_new(const char *type_str, void *val, size_t len);
-VALUE rb_pointer_new2(const char *type_str, VALUE val);
-void *rb_pointer_get_data(VALUE rcv, const char *type);
-
-bool rb_boxed_is_type(VALUE klass, const char *type);
 
 #endif /* __cplusplus */
 
