@@ -308,6 +308,8 @@ class RoxorCompiler {
 	bool should_inline_function(Function *f);
 
 	Function *compile_scope(NODE *node);
+	Instruction *compile_protected_call(Value *imp, Value **args_begin,
+		Value **args_end);
 	Instruction *compile_protected_call(Value *imp,
 		std::vector<Value *> &params);
 	void compile_dispatch_arguments(NODE *args,

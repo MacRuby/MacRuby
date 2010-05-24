@@ -266,6 +266,23 @@ RoxorCompiler::mid_to_sel(ID mid, int arity)
 }
 
 Instruction *
+RoxorCompiler::compile_protected_call(Value *imp, Value **args_begin,
+	Value **args_end)
+{
+    if (rescue_invoke_bb == NULL) {
+	return CallInst::Create(imp, args_begin, args_end, "", bb);
+    }
+    else {
+	BasicBlock *normal_bb = BasicBlock::Create(context, "normal",
+		bb->getParent());
+	InvokeInst *dispatch = InvokeInst::Create(imp, normal_bb,
+		rescue_invoke_bb, args_begin, args_end, "", bb);
+	bb = normal_bb;
+	return dispatch;
+    }
+}
+
+Instruction *
 RoxorCompiler::compile_protected_call(Value *imp, std::vector<Value *> &params)
 {
     if (rescue_invoke_bb == NULL) {
@@ -444,15 +461,14 @@ RoxorCompiler::compile_dispatch_arguments(NODE *args,
 Value *
 RoxorCompiler::compile_when_splat(Value *comparedToVal, Value *splatVal)
 {
-    std::vector<Value *> params;
-
-    params.push_back(compile_mcache(selEqq, false));
     GlobalVariable *is_redefined = GET_CORE()->redefined_op_gvar(selEqq, true);
-    params.push_back(new LoadInst(is_redefined, "", bb));
-    params.push_back(comparedToVal);
-    params.push_back(splatVal);
-
-    return compile_protected_call(whenSplatFunc, params);
+    Value *args[] = {
+	compile_mcache(selEqq, false),
+	new LoadInst(is_redefined, "", bb),
+	comparedToVal,
+	splatVal
+    };
+    return compile_protected_call(whenSplatFunc, args, args + 4);
 }
 
 GlobalVariable *
@@ -532,11 +548,11 @@ RoxorCompiler::compile_get_mcache(Value *sel, bool super)
 			NULL));
     }
 
-    std::vector<Value *> params;
-    params.push_back(sel);
-    params.push_back(ConstantInt::get(Int8Ty, super ? 1 : 0));
-
-    return CallInst::Create(getCacheFunc, params.begin(), params.end(), "", bb);
+    Value *args[] = {
+	sel,
+	ConstantInt::get(Int8Ty, super ? 1 : 0)
+    };
+    return CallInst::Create(getCacheFunc, args, args + 2, "", bb);
 }
 
 Value *
@@ -640,19 +656,15 @@ RoxorCompiler::compile_prepare_method(Value *classVal, Value *sel,
 			Int32Ty, NULL));
     }
 
-    std::vector<Value *> params;
-
-    params.push_back(classVal);
-    params.push_back(ConstantInt::get(Int8Ty,
-		!singleton && dynamic_class ? 1 : 0));
-    params.push_back(sel);
-
-    params.push_back(compile_const_pointer(new_function));
-    params.push_back(compile_arity(arity));
-    params.push_back(ConstantInt::get(Int32Ty, rb_vm_node_flags(body)));
-
-    CallInst::Create(prepareMethodFunc, params.begin(),
-	    params.end(), "", bb);
+    Value *args[] = {
+	classVal,
+	ConstantInt::get(Int8Ty, !singleton && dynamic_class ? 1 : 0),
+	sel,
+	compile_const_pointer(new_function),
+	compile_arity(arity),
+	ConstantInt::get(Int32Ty, rb_vm_node_flags(body))
+    }; 
+    CallInst::Create(prepareMethodFunc, args, args + 6, "", bb);
 }
 
 void
@@ -670,24 +682,19 @@ RoxorAOTCompiler::compile_prepare_method(Value *classVal, Value *sel,
 			Int32Ty, NULL));
     }
 
-    std::vector<Value *> params;
-
-    params.push_back(classVal);
-    params.push_back(ConstantInt::get(Int8Ty,
-		!singleton && dynamic_class ? 1 : 0));
-    params.push_back(sel);
-
     // Make sure the function is compiled before use, this way LLVM won't use
     // a stub.
     GET_CORE()->compile(new_function);
-    params.push_back(new BitCastInst(new_function, PtrTy, "", bb));
 
-    params.push_back(compile_arity(arity));
-
-    params.push_back(ConstantInt::get(Int32Ty, rb_vm_node_flags(body)));
-
-    CallInst::Create(prepareMethodFunc, params.begin(),
-	    params.end(), "", bb);
+    Value *args[] = {
+	classVal,
+	ConstantInt::get(Int8Ty, !singleton && dynamic_class ? 1 : 0),
+	sel,
+	new BitCastInst(new_function, PtrTy, "", bb),
+	compile_arity(arity),
+	ConstantInt::get(Int32Ty, rb_vm_node_flags(body))	
+    };
+    CallInst::Create(prepareMethodFunc, args, args + 6, "", bb);
 }
 
 void
@@ -855,18 +862,16 @@ RoxorCompiler::compile_multiple_assignment(NODE *node, Value *val)
 	++after_splat_count;
     }
 
-    std::vector<Value *> params;
-    params.push_back(val);
-    val = CallInst::Create(toAryFunc, params.begin(),
-	    params.end(), "", bb);
+    val = CallInst::Create(toAryFunc, val, "", bb);
 
     NODE *l = before_splat;
     for (int i = 0; l != NULL; ++i) {
-	std::vector<Value *> params;
-	params.push_back(val);
-	params.push_back(ConstantInt::get(Int32Ty, i));
+	Value *args[] = {
+	    val,
+	    ConstantInt::get(Int32Ty, i)
+	};
 	Value *elt = CallInst::Create(masgnGetElemBeforeSplatFunc,
-		params.begin(), params.end(), "", bb);
+		args, args + 2, "", bb);
 
 	compile_multiple_assignment_element(l->nd_head, elt);
 
@@ -874,25 +879,27 @@ RoxorCompiler::compile_multiple_assignment(NODE *node, Value *val)
     }
 
     if (splat != NULL && splat != (NODE *)-1) {
-	std::vector<Value *> params;
-	params.push_back(val);
-	params.push_back(ConstantInt::get(Int32Ty, before_splat_count));
-	params.push_back(ConstantInt::get(Int32Ty, after_splat_count));
-	Value *elt = CallInst::Create(masgnGetSplatFunc, params.begin(),
-		params.end(), "", bb);
+	Value *args[] = {
+	    val,
+	    ConstantInt::get(Int32Ty, before_splat_count),
+	    ConstantInt::get(Int32Ty, after_splat_count)
+	};
+	Value *elt = CallInst::Create(masgnGetSplatFunc, args, args + 3,
+		"", bb);
 
 	compile_multiple_assignment_element(splat, elt);
     }
 
     l = after_splat;
     for (int i = 0; l != NULL; ++i) {
-	std::vector<Value *> params;
-	params.push_back(val);
-	params.push_back(ConstantInt::get(Int32Ty, before_splat_count));
-	params.push_back(ConstantInt::get(Int32Ty, after_splat_count));
-	params.push_back(ConstantInt::get(Int32Ty, i));
+	Value *args[] = {
+	    val,
+	    ConstantInt::get(Int32Ty, before_splat_count),
+	    ConstantInt::get(Int32Ty, after_splat_count),
+	    ConstantInt::get(Int32Ty, i)
+	};
 	Value *elt = CallInst::Create(masgnGetElemAfterSplatFunc,
-		params.begin(), params.end(), "", bb);
+		args, args + 4, "", bb);
 
 	compile_multiple_assignment_element(l->nd_head, elt);
 
@@ -927,9 +934,8 @@ RoxorCompiler::compile_block_get(Value *block_object)
 					 PtrTy, RubyObjTy, NULL));
     }
 
-    std::vector<Value *> params;
-    params.push_back(block_object);
-    return compile_protected_call(getBlockFunc, params);
+    Value *args[] = { block_object };
+    return compile_protected_call(getBlockFunc, args, args + 1);
 }
 
 Value *
@@ -1082,26 +1088,24 @@ RoxorAOTCompiler::compile_slot_cache(ID id)
 Value *
 RoxorCompiler::compile_ivar_read(ID vid)
 {
-    std::vector<Value *> params;
-
-    params.push_back(current_self);
-    params.push_back(compile_id(vid));
-    params.push_back(compile_slot_cache(vid));
-
-    return CallInst::Create(getIvarFunc, params.begin(), params.end(), "", bb);
+    Value *args[] = {
+	current_self,
+	compile_id(vid),
+	compile_slot_cache(vid)
+    };
+    return CallInst::Create(getIvarFunc, args, args + 3, "", bb);
 }
 
 Value *
 RoxorCompiler::compile_ivar_assignment(ID vid, Value *val)
 {
-    std::vector<Value *> params;
-
-    params.push_back(current_self);
-    params.push_back(compile_id(vid));
-    params.push_back(val);
-    params.push_back(compile_slot_cache(vid));
-
-    CallInst::Create(setIvarFunc, params.begin(), params.end(), "", bb);
+    Value *args[] = {
+	current_self,
+	compile_id(vid),
+	val,
+	compile_slot_cache(vid)
+    };
+    CallInst::Create(setIvarFunc, args, args + 4, "", bb);
 
     return val;
 }
@@ -1109,28 +1113,25 @@ RoxorCompiler::compile_ivar_assignment(ID vid, Value *val)
 Value *
 RoxorCompiler::compile_cvar_get(ID id, bool check)
 {
-    std::vector<Value *> params;
-
-    params.push_back(compile_current_class());
-    params.push_back(compile_id(id));
-    params.push_back(ConstantInt::get(Int8Ty, check ? 1 : 0));
-    params.push_back(ConstantInt::get(Int8Ty, dynamic_class ? 1 : 0));
-
-    return compile_protected_call(cvarGetFunc, params);
+    Value *args[] = {
+	compile_current_class(),
+	compile_id(id),
+	ConstantInt::get(Int8Ty, check ? 1 : 0),
+	ConstantInt::get(Int8Ty, dynamic_class ? 1 : 0)
+    };
+    return compile_protected_call(cvarGetFunc, args, args + 4);
 }
 
 Value *
 RoxorCompiler::compile_cvar_assignment(ID name, Value *val)
 {
-    std::vector<Value *> params;
-
-    params.push_back(compile_current_class());
-    params.push_back(compile_id(name));
-    params.push_back(val);
-    params.push_back(ConstantInt::get(Int8Ty, dynamic_class ? 1 : 0));
-
-    return CallInst::Create(cvarSetFunc, params.begin(),
-	    params.end(), "", bb);
+    Value *args[] = {
+	compile_current_class(),
+	compile_id(name),
+	val,
+	ConstantInt::get(Int8Ty, dynamic_class ? 1 : 0)
+    };
+    return CallInst::Create(cvarSetFunc, args, args + 4, "", bb);
 }
 
 Value *
@@ -1143,35 +1144,35 @@ RoxorCompiler::compile_gvar_assignment(NODE *node, Value *val)
 		    RubyObjTy, PtrTy, RubyObjTy, NULL));
     }
 
-    std::vector<Value *> params;
-
-    params.push_back(compile_global_entry(node));
-    params.push_back(val);
-
-    return compile_protected_call(gvarSetFunc, params);
+    Value *args[] = {
+	compile_global_entry(node),
+	val
+    };
+    return compile_protected_call(gvarSetFunc, args, args + 2);
 }
 
 Value *
 RoxorCompiler::compile_constant_declaration(NODE *node, Value *val)
 {
-    std::vector<Value *> params;
     int flags = 0;
 
+    Value *args[4];
+
     if (node->nd_vid > 0) {
-	params.push_back(compile_current_class());
-	params.push_back(compile_id(node->nd_vid));
+	args[0] = compile_current_class();
+	args[1] = compile_id(node->nd_vid);
     }
     else {
 	assert(node->nd_else != NULL);
-	params.push_back(compile_class_path(node->nd_else, &flags));
+	args[0] = compile_class_path(node->nd_else, &flags);
 	assert(node->nd_else->nd_mid > 0);
-	params.push_back(compile_id(node->nd_else->nd_mid));
+	args[1] = compile_id(node->nd_else->nd_mid);
     }
-    params.push_back(val);
-    params.push_back(ConstantInt::get(Int8Ty,
-		dynamic_class && (flags & DEFINE_OUTER) ? 1 : 0));
+    args[2] = val;
+    args[3] = ConstantInt::get(Int8Ty,
+	    dynamic_class && (flags & DEFINE_OUTER) ? 1 : 0);
 
-    CallInst::Create(setConstFunc, params.begin(), params.end(), "", bb);
+    CallInst::Create(setConstFunc, args, args + 4, "", bb);
 
     return val;
 }
@@ -1255,12 +1256,6 @@ RoxorCompiler::compile_const(ID id, Value *outer)
 	outer_given = false;
     }
 
-    std::vector<Value *> params;
-
-    params.push_back(outer);
-    params.push_back(compile_ccache(id));
-    params.push_back(compile_id(id));
-
     int flags = 0;
     if (!outer_given) {
 	flags |= CONST_LOOKUP_LEXICAL;
@@ -1268,9 +1263,14 @@ RoxorCompiler::compile_const(ID id, Value *outer)
     if (dynamic_class) {
 	flags |= CONST_LOOKUP_DYNAMIC_CLASS;
     }
-    params.push_back(ConstantInt::get(Int32Ty, flags));
 
-    return compile_protected_call(getConstFunc, params);
+    Value *args[] = {
+	outer,
+	compile_ccache(id),
+	compile_id(id),
+	ConstantInt::get(Int32Ty, flags)
+    };
+    return compile_protected_call(getConstFunc, args, args + 4);
 }
 
 Value *
@@ -1283,10 +1283,8 @@ RoxorCompiler::compile_singleton_class(Value *obj)
 		    RubyObjTy, RubyObjTy, NULL));
     }
 
-    std::vector<Value *> params;
-    params.push_back(obj);
-
-    return compile_protected_call(singletonClassFunc, params);
+    Value *args[] = { obj };
+    return compile_protected_call(singletonClassFunc, args, args + 1);
 }
 
 Value *
@@ -1434,15 +1432,14 @@ RoxorCompiler::compile_defined_expression(NODE *node)
 
     Value *val = NULL;
     if (!expression) {
-	std::vector<Value *> params;
-
-	params.push_back(self);
-	params.push_back(ConstantInt::get(Int32Ty, type));
-	params.push_back(what1 == NULL ? nilVal : what1);
-	params.push_back(what2 == NULL ? nilVal : what2);
-
 	// Call the runtime.
-	val = compile_protected_call(definedFunc, params);
+	Value *args[] = {
+	    self,
+	    ConstantInt::get(Int32Ty, type),
+	    what1 == NULL ? nilVal : what1,
+	    what2 == NULL ? nilVal : what2
+	};
+	val = compile_protected_call(definedFunc, args, args + 4);
     }
     else {
 	val = ConstantInt::get(RubyObjTy, (long)CFSTR("expression"));
@@ -1538,9 +1535,8 @@ RoxorCompiler::compile_break_val(Value *val)
 		module->getOrInsertFunction("rb_vm_break", 
 		    VoidTy, RubyObjTy, NULL));
     }
-    std::vector<Value *> params;
-    params.push_back(val);
-    CallInst::Create(breakFunc, params.begin(), params.end(), "", bb);
+
+    CallInst::Create(breakFunc, val, "", bb);
 }
 
 void
@@ -1553,12 +1549,13 @@ RoxorCompiler::compile_return_from_block(Value *val, int id)
 		module->getOrInsertFunction("rb_vm_return_from_block", 
 		    VoidTy, RubyObjTy, Int32Ty, PtrTy, NULL));
     }
-    std::vector<Value *> params;
-    params.push_back(val);
-    params.push_back(ConstantInt::get(Int32Ty, id));
-    params.push_back(running_block);
 
-    compile_protected_call(returnFromBlockFunc, params);
+    Value *args[] = {
+	val,
+	ConstantInt::get(Int32Ty, id),
+	running_block
+    };
+    compile_protected_call(returnFromBlockFunc, args, args + 3);
 }
 
 void
@@ -1576,11 +1573,12 @@ RoxorCompiler::compile_return_from_block_handler(int id)
 		    RubyObjTy, PtrTy, Int32Ty, NULL));
     }
 
-    std::vector<Value *> params;
-    params.push_back(exception);
-    params.push_back(ConstantInt::get(Int32Ty, id));
-    Value *val = CallInst::Create(checkReturnFromBlockFunc, params.begin(),
-	    params.end(), "", bb);
+    Value *args[] = {
+	exception,
+	ConstantInt::get(Int32Ty, id)
+    };
+    Value *val = CallInst::Create(checkReturnFromBlockFunc, args, args + 2,
+	    "", bb);
 
     Function *f = bb->getParent();
     BasicBlock *ret_bb = BasicBlock::Create(context, "ret", f);
@@ -1718,10 +1716,7 @@ RoxorCompiler::compile_set_has_ensure(Value *val)
 		    "rb_vm_set_has_ensure", Int8Ty, Int8Ty, NULL));
     }
 
-    std::vector<Value *> params;
-    params.push_back(val);
-    return CallInst::Create(setHasEnsureFunc, params.begin(), params.end(),
-	    "", bb);
+    return CallInst::Create(setHasEnsureFunc, val, "", bb);
 }
 
 Value *
@@ -1833,9 +1828,8 @@ RoxorCompiler::compile_pop_exception(int pos)
 		module->getOrInsertFunction("rb_vm_pop_exception", 
 		    VoidTy, Int32Ty, NULL));
     }
-    std::vector<Value *> params;
-    params.push_back(ConstantInt::get(Int32Ty, pos));
-    CallInst::Create(popExceptionFunc, params.begin(), params.end(), "", bb);
+
+    CallInst::Create(popExceptionFunc, ConstantInt::get(Int32Ty, pos), "", bb);
 }
 
 void
@@ -1967,14 +1961,15 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	}
 	assert(func != NULL);
 
-	std::vector<Value *> params;
-	params.push_back(compile_mcache(sel, false));
-	params.push_back(leftVal);
-	params.push_back(rightVal);
 	GlobalVariable *is_redefined = GET_CORE()->redefined_op_gvar(sel, true);
-	params.push_back(new LoadInst(is_redefined, "", bb));
 
-	return compile_protected_call(func, params);
+	Value *args[] = {
+	    compile_mcache(sel, false),
+	    leftVal,
+	    rightVal,
+	    new LoadInst(is_redefined, "", bb)
+	};
+	return compile_protected_call(func, args, args + 4);
     }
     // Other operators (#<< or #[] or #[]=)
     else if (sel == selLTLT || sel == selAREF || sel == selASET) {
@@ -2092,16 +2087,16 @@ RoxorCompiler::compile_range(Value *beg, Value *end, bool exclude_end,
 		    NULL));
     }
 
-    std::vector<Value *> params;
-    params.push_back(beg);
-    params.push_back(end);
-    params.push_back(ConstantInt::get(Int32Ty, exclude_end ? 1 : 0));
-    params.push_back(ConstantInt::get(Int32Ty, retain ? 1 : 0));
-
+    Value *args[] = {
+	beg,
+	end,
+	ConstantInt::get(Int32Ty, exclude_end ? 1 : 0),
+	ConstantInt::get(Int32Ty, retain ? 1 : 0)
+    };
     if (add_to_bb) {
-	return compile_protected_call(newRangeFunc, params);
+	return compile_protected_call(newRangeFunc, args, args + 4);
     }
-    return CallInst::Create(newRangeFunc, params.begin(), params.end(), "");
+    return CallInst::Create(newRangeFunc, args, args + 4, "");
 }
 
 Value *
@@ -2131,11 +2126,12 @@ RoxorCompiler::compile_literal(VALUE val)
 	    GlobalVariable *str_gvar = compile_const_global_string(cstr,
 		    cstr_len);
 
-	    std::vector<Value *> idxs;
-	    idxs.push_back(ConstantInt::get(Int32Ty, 0));
-	    idxs.push_back(ConstantInt::get(Int32Ty, 0));
+	    Value *idxs[] = {
+		ConstantInt::get(Int32Ty, 0),
+		ConstantInt::get(Int32Ty, 0)
+	    };
 	    Instruction *load = GetElementPtrInst::Create(str_gvar,
-		    idxs.begin(), idxs.end(), "", bb);
+		    idxs, idxs + 2, "", bb);
 
 	    if (newString2Func == NULL) {	
 		newString2Func = cast<Function>(
@@ -2144,12 +2140,11 @@ RoxorCompiler::compile_literal(VALUE val)
 			    RubyObjTy, PtrTy, Int32Ty, NULL));
 	    }
 
-	    std::vector<Value *> params;
-	    params.push_back(load);
-	    params.push_back(ConstantInt::get(Int32Ty, cstr_len));
-
-	    return CallInst::Create(newString2Func, params.begin(),
-		    params.end(), "", bb);
+	    Value *args[] = {
+		load,
+		ConstantInt::get(Int32Ty, cstr_len)
+	    };
+	    return CallInst::Create(newString2Func, args, args + 2, "", bb);
 	}
     }
 
@@ -2227,22 +2222,17 @@ RoxorCompiler::compile_set_current_class(Value *klass)
 		    RubyObjTy, RubyObjTy, NULL));
     }
 
-    std::vector<Value *> params;
-    params.push_back(klass);
-
-    return CallInst::Create(setCurrentClassFunc, params.begin(), params.end(),
-	    "", bb);
+    return CallInst::Create(setCurrentClassFunc, klass, "", bb);
 }
 
 void
 RoxorCompiler::compile_set_current_scope(Value *klass, Value *scope)
 {
-    std::vector<Value *> params;
-
-    params.push_back(klass);
-    params.push_back(scope);
-
-    CallInst::Create(setScopeFunc, params.begin(), params.end(), "", bb);
+    Value *args[] = {
+	klass,
+	scope
+    };
+    CallInst::Create(setScopeFunc, args, args + 2, "", bb);
 }
 
 void
@@ -2705,12 +2695,8 @@ RoxorCompiler::compile_node(NODE *node)
 				"rb_gvar_get", RubyObjTy, PtrTy, NULL));
 		}
 
-		std::vector<Value *> params;
-
-		params.push_back(compile_global_entry(node));
-
-		return CallInst::Create(gvarGetFunc, params.begin(),
-			params.end(), "", bb);
+		return CallInst::Create(gvarGetFunc,
+			compile_global_entry(node), "", bb);
 	    }
 	    break;
 
@@ -2790,10 +2776,7 @@ RoxorCompiler::compile_node(NODE *node)
 				VoidTy, RubyObjTy, NULL));
 		    }
 
-		    std::vector<Value *> params;
-		    params.push_back(new_val);
-		    CallInst::Create(takeOwnershipFunc, params.begin(),
-			    params.end(), "", bb);
+		    CallInst::Create(takeOwnershipFunc, new_val, "", bb);
 		    BranchInst::Create(merge_bb, bb);
 
 		    bb = merge_bb;
@@ -3081,11 +3064,11 @@ RoxorCompiler::compile_node(NODE *node)
 				RubyObjTy, RubyObjTy, Int32Ty, NULL));
 		}
 
-		std::vector<Value *> params;
-		params.push_back(val);
-		params.push_back(ConstantInt::get(Int32Ty, flag));
-
-		return compile_protected_call(newRegexpFunc, params);
+		Value *args[] = {
+		    val,
+		    ConstantInt::get(Int32Ty, flag)
+		};
+		return compile_protected_call(newRegexpFunc, args, args + 2);
 	    }
 	    break;
 
@@ -3094,14 +3077,13 @@ RoxorCompiler::compile_node(NODE *node)
 		Value *val = compile_dstr(node);
 
 		if (strInternFunc == NULL) {
-		    strInternFunc = cast<Function>(module->getOrInsertFunction("rb_str_intern_fast",
+		    strInternFunc = cast<Function>(module->getOrInsertFunction(
+				"rb_str_intern_fast",
 				RubyObjTy, RubyObjTy, NULL));
 		}
 
-		std::vector<Value *> params;
-		params.push_back(val);
-
-		return compile_protected_call(strInternFunc, params);
+		Value *args[] = { val };
+		return compile_protected_call(strInternFunc, args, args + 1);
 	    }
 	    break;
 
@@ -3297,25 +3279,23 @@ RoxorCompiler::compile_node(NODE *node)
 				    Int32Ty, Int8Ty, NULL));
 		    }
 
-		    std::vector<Value *> params;
 		    int flags = 0;
-
-		    params.push_back(compile_id(path));
-		    params.push_back(compile_class_path(node->nd_cpath,
-				&flags));
-		    params.push_back(super == NULL
-			    ? zeroVal : compile_node(super));
-		    
+		    Value *cpath = compile_class_path(node->nd_cpath, &flags);
 		    if (nd_type(node) == NODE_MODULE) {
 			flags |= DEFINE_MODULE;
 		    }
-		    params.push_back(ConstantInt::get(Int32Ty, flags));
-		    params.push_back(ConstantInt::get(Int8Ty,
-				(flags & DEFINE_OUTER) && dynamic_class
-				? 1 : 0));
 
-		    Instruction *insn
-			= compile_protected_call(defineClassFunc, params);
+		    Value *args[] = {
+			compile_id(path),
+			cpath,
+			super == NULL ? zeroVal : compile_node(super),
+			ConstantInt::get(Int32Ty, flags),
+			ConstantInt::get(Int8Ty,
+				(flags & DEFINE_OUTER) && dynamic_class
+				? 1 : 0)
+		    };
+		    Instruction *insn = compile_protected_call(defineClassFunc,
+			args, args + 5);
 		    attach_current_line_metadata(insn);
 		    classVal = insn;
 		}
@@ -3717,20 +3697,13 @@ rescan_args:
 	    {
 		assert(node->nd_head != NULL);
 		Value *ary = compile_node(node->nd_head);
-
-		std::vector<Value *> params;
-		params.push_back(ary);
-
-		ary = compile_protected_call(dupArrayFunc, params);
+		Value *args1[] = { ary };
+		ary = compile_protected_call(dupArrayFunc, args1, args1 + 1);
 
 		assert(node->nd_body != NULL);
 		Value *other = compile_node(node->nd_body);
-
-		params.clear();
-		params.push_back(ary);
-		params.push_back(other);
-
-		return compile_protected_call(catArrayFunc, params);
+		Value *args2[] = { ary, other };
+		return compile_protected_call(catArrayFunc, args2, args2 + 2);
 	    }
 	    break;
 
@@ -3740,9 +3713,8 @@ rescan_args:
 		Value *val = compile_node(node->nd_head);
 
 		if (nd_type(node->nd_head) != NODE_ARRAY) {
-		    std::vector<Value *> params;
-		    params.push_back(val);
-		    val = compile_protected_call(toAFunc, params);
+		    Value *args[] = { val };
+		    val = compile_protected_call(toAFunc, args, args + 1);
 		}
 
 		return val;
@@ -3756,32 +3728,25 @@ rescan_args:
 		Value *ary;
 
 		if (nd_type(node) == NODE_ZARRAY) {
-		    std::vector<Value *> params;
-		    params.push_back(ConstantInt::get(Int32Ty, 0));
-
-		    ary = CallInst::Create(newArrayFunc, params.begin(),
-			    params.end(), "", bb);
+		    ary = CallInst::Create(newArrayFunc,
+			    ConstantInt::get(Int32Ty, 0), "", bb);
 		}
 		else {
 		    const int count = node->nd_alen;
-		    std::vector<Value *> params;
-		    params.push_back(ConstantInt::get(Int32Ty, count));
-
-		    ary = CallInst::Create(newArrayFunc, params.begin(),
-			    params.end(), "", bb);
+		    ary = CallInst::Create(newArrayFunc,
+			    ConstantInt::get(Int32Ty, count), "", bb);
 
 		    NODE *n = node;
 		    for (int i = 0; i < count; i++) {
 			assert(n->nd_head != NULL);
 			Value *elem = compile_node(n->nd_head);
 
-			params.clear();
-			params.push_back(ary);
-			params.push_back(ConstantInt::get(Int32Ty, i));
-			params.push_back(elem);
-
-			CallInst::Create(asetArrayFunc, params.begin(),
-				params.end(), "", bb);
+			Value *args[] = {
+			    ary,
+			    ConstantInt::get(Int32Ty, i),
+			    elem
+			};
+			CallInst::Create(asetArrayFunc, args, args + 3, "", bb);
 
 			n = n->nd_next;
 		    }
@@ -3795,8 +3760,6 @@ rescan_args:
 	    {
 		Value *hash = CallInst::Create(newHashFunc, "", bb);
 
-		std::vector<Value *> params;
-
 		if (node->nd_head != NULL) {
 		    assert(nd_type(node->nd_head) == NODE_ARRAY);
 		    const int count = node->nd_head->nd_alen;
@@ -3809,14 +3772,12 @@ rescan_args:
 			Value *val = compile_node(n->nd_head);
 			n = n->nd_next;
 
-			std::vector<Value *> params;
-
-			params.push_back(hash);
-			params.push_back(key);
-			params.push_back(val);
-
-			CallInst::Create(storeHashFunc, params.begin(),
-				params.end(), "", bb);
+			Value *args[] = {
+			    hash,
+			    key,
+			    val
+			};
+			CallInst::Create(storeHashFunc, args, args + 3, "", bb);
 		    }
 		}
 
@@ -3907,17 +3868,18 @@ rescan_args:
 	    {
 		if (valiasFunc == NULL) {
 		    // void rb_alias_variable(ID from, ID to);
-		    valiasFunc = cast<Function>(module->getOrInsertFunction("rb_alias_variable",
+		    valiasFunc = cast<Function>(module->getOrInsertFunction(
+				"rb_alias_variable",
 				VoidTy, IntTy, IntTy, NULL));
 		}
 
-		std::vector<Value *> params;
-
 		assert(node->u1.id > 0 && node->u2.id > 0);
-		params.push_back(compile_id(node->u1.id));
-		params.push_back(compile_id(node->u2.id));
 
-		CallInst::Create(valiasFunc, params.begin(), params.end(), "", bb);
+		Value *args[] = {
+		    compile_id(node->u1.id),
+		    compile_id(node->u2.id)
+		};
+		CallInst::Create(valiasFunc, args, args + 2, "", bb);
 
 		return nilVal;
 	    }
@@ -3937,14 +3899,13 @@ rescan_args:
 		assert(node->u1.node != NULL);
 		assert(node->u2.node != NULL);
 
-		std::vector<Value *> params;
-		params.push_back(compile_current_class());
-		params.push_back(compile_node(node->u1.node));
-		params.push_back(compile_node(node->u2.node));
-		params.push_back(ConstantInt::get(Int8Ty,
-			    dynamic_class ? 1 : 0));
-
-		compile_protected_call(aliasFunc, params);
+		Value *args[] = {
+		    compile_current_class(),
+		    compile_node(node->u1.node),
+		    compile_node(node->u2.node),
+		    ConstantInt::get(Int8Ty, dynamic_class ? 1 : 0)
+		};
+		compile_protected_call(aliasFunc, args, args + 4);
 
 		return nilVal;
 	    }
@@ -4019,13 +3980,12 @@ rescan_args:
 		assert(TYPE(name) == T_SYMBOL);
 		ID name_id = SYM2ID(name);
 
-		std::vector<Value *> params;
-		params.push_back(compile_current_class());
-		params.push_back(compile_id(name_id));
-		params.push_back(ConstantInt::get(Int8Ty,
-			    dynamic_class ? 1 : 0));
-
-		compile_protected_call(undefFunc, params);
+		Value *args[] = {
+		    compile_current_class(),
+		    compile_id(name_id),
+		    ConstantInt::get(Int8Ty, dynamic_class ? 1 : 0)
+		};
+		compile_protected_call(undefFunc, args, args + 3);
 
 		return nilVal;
 	    }
@@ -4045,15 +4005,8 @@ rescan_args:
 
 	case NODE_NTH_REF:
 	case NODE_BACK_REF:
-	    {
-		std::vector<Value *> params;
-		char code = (char)node->nd_nth;
-		params.push_back(ConstantInt::get(Int8Ty, code));
-
-		return CallInst::Create(getSpecialFunc, params.begin(),
-			params.end(), "", bb);
-	    }
-	    break;
+	    return CallInst::Create(getSpecialFunc,
+		    ConstantInt::get(Int8Ty, (char)node->nd_nth), "", bb);
 
 	case NODE_BEGIN:
 	    return node->nd_body == NULL
@@ -4503,13 +4456,11 @@ rescan_args:
 				RubyObjTy, Int32Ty, NULL));
 		}
 
-		std::vector<Value *> params2;
-		params2.push_back(ConstantInt::get(Int32Ty,
-			    return_from_block_bb != NULL
-			    ? return_from_block : -1));
+		const int block_id = return_from_block_bb != NULL
+		    ? return_from_block : -1;
 
 		Value *retval_block = CallInst::Create(returnedFromBlockFunc,
-			params2.begin(), params2.end(), "", bb);
+			ConstantInt::get(Int32Ty, block_id), "", bb);
 
 		Value *is_returned = new ICmpInst(*bb, ICmpInst::ICMP_NE,
 			retval_block, undefVal);
@@ -4785,12 +4736,9 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	SEL sel = i->first;
 	GlobalVariable *gvar = i->second;
 
-	std::vector<Value *> params;
 	Value *load = compile_sel(sel, false);
-	params.push_back(load);
 
-	Instruction *call = CallInst::Create(getMethodCacheFunc,
-		params.begin(), params.end(), "");
+	Instruction *call = CallInst::Create(getMethodCacheFunc, load, "");
 
 	Instruction *assign = new StoreInst(call, gvar, "");
 
@@ -4818,17 +4766,14 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	GlobalVariable *const_gvar =
 	    compile_const_global_string(rb_id2name(name));
 
-	std::vector<Value *> idxs;
-	idxs.push_back(ConstantInt::get(Int32Ty, 0));
-	idxs.push_back(ConstantInt::get(Int32Ty, 0));
-	Instruction *load = GetElementPtrInst::Create(const_gvar,
-		idxs.begin(), idxs.end(), "");
+	Value *idxs[] = {
+	    ConstantInt::get(Int32Ty, 0),
+	    ConstantInt::get(Int32Ty, 0)
+	};
+	Instruction *load = GetElementPtrInst::Create(const_gvar, idxs,
+		idxs + 2, "");
 
-	std::vector<Value *> params;
-	params.push_back(load);
-
-	Instruction *call = CallInst::Create(getConstCacheFunc,
-		params.begin(), params.end(), "");
+	Instruction *call = CallInst::Create(getConstCacheFunc, load, "");
 
 	Instruction *assign = new StoreInst(call, gvar, "");
  
@@ -4850,17 +4795,14 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	GlobalVariable *sel_gvar =
 	    compile_const_global_string(sel_getName(sel));
 
-	std::vector<Value *> idxs;
-	idxs.push_back(ConstantInt::get(Int32Ty, 0));
-	idxs.push_back(ConstantInt::get(Int32Ty, 0));
-	Instruction *load = GetElementPtrInst::Create(sel_gvar,
-		idxs.begin(), idxs.end(), "");
+	Value *idxs[] = {
+	    ConstantInt::get(Int32Ty, 0),
+	    ConstantInt::get(Int32Ty, 0)
+	};
+	Instruction *load = GetElementPtrInst::Create(sel_gvar, idxs, idxs + 2,
+		"");
 
-	std::vector<Value *> params;
-	params.push_back(load);
-
-	Instruction *call = CallInst::Create(registerSelFunc, params.begin(),
-		params.end(), "");
+	Instruction *call = CallInst::Create(registerSelFunc, load, "");
 
 	Instruction *cast = new BitCastInst(call, PtrTy, "");
 
@@ -4907,17 +4849,15 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 		    GlobalVariable *kname_gvar =
 			compile_const_global_string(class_getName((Class)val));
 
-		    std::vector<Value *> idxs;
-		    idxs.push_back(ConstantInt::get(Int32Ty, 0));
-		    idxs.push_back(ConstantInt::get(Int32Ty, 0));
+		    Value *idxs[] = {
+			ConstantInt::get(Int32Ty, 0),
+			ConstantInt::get(Int32Ty, 0)
+		    };
 		    Instruction *load = GetElementPtrInst::Create(kname_gvar,
-			    idxs.begin(), idxs.end(), "");
-
-		    std::vector<Value *> params;
-		    params.push_back(load);
+			    idxs, idxs + 2, "");
 
 		    Instruction *call = CallInst::Create(getClassFunc,
-			    params.begin(), params.end(), "");
+			    load, "");
 
 		    Instruction *assign = new StoreInst(call, gvar, "");
 
@@ -4943,21 +4883,21 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 			GlobalVariable *re_name_gvar =
 			    compile_const_global_ustring(chars, chars_len);
 
-			std::vector<Value *> idxs;
-			idxs.push_back(ConstantInt::get(Int32Ty, 0));
-			idxs.push_back(ConstantInt::get(Int32Ty, 0));
+			Value *idxs[] = {
+			    ConstantInt::get(Int32Ty, 0),
+			    ConstantInt::get(Int32Ty, 0)
+			};
 			re_str = GetElementPtrInst::Create(re_name_gvar,
-				idxs.begin(), idxs.end(), "");
+				idxs, idxs + 2, "");
 		    }
 
-		    std::vector<Value *> params;
-		    params.push_back(re_str);
-		    params.push_back(ConstantInt::get(Int32Ty, chars_len));
-		    params.push_back(ConstantInt::get(Int32Ty,
-				rb_reg_options(val)));
-
+		    Value *args[] = {
+			re_str,
+			ConstantInt::get(Int32Ty, chars_len),
+			ConstantInt::get(Int32Ty, rb_reg_options(val))
+		    };
 		    Instruction *call = CallInst::Create(newRegexp2Func,
-			    params.begin(), params.end(), "");
+			    args, args + 3, "");
 
 		    Instruction *assign = new StoreInst(call, gvar, "");
 
@@ -4977,17 +4917,15 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 		    GlobalVariable *symname_gvar =
 			compile_const_global_string(symname);
 
-		    std::vector<Value *> idxs;
-		    idxs.push_back(ConstantInt::get(Int32Ty, 0));
-		    idxs.push_back(ConstantInt::get(Int32Ty, 0));
+		    Value *idxs[] = {
+			ConstantInt::get(Int32Ty, 0),
+			ConstantInt::get(Int32Ty, 0)
+		    };
 		    Instruction *load = GetElementPtrInst::Create(symname_gvar,
-			    idxs.begin(), idxs.end(), "");
-
-		    std::vector<Value *> params;
-		    params.push_back(load);
+			    idxs, idxs + 2, "");
 
 		    Instruction *call = CallInst::Create(name2symFunc,
-			    params.begin(), params.end(), "");
+			    load, "");
 
 		    Instruction *assign = new StoreInst(call, gvar, "");
 
@@ -5004,17 +4942,15 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 		    GlobalVariable *bigstr_gvar =
 			compile_const_global_string(bigstr);
 
-		    std::vector<Value *> idxs;
-		    idxs.push_back(ConstantInt::get(Int32Ty, 0));
-		    idxs.push_back(ConstantInt::get(Int32Ty, 0));
+		    Value *idxs[] = {
+			ConstantInt::get(Int32Ty, 0),
+			ConstantInt::get(Int32Ty, 0)
+		    };
 		    Instruction *load = GetElementPtrInst::Create(bigstr_gvar,
-			    idxs.begin(), idxs.end(), "");
-
-		    std::vector<Value *> params;
-		    params.push_back(load);
+			    idxs, idxs + 2, "");
 
 		    Instruction *call = CallInst::Create(newBignumFunc,
-			    params.begin(), params.end(), "");
+			    load, "");
 
 		    Instruction *assign = new StoreInst(call, gvar, "");
 
@@ -5069,11 +5005,7 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	Instruction *name = cast<Instruction>(name_val);
 	name->removeFromParent();	
 
-	std::vector<Value *> params;
-	params.push_back(name);	
-
-	Instruction *call = CallInst::Create(globalEntryFunc, params.begin(),
-		params.end(), "");
+	Instruction *call = CallInst::Create(globalEntryFunc, name, "");
 
 	Instruction *assign = new StoreInst(call, gvar, "");
 	
@@ -5098,17 +5030,14 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	GlobalVariable *name_gvar =
 	    compile_const_global_string(rb_id2name(name));
 
-	std::vector<Value *> idxs;
-	idxs.push_back(ConstantInt::get(Int32Ty, 0));
-	idxs.push_back(ConstantInt::get(Int32Ty, 0));
-	Instruction *load = GetElementPtrInst::Create(name_gvar,
-		idxs.begin(), idxs.end(), "");
+	Value *idxs[] = {
+	    ConstantInt::get(Int32Ty, 0),
+	    ConstantInt::get(Int32Ty, 0)
+	};
+	Instruction *load = GetElementPtrInst::Create(name_gvar, idxs,
+		idxs + 2, "");
 
-	std::vector<Value *> params;
-	params.push_back(load);
-
-	Instruction *call = CallInst::Create(rbInternFunc, params.begin(),
-		params.end(), "");
+	Instruction *call = CallInst::Create(rbInternFunc, load, "");
 
 	Instruction *assign = new StoreInst(call, gvar, "");
  
@@ -5128,17 +5057,13 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	GlobalVariable *str = compile_const_global_string(
 		gvar->getName().str().c_str());
 
-	std::vector<Value *> idxs;
-	idxs.push_back(ConstantInt::get(Int32Ty, 0));
-	idxs.push_back(ConstantInt::get(Int32Ty, 0));
-	Instruction *load = GetElementPtrInst::Create(str,
-		idxs.begin(), idxs.end(), "");
+	Value *idxs[] = {
+	    ConstantInt::get(Int32Ty, 0),
+	    ConstantInt::get(Int32Ty, 0)
+	};
+	Instruction *load = GetElementPtrInst::Create(str, idxs, idxs + 2, "");
 
-	std::vector<Value *> params;
-	params.push_back(load);
-
-	Instruction *call = CallInst::Create(getClassFunc, params.begin(),
-		params.end(), "");
+	Instruction *call = CallInst::Create(getClassFunc, load, "");
 
 	Instruction *assign = new StoreInst(call, gvar, "");
 
@@ -5205,9 +5130,10 @@ RoxorCompiler::compile_write_attr(ID name)
 	VALUE tmp = rb_id2str(name);
  	VALUE str = rb_str_substr(tmp, 1, rb_str_chars_len(tmp) - 1);
 
-	std::vector<Value *> params;
-	params.push_back(current_self);
-	params.push_back(compile_immutable_literal(str));
+	Value *args[] = {
+	    current_self,
+	    compile_immutable_literal(str)
+	};
 
 	if (willChangeValueFunc == NULL) {
 	    willChangeValueFunc =
@@ -5215,8 +5141,7 @@ RoxorCompiler::compile_write_attr(ID name)
 			    "rb_objc_willChangeValueForKey",
 			    VoidTy, RubyObjTy, RubyObjTy, NULL));
 	}
-	CallInst::Create(willChangeValueFunc, params.begin(), params.end(),
-		"", bb);
+	CallInst::Create(willChangeValueFunc, args, args + 2, "", bb);
 
 	val = compile_ivar_assignment(name, new_val);
 
@@ -5226,8 +5151,7 @@ RoxorCompiler::compile_write_attr(ID name)
 			    "rb_objc_didChangeValueForKey",
 			    VoidTy, RubyObjTy, RubyObjTy, NULL));
 	}
-	CallInst::Create(didChangeValueFunc, params.begin(), params.end(),
-		"", bb);
+	CallInst::Create(didChangeValueFunc, args, args + 2, "", bb);
     }
     else {
 	val = compile_ivar_assignment(name, new_val);
@@ -5258,12 +5182,12 @@ RoxorCompiler::compile_get_struct_fields(Value *val, Value *buf,
 		    VoidTy, RubyObjTy, RubyObjPtrTy, PtrTy, NULL));
     }
 
-    std::vector<Value *> params;
-    params.push_back(val);
-    params.push_back(buf);
-    params.push_back(compile_const_pointer(bs_boxed));
-
-    CallInst::Create(getStructFieldsFunc, params.begin(), params.end(), "", bb);
+    Value *args[] = {
+	val,
+	buf,
+	compile_const_pointer(bs_boxed)
+    };
+    CallInst::Create(getStructFieldsFunc, args, args + 3, "", bb);
 }
 
 extern "C"
@@ -5299,24 +5223,23 @@ RoxorCompiler::compile_get_opaque_data(Value *val, rb_vm_bs_boxed_t *bs_boxed,
 		    PtrTy, RubyObjTy, PtrTy, PtrPtrTy, NULL));
     }
 
-    std::vector<Value *> params;
-    params.push_back(val);
-    params.push_back(compile_const_pointer(bs_boxed));
-    params.push_back(slot);
-
-    return compile_protected_call(getOpaqueDataFunc, params);
+    Value *args[] = {
+	val,
+	compile_const_pointer(bs_boxed),
+	slot
+    };
+    return compile_protected_call(getOpaqueDataFunc, args, args + 3);
 }
 
 Value *
 RoxorCompiler::compile_get_cptr(Value *val, const char *type, Value *slot)
 {
-    std::vector<Value *> params;
-
-    params.push_back(val);
-    params.push_back(compile_const_pointer(sel_registerName(type)));
-    params.push_back(new BitCastInst(slot, PtrPtrTy, "", bb));
-
-    return compile_protected_call(getPointerPtrFunc, params);
+    Value *args[] = {
+	val,
+	compile_const_pointer(sel_registerName(type)),
+	new BitCastInst(slot, PtrPtrTy, "", bb)
+    };
+    return compile_protected_call(getPointerPtrFunc, args, args + 3);
 }
 
 Value *
@@ -5432,11 +5355,12 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 			    // Get a pointer to the struct field. The extra 0
 			    // is needed because we are dealing with a pointer
 			    // to the structure.
-			    std::vector<Value *> slot_idx;
-			    slot_idx.push_back(ConstantInt::get(Int32Ty, 0));
-			    slot_idx.push_back(ConstantInt::get(Int32Ty, i));
+			    Value *slot_idx[] = {
+				ConstantInt::get(Int32Ty, 0),
+				ConstantInt::get(Int32Ty, i)
+			    };
 			    Value *fslot = GetElementPtrInst::Create(slot,
-				    slot_idx.begin(), slot_idx.end(), "", bb);
+				    slot_idx, slot_idx + 2, "", bb);
 
 			    RoxorCompiler::compile_conversion_to_c(ftype, fval,
 				    fslot);
@@ -5521,11 +5445,14 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 				"rb_proc_check_and_call",
 				RubyObjTy,
 				RubyObjTy, Int32Ty, RubyObjPtrTy, NULL));
-		std::vector<Value *> params;
-		params.push_back(new LoadInst(proc_gvar, "", bb));
-		params.push_back(ConstantInt::get(Int32Ty, argc));
-		params.push_back(argv);
-		Value *ret_val = compile_protected_call(proc_call_f, params);
+
+		Value *args[] = {
+		    new LoadInst(proc_gvar, "", bb),
+		    ConstantInt::get(Int32Ty, argc),
+		    argv
+		};
+		Value *ret_val = compile_protected_call(proc_call_f, args,
+			args + 3);
 
 		if (ret_type != VoidTy) {
 		    GetFirstType(type + 1, buf, buf_len);
@@ -5558,12 +5485,12 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
     if (func == NULL) {
 	rb_raise(rb_eTypeError, "unrecognized compile type `%s' to C", type);
     }
- 
-    std::vector<Value *> params;
-    params.push_back(val);
-    params.push_back(slot);
 
-    CallInst::Create(func, params.begin(), params.end(), "", bb);
+    Value *args[] = {
+	val,
+	slot
+    };
+    CallInst::Create(func, args, args + 2, "", bb);
     return new LoadInst(slot, "", bb);
 }
 
@@ -5630,12 +5557,11 @@ RoxorCompiler::compile_new_opaque(Value *klass, Value *val)
 		    "rb_vm_new_opaque", RubyObjTy, RubyObjTy, PtrTy, NULL));
     }
 
-    std::vector<Value *> params;
-    params.push_back(klass);
-    params.push_back(val);
-
-    return CallInst::Create(newOpaqueFunc, params.begin(), params.end(),
-	    "", bb); 
+    Value *args[] = {
+	klass,
+	val
+    };
+    return CallInst::Create(newOpaqueFunc, args, args + 2, "", bb); 
 }
 
 Value *
@@ -5646,20 +5572,19 @@ RoxorCompiler::compile_new_pointer(const char *type, Value *val)
 		    "rb_vm_new_pointer", RubyObjTy, PtrTy, PtrTy, NULL));
     }
 
-    std::vector<Value *> params;
-
     GlobalVariable *gvar = compile_const_global_string(type);
-    std::vector<Value *> idxs;
-    idxs.push_back(ConstantInt::get(Int32Ty, 0));
-    idxs.push_back(ConstantInt::get(Int32Ty, 0));
-    Instruction *load = GetElementPtrInst::Create(gvar,
-	    idxs.begin(), idxs.end(), "", bb);
-    params.push_back(load);
+    Value *idxs[] = {
+	ConstantInt::get(Int32Ty, 0),
+	ConstantInt::get(Int32Ty, 0)
+    };
+    Instruction *load = GetElementPtrInst::Create(gvar, idxs, idxs + 2,
+	    "", bb);
 
-    params.push_back(val);
-
-    return CallInst::Create(newPointerFunc, params.begin(), params.end(),
-	    "", bb); 
+    Value *args[] = {
+	load,
+	val
+    };
+    return CallInst::Create(newPointerFunc, args, args + 2, "", bb);
 }
 
 Value *
@@ -5671,10 +5596,7 @@ RoxorCompiler::compile_xmalloc(size_t len)
 		    "ruby_xmalloc", PtrTy, Int64Ty, NULL));
     }
 
-    std::vector<Value *> params;
-    params.push_back(ConstantInt::get(Int64Ty, len));
-
-    return CallInst::Create(xmallocFunc, params.begin(), params.end(),
+    return CallInst::Create(xmallocFunc, ConstantInt::get(Int64Ty, len),
 	    "", bb);
 }
 
@@ -5812,12 +5734,7 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 	abort();
     }
  
-    std::vector<Value *> params;
-
-    params.push_back(val);
-
-    return CallInst::Create(func, params.begin(),
-	    params.end(), "", bb);
+    return CallInst::Create(func, val, "", bb);
 }
 
 const Type *
@@ -6506,17 +6423,15 @@ RoxorCompiler::compile_block_caller(rb_vm_block_t *block)
 	}
     }
 
-    std::vector<Value *> params;
-    params.push_back(compile_const_pointer(block));
-    params.push_back(rcv);
-    params.push_back(sel);
-    params.push_back(argc);
-    params.push_back(argv);
-
-    Value *retval = compile_protected_call(blockEvalFunc, params);
-
+    Value *args[] = {
+	compile_const_pointer(block),
+	rcv,
+	sel,
+	argc,
+	argv
+    };
+    Value *retval = compile_protected_call(blockEvalFunc, args, args + 5);
     ReturnInst::Create(context, retval, bb);	
-
     return f;
 }
 

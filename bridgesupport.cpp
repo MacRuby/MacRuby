@@ -97,11 +97,11 @@ RoxorCompiler::compile_check_arity(Value *given, Value *requested)
 		    VoidTy, Int32Ty, Int32Ty, NULL));
     }
 
-    std::vector<Value *> params;
-    params.push_back(given);
-    params.push_back(requested);
-
-    compile_protected_call(checkArityFunc, params);
+    Value *args[] = {
+	given,
+	requested
+    };
+    compile_protected_call(checkArityFunc, args, args + 2);
 }
 
 extern "C"
@@ -123,12 +123,12 @@ RoxorCompiler::compile_set_struct(Value *rcv, int field, Value *val)
 		    VoidTy, RubyObjTy, Int32Ty, RubyObjTy, NULL));
     }
 
-    std::vector<Value *> params;
-    params.push_back(rcv);
-    params.push_back(ConstantInt::get(Int32Ty, field));
-    params.push_back(val);
-
-    CallInst::Create(setStructFunc, params.begin(), params.end(), "", bb);
+    Value *args[] = {
+	rcv,
+	ConstantInt::get(Int32Ty, field),
+	val
+    };
+    CallInst::Create(setStructFunc, args, args + 3, "", bb);
 }
 
 Function *
@@ -196,13 +196,13 @@ RoxorCompiler::compile_bs_struct_new(rb_vm_bs_boxed_t *bs_boxed)
 		Intrinsic::memset, Tys, 1);
 	assert(memset_func != NULL);
 
-	std::vector<Value *> params;
-	params.push_back(new BitCastInst(fval, PtrTy, "", bb));
-	params.push_back(ConstantInt::get(Int8Ty, 0));
-	params.push_back(ConstantInt::get(IntTy,
-		    GET_CORE()->get_sizeof(llvm_type)));
-	params.push_back(ConstantInt::get(Int32Ty, 0));
-	CallInst::Create(memset_func, params.begin(), params.end(), "", bb);
+	Value *args[] = {
+	    new BitCastInst(fval, PtrTy, "", bb),
+	    ConstantInt::get(Int8Ty, 0),
+	    ConstantInt::get(IntTy, GET_CORE()->get_sizeof(llvm_type)),
+	    ConstantInt::get(Int32Ty, 0)
+	};
+	CallInst::Create(memset_func, args, args + 4, "", bb);
 
 	fval = new LoadInst(fval, "", bb);
 	fval = compile_conversion_to_ruby(ftype, llvm_type, fval);
