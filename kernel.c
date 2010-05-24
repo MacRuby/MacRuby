@@ -449,7 +449,7 @@ vm_set_current_scope(VALUE mod, int scope)
 }
 
 inline VALUE
-vm_ocval_to_rval(id ocval)
+vm_ocval_to_rval(void *ocval)
 {
     return OC2RB(ocval);
 }
@@ -539,7 +539,7 @@ vm_charptr_to_rval(const char *ptr)
 }
 
 inline void
-vm_rval_to_ocval(VALUE rval, id *ocval)
+vm_rval_to_ocval(VALUE rval, void **ocval)
 {
     *ocval = rval == Qnil ? NULL : RB2OC(rval);
 }
