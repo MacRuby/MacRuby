@@ -1075,7 +1075,7 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
 		  free(fptr_args[i].type);
 	      }
 	      snprintf(new_type, sizeof(new_type),
-		       "%c%s%c", _C_FPTR_B, tmp_type, _C_FPTR_E);
+		       "%c%s%c", _MR_C_FPTR_B, tmp_type, _MR_C_FPTR_E);
 
 	      if (atom->val == BS_XML_RETVAL) {
 		  bs_element_retval_t *retval =

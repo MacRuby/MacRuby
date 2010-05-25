@@ -118,30 +118,30 @@ SkipFirstType(const char *type)
 {
     while (1) {
         switch (*type++) {
+	    case _C_CONST:
+	    case _C_PTR:
             case 'O':   /* bycopy */
             case 'n':   /* in */
             case 'o':   /* out */
             case 'N':   /* inout */
-            case 'r':   /* const */
             case 'V':   /* oneway */
-            case '^':   /* pointers */
                 break;
 
                 /* arrays */
-            case '[':
-                return type + SubtypeUntil (type, ']') + 1;
+            case _C_ARY_B:
+                return type + SubtypeUntil (type, _C_ARY_E) + 1;
 
                 /* structures */
-            case '{':
-                return type + SubtypeUntil (type, '}') + 1;
+            case _C_STRUCT_B:
+                return type + SubtypeUntil (type, _C_STRUCT_E) + 1;
 
                 /* unions */
-            case '(':
-                return type + SubtypeUntil (type, ')') + 1;
+            case _C_UNION_B:
+                return type + SubtypeUntil (type, _C_UNION_E) + 1;
 
                 /* Function pointers */
-            case '<':
-                return type + SubtypeUntil (type, '>') + 1;
+            case _MR_C_FPTR_B:
+                return type + SubtypeUntil (type, _MR_C_FPTR_E) + 1;
 
                 /* basic types */
             default:

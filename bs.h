@@ -37,8 +37,8 @@ extern "C" {
 #include <objc/runtime.h>
 
 /* Extend objc/runtime.h and add function pointers tokens */
-#define _C_FPTR_B '<'
-#define _C_FPTR_E '>'
+#define _MR_C_FPTR_B '<'
+#define _MR_C_FPTR_E '>'
 
 /* Attribute and element representations.
  * See BridgeSupport(5) for more information.

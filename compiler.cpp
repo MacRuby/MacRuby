@@ -5248,7 +5248,8 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 {
     type = SkipTypeModifiers(type);
 
-    if (*type == _C_PTR && GET_CORE()->find_bs_cftype(type) != NULL) {
+    if (type[0] == _C_PTR && type[1] != _C_VOID
+	    && GET_CORE()->find_bs_cftype(type) != NULL) {
 	type = "@";
     }
 
@@ -5377,7 +5378,7 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 	    }
 	    break;
 
-        case _C_FPTR_B:
+        case _MR_C_FPTR_B:
 	    {
 		GlobalVariable *proc_gvar =
 		    new GlobalVariable(*RoxorCompiler::module,
@@ -5395,7 +5396,7 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 
 		std::vector<std::string> arg_ctypes;
 		std::vector<const Type *> arg_types;
-		while (*p != _C_FPTR_E) {
+		while (*p != _MR_C_FPTR_E) {
 		    p = GetFirstType(p, buf, buf_len);
 		    arg_ctypes.push_back(std::string(buf));
 		    arg_types.push_back(convert_type(buf));
@@ -5606,7 +5607,8 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 {
     type = SkipTypeModifiers(type);
 
-    if (*type == _C_PTR && GET_CORE()->find_bs_cftype(type) != NULL) {
+    if (type[0] == _C_PTR && type[1] != _C_VOID
+	    && GET_CORE()->find_bs_cftype(type) != NULL) {
 	type = "@";
     }
 
@@ -5826,7 +5828,7 @@ RoxorCompiler::convert_type(const char *type)
 	    }
 	    break;
 
-	case _C_FPTR_B:
+	case _MR_C_FPTR_B:
 	    return PtrTy;
 
 	case _C_STRUCT_B:
@@ -6256,6 +6258,9 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
 	arg_types.push_back(buf);
     }
 
+    free(buf);
+    buf = NULL;
+
     // Create the function.
     FunctionType *ft = FunctionType::get(f_ret_type, f_types, false);
     Function *f = cast<Function>(module->getOrInsertFunction("", ft));
@@ -6316,9 +6321,10 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
     }
 
     // Call the Ruby implementation.
-    Value *ret_val = compile_protected_call(imp, params);
+    Instruction *ruby_call_insn = compile_protected_call(imp, params);
 
     // Convert the return value into Objective-C type (if any).
+    Value *ret_val = ruby_call_insn;
     if (f_ret_type != VoidTy) {
 	ret_val = compile_conversion_to_c(ret_type.c_str(), ret_val,
 		new AllocaInst(f_ret_type, "", bb));
@@ -6353,7 +6359,11 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
     rescue_invoke_bb = old_rescue_invoke_bb;
 #endif
 
-    free(buf);
+    // Now that the function is finished, we can inline the Ruby method.
+    if (CallInst::classof(ruby_call_insn)) {
+	CallInst *insn = cast<CallInst>(ruby_call_insn);
+	InlineFunction(insn);
+    }
 
     return f;
 }

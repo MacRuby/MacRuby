@@ -1252,6 +1252,11 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 	case BS_ELEMENT_CFTYPE:
 	{
 	    bs_element_cftype_t *bs_cftype = (bs_element_cftype_t *)value;
+	    assert(bs_cftype->type[0] == _C_PTR);
+	    if (bs_cftype->type[1] == _C_VOID) {
+		// Do not register ^v as a valid CFType.
+		break;
+	    }
 	    std::map<std::string, bs_element_cftype_t *>::iterator
 		iter = bs_cftypes.find(bs_cftype->type);
 	    if (iter == bs_cftypes.end()) {
