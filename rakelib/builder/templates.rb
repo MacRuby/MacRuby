@@ -46,6 +46,14 @@ module RbConfig
 
   TOPDIR = File.dirname(__FILE__).chomp!("/lib/ruby/#{NEW_RUBY_VERSION}/#{NEW_RUBY_PLATFORM}")
   DESTDIR = '' unless defined? DESTDIR
+  ARCHFLAGS = 
+    if e = ENV['ARCHFLAGS']
+      e
+    elsif e = ENV['RC_ARCHS']
+      e.split.map { |a| "-arch \#{a}" }.join(' ')
+    else
+      "#{ARCHFLAGS}"
+    end
   CONFIG = {}
   CONFIG["DESTDIR"] = DESTDIR
   CONFIG["INSTALL"] = '/usr/bin/install -c'
@@ -105,12 +113,12 @@ module RbConfig
   CONFIG["target_vendor"] = "apple"
   CONFIG["target_os"] = "darwin9.0"
   CONFIG["CC"] = "/usr/bin/gcc"
-  CONFIG["CFLAGS"] = "-fexceptions -fno-common -pipe $(cflags)"
-  CONFIG["LDFLAGS"] = ""
+  CONFIG["CFLAGS"] = "$(ARCHFLAGS) -fexceptions -fno-common -pipe $(cflags)"
+  CONFIG["LDFLAGS"] = "$(ARCHFLAGS)"
   CONFIG["CPPFLAGS"] = "$(cppflags)"
   CONFIG["OBJEXT"] = "o"
   CONFIG["CXX"] = "/usr/bin/g++"
-  CONFIG["CXXFLAGS"] = ""
+  CONFIG["CXXFLAGS"] = "$(ARCHFLAGS)"
   CONFIG["CPP"] = "/usr/bin/gcc -E"
   CONFIG["GREP"] = "/usr/bin/grep"
   CONFIG["EGREP"] = "/usr/bin/grep -E"
@@ -136,11 +144,11 @@ module RbConfig
   CONFIG["MAKEDIRS"] = "mkdir -p"
   CONFIG["ALLOCA"] = ""
   CONFIG["DLDFLAGS"] = ""
-  CONFIG["ARCH_FLAG"] = "#{ARCHFLAGS}"
+  CONFIG["ARCH_FLAG"] = ARCHFLAGS
   CONFIG["STATIC"] = ""
   CONFIG["CCDLFLAGS"] = "-fno-common"
-  CONFIG["LDSHARED"] = "$(CC) -dynamic -bundle -undefined suppress -flat_namespace #{ARCHFLAGS}"
-  CONFIG["LDSHAREDXX"] = "$(CXX) -dynamic -bundle -undefined suppress -flat_namespace"
+  CONFIG["LDSHARED"] = "$(CC) -dynamic -bundle -undefined suppress -flat_namespace $(ARCHFLAGS)"
+  CONFIG["LDSHAREDXX"] = "$(CXX) -dynamic -bundle -undefined suppress -flat_namespace $(ARCHFLAGS)"
   CONFIG["DLEXT"] = "bundle"
   CONFIG["DLEXT2"] = ""
   CONFIG["LIBEXT"] = "a"
@@ -161,7 +169,7 @@ module RbConfig
   CONFIG["optflags"] = "-O3"
   CONFIG["debugflags"] = "-g"
   CONFIG["warnflags"] = "-Wall"
-  CONFIG["LIBRUBY_LDSHARED"] = "/usr/bin/gcc -dynamiclib -undefined suppress -flat_namespace"
+  CONFIG["LIBRUBY_LDSHARED"] = "/usr/bin/gcc -dynamiclib -undefined suppress -flat_namespace $(ARCHFLAGS)"
   CONFIG["LIBRUBY_DLDFLAGS"] = "-install_name $(libdir)/lib$(RUBY_SO_NAME).dylib -current_version $(MAJOR).$(MINOR).$(TEENY) -compatibility_version $(MAJOR).$(MINOR)"
   CONFIG["rubyw_install_name"] = ""
   CONFIG["RUBYW_INSTALL_NAME"] = ""
