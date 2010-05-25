@@ -259,7 +259,7 @@ typedef struct auto_weak_callback_block {
     void *arg2;
 } auto_weak_callback_block_t;
 
-extern void auto_assign_weak_reference(auto_zone_t *zone, const void *value, void *const*location, auto_weak_callback_block_t *block);
+extern void auto_assign_weak_reference(auto_zone_t *zone, const void *value, const void **location, auto_weak_callback_block_t *block);
 
 // Read a weak-reference, informing the collector that it is now strongly referenced.
 extern void* auto_read_weak_reference(auto_zone_t *zone, void **referrer);
