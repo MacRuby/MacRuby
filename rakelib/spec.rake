@@ -2,9 +2,9 @@ namespace :spec do
   MACRUBY_MSPEC = "./spec/macruby.mspec"
   DEFAULT_OPTIONS = "-B #{MACRUBY_MSPEC}"
   
-  def mspec(type, options)
+  def mspec(type, options, env = nil)
     rm_rf 'rubyspec_temp'
-    sh "./mspec/bin/mspec #{type} #{DEFAULT_OPTIONS} #{ENV['opts']} #{options}"
+    sh "#{"env '#{env}' " if env}./mspec/bin/mspec #{type} #{DEFAULT_OPTIONS} #{ENV['opts']} #{options}"
   end
   
   desc "Run all continuous integration examples (all known good examples)"
@@ -67,6 +67,41 @@ namespace :spec do
     desc "Add fails tags for examples which fail."
     task :add do
       mspec :tag, "-G critical -G fails :full"
+    end
+  end
+  
+  desc "Run all continuous integration examples (all known good examples) (1.9)"
+  task :"1.9" => "spec:1.9:ci"
+  
+  namespace :"1.9" do
+    desc "Run all continuous integration examples (all known good examples) (1.9)"
+    task :ci do
+      mspec :ci, ":rubyspec", "RUN_WITH_MRI_19=true"
+    end
+    
+    desc "Run all Language-only specs (1.9)"
+    task :language do
+      mspec :ci, ":language", "RUN_WITH_MRI_19=true"
+    end
+    
+    desc "Run all Core-only specs (1.9)"
+    task :core do
+      mspec :ci, ":core", "RUN_WITH_MRI_19=true"
+    end
+    
+    desc "Run all Library-only specs (1.9)"
+    task :library do
+      mspec :ci, ":library", "RUN_WITH_MRI_19=true"
+    end
+    
+    desc "Run language examples that are known to fail (1.9)"
+    task :fails do
+      mspec :run, "-g fails :rubyspec", "RUN_WITH_MRI_19=true"
+    end
+    
+    desc "Run all continuous integration examples and report the stats (all known good examples) (1.9)"
+    task :stats do
+      mspec :ci, ":rubyspec -f macruby", "RUN_WITH_MRI_19=true"
     end
   end
   
