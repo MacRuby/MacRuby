@@ -14,12 +14,13 @@ ARGV.each do |arg|
       exit 1
     end
   else
-    perf_files << File.join(cwd, "perf_#{arg}.rb")
+    name, suite = arg.split(':', 2)
+    perf_files << [File.join(cwd, "perf_#{name}.rb"), suite]
   end
 end
 
 if perf_files.empty?
-  perf_files = Dir.glob(File.join(cwd, 'perf_*.rb'))
+  perf_files = Dir.glob(File.join(cwd, 'perf_*.rb')).map { |x| [x, nil] }
 end
 
 if rubies.empty?
@@ -35,10 +36,11 @@ rubies_names.each { |x| print x.ljust(20) }
 puts '', '-' * 80
 
 booter = File.join(cwd, 'boot.rb')
-perf_files.each do |file|
+perf_files.each do |file, suite|
   results = {}
+  suite ||= ''
   rubies.each do |ruby| 
-    output = `#{ruby} #{booter} #{n_iterations} #{file}`.strip
+    output = `#{ruby} #{booter} #{n_iterations} #{file} #{suite}`.strip
     output.split(/\n/).each do |line|
       title, times = line.split(/:/)
       best = times.split(/,/).min
@@ -49,7 +51,10 @@ perf_files.each do |file|
   prefix = File.basename(file).scan(/perf_(\w+)\.rb/)[0][0]
   results.each do |title, res|
     print "#{prefix}:#{title}".ljust(20)
-    winner = res.size > 1 ? res.map { |_, best| best }.min : nil
+    winner = nil
+    if res.size > 1
+      winner = res.map { |_, best| best.to_f }.min.to_s  
+    end
     res.each do |_, best|
       s = best.ljust(20)
       if best == winner

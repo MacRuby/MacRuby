@@ -1,14 +1,18 @@
-@perf_tests = []
-def perf_test(name, &b)
-  @perf_tests << [name, b]  
-end
-
-if ARGV.size != 2
-  $stderr.puts "Usage: #{__FILE__} <n-iterations> <file.rb>"
+if ARGV.size < 2 or ARGV.size > 3
+  $stderr.puts "Usage: #{__FILE__} <n-iterations> <file.rb> [suite]"
   exit 1
 end
 N = ARGV[0].to_i
-load(ARGV[1])
+file = ARGV[1]
+@suite = ARGV[2]
+@perf_tests = []
+def perf_test(name, &b)
+  if @suite == nil or @suite == name
+    @perf_tests << [name, b]
+  end
+end
+
+load(file)
 
 @perf_tests.each do |name, proc|
   times = []
