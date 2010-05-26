@@ -1,11 +1,20 @@
 #!/usr/bin/ruby
 
+def usage
+  puts "ruby #{$0} [--rubies=...] [--iterations=n] [perf_suite, [perf_suite...]]"
+  exit 0
+end
+
+usage if ARGV.size < 1
+
 cwd = File.dirname(__FILE__)
 perf_files = []
 rubies = []
 n_iterations = 3
 ARGV.each do |arg|
-  if md = /--rubies=(.*)/.match(arg)
+  if arg.match(/--help/)
+    usage
+  elsif md = /--rubies=(.*)/.match(arg)
     rubies = md[1].split(/,/)
   elsif md = /--iterations=(.*)/.match(arg)
     n_iterations = md[1].to_i
@@ -31,9 +40,10 @@ end
 
 rubies_names = rubies.map { |x| `#{x} -v`.scan(/^\w+\s+[^\s]+/)[0] }
 
-print 'Name'.ljust(20)
-rubies_names.each { |x| print x.ljust(20) }
-puts '', '-' * 80
+header_string = 'Name'.ljust(20)
+rubies_names.each { |x| header_string += x.ljust(20) }
+print header_string
+puts '', '-' * header_string.length
 
 booter = File.join(cwd, 'boot.rb')
 perf_files.each do |file, suite|
@@ -53,7 +63,9 @@ perf_files.each do |file, suite|
     print "#{prefix}:#{title}".ljust(20)
     winner = nil
     if res.size > 1
-      winner = res.sort { |a, b| a[:best].to_f <=> b[:best].to_f }.first[:best]
+      winner = res.reject { |a| a[:best] == 'ERROR' }.sort { |a, b|
+        a[:best].to_f <=> b[:best].to_f
+      }.first[:best]
     end
     res.each do |rb|
       best = rb[:best]
