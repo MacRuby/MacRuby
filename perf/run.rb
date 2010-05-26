@@ -45,7 +45,7 @@ perf_files.each do |file, suite|
       title, times = line.split(/:/)
       best = times.split(/,/).min
       results[title] ||= []
-      results[title] << [ruby, best]
+      results[title] << {:ruby => ruby, :best => best}
     end
   end
   prefix = File.basename(file).scan(/perf_(\w+)\.rb/)[0][0]
@@ -53,9 +53,10 @@ perf_files.each do |file, suite|
     print "#{prefix}:#{title}".ljust(20)
     winner = nil
     if res.size > 1
-      winner = res.map { |_, best| best.to_f }.min.to_s  
+      winner = res.sort { |a, b| a[:best].to_f <=> b[:best].to_f }.first[:best]
     end
-    res.each do |_, best|
+    res.each do |rb|
+      best = rb[:best]
       s = best.ljust(20)
       if best == winner
         s = "\033[32m#{s}\033[0m" # green
