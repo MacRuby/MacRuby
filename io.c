@@ -1123,6 +1123,11 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
 	outbuf = rb_bstr_new();
 	outbuf_created = true;
     }
+    else {
+	StringValue(outbuf);
+	outbuf = rb_str_bstr(outbuf);
+	rb_str_set_len(outbuf, 0);
+    }
 
     if (NIL_P(len)) {
 	rb_io_read_all(io_struct, outbuf);
@@ -1144,7 +1149,6 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
 	rb_raise(rb_eArgError, "given size `%ld' is too big", size);
     }
 
-    outbuf = rb_str_bstr(outbuf);
     rb_bstr_resize(outbuf, size);
     uint8_t *bytes = rb_bstr_bytes(outbuf);
 
