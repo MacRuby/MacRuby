@@ -533,9 +533,9 @@ vm_double_to_rval(double d)
 }
 
 inline VALUE
-vm_sel_to_rval(SEL sel)
+vm_sel_to_rval(void *sel)
 {
-    return sel == 0 ? Qnil : ID2SYM(rb_intern(sel_getName(sel)));
+    return sel == 0 ? Qnil : ID2SYM(rb_intern(sel_getName((SEL)sel)));
 }
 
 inline VALUE
@@ -581,10 +581,10 @@ rval_to_c_str(VALUE rval)
 }
 
 inline void
-vm_rval_to_sel(VALUE rval, SEL *ocval)
+vm_rval_to_sel(VALUE rval, void **ocval)
 {
     const char *cstr = rval_to_c_str(rval);
-    *ocval = cstr == NULL ? NULL : sel_registerName(cstr);
+    *(SEL *)ocval = cstr == NULL ? NULL : sel_registerName(cstr);
 }
 
 inline void
