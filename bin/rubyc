@@ -273,7 +273,7 @@ EOS
     # Link all objects into executable.
     linkf = @static ? 
       "-L#{RbConfig::CONFIG['libdir']} #{RbConfig::CONFIG['LIBRUBYARG_STATIC_REALLY']}" :
-      "-framework MacRuby -lobjc"
+      "-framework MacRuby -framework Foundation -lobjc -lauto"
     line = "#{@gcxx} -o \"#{output}\" #{arch_flags} #{linkf} "
     objs.each { |o| line << " \"#{o}\"" }
     execute(line)
