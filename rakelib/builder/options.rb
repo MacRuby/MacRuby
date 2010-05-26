@@ -36,18 +36,30 @@ if `sw_vers -productVersion`.strip.to_f >= 10.7 and File.exist?('/AppleInternal'
   #ENV['LLVM_PRE_TOT'] = '1'
 end
 
-RUBY_INSTALL_NAME       = b.option('ruby_install_name', 'macruby')
-RUBY_SO_NAME            = b.option('ruby_so_name', RUBY_INSTALL_NAME)
-LLVM_PATH               = b.option('llvm_path', llvm_default_path)
-FRAMEWORK_NAME          = b.option('framework_name', 'MacRuby')
-FRAMEWORK_INSTDIR       = b.option('framework_instdir', '/Library/Frameworks')
-SYM_INSTDIR             = b.option('sym_instdir', '/usr/local')
-NO_WARN_BUILD           = !b.option('allow_build_warnings', false)
-ENABLE_STATIC_LIBRARY   = b.option('enable_static_library', 'no') { 'yes' }
-ENABLE_DEBUG_LOGGING    = b.option('enable_debug_logging', true) { |x| x == 'true' }
-SIMULTANEOUS_JOBS       = b.option('jobs', 1) { |x| x.to_i }
-COMPILE_STDLIB          = b.option('compile_stdlib', true) { |x| x == 'true' }
-OPTZ_LEVEL              = b.option('optz_level', 3) { |x| x.to_i }
+RUBY_INSTALL_NAME = b.option('ruby_install_name', 'macruby')
+RUBY_SO_NAME = b.option('ruby_so_name', RUBY_INSTALL_NAME)
+LLVM_PATH = b.option('llvm_path', llvm_default_path)
+FRAMEWORK_NAME = b.option('framework_name', 'MacRuby')
+FRAMEWORK_INSTDIR = b.option('framework_instdir', '/Library/Frameworks')
+SYM_INSTDIR = b.option('sym_instdir', '/usr/local')
+NO_WARN_BUILD = !b.option('allow_build_warnings', false)
+ENABLE_STATIC_LIBRARY = b.option('enable_static_library', 'no') { 'yes' }
+ENABLE_DEBUG_LOGGING = b.option('enable_debug_logging', true) { |x| x == 'true' }
+SIMULTANEOUS_JOBS = b.option('jobs', 1) { |x| x.to_i }
+COMPILE_STDLIB = b.option('compile_stdlib', true) { |x| x == 'true' }
+OPTZ_LEVEL = b.option('optz_level', 3) { |x| x.to_i }
+
+default_CC = '/usr/bin/gcc-4.2'
+unless File.exist?(default_CC)
+  default_CC = '/usr/bin/gcc'
+end
+CC = b.option('CC', default_CC)
+
+default_CXX = '/usr/bin/g++-4.2'
+unless File.exist?(default_CXX)
+  default_CXX = '/usr/bin/g++'
+end
+CXX = b.option('CXX', default_CXX)
 
 # Everything below this comment should *not* be modified.
 
@@ -108,8 +120,6 @@ ARCHFLAGS = ARCHS.map { |a| '-arch ' + a }.join(' ')
 LLVM_MODULES = "core jit nativecodegen bitwriter bitreader"
 EXPORTED_SYMBOLS_LIST = "./exported_symbols_list"
 
-CC = '/usr/bin/gcc-4.2'
-CXX = '/usr/bin/g++-4.2'
 OPTZFLAG = "-O#{OPTZ_LEVEL}"
 CFLAGS = "-I. -I./include -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -g -Wall -fexceptions #{OPTZFLAG}"
 CFLAGS << " -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
