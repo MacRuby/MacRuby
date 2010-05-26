@@ -944,17 +944,20 @@ call_method_missing:
     if (new_sel != 0) {
 	Method m = class_getInstanceMethod(klass, new_sel);
 	if (m != NULL) {
-	    unsigned expected_argc;
-	    rb_vm_method_node_t *node = GET_CORE()->method_node_get(m);
-	    if (node != NULL) {
-		expected_argc = node->arity.min;
+	    IMP mimp = method_getImplementation(m);
+	    if (!UNAVAILABLE_IMP(mimp)) {
+		unsigned expected_argc;
+		rb_vm_method_node_t *node = GET_CORE()->method_node_get(m);
+		if (node != NULL) {
+		    expected_argc = node->arity.min;
+		}
+		else {
+		    expected_argc = method_getNumberOfArguments(m);
+		    expected_argc -= 2; // removing receiver and selector
+		}
+		rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
+			argc, expected_argc);
 	    }
-	    else {
-		expected_argc = method_getNumberOfArguments(m);
-		expected_argc -= 2; // removing receiver and selector
-	    }
-	    rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
-		     argc, expected_argc);
 	}
     }
 
