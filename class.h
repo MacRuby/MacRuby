@@ -24,8 +24,74 @@ extern "C" {
 #define RCLASS_SCOPE_MOD_FUNC	     (1<<14)  /* class opened for module_function methods */
 #define RCLASS_KVO_CHECK_DONE	     (1<<15)  /* class created by KVO and flags merged */
 
-unsigned long rb_class_get_flags(Class k);
-void rb_class_set_flags(Class k, unsigned long flags);
+typedef struct rb_class_flags_cache {
+    Class klass;
+    unsigned long value;
+    struct rb_class_flags_cache *next;
+} rb_class_flags_cache_t;
+
+#define CACHE_SIZE 0x1000
+
+extern rb_class_flags_cache_t *rb_class_flags;
+
+static unsigned int
+rb_class_flags_hash(Class k)
+{
+    return ((unsigned long)k >> 2) & (CACHE_SIZE - 1);
+}
+
+static inline unsigned long
+rb_class_get_mask(Class k)
+{
+    rb_class_flags_cache_t *e = &rb_class_flags[rb_class_flags_hash(k)];
+    while (e != NULL) {
+	if (e->klass == k) {
+	    return e->value;
+	}
+	e = e->next;
+    }
+    return 0;
+}
+
+static inline void
+rb_class_set_mask(Class k, unsigned long mask)
+{
+    rb_class_flags_cache_t *e = &rb_class_flags[rb_class_flags_hash(k)];
+again:
+    if (e->klass == k) {
+set_value:
+	e->value = mask;
+	return;
+    }
+    if (e->klass == 0) {
+	e->klass = k;
+	goto set_value;
+    }
+    if (e->next != NULL) {
+	e = e->next;
+	goto again;
+    }
+    rb_class_flags_cache_t *ne = (rb_class_flags_cache_t *)malloc(
+	    sizeof(rb_class_flags_cache_t));
+    ne->klass = k;
+    ne->value = mask;
+    ne->next = NULL;
+    e->next = ne;
+}
+
+#define RCLASS_MASK_TYPE_SHIFT 16
+
+static inline unsigned long
+rb_class_get_flags(Class k)
+{
+    return rb_class_get_mask(k) >> RCLASS_MASK_TYPE_SHIFT;
+}
+
+static inline void
+rb_class_set_flags(Class k, unsigned long flags)
+{
+    rb_class_set_mask(k, flags << RCLASS_MASK_TYPE_SHIFT);
+}
 
 #define RCLASS_VERSION(m) (rb_class_get_flags((Class)m))
 #define RCLASS_SET_VERSION(m,f) (rb_class_set_flags((Class)m, (unsigned long)f))

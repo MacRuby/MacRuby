@@ -362,7 +362,7 @@ rb_nsobj_dup(VALUE obj, VALUE sel)
 	return (VALUE)objc_msgSend((id)obj, selCopy); 
     }
 
-    VALUE copy = rb_robject_allocate_instance(klass);
+    VALUE copy = rb_vm_new_rb_object(klass);
     rb_obj_init_copy(copy, 0, (VALUE)obj);
     return copy;
 }
@@ -1894,7 +1894,7 @@ rb_obj_alloc0(VALUE klass)
 
     if ((RCLASS_VERSION(*(void **)klass) & RCLASS_HAS_ROBJECT_ALLOC) == RCLASS_HAS_ROBJECT_ALLOC) {
 	// Fast path!
-	return rb_robject_allocate_instance(klass);
+	return rb_vm_new_rb_object(klass);
     }
     return rb_vm_call_with_cache(allocCache, klass, selAlloc, 0, NULL);
 }

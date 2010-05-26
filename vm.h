@@ -343,6 +343,8 @@ typedef struct {
 #define SLOT_CACHE_VIRGIN	-2
 #define SLOT_CACHE_CANNOT	-1
 
+#define RB_OBJECT_DEFAULT_NUM_SLOTS	4
+
 typedef struct {
     struct RBasic basic;
     rb_object_ivar_slot_t *slots;
@@ -386,9 +388,9 @@ rb_vm_set_ivar_from_slot(VALUE obj, VALUE val, int slot)
 }
 
 static inline VALUE
-rb_robject_allocate_instance(VALUE klass)
+rb_vm_new_rb_object(VALUE klass)
 {
-    const int num_slots = 10;
+    const int num_slots = RB_OBJECT_DEFAULT_NUM_SLOTS;
 
     rb_object_t *obj = (rb_object_t *)rb_objc_newobj(sizeof(rb_object_t));
     GC_WB(&obj->slots, xmalloc(sizeof(rb_object_ivar_slot_t) * num_slots));

@@ -39,6 +39,7 @@ void rb_call_inits(void);
 void Init_ext(void);
 void Init_PreGC(void);
 void Init_PreVM(void);
+void Init_PreClass(void);
 void Init_PreGCD(void);
 void Init_PreEncoding(void);
 
@@ -74,6 +75,7 @@ ruby_init(void)
 	}
     }
 
+    Init_PreClass();	// requires nothing
     Init_PreGC(); 	// requires nothing
     Init_PreVM(); 	// requires nothing
     Init_PreGCD(); 	// requires nothing

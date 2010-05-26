@@ -42,7 +42,7 @@ static void *
 rb_obj_imp_allocWithZone(void *rcv, SEL sel, void *zone)
 {
     // XXX honor zone?
-    return (void *)rb_robject_allocate_instance((VALUE)rcv);
+    return (void *)rb_vm_new_rb_object((VALUE)rcv);
 }
 
 static void *
@@ -1253,32 +1253,14 @@ rb_scan_args(int argc, const VALUE *argv, const char *fmt, ...)
     return 0;
 }
 
-static void *rb_class_flags_key = NULL;
-
-static unsigned long
-rb_class_get_mask(Class k)
-{
-    return (unsigned long)rb_objc_get_associative_ref(k, &rb_class_flags_key);
-}
-
-static void
-rb_class_set_mask(Class k, unsigned long mask)
-{
-    rb_objc_set_associative_ref(k, &rb_class_flags_key, (void *)mask);
-}
-
-#define RCLASS_MASK_TYPE_SHIFT 16
-
-unsigned long
-rb_class_get_flags(Class k)
-{
-    return rb_class_get_mask(k) >> RCLASS_MASK_TYPE_SHIFT;
-}
+rb_class_flags_cache_t *rb_class_flags;
 
 void
-rb_class_set_flags(Class k, unsigned long flags)
+Init_PreClass(void)
 {
-    rb_class_set_mask(k, flags << RCLASS_MASK_TYPE_SHIFT);
+    rb_class_flags = (rb_class_flags_cache_t *)calloc(CACHE_SIZE,
+	    sizeof(rb_class_flags_cache_t));
+    assert(rb_class_flags != NULL);
 }
 
 static int

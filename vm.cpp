@@ -1022,7 +1022,7 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 		    sel_getName(sel));
 #endif
 	    assert(val != NULL);
-	    *(bool *)val = true;
+	    *(unsigned char *)val = 1;
 	}
     }
 
@@ -1039,8 +1039,8 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 	VALUE included_in_classes = rb_attr_get((VALUE)klass, 
 		idIncludedInClasses);
 	if (included_in_classes != Qnil) {
-	    int i, count = RARRAY_LEN(included_in_classes);
-	    for (i = 0; i < count; i++) {
+	    for (int i = 0, count = RARRAY_LEN(included_in_classes);
+		    i < count; i++) {
 		VALUE mod = RARRAY_AT(included_in_classes, i);
 #if ROXOR_VM_DEBUG
 		printf("forward %c[%s %s] with imp %p node %p types %s\n",
@@ -1781,7 +1781,7 @@ RoxorCore::resolve_method(Class klass, SEL sel, Function *func,
     if (iter == objc_to_ruby_stubs.end()) {
 	Function *objc_func = RoxorCompiler::shared->compile_objc_stub(func,
 		imp, arity, types);
-	objc_imp = compile(objc_func, false);
+	objc_imp = compile(objc_func);
 	objc_to_ruby_stubs[imp] = objc_imp;
     }
     else {
@@ -4695,8 +4695,8 @@ resources_path(char *path, size_t len)
     url = CFBundleCopyResourcesDirectoryURL(bundle);
     *path = '-'; 
     *(path+1) = 'I';
-    assert(CFURLGetFileSystemRepresentation(
-		url, true, (UInt8 *)&path[2], len - 2));
+    assert(CFURLGetFileSystemRepresentation(url, true, (UInt8 *)&path[2],
+		len - 2));
     CFRelease(url);
 
     return path;
