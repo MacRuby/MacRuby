@@ -4813,6 +4813,43 @@ rstr_each_byte(VALUE str, SEL sel)
 
 /*
  *  call-seq:
+ *     str.codepoints {|integer| block }        -> str
+ *     str.codepoints                           -> an_enumerator
+ *
+ *     str.each_codepoint {|integer| block }    -> str
+ *     str.each_codepoint                       -> an_enumerator
+ *
+ *  Passes the <code>Integer</code> ordinal of each character in <i>str</i>,
+ *  also known as a <i>codepoint</i> when applied to Unicode strings to the
+ *  given block.
+ *
+ *  If no block is given, an enumerator is returned instead.
+ *
+ *     "hello\u0639".each_codepoint {|c| print c, ' ' }
+ *
+ *  <em>produces:</em>
+ *
+ *     104 101 108 108 111 1593
+ */
+
+static VALUE
+rstr_each_codepoint(VALUE str, SEL sel)
+{
+    if (!str_is_valid_encoding(RSTR(str))) {
+	rb_raise(rb_eArgError, "invalid byte sequence in %s",
+	    RSTR(str)->encoding->public_name);
+    }
+    RETURN_ENUMERATOR(str, 0, 0);
+
+    const long len = str_length(RSTR(str), true);
+    for (int i = 0; i < len; i++) {
+	rb_yield(INT2NUM(rb_str_get_uchar(str, i)));
+    }
+    return str;
+}
+
+/*
+ *  call-seq:
  *     str.succ   => new_str
  *     str.next   => new_str
  *  
@@ -5938,6 +5975,8 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "each_char", rstr_each_char, 0);
     rb_objc_define_method(rb_cRubyString, "bytes", rstr_each_byte, 0);
     rb_objc_define_method(rb_cRubyString, "each_byte", rstr_each_byte, 0);
+    rb_objc_define_method(rb_cRubyString, "codepoints", rstr_each_codepoint, 0);
+    rb_objc_define_method(rb_cRubyString, "each_codepoint", rstr_each_codepoint, 0);
     rb_objc_define_method(rb_cRubyString, "succ", rstr_succ, 0);
     rb_objc_define_method(rb_cRubyString, "succ!", rstr_succ_bang, 0);
     rb_objc_define_method(rb_cRubyString, "next", rstr_succ, 0);
