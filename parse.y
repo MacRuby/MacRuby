@@ -25,6 +25,7 @@
 #include "symbol.h"
 #include "id.h"
 #include "re.h"
+#include "class.h"
 #include <stdio.h>
 #include <errno.h>
 #include <ctype.h>
@@ -506,7 +507,6 @@ static int lvar_defined_gen(struct parser_params*, ID);
 #ifdef RIPPER
 #define RIPPER_VERSION "0.1.0"
 
-#include "class.h"
 #include "eventids1.c"
 #include "eventids2.c"
 static ID ripper_id_gets;
