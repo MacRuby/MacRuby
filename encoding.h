@@ -89,8 +89,10 @@ rstr_modify(VALUE str)
     if ((mask & FL_FREEZE) == FL_FREEZE) {
         rb_raise(rb_eRuntimeError, "can't modify frozen/immutable string");
     }
-    if ((mask & FL_TAINT) == FL_TAINT && rb_safe_level() >= 4) {
-        rb_raise(rb_eSecurityError, "Insecure: can't modify string");
+    if ((mask & FL_TAINT) == FL_TAINT) {
+	if (rb_safe_level() >= 4) {
+	    rb_raise(rb_eSecurityError, "Insecure: can't modify string");
+	}
     }
 }
 

@@ -14,10 +14,6 @@
 #include "compiler.h"
 #include "objc.h"
 #include "dtrace.h"
-#include "array.h"
-#include "hash.h"
-#include "encoding.h"
-#include "re.h"
 #include "class.h"
 
 #include <execinfo.h>
