@@ -47,6 +47,12 @@ describe :string_codepoints, :shared => true do
     s.send(@method).to_a.should == [38937]
   end
 
+  it "works for characters outside of the BMP" do
+    s = "\u{10346}"
+    s.force_encoding(Encoding::UTF_8)
+    s.send(@method).to_a.should == [66374]
+  end
+
   it "returns the codepoint corresponding to the character's position in the String's encoding" do
     "\u{787}".send(@method).to_a.should == [1927]
   end
