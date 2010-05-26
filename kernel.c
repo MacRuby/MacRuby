@@ -41,11 +41,14 @@ use_slot:
 		    return val;
 		}
 	    }
+	    goto find_slot;
 	}
     }
 
     if (cache->slot == SLOT_CACHE_VIRGIN) {
-	const int slot = rb_vm_get_ivar_slot(obj, name, true);
+	int slot;
+find_slot:
+	slot = rb_vm_get_ivar_slot(obj, name, true);
 	if (slot >= 0) {
 	    cache->klass = *(VALUE *)obj;
 	    cache->slot = slot;
@@ -79,11 +82,14 @@ use_slot:
 		    return;
 		}
 	    }
+	    goto find_slot;
 	}
     }
 
     if (cache->slot == SLOT_CACHE_VIRGIN) {
-	const int slot = rb_vm_get_ivar_slot(obj, name, true);
+	int slot;
+find_slot:
+	slot = rb_vm_get_ivar_slot(obj, name, true);
 	if (slot >= 0) {
 	    cache->klass = *(VALUE *)obj;
 	    cache->slot = slot;
