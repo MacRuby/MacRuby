@@ -1036,9 +1036,8 @@ Init_PreGC(void)
     }
     if (getenv("GC_DISABLE")) {
 	gc_disabled = true;
+	auto_collector_disable(__auto_zone);
     }
-
-    auto_collector_disable(__auto_zone);
 }
 
 void
@@ -1048,7 +1047,6 @@ Init_PostGC(void)
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
 	objc_startCollectorThread();
 #endif
-	auto_collector_reenable(__auto_zone);
     }
 }
 
