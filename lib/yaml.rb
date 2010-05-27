@@ -82,6 +82,22 @@ module YAML
     klass
   end
   
+  def YAML.add_builtin_type(type_tag, &transfer)
+     LibYAML::DEFAULT_RESOLVER.add_type("tag:yaml.org,2002:#{type_tag}", transfer)
+  end
+  
+  def YAML.add_domain_type(domain, type_tag, &transfer)
+    LibYAML::DEFAULT_RESOLVER.add_type("tag:#{domain}:#{type_tag}", transfer)
+  end
+
+  def YAML.add_ruby_type(type_tag, &transfer)
+    LibYAML::DEFAULT_RESOLVER.add_type("tag:ruby.yaml.org,2002:#{type_tag}", transfer)
+  end
+  
+  def YAML.add_private_type(type_tag, &transfer)
+    LibYAML::DEFAULT_RESOLVER.add_type("x-private:#{type_tag}", transfer)
+  end
+
 end
 
 module Kernel
