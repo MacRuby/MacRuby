@@ -1350,6 +1350,7 @@ RoxorCore::load_bridge_support(const char *path, const char *framework_path,
 	}
     }
 #endif
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
     static bool R7281806fixed = false;
     // XXX work around for
     // <rdar://problem/7281806> -[NSObject performSelector:] has wrong sel_of_type attributes
@@ -1370,6 +1371,7 @@ RoxorCore::load_bridge_support(const char *path, const char *framework_path,
 	    }
 	}	
     }
+#endif
 }
 
 extern "C"
