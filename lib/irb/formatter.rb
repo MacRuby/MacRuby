@@ -47,7 +47,6 @@ module IRB
     end
     
     def exception(exception)
-      exception.set_backtrace([]) if exception.backtrace.nil? 
       backtrace = $DEBUG ? exception.backtrace : filter_backtrace(exception.backtrace)
       "#{exception.class.name}: #{exception.message}\n\t#{backtrace.join("\n\t")}"
     end
