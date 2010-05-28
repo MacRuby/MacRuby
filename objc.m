@@ -639,8 +639,8 @@ rb_oc2rb_exception(id exc)
     snprintf(buf, sizeof buf, "%s: %s", [[exc name] UTF8String],
 	    [[exc reason] UTF8String]);
     VALUE e = rb_exc_new2(rb_eRuntimeError, buf);
-    // Set an empty backtrace for Obj-C exceptions (instead of nil)
-    rb_iv_set(e, "bt", rb_ary_new());
+    // Set the backtrace for Obj-C exceptions
+    rb_iv_set(e, "bt", rb_vm_backtrace(0));
     return e;
 }
 
