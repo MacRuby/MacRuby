@@ -89,3 +89,63 @@ perf_test('opt') do
     i += 1
   end
 end
+
+class TestPolyMethod1
+  def foo; 1; end
+end
+
+class TestPolyMethod2
+  def foo; 2; end
+end
+
+class TestPolyMethod3 < TestPolyMethod1
+  def foo; 3; end
+end
+
+class TestPolyMethod4 < TestPolyMethod2
+  def foo; 4; end
+end
+
+perf_test('poly') do
+  o1 = TestPolyMethod1.new
+  o2 = TestPolyMethod2.new
+  o3 = TestPolyMethod3.new
+  o4 = TestPolyMethod4.new
+  i = 0
+  while i < 1000000
+    o1.foo; o2.foo; o3.foo; o4.foo
+    o1.foo; o2.foo; o3.foo; o4.foo
+    o1.foo; o2.foo; o3.foo; o4.foo
+    o1.foo; o2.foo; o3.foo; o4.foo
+    i += 1
+  end
+end
+
+class TestSuper1
+  def foo; 42; end
+end
+
+class TestSuper2 < TestSuper1
+  def foo; super; end
+end
+
+class TestSuper3 < TestSuper2
+  def foo; super; end
+end
+
+class TestSuper4 < TestSuper3
+  def foo; super; end
+end
+
+perf_test('super') do
+  o4 = TestSuper4.new
+  o3 = TestSuper3.new
+  i = 0
+  while i < 10000
+    o4.foo; o3.foo; o4.foo; o3.foo
+    o4.foo; o3.foo; o4.foo; o3.foo
+    o4.foo; o3.foo; o4.foo; o3.foo
+    o4.foo; o3.foo; o4.foo; o3.foo
+    i += 1
+  end
+end
