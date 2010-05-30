@@ -29,6 +29,7 @@ with_feature :encoding do
       ec = Encoding::Converter.new('ascii','Big5')
       ec.convpath.size.should == 2
       ec.convpath.first.first.should == Encoding::US_ASCII
+      ec.convpath.first.last.should == ec.convpath.last.first
       ec.convpath.last.last.should == Encoding::Big5
     end
 
