@@ -1,0 +1,1 @@
+IRB.deprecated "The file `irb/completion' has moved to `irb/ext/ecompletion' and is loaded by default.", caller

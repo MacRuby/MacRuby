@@ -5,9 +5,12 @@ require 'irb'
 unless ARGV.empty?
   require 'optparse'
   
+  ignore_irbrc = false
+  
   OptionParser.new do |opt|
     bin = File.basename($0)
     opt.banner = "Usage:  #{bin} [options] [programfile] [arguments]"
+    opt.on("-f",              "Ignore ~/.irbrc") { |ignore| ignore_irbrc = ignore  }
     opt.on("-r load-lib",     "Loads the given library (same as `ruby -r')") { |lib| require lib }
     opt.on("-d",              "Set $DEBUG to true (same as `ruby -d')") { $DEBUG = true }
     opt.on("-I path",         "Add path to $LOAD_PATH") { |path| $LOAD_PATH.unshift(path) }
@@ -20,8 +23,10 @@ unless ARGV.empty?
   end.parse!(ARGV)
 end
 
-irbrc = File.expand_path("~/.irbrc")
-load(irbrc) if File.exist?(irbrc)
+unless ignore_irbrc
+  irbrc = File.expand_path("~/.irbrc")
+  load(irbrc) if File.exist?(irbrc)
+end
 
 IRB.formatter.filter_from_backtrace << /^#{__FILE__}/
 

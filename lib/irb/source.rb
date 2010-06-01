@@ -51,6 +51,11 @@ module IRB
     def syntax_error?
       reflect.syntax_error?
     end
+
+    # Reflects on the accumulated source to see if it contains a terminate signal.
+    def terminate?
+      reflect.terminate?
+    end
     
     # Reflects on the accumulated source and returns the actual syntax error
     # message if one occurs.
@@ -110,6 +115,20 @@ module IRB
       def syntax_error?
         !@syntax_error.nil?
       end
+
+      # Returns whether or not the source contains a call to toplevel
+      # quit or exit, namely if the current session should be terminated
+      #
+      # For example, this would terminate the session
+      #
+      #   def foo; end; quit
+      #
+      # This does not:
+      #
+      #   def foo; quit; end
+      def terminate?
+        !@terminate.nil?
+      end
       
       UNEXPECTED_END = "syntax error, unexpected $end"
       
@@ -120,6 +139,7 @@ module IRB
       end
       
       INCREASE_LEVEL_KEYWORDS = %w{ class module def begin if unless case while for do }
+      TERMINATE_KEYWORDS = %w{ exit quit }
       
       def on_kw(token) #:nodoc:
         case token
@@ -144,6 +164,14 @@ module IRB
       def on_embexpr_beg(token) #:nodoc:
         @level += 1
         super
+      end
+
+      def on_ident(token) #:nodoc:
+        if @level == 0 && TERMINATE_KEYWORDS.include?(token)
+          @terminate = true
+        else
+          super
+        end
       end
       
       def on_lbrace(token) #:nodoc:
