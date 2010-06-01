@@ -1,0 +1,1 @@
+fails:String#each_codepoint works for characters outside of the BMP
