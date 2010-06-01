@@ -491,6 +491,20 @@ assert "true", %{
   p Foo.new.respond_to?(:object_id)
 }
 
+assert ":ok", %{
+  class C1
+    def foo(arg); end
+  end
+  class C2 < C1
+    def foo; super; end
+  end
+  begin
+    C2.new.foo
+  rescue ArgumentError
+    p :ok
+  end
+}
+
 # TODO: find a better place for this.
 assert '', %{
   $SAFE=4
