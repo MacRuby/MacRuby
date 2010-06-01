@@ -35,3 +35,4 @@ ext/openssl/extconf.h
 framework/Info.plist
 doc/
 rubyspec_temp
+kernel_data.c
