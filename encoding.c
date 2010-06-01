@@ -146,6 +146,32 @@ mr_enc_dummy_p(VALUE self, SEL sel)
     return Qfalse;
 }
 
+// For UTF-[8, 16, 32] it's /uFFFD, and for others it's '?'
+rb_str_t *replacement_string_for_encoding(rb_encoding_t* destination)
+{
+    rb_str_t *replacement_str = NULL;
+    if (destination == rb_encodings[ENCODING_UTF16BE]) {
+        replacement_str = RSTR(rb_enc_str_new("\xFF\xFD", 2, destination));
+    }
+    else if (destination == rb_encodings[ENCODING_UTF32BE]) {
+        replacement_str = RSTR(rb_enc_str_new("\0\0\xFF\xFD", 4, destination));
+    }
+    else if (destination == rb_encodings[ENCODING_UTF16LE]) {
+        replacement_str = RSTR(rb_enc_str_new("\xFD\xFF", 2, destination));
+    }
+    else if (destination == rb_encodings[ENCODING_UTF32LE]) {
+        replacement_str = RSTR(rb_enc_str_new("\xFD\xFF\0\0", 4, destination));
+    }
+    else if (destination == rb_encodings[ENCODING_UTF8]) {
+        replacement_str = RSTR(rb_enc_str_new("\xEF\xBF\xBD", 3, destination));
+    }
+    else {
+        replacement_str = RSTR(rb_enc_str_new("?", 1, rb_encodings[ENCODING_ASCII]));
+        replacement_str = str_simple_transcode(replacement_str, destination);
+    }
+    return replacement_str;
+}
+
 static void
 define_encoding_constant(const char *name, rb_encoding_t *encoding)
 {
@@ -291,6 +317,7 @@ Init_PreEncoding(void)
     add_encoding(ENCODING_BIG5,        ENCODING_TYPE_UCNV,    "Big5",        1, false, true,  "CP950", NULL);
     // FIXME: the ICU conversion tables do not seem to match Ruby's Japanese conversion tables
     add_encoding(ENCODING_EUCJP,       ENCODING_TYPE_UCNV,    "EUC-JP",      1, false, true,  "eucJP", NULL);
+    add_encoding(ENCODING_SJIS,        ENCODING_TYPE_UCNV,    "Shift_JIS",   1, false, true,  "SJIS", NULL);
     //add_encoding(ENCODING_EUCJP,     ENCODING_TYPE_RUBY, "EUC-JP",      1, false, true,  "eucJP", NULL);
     //add_encoding(ENCODING_SJIS,      ENCODING_TYPE_RUBY, "Shift_JIS",   1, false, true, "SJIS", NULL);
     //add_encoding(ENCODING_CP932,     ENCODING_TYPE_RUBY, "Windows-31J", 1, false, true, "CP932", "csWindows31J", NULL);

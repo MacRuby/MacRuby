@@ -150,7 +150,7 @@ enum {
     ENCODING_MACCYRILLIC,
     ENCODING_BIG5,
     ENCODING_EUCJP,
-    //ENCODING_SJIS,
+    ENCODING_SJIS,
     //ENCODING_CP932,
 
     ENCODINGS_COUNT
@@ -295,6 +295,40 @@ str_set_valid_encoding(rb_str_t *self, bool status)
 	    STRING_VALID_ENCODING);
 }
 
+typedef enum {
+    TRANSCODE_BEHAVIOR_RAISE_EXCEPTION,
+    TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING,
+    TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_TEXT,
+    TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_ATTR
+} transcode_behavior_t;
+
+typedef enum {
+    ECONV_INVALID_MASK                = 1,
+    ECONV_INVALID_REPLACE             = 1 << 1,
+    ECONV_UNDEF_MASK                  = 1 << 2,
+    ECONV_UNDEF_REPLACE               = 1 << 3,
+    ECONV_UNDEF_HEX_CHARREF           = 1 << 4,
+    ECONV_PARTIAL_INPUT               = 1 << 5,
+    ECONV_AFTER_OUTPUT                = 1 << 6,
+    ECONV_UNIVERSAL_NEWLINE_DECORATOR = 1 << 7,
+    ECONV_CRLF_NEWLINE_DECORATOR      = 1 << 8,
+    ECONV_CR_NEWLINE_DECORATOR        = 1 << 9,
+    ECONV_XML_TEXT_DECORATOR          = 1 << 10,
+    ECONV_XML_ATTR_CONTENT_DECORATOR  = 1 << 11,
+    ECONV_XML_ATTR_QUOTE_DECORATOR    = 1 << 12
+} transcode_flags_t;
+
+rb_str_t *str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_encoding,
+	int behavior_for_invalid, int behavior_for_undefined, rb_str_t *replacement_str);
+
+static inline rb_str_t *
+str_simple_transcode(rb_str_t *self, rb_encoding_t *dst_encoding)
+{
+    return str_transcode(self, self->encoding, dst_encoding,
+        TRANSCODE_BEHAVIOR_RAISE_EXCEPTION, TRANSCODE_BEHAVIOR_RAISE_EXCEPTION, NULL);
+}
+
+
 void rb_str_NSCoder_encode(void *coder, VALUE str, const char *key);
 VALUE rb_str_NSCoder_decode(void *coder, const char *key);
 
@@ -321,6 +355,10 @@ unsigned long rb_str_hash_uchars(const UChar *chars, long chars_len);
 long rb_uchar_strtol(UniChar *chars, long chars_len, long pos,
 	long *end_offset);
 void rb_str_force_encoding(VALUE str, rb_encoding_t *encoding);
+rb_str_t *str_need_string(VALUE str);
+rb_str_t *replacement_string_for_encoding(rb_encoding_t* enc);
+void str_replace_with_string(rb_str_t *self, rb_str_t *source);
+
 
 #if defined(__cplusplus)
 } // extern "C"

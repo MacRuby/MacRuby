@@ -251,7 +251,7 @@ str_replace_with_bytes(rb_str_t *self, const char *bytes, long len,
     }
 }
 
-static void
+void
 str_replace_with_string(rb_str_t *self, rb_str_t *source)
 {
     if (self == source) {
@@ -1118,7 +1118,7 @@ str_include_string(rb_str_t *self, rb_str_t *searched)
 	    self->length_in_bytes, true) != -1;
 }
 
-static rb_str_t *
+rb_str_t *
 str_need_string(VALUE str)
 {
     switch (TYPE(str)) {
@@ -1247,24 +1247,6 @@ rstr_append(VALUE str, VALUE substr)
     }
 }
 
-enum {
-    TRANSCODE_BEHAVIOR_RAISE_EXCEPTION,
-    TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING,
-    TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_TEXT,
-    TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_ATTR
-};
-
-
-static rb_str_t *
-str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_encoding,
-	int behavior_for_invalid, int behavior_for_undefined, rb_str_t *replacement_str);
-static inline rb_str_t *
-str_simple_transcode(rb_str_t *self, rb_encoding_t *dst_encoding)
-{
-    return str_transcode(self, self->encoding, dst_encoding,
-	    TRANSCODE_BEHAVIOR_RAISE_EXCEPTION, TRANSCODE_BEHAVIOR_RAISE_EXCEPTION, NULL);
-}
-
 static void inline
 str_concat_ascii_cstr(rb_str_t *self, char *cstr)
 {
@@ -1280,7 +1262,7 @@ str_concat_ascii_cstr(rb_str_t *self, char *cstr)
     }
 }
 
-static rb_str_t *
+rb_str_t *
 str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_encoding,
 	int behavior_for_invalid, int behavior_for_undefined, rb_str_t *replacement_str)
 {
@@ -1842,165 +1824,6 @@ static VALUE
 rstr_is_ascii_only(VALUE self, SEL sel)
 {
     return str_is_ruby_ascii_only(RSTR(self)) ? Qtrue : Qfalse;
-}
-
-/*
- *  call-seq:
- *     str.encode(encoding [, options] )   => str
- *     str.encode(dst_encoding, src_encoding [, options] )   => str
- *     str.encode([options])   => str
- *
- *  The first form returns a copy of <i>str</i> transcoded
- *  to encoding +encoding+.
- *  The second form returns a copy of <i>str</i> transcoded
- *  from src_encoding to dst_encoding.
- *  The last form returns a copy of <i>str</i> transcoded to
- *  <code>Encoding.default_internal</code>.
- *  By default, the first and second form raise
- *  Encoding::UndefinedConversionError for characters that are
- *  undefined in the destination encoding, and
- *  Encoding::InvalidByteSequenceError for invalid byte sequences
- *  in the source encoding. The last form by default does not raise
- *  exceptions but uses replacement strings.
- *  The <code>options</code> Hash gives details for conversion.
- *
- *  === options
- *  The hash <code>options</code> can have the following keys:
- *  :invalid ::
- *    If the value is <code>:replace</code>, <code>#encode</code> replaces
- *    invalid byte sequences in <code>str</code> with the replacement character.
- *    The default is to raise the exception
- *  :undef ::
- *    If the value is <code>:replace</code>, <code>#encode</code> replaces
- *    characters which are undefined in the destination encoding with
- *    the replacement character.
- *  :replace ::
- *    Sets the replacement string to the value. The default replacement
- *    string is "\uFFFD" for Unicode encoding forms, and "?" otherwise.
- *  :xml ::
- *    The value must be <code>:text</code> or <code>:attr</code>.
- *    If the value is <code>:text</code> <code>#encode</code> replaces
- *    undefined characters with their (upper-case hexadecimal) numeric
- *    character references. '&', '<', and '>' are converted to "&amp;",
- *    "&lt;", and "&gt;", respectively.
- *    If the value is <code>:attr</code>, <code>#encode</code> also quotes
- *    the replacement result (using '"'), and replaces '"' with "&quot;".
- */
-extern rb_encoding_t *default_internal;
-static VALUE
-rstr_encode(VALUE str, SEL sel, int argc, VALUE *argv)
-{
-    VALUE opt = Qnil;
-    if (argc > 0) {
-        opt = rb_check_convert_type(argv[argc-1], T_HASH, "Hash", "to_hash");
-        if (!NIL_P(opt)) {
-            argc--;
-        }
-    }
-
-    rb_str_t *self = RSTR(str);
-    rb_str_t *replacement_str = NULL;
-    rb_encoding_t *src_encoding, *dst_encoding;
-    int behavior_for_invalid = TRANSCODE_BEHAVIOR_RAISE_EXCEPTION;
-    int behavior_for_undefined = TRANSCODE_BEHAVIOR_RAISE_EXCEPTION;
-    if (argc == 0) {
-	src_encoding = self->encoding;
-	dst_encoding = default_internal;
-	behavior_for_invalid = TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING;
-	behavior_for_undefined = TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING;
-    }
-    else if (argc == 1) {
-	src_encoding = self->encoding;
-	dst_encoding = rb_to_encoding(argv[0]);
-    }
-    else if (argc == 2) {
-	dst_encoding = rb_to_encoding(argv[0]);
-	src_encoding = rb_to_encoding(argv[1]);
-    }
-    else {
-	rb_raise(rb_eArgError, "wrong number of arguments (%d for 0..2)", argc);
-    }
-
-    if (!NIL_P(opt)) {
-	VALUE invalid_val = rb_hash_aref(opt, ID2SYM(rb_intern("invalid")));
-	VALUE replace_sym = ID2SYM(rb_intern("replace"));
-	if (invalid_val == replace_sym) {
-	    behavior_for_invalid = TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING;
-	}
-	VALUE undefined_val = rb_hash_aref(opt, ID2SYM(rb_intern("undefined")));
-	if (undefined_val == replace_sym) {
-	    behavior_for_undefined = TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING;
-	}
-	VALUE xml_val = rb_hash_aref(opt, ID2SYM(rb_intern("xml")));
-	if (xml_val == ID2SYM(rb_intern("text"))) {
-	    behavior_for_undefined = TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_TEXT;
-	}
-	else if (xml_val == ID2SYM(rb_intern("attr"))) {
-	    behavior_for_undefined = TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_ATTR;
-	}
-
-	VALUE replacement = rb_hash_aref(opt, replace_sym);
-	if (!NIL_P(replacement)) {
-	    replacement_str = str_need_string(replacement);
-	    if ((replacement_str->encoding != dst_encoding) && (replacement_str->length_in_bytes > 0)) {
-		replacement_str = str_simple_transcode(replacement_str, dst_encoding);
-	    }
-	    if ((behavior_for_invalid != TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING)
-		    && (behavior_for_undefined == TRANSCODE_BEHAVIOR_RAISE_EXCEPTION)) {
-		behavior_for_undefined = TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING;
-	    }
-	}
-    }
-
-    if ((replacement_str == NULL)
-	    && ((behavior_for_invalid == TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING)
-		|| (behavior_for_undefined == TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING))) {
-	if (dst_encoding == rb_encodings[ENCODING_UTF16BE]) {
-	    replacement_str = RSTR(rb_enc_str_new("\xFF\xFD", 2, dst_encoding));
-	}
-	else if (dst_encoding == rb_encodings[ENCODING_UTF32BE]) {
-	    replacement_str = RSTR(rb_enc_str_new("\0\0\xFF\xFD", 4, dst_encoding));
-	}
-	else if (dst_encoding == rb_encodings[ENCODING_UTF16LE]) {
-	    replacement_str = RSTR(rb_enc_str_new("\xFD\xFF", 2, dst_encoding));
-	}
-	else if (dst_encoding == rb_encodings[ENCODING_UTF32LE]) {
-	    replacement_str = RSTR(rb_enc_str_new("\xFD\xFF\0\0", 4, dst_encoding));
-	}
-	else if (dst_encoding == rb_encodings[ENCODING_UTF8]) {
-	    replacement_str = RSTR(rb_enc_str_new("\xEF\xBF\xBD", 3, dst_encoding));
-	}
-	else {
-	    replacement_str = RSTR(rb_enc_str_new("?", 1, rb_encodings[ENCODING_ASCII]));
-	    replacement_str = str_simple_transcode(replacement_str, dst_encoding);
-	}
-    }
-
-    return (VALUE)str_transcode(self, src_encoding, dst_encoding,
-	    behavior_for_invalid, behavior_for_undefined, replacement_str);
-}
-
-/*
- *  call-seq:
- *     str.encode!(encoding [, options] )   => str
- *     str.encode!(dst_encoding, src_encoding [, options] )   => str
- *
- *  The first form transcodes the contents of <i>str</i> from
- *  str.encoding to +encoding+.
- *  The second form transcodes the contents of <i>str</i> from
- *  src_encoding to dst_encoding.
- *  The options Hash gives details for conversion. See String#encode
- *  for details.
- *  Returns the string even if no changes were made.
- */
-static VALUE
-rstr_encode_bang(VALUE str, SEL sel, int argc, VALUE *argv)
-{
-    rstr_modify(str);
-
-    VALUE new_str = rstr_encode(str, sel, argc, argv);
-    str_replace_with_string(RSTR(str), RSTR(new_str));
-    return str;
 }
 
 
@@ -5997,8 +5820,6 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "partition", rstr_partition, 1);
     rb_objc_define_method(rb_cRubyString, "rpartition", rstr_rpartition, 1);
     rb_objc_define_method(rb_cRubyString, "crypt", rstr_crypt, 1);
-    rb_objc_define_method(rb_cRubyString, "encode", rstr_encode, -1);
-    rb_objc_define_method(rb_cRubyString, "encode!", rstr_encode_bang, -1);
 
     // MacRuby extensions.
     rb_objc_define_method(rb_cRubyString, "transform", rstr_transform, 1);
