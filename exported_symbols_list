@@ -8,7 +8,7 @@ _st_*
 
 # used by the kernel:
 _rary_reserve
-_rhash_call_default
+_rhash_aref
 _rhash_aset
 _rstr_concat
 _selPLUS

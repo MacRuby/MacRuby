@@ -63,10 +63,6 @@ static SEL sel_yaml_new;
 
 static VALUE rb_oDefaultResolver;
 
-static struct mcache *to_yaml_cache = NULL;
-static struct mcache *call_cache = NULL;
-static struct mcache *yaml_new_cache = NULL;
-
 static const int DEFAULT_STACK_SIZE = 8;
 
 static VALUE
@@ -278,12 +274,10 @@ interpret_value(rb_yaml_parser_t *parser, VALUE result, VALUE handler)
 	return result;
     }
     if (rb_vm_respond_to(handler, sel_call, 0)) {
-	return rb_vm_call_with_cache(call_cache, handler, sel_call, 1,
-		&result);
+	return rb_vm_call(handler, sel_call, 1, &result);
     }
     else if (rb_vm_respond_to(handler, sel_yaml_new, 0)) {
-	return rb_vm_call_with_cache(yaml_new_cache, handler, sel_yaml_new,
-		1, &result);
+	return rb_vm_call(handler, sel_yaml_new, 1, &result);
     }
     return result;
 }
@@ -957,9 +951,9 @@ rb_yaml_emitter_add(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE first = Qnil, second = Qnil;
     rb_scan_args(argc, argv, "11", &first, &second);
-    rb_vm_call_with_cache(to_yaml_cache, first, sel_to_yaml, 1, &self);
+    rb_vm_call(first, sel_to_yaml, 1, &self);
     if (argc == 2) {
-	rb_vm_call_with_cache(to_yaml_cache, second, sel_to_yaml, 1, &self);
+	rb_vm_call(second, sel_to_yaml, 1, &self);
     }
     return self;
 }
@@ -1019,10 +1013,6 @@ Init_libyaml()
     sel_call = sel_registerName("call:");
     sel_yaml_new = sel_registerName("yaml_new:");
 
-    to_yaml_cache = rb_vm_get_call_cache(sel_to_yaml);
-    call_cache = rb_vm_get_call_cache(sel_call);
-    yaml_new_cache = rb_vm_get_call_cache(sel_yaml_new);
-
     rb_mYAML = rb_define_module("YAML");
 
     rb_mLibYAML = rb_define_module_under(rb_mYAML, "LibYAML");
@@ -1057,7 +1047,7 @@ Init_libyaml()
     //rb_objc_define_method(rb_cResolver, "add_ruby_type", rb_yaml_resolver_add_ruby_type, 1);
     //rb_objc_define_method(rb_cResolver, "add_builtin_type", rb_yaml_resolver_add_builtin_type, 1);
     //rb_objc_define_method(rb_cResolver, "add_private_type", rb_yaml_resolver_add_private_type, 1);
-    rb_oDefaultResolver = rb_vm_call(rb_cResolver, sel_registerName("new"), 0, NULL, false);
+    rb_oDefaultResolver = rb_vm_call(rb_cResolver, sel_registerName("new"), 0, NULL);
     rb_define_const(rb_mLibYAML, "DEFAULT_RESOLVER", rb_oDefaultResolver);
 
     rb_cEmitter = rb_define_class_under(rb_mLibYAML, "Emitter", rb_cObject);

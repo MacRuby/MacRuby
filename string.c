@@ -2691,12 +2691,12 @@ rstr_cmp(VALUE self, SEL sel, VALUE other)
 	    return Qnil;
 	}
 	else {
-	    VALUE tmp = rb_vm_call(other, selCmp, 1, &self, false);
+	    VALUE tmp = rb_vm_call(other, selCmp, 1, &self);
 	    if (NIL_P(tmp)) {
 		return Qnil;
 	    }
 	    if (!FIXNUM_P(tmp)) {
-		return rb_vm_call(LONG2FIX(0), selMINUS, 1, &tmp, false);
+		return rb_vm_call(LONG2FIX(0), selMINUS, 1, &tmp);
 	    }
 	    result = -FIX2LONG(tmp);
 	}
@@ -3103,7 +3103,7 @@ rstr_match(VALUE self, SEL sel, VALUE other)
 	    return regexp_match(other, 0, self);
 
 	default:
-	    return rb_vm_call(other, selEqTilde, 1, &self, false);
+	    return rb_vm_call(other, selEqTilde, 1, &self);
     }
 }
 
@@ -5022,7 +5022,7 @@ rstr_upto(VALUE str, SEL sel, int argc, VALUE *argv)
     SEL succ_sel = sel_registerName("succ");
 
     VALUE current = beg;
-    VALUE after_end = rb_vm_call(end, succ_sel, 0, NULL, false);
+    VALUE after_end = rb_vm_call(end, succ_sel, 0, NULL);
     StringValue(after_end);
     while (!rb_str_equal(current, after_end)) {
 	rb_yield(current);
@@ -5030,7 +5030,7 @@ rstr_upto(VALUE str, SEL sel, int argc, VALUE *argv)
 	if (!excl && rb_str_equal(current, end)) {
 	    break;
 	}
-	current = rb_vm_call(current, succ_sel, 0, NULL, false);
+	current = rb_vm_call(current, succ_sel, 0, NULL);
 	StringValue(current);
 	if (excl && rb_str_equal(current, end)) {
 	    break;
@@ -6361,7 +6361,7 @@ rb_obj_as_string(VALUE obj)
     if (TYPE(obj) == T_STRING || TYPE(obj) == T_SYMBOL) {
 	return obj;
     }
-    VALUE str = rb_vm_call(obj, selToS, 0, NULL, false);
+    VALUE str = rb_vm_call(obj, selToS, 0, NULL);
     if (TYPE(str) != T_STRING) {
 	return rb_any_to_s(obj);
     }

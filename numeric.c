@@ -142,7 +142,7 @@ num_coerce(VALUE x, SEL sel, VALUE y)
 static VALUE
 coerce_body(VALUE *x)
 {
-    return rb_vm_call(x[1], sel_coerce, 1, &x[0], false);
+    return rb_vm_call(x[1], sel_coerce, 1, &x[0]);
 }
 
 static VALUE
@@ -190,7 +190,7 @@ VALUE
 rb_objc_num_coerce_bin(VALUE x, VALUE y, SEL sel)
 {
     do_coerce(&x, &y, Qtrue);
-    return rb_vm_call(x, sel, 1, &y, false);
+    return rb_vm_call(x, sel, 1, &y);
 }
 
 VALUE
@@ -206,7 +206,7 @@ VALUE
 rb_objc_num_coerce_cmp(VALUE x, VALUE y, SEL sel)
 {
     if (do_coerce(&x, &y, Qfalse)) {
-	return rb_vm_call(x, sel, 1, &y, false);
+	return rb_vm_call(x, sel, 1, &y);
     }
     return Qnil;
 }
@@ -217,7 +217,7 @@ rb_num_coerce_relop(VALUE x, VALUE y, SEL sel)
     VALUE c, x0 = x, y0 = y;
 
     if (!do_coerce(&x, &y, Qfalse) ||
-	NIL_P(c = rb_vm_call(x, sel, 1, &y, false))) {
+	NIL_P(c = rb_vm_call(x, sel, 1, &y))) {
 	rb_cmperr(x0, y0);
 	return Qnil;		/* not reached */
     }
@@ -292,7 +292,7 @@ num_uminus(VALUE num, SEL sel)
     zero = INT2FIX(0);
     do_coerce(&zero, &num, Qtrue);
 
-    return rb_vm_call(zero, selMINUS, 1, &num, false);
+    return rb_vm_call(zero, selMINUS, 1, &num);
 }
 
 /*
@@ -305,7 +305,7 @@ num_uminus(VALUE num, SEL sel)
 static VALUE
 num_quo(VALUE x, SEL sel, VALUE y)
 {
-    return rb_vm_call(rb_rational_raw1(x), selDIV, 1, &y, false);
+    return rb_vm_call(rb_rational_raw1(x), selDIV, 1, &y);
 }
 
 
@@ -319,7 +319,7 @@ num_quo(VALUE x, SEL sel, VALUE y)
 static VALUE
 num_fdiv(VALUE x, SEL sel, VALUE y)
 {
-    return rb_vm_call(rb_Float(x), selDIV, 1, &y, false);
+    return rb_vm_call(rb_Float(x), selDIV, 1, &y);
 }
 
 
@@ -340,7 +340,7 @@ num_div(VALUE x, SEL sel, VALUE y)
     if (rb_equal(INT2FIX(0), y)) {
 	rb_num_zerodiv();
     }
-    return num_floor(rb_vm_call(x, selDIV, 1, &y, false), 0);
+    return num_floor(rb_vm_call(x, selDIV, 1, &y), 0);
 }
 
 
@@ -388,7 +388,7 @@ num_div(VALUE x, SEL sel, VALUE y)
 static VALUE
 num_divmod(VALUE x, SEL sel, VALUE y)
 {
-    return rb_assoc_new(num_div(x, 0, y), rb_vm_call(x, selMOD, 1, &y, false));
+    return rb_assoc_new(num_div(x, 0, y), rb_vm_call(x, selMOD, 1, &y));
 }
 
 /*
@@ -402,9 +402,9 @@ num_divmod(VALUE x, SEL sel, VALUE y)
 static VALUE
 num_modulo(VALUE x, SEL sel, VALUE y)
 {
-    VALUE tmp1 = rb_vm_call(x, selDiv, 1, &y, false);
-    VALUE tmp2 = rb_vm_call(y, selMULT, 1, &tmp1, false);
-    return rb_vm_call(x, selMINUS, 1, &tmp2, false);
+    VALUE tmp1 = rb_vm_call(x, selDiv, 1, &y);
+    VALUE tmp2 = rb_vm_call(y, selMULT, 1, &tmp1);
+    return rb_vm_call(x, selMINUS, 1, &tmp2);
 }
 
 /*
@@ -422,15 +422,15 @@ num_modulo(VALUE x, SEL sel, VALUE y)
 static VALUE
 num_remainder(VALUE x, SEL sel, VALUE y)
 {
-    VALUE z = rb_vm_call(x, selMOD, 1, &y, false);
+    VALUE z = rb_vm_call(x, selMOD, 1, &y);
 
     VALUE zero = INT2FIX(0);
     if ((!rb_equal(z, INT2FIX(0))) &&
-	((RTEST(rb_vm_call(x, selLT, 1, &zero, false)) &&
-	  RTEST(rb_vm_call(y, selGT, 1, &zero, false))) ||
-	 (RTEST(rb_vm_call(x, selGT, 1, &zero, false)) &&
-	  RTEST(rb_vm_call(y, selLT, 1, &zero, false))))) {
-	return rb_vm_call(z, selMINUS, 1, &y, false);
+	((RTEST(rb_vm_call(x, selLT, 1, &zero)) &&
+	  RTEST(rb_vm_call(y, selGT, 1, &zero))) ||
+	 (RTEST(rb_vm_call(x, selGT, 1, &zero)) &&
+	  RTEST(rb_vm_call(y, selLT, 1, &zero))))) {
+	return rb_vm_call(z, selMINUS, 1, &y);
     }
     return z;
 }
@@ -492,7 +492,7 @@ static VALUE
 num_abs(VALUE num, SEL sel)
 {
     VALUE zero = INT2FIX(0);
-    if (RTEST(rb_vm_call(num, selLT, 1, &zero, false))) {
+    if (RTEST(rb_vm_call(num, selLT, 1, &zero))) {
 	return rb_funcall(num, rb_intern("-@"), 0);
     }
     return num;
@@ -752,7 +752,7 @@ flo_div(VALUE x, SEL sel, VALUE y)
 static VALUE
 flo_quo(VALUE x, SEL sel, VALUE y)
 {
-    return rb_vm_call(x, selDIV, 1, &y, false);
+    return rb_vm_call(x, selDIV, 1, &y);
 }
 
 static void
@@ -1608,19 +1608,19 @@ num_step(VALUE from, SEL sel, int argc, VALUE *argv)
 	SEL cmp;
 
 	VALUE zero = INT2FIX(0);
-	if (RTEST(rb_vm_call(step, selGT, 1, &zero, false))) {
+	if (RTEST(rb_vm_call(step, selGT, 1, &zero))) {
 	    cmp = selGT;
 	}
 	else {
 	    cmp = selLT;
 	}
 	for (;;) {
-	    if (RTEST(rb_vm_call(i, cmp, 1, &to, false))) {
+	    if (RTEST(rb_vm_call(i, cmp, 1, &to))) {
 		break;
 	    }
 	    rb_yield(i);
 	    RETURN_IF_BROKEN();
-	    i = rb_vm_call(i, selPLUS, 1, &step, false);
+	    i = rb_vm_call(i, selPLUS, 1, &step);
 	}
     }
     return from;
@@ -1718,7 +1718,7 @@ rb_num2uint(VALUE val)
 {
     unsigned long num = rb_num2ulong(val);
 
-    if (RTEST(rb_vm_call(INT2FIX(0), selLT, 1, &val, false))) {
+    if (RTEST(rb_vm_call(INT2FIX(0), selLT, 1, &val))) {
 	check_uint(num);
     }
     return num;
@@ -1884,7 +1884,7 @@ static VALUE
 int_odd_p(VALUE num, SEL sel)
 {
     VALUE two = INT2FIX(2);
-    if (rb_vm_call(num, selMOD, 1, &two, false) != INT2FIX(0)) {
+    if (rb_vm_call(num, selMOD, 1, &two) != INT2FIX(0)) {
 	return Qtrue;
     }
     return Qfalse;
@@ -1940,7 +1940,7 @@ int_succ(VALUE num, SEL sel)
 	return LONG2NUM(i);
     }
     VALUE one = INT2FIX(1);
-    return rb_vm_call(num, selPLUS, 1, &one, false);
+    return rb_vm_call(num, selPLUS, 1, &one);
 }
 
 /*
@@ -1961,7 +1961,7 @@ int_pred(VALUE num, SEL sel)
 	return LONG2NUM(i);
     }
     VALUE one = INT2FIX(1);
-    return rb_vm_call(num, selMINUS, 1, &one, false);
+    return rb_vm_call(num, selMINUS, 1, &one);
 }
 
 /*
@@ -2640,7 +2640,7 @@ fix_pow(VALUE x, SEL sel, VALUE y)
 	long b = FIX2LONG(y);
 
 	if (b < 0) {
-	  return rb_vm_call(rb_rational_raw1(x), selExp, 1, &y, false);
+	  return rb_vm_call(rb_rational_raw1(x), selExp, 1, &y);
 	}
 
 	if (b == 0) {
@@ -2671,8 +2671,8 @@ fix_pow(VALUE x, SEL sel, VALUE y)
     VALUE zerov = INT2FIX(0);
     switch (TYPE(y)) {
       case T_BIGNUM:
-	  if (rb_vm_call(y, selLT, 1, &zerov, false)) {
-	      return rb_vm_call(rb_rational_raw1(x), selExp, 1, &y, false);
+	  if (rb_vm_call(y, selLT, 1, &zerov)) {
+	      return rb_vm_call(rb_rational_raw1(x), selExp, 1, &y);
 	  }
 	  if (a == 0) {
 	      return INT2FIX(0);
@@ -3144,11 +3144,11 @@ int_upto(VALUE from, SEL sel, VALUE to)
     else {
 	VALUE i = from, c;
 
-	while (!(c = rb_vm_call(i, selGT, 1, &to, false))) {
+	while (!(c = rb_vm_call(i, selGT, 1, &to))) {
 	    rb_yield(i);
 	    RETURN_IF_BROKEN();
 	    VALUE one = INT2FIX(1);
-	    i = rb_vm_call(i, selPLUS, 1, &one, false);
+	    i = rb_vm_call(i, selPLUS, 1, &one);
 	}
 	if (NIL_P(c)) rb_cmperr(i, to);
     }
@@ -3186,11 +3186,11 @@ int_downto(VALUE from, SEL sel, VALUE to)
     else {
 	VALUE i = from, c;
 
-	while (!(c = rb_vm_call(i, selLT, 1, &to, false))) {
+	while (!(c = rb_vm_call(i, selLT, 1, &to))) {
 	    rb_yield(i);
 	    RETURN_IF_BROKEN();
 	    VALUE one = INT2FIX(1);
-	    i = rb_vm_call(i, selMINUS, 1, &one, false);
+	    i = rb_vm_call(i, selMINUS, 1, &one);
 	}
 	if (NIL_P(c)) rb_cmperr(i, to);
     }
@@ -3231,13 +3231,13 @@ int_dotimes(VALUE num, SEL sel)
 	VALUE i = INT2FIX(0);
 
 	for (;;) {
-	    if (!RTEST(rb_vm_call(i, selLT, 1, &num, false))) {
+	    if (!RTEST(rb_vm_call(i, selLT, 1, &num))) {
 		break;
 	    }
 	    rb_yield(i);
 	    RETURN_IF_BROKEN();
 	    VALUE one = INT2FIX(1);
-	    i = rb_vm_call(i, selPLUS, 1, &one, false);
+	    i = rb_vm_call(i, selPLUS, 1, &one);
 	}
     }
     return num;
@@ -3272,11 +3272,11 @@ int_round(VALUE num, SEL sel, int argc, VALUE* argv)
 	return LONG2NUM(x);
     }
     VALUE two = INT2FIX(2);
-    h = rb_vm_call(f, selDIV, 1, &two, false);
-    r = rb_vm_call(num, selMOD, 1, &f, false);
-    n = rb_vm_call(num, selMINUS, 1, &r, false);
-    if (!RTEST(rb_vm_call(r, selLT, 1, &h, false))) {
-	n = rb_vm_call(n, selPLUS, 1, &f, false);
+    h = rb_vm_call(f, selDIV, 1, &two);
+    r = rb_vm_call(num, selMOD, 1, &f);
+    n = rb_vm_call(num, selMINUS, 1, &r);
+    if (!RTEST(rb_vm_call(r, selLT, 1, &h))) {
+	n = rb_vm_call(n, selPLUS, 1, &f);
     }
     return n;
 }

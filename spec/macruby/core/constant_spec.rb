@@ -81,3 +81,11 @@ describe "A BridgeSupport constant" do
     ConstantNSRect.should == NSRect.new(NSPoint.new(1, 2), NSSize.new(3, 4))
   end
 end
+
+describe "NSNotFound" do
+  it "is properly mapped as -1" do
+    range = 'foo'.rangeOfString('bar')
+    range.location.should == NSNotFound
+    range.length.should == 0
+  end
+end

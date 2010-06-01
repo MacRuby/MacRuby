@@ -18,7 +18,6 @@
 
 VALUE rb_cRange;
 static SEL selUpto, selBeg, selEnd, selExcludeEnd, selInclude; 
-static void *cacheUpto = NULL;
 
 #define RANGE_BEG(r) (RSTRUCT(r)->as.ary[0])
 #define RANGE_END(r) (RSTRUCT(r)->as.ary[1])
@@ -258,7 +257,7 @@ range_each_func(VALUE range, VALUE (*func) (VALUE, void *), void *arg)
     if (EXCL(range)) {
 	while (r_lt(v, e)) {
 	    (*func) (v, arg);
-	    v = rb_vm_call(v, selSucc, 0, NULL, false);
+	    v = rb_vm_call(v, selSucc, 0, NULL);
 	}
     }
     else {
@@ -266,7 +265,7 @@ range_each_func(VALUE range, VALUE (*func) (VALUE, void *), void *arg)
 	    (*func) (v, arg);
 	    if (c == INT2FIX(0))
 		break;
-	    v = rb_vm_call(v, selSucc, 0, NULL, false);
+	    v = rb_vm_call(v, selSucc, 0, NULL);
 	}
     }
 }
@@ -281,7 +280,7 @@ step_i(VALUE i, void *arg)
     }
     else {
 	VALUE one = INT2FIX(1);
-	iter[0] = rb_vm_call(iter[0], selMINUS, 1, &one, false);
+	iter[0] = rb_vm_call(iter[0], selMINUS, 1, &one);
     }
     if (iter[0] == INT2FIX(0)) {
 	rb_yield(i);
@@ -300,7 +299,7 @@ sym_step_i(VALUE i, void *arg)
     }
     else {
 	VALUE one = INT2FIX(1);
-	iter[0] = rb_vm_call(iter[0], selMINUS,1, &one, false);
+	iter[0] = rb_vm_call(iter[0], selMINUS,1, &one);
     }
     if (iter[0] == INT2FIX(0)) {
 	rb_yield(ID2SYM(rb_intern_str(i)));
@@ -355,10 +354,10 @@ range_step(VALUE range, SEL sel, int argc, VALUE *argv)
 	    step = rb_to_int(step);
 	}
 	VALUE zero = INT2FIX(0);
-	if (rb_vm_call(step, selLT, 1, &zero, false)) {
+	if (rb_vm_call(step, selLT, 1, &zero)) {
 	    rb_raise(rb_eArgError, "step can't be negative");
 	}
-	else if (!rb_vm_call(step, selGT, 1, &zero, false)) {
+	else if (!rb_vm_call(step, selGT, 1, &zero)) {
 	    rb_raise(rb_eArgError, "step can't be 0");
 	}
     }
@@ -386,17 +385,17 @@ range_step(VALUE range, SEL sel, int argc, VALUE *argv)
 	args[1] = EXCL(range) ? Qtrue : Qfalse;
 	iter[0] = INT2FIX(1);
 	iter[1] = step;
-	rb_objc_block_call(rb_sym_to_s(b), selUpto, cacheUpto, 2, args, sym_step_i, (VALUE)iter);
+	rb_objc_block_call(rb_sym_to_s(b), selUpto, 2, args, sym_step_i, (VALUE)iter);
     }
     else if (rb_obj_is_kind_of(b, rb_cNumeric) ||
 	     !NIL_P(rb_check_to_integer(b, "to_int")) ||
 	     !NIL_P(rb_check_to_integer(e, "to_int"))) {
 	SEL op = EXCL(range) ? selLT : selLE;
 
-	while (RTEST(rb_vm_call(b, op, 1, &e, false))) {
+	while (RTEST(rb_vm_call(b, op, 1, &e))) {
 	    rb_yield(b);
 	    RETURN_IF_BROKEN();
-	    b = rb_vm_call(b, selPLUS, 1, &step, false);
+	    b = rb_vm_call(b, selPLUS, 1, &step);
 	}
     }
     else {
@@ -410,7 +409,7 @@ range_step(VALUE range, SEL sel, int argc, VALUE *argv)
 	    args[1] = EXCL(range) ? Qtrue : Qfalse;
 	    iter[0] = INT2FIX(1);
 	    iter[1] = step;
-	    rb_objc_block_call(b, selUpto, cacheUpto, 2, args, step_i, (VALUE)iter);
+	    rb_objc_block_call(b, selUpto, 2, args, step_i, (VALUE)iter);
 	}
 	else {
 	    VALUE args[2];
@@ -489,14 +488,14 @@ range_each(VALUE range, SEL sel)
 
 	args[0] = rb_sym_to_s(end);
 	args[1] = EXCL(range) ? Qtrue : Qfalse;
-	rb_objc_block_call(rb_sym_to_s(beg), selUpto, cacheUpto, 2, args, sym_each_i, 0);
+	rb_objc_block_call(rb_sym_to_s(beg), selUpto, 2, args, sym_each_i, 0);
     }
     else if (TYPE(beg) == T_STRING) {
 	VALUE args[2];
 
 	args[0] = end;
 	args[1] = EXCL(range) ? Qtrue : Qfalse;
-	rb_objc_block_call(beg, selUpto, cacheUpto, 2, args, rb_yield, 0);
+	rb_objc_block_call(beg, selUpto, 2, args, rb_yield, 0);
     }
     else {
 	range_each_func(range, each_i, NULL);
@@ -568,7 +567,7 @@ range_first(VALUE range, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "1", &n);
     ary[0] = n;
     ary[1] = rb_ary_new2(NUM2LONG(n));
-    rb_objc_block_call(range, selEach, cacheEach, 0, 0, first_i, (VALUE)ary);
+    rb_objc_block_call(range, selEach, 0, 0, first_i, (VALUE)ary);
 
     return ary[1];
 }
@@ -608,11 +607,10 @@ static VALUE
 range_min(VALUE range, SEL sel)
 {
     if (rb_block_given_p()) {
-	//return rb_call_super(0, 0);
 	if (sel == NULL) {
 	    sel = sel_registerName("min");
 	}
-	return rb_vm_call(range, sel, 0, NULL, true);
+	return rb_vm_call_super(range, sel, 0, NULL);
     }
     else {
 	VALUE b = RANGE_BEG(range);
@@ -644,11 +642,10 @@ range_max(VALUE range, SEL sel)
     int nm = FIXNUM_P(e) || rb_obj_is_kind_of(e, rb_cNumeric);
 
     if (rb_block_given_p() || (EXCL(range) && !nm)) {
-	//return rb_call_super(0, 0);
 	if (sel == NULL) {
 	    sel = sel_registerName("max");
 	}
-	return rb_vm_call(range, sel, 0, NULL, true);
+	return rb_vm_call_super(range, sel, 0, NULL);
     }
     else {
 	VALUE b = RANGE_BEG(range);
@@ -667,7 +664,7 @@ range_max(VALUE range, SEL sel)
 		return LONG2NUM(FIX2LONG(e) - 1);
 	    }
 	    VALUE one = INT2FIX(1);
-	    return rb_vm_call(e, selMINUS, 1, &one, false);
+	    return rb_vm_call(e, selMINUS, 1, &one);
 	}
 	return e;
     }
@@ -700,9 +697,9 @@ rb_range_values(VALUE range, VALUE *begp, VALUE *endp, int *exclp)
 	if (!rb_vm_respond_to(range, selEnd, false)) {
 	    return Qfalse;
 	}
-	b = rb_vm_call(range, selBeg, 0, NULL, false);
-	e = rb_vm_call(range, selEnd, 0, NULL, false);
-	excl = RTEST(rb_vm_call(range, selExcludeEnd, 0, NULL, false));
+	b = rb_vm_call(range, selBeg, 0, NULL);
+	e = rb_vm_call(range, selEnd, 0, NULL);
+	excl = RTEST(rb_vm_call(range, selExcludeEnd, 0, NULL));
     }
     *begp = b;
     *endp = e;
@@ -728,9 +725,9 @@ rb_range_beg_len(VALUE range, long *begp, long *lenp, long len, int err)
 	if (!rb_vm_respond_to(range, selEnd, false)) {
 	    return Qfalse;
 	}
-	b = rb_vm_call(range, selBeg, 0, NULL, false);
-	e = rb_vm_call(range, selEnd, 0, NULL, false);
-	excl = RTEST(rb_vm_call(range, selExcludeEnd, 0, NULL, false));
+	b = rb_vm_call(range, selBeg, 0, NULL);
+	e = rb_vm_call(range, selEnd, 0, NULL);
+	excl = RTEST(rb_vm_call(range, selExcludeEnd, 0, NULL));
     }
     beg = NUM2LONG(b);
     end = NUM2LONG(e);
@@ -836,7 +833,7 @@ range_inspect(VALUE range, SEL sel)
 static VALUE
 range_eqq(VALUE range, SEL sel, VALUE val)
 {
-    return rb_vm_call(range, selInclude, 1, &val, false);
+    return rb_vm_call(range, selInclude, 1, &val);
 }
 
 /*
@@ -895,12 +892,10 @@ range_include(VALUE range, SEL sel, VALUE val)
 	    }
 	}
     }
-    /* TODO: ruby_frame->this_func = rb_intern("include?"); */
-    //return rb_call_super(1, &val);
     if (sel == NULL) {
 	sel = sel_registerName("include?:");
     }
-    return rb_vm_call(range, sel, 1, &val, true);
+    return rb_vm_call_super(range, sel, 1, &val);
 }
 
 
@@ -1058,7 +1053,6 @@ Init_Range(void)
     rb_objc_define_method(rb_cRange, "cover?", range_cover, 1);
 
     selUpto = sel_registerName("upto:");
-    cacheUpto = rb_vm_get_call_cache(selUpto);
     selBeg = sel_registerName("begin");
     selEnd = sel_registerName("end");
     selExcludeEnd = sel_registerName("exclude_end?");

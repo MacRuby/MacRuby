@@ -161,8 +161,7 @@ esignal_init(VALUE self, SEL sel, int argc, VALUE *argv)
 	}
 	sig = rb_sprintf("SIG%s", signm);
     }
-    //rb_call_super(1, &sig);
-    rb_vm_call(self, selInitialize2, 1, &sig, true);
+    rb_vm_call_super(self, selInitialize2, 1, &sig);
     rb_iv_set(self, "signo", INT2NUM(signo));
 
     return self;
@@ -188,7 +187,7 @@ interrupt_init(VALUE self, SEL sel, int argc, VALUE *argv)
 
     args[0] = INT2FIX(SIGINT);
     rb_scan_args(argc, argv, "01", &args[1]);
-    return rb_vm_call(self, selInitialize2, 2, args, true);
+    return rb_vm_call_super(self, selInitialize2, 2, args);
 }
 
 void

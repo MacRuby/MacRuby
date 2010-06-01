@@ -595,8 +595,7 @@ exc_equal(VALUE exc, SEL sel, VALUE obj)
  * Create a new +SystemExit+ exception with the given status.
  */
 
-/* XXX not a static/local symbol because of the super call that calls dladdr */
-VALUE
+static VALUE
 exit_initialize(VALUE exc, SEL sel, int argc, VALUE *argv)
 {
     VALUE status = INT2FIX(EXIT_SUCCESS);
@@ -604,11 +603,10 @@ exit_initialize(VALUE exc, SEL sel, int argc, VALUE *argv)
 	status = *argv++;
 	--argc;
     }
-    //rb_call_super(argc, argv);
     if (sel == 0) {
 	sel = argc == 0 ? selInitialize : selInitialize2;
     }
-    rb_vm_call(exc, sel, argc, argv, true);
+    rb_vm_call_super(exc, sel, argc, argv);
     rb_iv_set(exc, "status", status);
     return exc;
 }
@@ -670,18 +668,16 @@ rb_name_error(ID id, const char *fmt, ...)
  * method.
  */
 
-/* XXX not a static/local symbol because of the super call that calls dladdr */
-VALUE
+static VALUE
 name_err_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE name;
 
     name = (argc > 1) ? argv[--argc] : Qnil;
-    //rb_call_super(argc, argv);
     if (sel == 0) {
 	sel = argc == 0 ? selInitialize : selInitialize2;
     }
-    rb_vm_call(self, sel, argc, argv, true);
+    rb_vm_call_super(self, sel, argc, argv);
     rb_iv_set(self, "name", name);
     return self;
 }
@@ -733,8 +729,7 @@ name_err_to_s(VALUE exc, SEL sel)
  * arguments using the <code>#args</code> method.
  */
 
-/* XXX not a static/local symbol because of the super call that calls dladdr */
-VALUE
+static VALUE
 nometh_err_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE args = (argc > 2) ? argv[--argc] : Qnil;
@@ -742,7 +737,7 @@ nometh_err_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
     if (sel == 0) {
 	sel = argc == 0 ? selInitialize : selInitialize2;
     }
-    rb_vm_call(self, sel, argc, argv, true);
+    rb_vm_call_super(self, sel, argc, argv);
     rb_iv_set(self, "args", args);
     return self;
 }
@@ -933,8 +928,7 @@ get_syserr(int n)
  * method.
  */
 
-/* XXX not a static/local symbol because of the super call that calls dladdr */
-VALUE
+static VALUE
 syserr_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
 #if !defined(_WIN32) && !defined(__VMS)
@@ -973,8 +967,7 @@ syserr_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
     else {
 	mesg = rb_str_new2(err);
     }
-    //rb_call_super(1, &mesg);
-    rb_vm_call(self, selInitialize2, 1, &mesg, true);
+    rb_vm_call_super(self, selInitialize2, 1, &mesg);
     rb_iv_set(self, "errno", error);
     return self;
 }
@@ -1224,10 +1217,8 @@ rb_check_frozen(VALUE obj)
 VALUE
 rb_format_exception_message(VALUE exc)
 {
-    VALUE message = rb_vm_call(exc, sel_registerName("message"), 0, NULL,
-	    false);
-    VALUE bt = rb_vm_call(exc, sel_registerName("backtrace"), 0, NULL,
-	    false);
+    VALUE message = rb_vm_call(exc, sel_registerName("message"), 0, NULL);
+    VALUE bt = rb_vm_call(exc, sel_registerName("backtrace"), 0, NULL);
 
     CFMutableStringRef result = CFStringCreateMutable(NULL, 0);
 

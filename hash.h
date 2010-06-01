@@ -101,7 +101,6 @@ VALUE rhash_aref(VALUE hash, SEL sel, VALUE key);
 VALUE rhash_aset(VALUE hash, SEL sel, VALUE key, VALUE val);
 VALUE rhash_keys(VALUE hash, SEL sel);
 VALUE rhash_has_key(VALUE hash, SEL sel, VALUE key);
-VALUE rhash_call_default(VALUE hash, VALUE key);
 VALUE rhash_set_default(VALUE hash, SEL sel, VALUE ifnone);
 
 #if defined(__cplusplus)

@@ -1410,11 +1410,6 @@ rb_autoload_load(VALUE klass, ID id)
     if (!load || !(file = load->nd_lit)) {
 	return Qfalse;
     }
-    if (false) {
-	// XXX Apparently RubySpec does not want us to do that...
-	return rb_vm_call(*(VALUE *)rb_mKernel, selRequire, 1, &file,
-		false);
-    }
     return rb_require_safe(file, load->nd_nth);
 }
 

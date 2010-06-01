@@ -306,7 +306,6 @@ RoxorCompiler::compile_single_when_argument(NODE *arg, Value *comparedToVal,
     Value *condVal;
     if (comparedToVal != NULL) {
 	std::vector<Value *> params;
-	params.push_back(compile_mcache(selEqq, false));
 	params.push_back(current_self);
 	params.push_back(subnodeVal);
 	params.push_back(compile_sel(selEqq));
@@ -463,12 +462,11 @@ RoxorCompiler::compile_when_splat(Value *comparedToVal, Value *splatVal)
 {
     GlobalVariable *is_redefined = GET_CORE()->redefined_op_gvar(selEqq, true);
     Value *args[] = {
-	compile_mcache(selEqq, false),
 	new LoadInst(is_redefined, "", bb),
 	comparedToVal,
 	splatVal
     };
-    return compile_protected_call(whenSplatFunc, args, args + 4);
+    return compile_protected_call(whenSplatFunc, args, args + 3);
 }
 
 GlobalVariable *
@@ -535,55 +533,6 @@ RoxorCompiler::compile_const_global_string(const char *str,
     }
 
     return gvar;
-}
-
-Value *
-RoxorCompiler::compile_get_mcache(Value *sel, bool super)
-{
-    if (getCacheFunc == NULL) {
-	// void *rb_vm_get_call_cache2(SEL sel, unsigned char super);
-	getCacheFunc = 
-	    cast<Function>(module->getOrInsertFunction(
-			"rb_vm_get_call_cache2", PtrTy, PtrTy, Int8Ty,
-			NULL));
-    }
-
-    Value *args[] = {
-	sel,
-	ConstantInt::get(Int8Ty, super ? 1 : 0)
-    };
-    return CallInst::Create(getCacheFunc, args, args + 2, "", bb);
-}
-
-Value *
-RoxorCompiler::compile_mcache(SEL sel, bool super)
-{
-    struct mcache *cache = GET_CORE()->method_cache_get(sel, super);
-    return compile_const_pointer(cache);
-}
-
-Value *
-RoxorAOTCompiler::compile_mcache(SEL sel, bool super)
-{
-    if (super) {
-	char buf[100];
-	snprintf(buf, sizeof buf, "__super__:%s", sel_getName(sel));
-        sel = sel_registerName(buf);
-    }
-
-    GlobalVariable *gvar;
-    std::map<SEL, GlobalVariable *>::iterator iter = mcaches.find(sel);
-    if (iter == mcaches.end()) {
-	gvar = new GlobalVariable(*RoxorCompiler::module, PtrTy, false,
-		GlobalValue::InternalLinkage, Constant::getNullValue(PtrTy),
-		"");
-	assert(gvar != NULL);
-	mcaches[sel] = gvar;
-    }
-    else {
-	gvar = iter->second;
-    }
-    return new LoadInst(gvar, "", bb);
 }
 
 Value *
@@ -716,10 +665,9 @@ Value *
 RoxorCompiler::compile_dispatch_call(std::vector<Value *> &params)
 {
     if (dispatcherFunc == NULL) {
-	// VALUE rb_vm_dispatch(struct mcache *cache, VALUE top, VALUE self,
-	// 	SEL sel, void *block, unsigned char opt, int argc, ...);
+	// VALUE rb_vm_dispatch(VALUE top, VALUE self, SEL sel, void *block,
+	// 	unsigned char opt, int argc, ...);
 	std::vector<const Type *> types;
-	types.push_back(PtrTy);
 	types.push_back(RubyObjTy);
 	types.push_back(RubyObjTy);
 	types.push_back(PtrTy);
@@ -764,7 +712,6 @@ RoxorCompiler::compile_attribute_assign(NODE *node, Value *extra_val)
 
     std::vector<Value *> params;
     const SEL sel = mid_to_sel(mid, argc);
-    params.push_back(compile_mcache(sel, false));
     params.push_back(current_self);
     params.push_back(recv);
     params.push_back(compile_sel(sel));
@@ -1891,7 +1838,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    return NULL;
 	}
 	
-	Value *val = params[2]; // self
+	Value *val = params[1]; // self
 
 	Function *f = bb->getParent();
 
@@ -1922,7 +1869,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    return NULL;
 	}
 
-	Value *leftVal = params[2]; // self
+	Value *leftVal = params[1]; // self
 	Value *rightVal = params.back();
 
 	Function *func = NULL;
@@ -1964,12 +1911,11 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	GlobalVariable *is_redefined = GET_CORE()->redefined_op_gvar(sel, true);
 
 	Value *args[] = {
-	    compile_mcache(sel, false),
 	    leftVal,
 	    rightVal,
 	    new LoadInst(is_redefined, "", bb)
 	};
-	return compile_protected_call(func, args, args + 4);
+	return compile_protected_call(func, args, args + 3);
     }
     // Other operators (#<< or #[] or #[]=)
     else if (sel == selLTLT || sel == selAREF || sel == selASET) {
@@ -1979,7 +1925,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    return NULL;
 	}
 
-	if (params.size() - argc > 7) {
+	if (params.size() - argc > 6) {
 	    // Looks like there is a splat argument there, we can't handle this
 	    // in the primitives.
 	    return NULL;
@@ -1998,14 +1944,13 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	assert(func != NULL);
 
 	std::vector<Value *> new_params;
-	new_params.push_back(params[2]);		// self
+	new_params.push_back(params[1]);		// self
 	if (argc == 1) {
 	    new_params.push_back(params.back());	// other
 	}
 	else {
 	    new_params.insert(new_params.end(), params.end() - 2, params.end());
 	}
-	new_params.push_back(params[0]);		// cache
 
 	GlobalVariable *is_redefined = GET_CORE()->redefined_op_gvar(sel, true);
 	new_params.push_back(new LoadInst(is_redefined, "", bb));
@@ -2044,16 +1989,15 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 
 	bb = thenBB;
 	std::vector<Value *> new_params;
-	new_params.push_back(compile_mcache(new_sel, false));
 	// Compile a null top reference, to ignore protected visibility.
 	new_params.push_back(ConstantInt::get(RubyObjTy, 0));
-	new_params.push_back(params[2]);
+	new_params.push_back(params[1]);
 	new_params.push_back(compile_sel(new_sel));
-	new_params.push_back(params[4]);
+	new_params.push_back(params[3]);
 	new_params.push_back(ConstantInt::get(Int8Ty, DISPATCH_FCALL));
 	new_params.push_back(ConstantInt::get(Int32Ty, argc - 1));
 	for (int i = 0; i < argc - 1; i++) {
-	    new_params.push_back(params[8 + i]);
+	    new_params.push_back(params[7 + i]);
 	}
 	Value *thenVal = compile_dispatch_call(new_params);
 	thenBB = bb;
@@ -2899,7 +2843,6 @@ RoxorCompiler::compile_node(NODE *node)
 		    assert(node->nd_next->nd_vid > 0);
 		    sel = mid_to_sel(node->nd_next->nd_vid, 0);
 		}
-		params.push_back(compile_mcache(sel, false));
 		params.push_back(current_self);
 		params.push_back(recv);
 		params.push_back(compile_sel(sel));
@@ -2959,7 +2902,6 @@ RoxorCompiler::compile_node(NODE *node)
 			? node->nd_mid : node->nd_next->nd_mid;
 		    sel = mid_to_sel(mid, 1);
 		    params.clear();
-		    params.push_back(compile_mcache(sel, false));
 		    params.push_back(current_self);
 		    params.push_back(tmp);
 		    params.push_back(compile_sel(sel));
@@ -2984,7 +2926,6 @@ RoxorCompiler::compile_node(NODE *node)
 		    sel = mid_to_sel(node->nd_next->nd_aid, 1);
 		}
 		params.clear();
-		params.push_back(compile_mcache(sel, false));
 		params.push_back(current_self);
 		params.push_back(recv);
 		params.push_back(compile_sel(sel));
@@ -3036,7 +2977,6 @@ RoxorCompiler::compile_node(NODE *node)
 		}
 
 		std::vector<Value *> params;
-		params.push_back(compile_mcache(selBackquote, false));
 		params.push_back(current_self);
 		params.push_back(current_self);
 		params.push_back(compile_sel(selBackquote));
@@ -3477,7 +3417,7 @@ rescan_args:
 		// Prepare the dispatcher parameters.
 		std::vector<Value *> params;
 
-		// Method cache (and prepare the selector).
+		// Prepare the selector.
 		Value *sel_val;
 		SEL sel;
 		if (mid != 0) {
@@ -3503,10 +3443,6 @@ rescan_args:
 				dyn_sel, compile_const_pointer(NULL));
 			sel_val = SelectInst::Create(is_null, sel_val, dyn_sel,
 				"", bb);
-			params.push_back(compile_get_mcache(sel_val, true));
-		    }
-		    else {
-			params.push_back(compile_mcache(sel, super_call));
 		    }
 		}
 		else {
@@ -3514,7 +3450,6 @@ rescan_args:
 		    // A super call outside a method definition. Compile a
 		    // null selector, the runtime will raise an exception.
 		    sel = 0;
-		    params.push_back(compile_const_pointer(NULL));
 		    sel_val = compile_const_pointer(NULL);
 		}
 
@@ -3626,7 +3561,7 @@ rescan_args:
 			blockVal = compile_const_pointer(NULL);
 		    }
 		}
-		params[4] = blockVal;
+		params[3] = blockVal;
 
 		// If we are calling a method that needs a top-level binding
 		// object, let's create it.
@@ -3845,7 +3780,6 @@ rescan_args:
 		}
 
 		std::vector<Value *> params;
-		params.push_back(compile_mcache(selEqTilde, false));
 		params.push_back(current_self);
 		params.push_back(reTarget);
 		params.push_back(compile_sel(selEqTilde));
@@ -4424,7 +4358,6 @@ rescan_args:
 		    // dispatch #each on the receiver
 		    std::vector<Value *> params;
 
-		    params.push_back(compile_mcache((is_lambda ? selLambda : selEach), false));
 		    params.push_back(current_self);
 
 		    if (!is_lambda) {
@@ -4641,7 +4574,6 @@ rescan_args:
 
 		std::vector<Value *> params;
 		SEL sel = sel_registerName("at_exit");
-		params.push_back(compile_mcache(sel, false));
 		params.push_back(current_self);
 		params.push_back(compile_nsobject());
 		params.push_back(compile_sel(sel));
@@ -4722,33 +4654,6 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
     BasicBlock::InstListType &list = 
 	function->getEntryBlock().getInstList();
     bb = &function->getEntryBlock();
-
-    // Compile method caches.
-
-    Function *getMethodCacheFunc = cast<Function>(module->getOrInsertFunction(
-		"rb_vm_get_method_cache",
-		PtrTy, PtrTy, NULL));
-
-    for (std::map<SEL, GlobalVariable *>::iterator i = mcaches.begin();
-	 i != mcaches.end();
-	 ++i) {
-
-	SEL sel = i->first;
-	GlobalVariable *gvar = i->second;
-
-	Value *load = compile_sel(sel, false);
-
-	Instruction *call = CallInst::Create(getMethodCacheFunc, load, "");
-
-	Instruction *assign = new StoreInst(call, gvar, "");
-
-	list.insert(list.begin(), assign);
-	list.insert(list.begin(), call);
-	Instruction *load_insn = dyn_cast<Instruction>(load);
-	if (load_insn != NULL) {
-	    list.insert(list.begin(), load_insn);
-	}
-    }
 
     // Compile constant caches.
 
@@ -6359,10 +6264,12 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
     rescue_invoke_bb = old_rescue_invoke_bb;
 #endif
 
-    // Now that the function is finished, we can inline the Ruby method.
-    if (CallInst::classof(ruby_call_insn)) {
-	CallInst *insn = cast<CallInst>(ruby_call_insn);
-	InlineFunction(insn);
+    if (ruby_func != NULL) {
+	// Now that the function is finished, we can inline the Ruby method.
+	if (CallInst::classof(ruby_call_insn)) {
+	    CallInst *insn = cast<CallInst>(ruby_call_insn);
+	    InlineFunction(insn);
+	}
     }
 
     return f;

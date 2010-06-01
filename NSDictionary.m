@@ -432,7 +432,7 @@ nshash_flatten(id rcv, SEL sel, int argc, VALUE *argv)
 	tmp = INT2FIX(1);
 	argv = &tmp;
     }
-    rb_vm_call((VALUE)ary, sel_registerName("flatten!:"), argc, argv, false);
+    rb_vm_call((VALUE)ary, sel_registerName("flatten!:"), argc, argv);
     return ary;
 }
 

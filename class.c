@@ -61,20 +61,20 @@ rb_obj_imp_isEqual(void *rcv, SEL sel, void *obj)
 	return false;
     }
     VALUE arg = OC2RB(obj);
-    return rb_vm_call((VALUE)rcv, selEq, 1, &arg, false) == Qtrue;
+    return rb_vm_call((VALUE)rcv, selEq, 1, &arg) == Qtrue;
 }
 
 static void *
 rb_obj_imp_init(void *rcv, SEL sel)
 {
-    rb_vm_call((VALUE)rcv, selInitialize, 0, NULL, false);
+    rb_vm_call((VALUE)rcv, selInitialize, 0, NULL);
     return rcv;
 }
 
 static void *
 rb_obj_imp_description(void *rcv, SEL sel)
 {
-    return (void *)rb_vm_call(OC2RB(rcv), selToS, 0, NULL, false);
+    return (void *)rb_vm_call(OC2RB(rcv), selToS, 0, NULL);
 }
 
 static VALUE
@@ -415,7 +415,7 @@ rb_class_inherited(VALUE super, VALUE klass)
 	if (super == 0) {
 	    super = rb_cObject;
 	}
-	return rb_vm_call(super, selInherited, 1, &klass, false);
+	return rb_vm_call(super, selInherited, 1, &klass);
     }
     return Qnil;
 }
@@ -1258,8 +1258,8 @@ rb_class_flags_cache_t *rb_class_flags;
 void
 Init_PreClass(void)
 {
-    rb_class_flags = (rb_class_flags_cache_t *)calloc(CACHE_SIZE,
-	    sizeof(rb_class_flags_cache_t));
+    rb_class_flags = (rb_class_flags_cache_t *)calloc(
+	    CLASS_FLAGS_CACHE_SIZE, sizeof(rb_class_flags_cache_t));
     assert(rb_class_flags != NULL);
 }
 

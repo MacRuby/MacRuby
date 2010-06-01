@@ -317,12 +317,10 @@ void rb_vm_remove_method(Class klass, ID name);
 void rb_vm_alias(VALUE klass, ID name, ID def);
 bool rb_vm_copy_method(Class klass, Method method);
 void rb_vm_copy_methods(Class from_class, Class to_class);
-VALUE rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *args, bool super);
-VALUE rb_vm_call_with_cache(void *cache, VALUE self, SEL sel, int argc,
-	const VALUE *argv);
-VALUE rb_vm_call_with_cache2(void *cache, rb_vm_block_t *block, VALUE self,
-	VALUE klass, SEL sel, int argc, const VALUE *argv);
-void *rb_vm_get_call_cache(SEL sel);
+VALUE rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *args);
+VALUE rb_vm_call2(rb_vm_block_t *block, VALUE self, VALUE klass, SEL sel,
+	int argc, const VALUE *argv);
+VALUE rb_vm_call_super(VALUE self, SEL sel, int argc, const VALUE *args);
 VALUE rb_vm_yield(int argc, const VALUE *argv);
 VALUE rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv);
 bool rb_vm_respond_to(VALUE obj, SEL sel, bool priv);
@@ -524,36 +522,25 @@ struct ccache {
     VALUE val;
 };
 
-#if defined(__cplusplus)
-}
-
-#include "bridgesupport.h"
-
-typedef struct {
-    Function *func;
-    rb_vm_arity_t arity;
-    int flags;
-} rb_vm_method_source_t;
-
 typedef VALUE rb_vm_objc_stub_t(IMP imp, id self, SEL sel, int argc,
 	const VALUE *argv);
 typedef VALUE rb_vm_c_stub_t(IMP imp, int argc, const VALUE *argv);
-#define rb_vm_long_arity_stub_t rb_vm_objc_stub_t
-typedef VALUE rb_vm_long_arity_bstub_t(IMP imp, id self, SEL sel,
-	VALUE dvars, rb_vm_block_t *b, int argc, const VALUE *argv);
+
+#include "bridgesupport.h"
 
 struct mcache {
 #define MCACHE_RCALL 0x1 // Ruby call
 #define MCACHE_OCALL 0x2 // Objective-C call
 #define MCACHE_FCALL 0x4 // C call
+#define MCACHE_SUPER 0x8 // Super call (only applied with RCALL or OCALL)
     uint8_t flag;
+    SEL sel;
+    Class klass;
     union {
 	struct {
-	    Class klass;
 	    rb_vm_method_node_t *node;
 	} rcall;
 	struct {
-	    Class klass;
 	    IMP imp;
 	    bs_element_method_t *bs_method;	
 	    rb_vm_objc_stub_t *stub;
@@ -564,10 +551,22 @@ struct mcache {
 	    rb_vm_c_stub_t *stub;
 	} fcall;
     } as;
-#define rcache cache->as.rcall
-#define ocache cache->as.ocall
-#define fcache cache->as.fcall
 };
+
+#define VM_MCACHE_SIZE	0x1000
+
+#if defined(__cplusplus)
+}
+
+typedef struct {
+    Function *func;
+    rb_vm_arity_t arity;
+    int flags;
+} rb_vm_method_source_t;
+
+#define rb_vm_long_arity_stub_t rb_vm_objc_stub_t
+typedef VALUE rb_vm_long_arity_bstub_t(IMP imp, id self, SEL sel,
+	VALUE dvars, rb_vm_block_t *b, int argc, const VALUE *argv);
 
 // For rb_vm_define_class()
 #define DEFINE_MODULE		0x1
@@ -630,8 +629,7 @@ class RoxorCore {
 	std::map<IMP, rb_vm_method_node_t *> ruby_imps;
 	std::map<Method, rb_vm_method_node_t *> ruby_methods;
 
-	// Method and constant caches.
-	std::map<SEL, struct mcache *> mcache;
+	// Constants cache.
 	std::map<ID, struct ccache *> ccache;
 
 	// Optimized selectors redefinition cache.
@@ -762,7 +760,6 @@ class RoxorCore {
 		char *path, size_t path_len, unsigned long *ln,
 		char *name, size_t name_len);
 
-	struct mcache *method_cache_get(SEL sel, bool super);
 	void invalidate_method_cache(SEL sel);
 	rb_vm_method_node_t *method_node_get(IMP imp, bool create=false);
 	rb_vm_method_node_t *method_node_get(Method m, bool create=false);
@@ -882,6 +879,9 @@ class RoxorVM {
 	std::map<VALUE, int *> catch_nesting;
 	std::vector<VALUE> recursive_objects;
 
+	// Method cache.
+	struct mcache *mcache;
+
 	VALUE thread;
 	Class current_class;
 	VALUE current_top_object;
@@ -922,6 +922,7 @@ class RoxorVM {
 	ACCESSOR(throw_exc, RoxorCatchThrowException *);
 	ACCESSOR(current_super_class, Class);
 	ACCESSOR(current_super_sel, SEL);
+	READER(mcache, struct mcache *);
 
 	std::string debug_blocks(void);
 

@@ -255,7 +255,7 @@ rb_obj_respond_to2(VALUE obj, VALUE klass, ID id, bool priv, bool check_override
 	    VALUE args[2];
 	    args[0] = ID2SYM(id);
 	    args[1] = priv ? Qtrue : Qfalse;
-	    return RTEST(rb_vm_call(obj, selRespondToDefault, 2, args, false));
+	    return RTEST(rb_vm_call(obj, selRespondToDefault, 2, args));
 	}
     }
     return true;

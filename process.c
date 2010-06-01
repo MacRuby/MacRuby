@@ -1819,8 +1819,7 @@ save_env(VALUE save)
         VALUE env = rb_const_get(rb_cObject, rb_intern("ENV"));
         if (RTEST(env)) {
             VALUE ary = hide_obj(rb_ary_new());
-            rb_objc_block_call(env, selEach, cacheEach, 0, 0, save_env_i,
-                          (VALUE)ary);
+            rb_objc_block_call(env, selEach, 0, 0, save_env_i, (VALUE)ary);
             rb_ary_store(save, EXEC_OPTION_ENV, ary);
         }
         rb_ary_store(save, EXEC_OPTION_UNSETENV_OTHERS, Qtrue);

@@ -398,6 +398,9 @@ RoxorVM::RoxorVM(void)
     return_from_block = -1;
     current_super_class = NULL;
     current_super_sel = 0;
+
+    mcache = (struct mcache *)calloc(VM_MCACHE_SIZE, sizeof(struct mcache));
+    assert(mcache != NULL);
 }
 
 static inline void *
@@ -459,6 +462,10 @@ RoxorVM::RoxorVM(const RoxorVM &vm)
     throw_exc = NULL;
     current_super_class = NULL;
     current_super_sel = 0;
+
+    mcache = (struct mcache *)calloc(VM_MCACHE_SIZE, sizeof(struct mcache));
+    assert(mcache != NULL);
+    memcpy(mcache, vm.mcache, sizeof(struct mcache) * VM_MCACHE_SIZE);
 }
 
 RoxorVM::~RoxorVM(void)
@@ -474,6 +481,9 @@ RoxorVM::~RoxorVM(void)
     GC_RELEASE(broken_with);
     GC_RELEASE(last_status);
     GC_RELEASE(errinfo);
+
+    free(mcache);
+    mcache = NULL;
 }
 
 static void
@@ -743,33 +753,6 @@ rb_vm_get_constant_cache(const char *name)
     return GET_CORE()->constant_cache_get(rb_intern(name));
 }
 
-struct mcache *
-RoxorCore::method_cache_get(SEL sel, bool super)
-{
-    if (super) {
-	struct mcache *cache = (struct mcache *)malloc(sizeof(struct mcache));
-	cache->flag = 0;
-	// TODO store the cache somewhere and invalidate it appropriately.
-	return cache;
-    }
-    std::map<SEL, struct mcache *>::iterator iter = mcache.find(sel);
-    if (iter == mcache.end()) {
-	struct mcache *cache = (struct mcache *)malloc(sizeof(struct mcache));
-	cache->flag = 0;
-	mcache[sel] = cache;
-	return cache;
-    }
-    return iter->second;
-}
-
-extern "C"
-void *
-rb_vm_get_method_cache(SEL sel)
-{
-    const bool super = strncmp(sel_getName(sel), "__super__:", 10) == 0;
-    return GET_CORE()->method_cache_get(sel, super); 
-}
-
 rb_vm_method_node_t *
 RoxorCore::method_node_get(IMP imp, bool create)
 {
@@ -929,10 +912,10 @@ RoxorCore::method_added(Class klass, SEL sel)
 	    VALUE sym = ID2SYM(mid);
 	    if (RCLASS_SINGLETON(klass)) {
 		VALUE sk = rb_iv_get((VALUE)klass, "__attached__");
-		rb_vm_call(sk, selSingletonMethodAdded, 1, &sym, false);
+		rb_vm_call(sk, selSingletonMethodAdded, 1, &sym);
 	    }
 	    else {
-		rb_vm_call((VALUE)klass, selMethodAdded, 1, &sym, false);
+		rb_vm_call((VALUE)klass, selMethodAdded, 1, &sym);
 	    }
 	}
     }
@@ -941,9 +924,12 @@ RoxorCore::method_added(Class klass, SEL sel)
 void
 RoxorCore::invalidate_method_cache(SEL sel)
 {
-    std::map<SEL, struct mcache *>::iterator iter = mcache.find(sel);
-    if (iter != mcache.end()) {
-	iter->second->flag = 0;
+    struct mcache *cache = GET_VM()->get_mcache();
+    for (int i = 0; i < VM_MCACHE_SIZE; i++) {
+	struct mcache *e = &cache[i];
+	if (e->sel == sel) {
+	    e->flag = 0;
+	}
     }
 }
 
@@ -1749,7 +1735,7 @@ RoxorCore::retype_method(Class klass, rb_vm_method_node_t *node,
     // Re-generate ObjC stub. 
     Function *objc_func = RoxorCompiler::shared->compile_objc_stub(NULL,
 	    node->ruby_imp, node->arity, new_types);
-    node->objc_imp = compile(objc_func);
+    node->objc_imp = compile(objc_func, false);
     // TODO: free LLVM machine code from old objc IMP
     objc_to_ruby_stubs[node->ruby_imp] = node->objc_imp;
 
@@ -2526,10 +2512,10 @@ RoxorCore::undef_method(Class klass, SEL sel)
 	VALUE sym = ID2SYM(mid);
 	if (RCLASS_SINGLETON(klass)) {
 	    VALUE sk = rb_iv_get((VALUE)klass, "__attached__");
-	    rb_vm_call(sk, selSingletonMethodUndefined, 1, &sym, false);
+	    rb_vm_call(sk, selSingletonMethodUndefined, 1, &sym);
 	}
 	else {
-	    rb_vm_call((VALUE)klass, selMethodUndefined, 1, &sym, false);
+	    rb_vm_call((VALUE)klass, selMethodUndefined, 1, &sym);
 	}
     }
 }
@@ -2583,10 +2569,10 @@ RoxorCore::remove_method(Class klass, SEL sel)
 	VALUE sym = ID2SYM(mid);
 	if (RCLASS_SINGLETON(klass)) {
 	    VALUE sk = rb_iv_get((VALUE)klass, "__attached__");
-	    rb_vm_call(sk, selSingletonMethodRemoved, 1, &sym, false);
+	    rb_vm_call(sk, selSingletonMethodRemoved, 1, &sym);
 	}
 	else {
-	    rb_vm_call((VALUE)klass, selMethodRemoved, 1, &sym, false);
+	    rb_vm_call((VALUE)klass, selMethodRemoved, 1, &sym);
 	}
     }
 }
@@ -2664,7 +2650,7 @@ rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv)
     int n = 0;
     VALUE args[3];
     VALUE not_args[3] = {rb_str_new2(format), obj, meth};
-    args[n++] = rb_vm_call(rb_cNameErrorMesg, selNot2, 3, not_args, false);
+    args[n++] = rb_vm_call(rb_cNameErrorMesg, selNot2, 3, not_args);
     args[n++] = meth;
     if (exc == rb_eNoMethodError) {
 	args[n++] = rb_ary_new4(argc - 1, argv + 1);
@@ -3005,20 +2991,6 @@ rb_vm_pop_binding(void)
     GET_VM()->pop_current_binding(false);
 }
 
-extern "C"
-void *
-rb_vm_get_call_cache(SEL sel)
-{
-    return GET_CORE()->method_cache_get(sel, false);
-}
-
-extern "C"
-void *
-rb_vm_get_call_cache2(SEL sel, unsigned char super)
-{
-    return GET_CORE()->method_cache_get(sel, super);
-}
-
 // Should be used inside a method implementation.
 extern "C"
 int
@@ -3092,7 +3064,7 @@ rb_vm_block_call_sel(VALUE rcv, SEL sel, VALUE **dvars, rb_vm_block_t *b,
 	rb_raise(rb_eArgError, "no receiver given");
     }
     SEL msel = argc - 1 == 0 ? (SEL)dvars[0] : (SEL)dvars[1];
-    return rb_vm_call(argv[0], msel, argc - 1, &argv[1], false);
+    return rb_vm_call(argv[0], msel, argc - 1, &argv[1]);
 }
 
 extern "C"
@@ -4128,7 +4100,7 @@ call_finalizer(rb_vm_finalizer_t *finalizer)
     for (int i = 0, count = RARRAY_LEN(finalizer->finalizers); i < count; i++) {
 	VALUE b = RARRAY_AT(finalizer->finalizers, i);
 	try {
-	    rb_vm_call(b, selCall, 1, &finalizer->objid, false);
+	    rb_vm_call(b, selCall, 1, &finalizer->objid);
 	}
 	catch (...) {
 	    // Do nothing.

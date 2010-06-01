@@ -87,7 +87,7 @@ extern int ruby_initialized;
 	}
     }
 
-    return RB2OC(rb_vm_call(OC2RB(self), sel, argc, rargv, false));
+    return RB2OC(rb_vm_call(OC2RB(self), sel, argc, rargv));
 }
 
 - (id)performRubySelector:(SEL)sel withArguments:firstArg, ...

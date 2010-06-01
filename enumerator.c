@@ -141,7 +141,7 @@ enum_each_slice(VALUE obj, SEL sel, VALUE n)
     args[0] = rb_ary_new2(size);
     args[1] = (VALUE)size;
 
-    rb_objc_block_call(obj, selEach, cacheEach, 0, 0, each_slice_i, (VALUE)args);
+    rb_objc_block_call(obj, selEach, 0, 0, each_slice_i, (VALUE)args);
 
     ary = args[0];
     if (RARRAY_LEN(ary) > 0) rb_yield(ary);
@@ -198,7 +198,7 @@ enum_each_cons(VALUE obj, SEL sel, VALUE n)
     args[0] = rb_ary_new2(size);
     args[1] = (VALUE)size;
 
-    rb_objc_block_call(obj, selEach, cacheEach, 0, 0, each_cons_i, (VALUE)args);
+    rb_objc_block_call(obj, selEach, 0, 0, each_cons_i, (VALUE)args);
 
     return Qnil;
 }
@@ -312,7 +312,7 @@ enumerator_block_call(VALUE obj, VALUE (*func)(ANYARGS), VALUE arg)
 	argc = RARRAY_LEN(e->args);
 	argv = RARRAY_PTR(e->args);
     }
-    return rb_objc_block_call(e->obj, e->sel, NULL, argc, (VALUE *)argv,
+    return rb_objc_block_call(e->obj, e->sel, argc, (VALUE *)argv,
 	    func, arg);
 }
 

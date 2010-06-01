@@ -802,8 +802,8 @@ VALUE rb_funcall(VALUE, ID, int, ...);
 VALUE rb_funcall2(VALUE, ID, int, const VALUE*);
 VALUE rb_funcall3(VALUE, ID, int, const VALUE*);
 int rb_scan_args(int, const VALUE*, const char*, ...);
-VALUE rb_call_super(int, const VALUE*);
-VALUE rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *args, bool super);
+VALUE rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *args);
+VALUE rb_vm_call_super(VALUE self, SEL sel, int argc, const VALUE *args);
 
 VALUE rb_gv_set(const char*, VALUE);
 VALUE rb_gv_get(const char*);
@@ -868,7 +868,7 @@ int rb_block_given_p(void);
 void rb_need_block(void);
 VALUE rb_iterate(VALUE(*)(VALUE),VALUE,VALUE(*)(ANYARGS),VALUE);
 VALUE rb_block_call(VALUE,ID,int,VALUE*,VALUE(*)(ANYARGS),VALUE);
-VALUE rb_objc_block_call(VALUE obj, SEL sel, void *cache, int argc,
+VALUE rb_objc_block_call(VALUE obj, SEL sel, int argc,
 	VALUE *argv, VALUE (*bl_proc) (ANYARGS), VALUE data2);
 VALUE rb_rescue(VALUE(*)(ANYARGS),VALUE,VALUE(*)(ANYARGS),VALUE);
 VALUE rb_rescue2(VALUE(*)(ANYARGS),VALUE,VALUE(*)(ANYARGS),VALUE,...);

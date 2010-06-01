@@ -166,8 +166,8 @@ vm_set_const(VALUE outer, ID id, VALUE obj, unsigned char dynamic_class)
     rb_const_set(outer, id, obj);
 }
 
-VALUE rb_vm_dispatch(void *cache, VALUE top, VALUE self, void *sel,
-	void *block, unsigned char opt, int argc, ...);
+VALUE rb_vm_dispatch(VALUE top, VALUE self, void *sel, void *block,
+	unsigned char opt, int argc, ...);
 
 // Only numeric immediates have their lsb at 1.
 #define NUMERIC_IMM_P(x) ((x & 0x1) == 0x1)
@@ -175,7 +175,7 @@ VALUE rb_vm_dispatch(void *cache, VALUE top, VALUE self, void *sel,
 #define IMM2DBL(x) (FIXFLOAT_P(x) ? FIXFLOAT2DBL(x) : FIX2LONG(x))
 
 inline VALUE
-vm_fast_plus(void *cache, VALUE left, VALUE right, unsigned char overriden)
+vm_fast_plus(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0 && NUMERIC_IMM_P(left) && NUMERIC_IMM_P(right)) {
 	if (FIXNUM_P(left) && FIXNUM_P(right)) {
@@ -189,11 +189,11 @@ vm_fast_plus(void *cache, VALUE left, VALUE right, unsigned char overriden)
 	    return DBL2FIXFLOAT(res);
 	}
     }
-    return rb_vm_dispatch(cache, 0, left, selPLUS, NULL, 0, 1, right);
+    return rb_vm_dispatch(0, left, selPLUS, NULL, 0, 1, right);
 }
 
 inline VALUE
-vm_fast_minus(void *cache, VALUE left, VALUE right, unsigned char overriden)
+vm_fast_minus(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0 && NUMERIC_IMM_P(left) && NUMERIC_IMM_P(right)) {
 	if (FIXNUM_P(left) && FIXNUM_P(right)) {
@@ -207,11 +207,11 @@ vm_fast_minus(void *cache, VALUE left, VALUE right, unsigned char overriden)
 	    return DBL2FIXFLOAT(res);
 	}
     }
-    return rb_vm_dispatch(cache, 0, left, selMINUS, NULL, 0, 1, right);
+    return rb_vm_dispatch(0, left, selMINUS, NULL, 0, 1, right);
 }
 
 inline VALUE
-vm_fast_mult(void *cache, VALUE left, VALUE right, unsigned char overriden)
+vm_fast_mult(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0 && NUMERIC_IMM_P(left) && NUMERIC_IMM_P(right)) {
 	if (FIXNUM_P(left) && FIXNUM_P(right)) {
@@ -225,11 +225,11 @@ vm_fast_mult(void *cache, VALUE left, VALUE right, unsigned char overriden)
 	    return DBL2FIXFLOAT(res);
 	}
     }
-    return rb_vm_dispatch(cache, 0, left, selMULT, NULL, 0, 1, right);
+    return rb_vm_dispatch(0, left, selMULT, NULL, 0, 1, right);
 }
 
 inline VALUE
-vm_fast_div(void *cache, VALUE left, VALUE right, unsigned char overriden)
+vm_fast_div(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0 && NUMERIC_IMM_P(left) && NUMERIC_IMM_P(right)) {
 	if (FIXNUM_P(left) && FIXNUM_P(right)) {
@@ -251,11 +251,11 @@ vm_fast_div(void *cache, VALUE left, VALUE right, unsigned char overriden)
 	    return DBL2FIXFLOAT(res);
 	}
     }
-    return rb_vm_dispatch(cache, 0, left, selDIV, NULL, 0, 1, right);
+    return rb_vm_dispatch(0, left, selDIV, NULL, 0, 1, right);
 }
 
 inline VALUE
-vm_fast_lt(void *cache, VALUE left, VALUE right, unsigned char overriden)
+vm_fast_lt(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0 && NUMERIC_IMM_P(left) && NUMERIC_IMM_P(right)) {
 	if (FIXNUM_P(left) && FIXNUM_P(right)) {
@@ -265,11 +265,11 @@ vm_fast_lt(void *cache, VALUE left, VALUE right, unsigned char overriden)
 	    return IMM2DBL(left) < IMM2DBL(right) ? Qtrue : Qfalse;
 	}
     }
-    return rb_vm_dispatch(cache, 0, left, selLT, NULL, 0, 1, right);
+    return rb_vm_dispatch(0, left, selLT, NULL, 0, 1, right);
 }
 
 inline VALUE
-vm_fast_le(void *cache, VALUE left, VALUE right, unsigned char overriden)
+vm_fast_le(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0 && NUMERIC_IMM_P(left) && NUMERIC_IMM_P(right)) {
 	if (FIXNUM_P(left) && FIXNUM_P(right)) {
@@ -279,11 +279,11 @@ vm_fast_le(void *cache, VALUE left, VALUE right, unsigned char overriden)
 	    return IMM2DBL(left) <= IMM2DBL(right) ? Qtrue : Qfalse;
 	}
     }
-    return rb_vm_dispatch(cache, 0, left, selLE, NULL, 0, 1, right);
+    return rb_vm_dispatch(0, left, selLE, NULL, 0, 1, right);
 }
 
 inline VALUE
-vm_fast_gt(void *cache, VALUE left, VALUE right, unsigned char overriden)
+vm_fast_gt(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0 && NUMERIC_IMM_P(left) && NUMERIC_IMM_P(right)) {
 	if (FIXNUM_P(left) && FIXNUM_P(right)) {
@@ -293,11 +293,11 @@ vm_fast_gt(void *cache, VALUE left, VALUE right, unsigned char overriden)
 	    return IMM2DBL(left) > IMM2DBL(right) ? Qtrue : Qfalse;
 	}
     }
-    return rb_vm_dispatch(cache, 0, left, selGT, NULL, 0, 1, right);
+    return rb_vm_dispatch(0, left, selGT, NULL, 0, 1, right);
 }
 
 inline VALUE
-vm_fast_ge(void *cache, VALUE left, VALUE right, unsigned char overriden)
+vm_fast_ge(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0 && NUMERIC_IMM_P(left) && NUMERIC_IMM_P(right)) {
 	if (FIXNUM_P(left) && FIXNUM_P(right)) {
@@ -307,11 +307,11 @@ vm_fast_ge(void *cache, VALUE left, VALUE right, unsigned char overriden)
 	    return IMM2DBL(left) >= IMM2DBL(right) ? Qtrue : Qfalse;
 	}
     }
-    return rb_vm_dispatch(cache, 0, left, selGE, NULL, 0, 1, right);
+    return rb_vm_dispatch(0, left, selGE, NULL, 0, 1, right);
 }
 
 inline VALUE
-vm_fast_eq(void *cache, VALUE left, VALUE right, unsigned char overriden)
+vm_fast_eq(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0) {
 	if (NUMERIC_IMM_P(left) && NUMERIC_IMM_P(right)) {
@@ -327,11 +327,11 @@ vm_fast_eq(void *cache, VALUE left, VALUE right, unsigned char overriden)
 	}
 	// TODO: opt for non-immediate types
     }
-    return rb_vm_dispatch(cache, 0, left, selEq, NULL, 0, 1, right);
+    return rb_vm_dispatch(0, left, selEq, NULL, 0, 1, right);
 }
 
 inline VALUE
-vm_fast_eqq(void *cache, VALUE left, VALUE right, unsigned char overriden)
+vm_fast_eqq(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0) {
 	if (NUMERIC_IMM_P(left) && NUMERIC_IMM_P(right)) {
@@ -347,11 +347,11 @@ vm_fast_eqq(void *cache, VALUE left, VALUE right, unsigned char overriden)
 	}
 	// TODO: opt for non-immediate types
     }
-    return rb_vm_dispatch(cache, 0, left, selEqq, NULL, 0, 1, right);
+    return rb_vm_dispatch(0, left, selEqq, NULL, 0, 1, right);
 }
 
 inline VALUE
-vm_fast_neq(void *cache, VALUE left, VALUE right, unsigned char overriden)
+vm_fast_neq(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0) {
 	if (NUMERIC_IMM_P(left) && NUMERIC_IMM_P(right)) {
@@ -367,11 +367,11 @@ vm_fast_neq(void *cache, VALUE left, VALUE right, unsigned char overriden)
 	}
 	// TODO: opt for non-immediate types
     }
-    return rb_vm_dispatch(cache, 0, left, selNeq, NULL, 0, 1, right);
+    return rb_vm_dispatch(0, left, selNeq, NULL, 0, 1, right);
 }
 
 inline VALUE
-vm_fast_aref(VALUE obj, VALUE other, void *cache, unsigned char overriden)
+vm_fast_aref(VALUE obj, VALUE other, unsigned char overriden)
 {
     if (overriden == 0 && !SPECIAL_CONST_P(obj)) {
 	VALUE klass = *(VALUE *)obj;
@@ -381,22 +381,14 @@ vm_fast_aref(VALUE obj, VALUE other, void *cache, unsigned char overriden)
 	    }
 	}
 	else if (klass == rb_cRubyHash) {
-	    VALUE val = rhash_lookup(obj, other);
-	    if (val == Qundef) {
-		if (RHASH(obj)->ifnone == Qnil) {
-		    return Qnil;
-		}
-		return rhash_call_default(obj, other);
-	    }
-	    return val;
+	    return rhash_aref(obj, 0, other);
 	}
     }
-    return rb_vm_dispatch(cache, 0, obj, selAREF, NULL, 0, 1, other);
+    return rb_vm_dispatch(0, obj, selAREF, NULL, 0, 1, other);
 }
 
 inline VALUE
-vm_fast_aset(VALUE obj, VALUE other1, VALUE other2, void *cache,
-	unsigned char overriden)
+vm_fast_aset(VALUE obj, VALUE other1, VALUE other2, unsigned char overriden)
 {
     if (overriden == 0 && !SPECIAL_CONST_P(obj)) {
 	VALUE klass = *(VALUE *)obj;
@@ -410,11 +402,11 @@ vm_fast_aset(VALUE obj, VALUE other1, VALUE other2, void *cache,
 	    return rhash_aset(obj, 0, other1, other2);
 	}
     }
-    return rb_vm_dispatch(cache, 0, obj, selASET, NULL, 0, 2, other1, other2);
+    return rb_vm_dispatch(0, obj, selASET, NULL, 0, 2, other1, other2);
 }
 
 inline VALUE
-vm_fast_shift(VALUE obj, VALUE other, void *cache, unsigned char overriden)
+vm_fast_shift(VALUE obj, VALUE other, unsigned char overriden)
 {
     if (overriden == 0 && !SPECIAL_CONST_P(obj)) {
 	VALUE klass = *(VALUE *)obj;
@@ -427,12 +419,11 @@ vm_fast_shift(VALUE obj, VALUE other, void *cache, unsigned char overriden)
 	    return rstr_concat(obj, 0, other);
 	}
     }
-    return rb_vm_dispatch(cache, 0, obj, selLTLT, NULL, 0, 1, other);
+    return rb_vm_dispatch(0, obj, selLTLT, NULL, 0, 1, other);
 }
 
 inline VALUE
-vm_when_splat(void *cache, unsigned char overriden,
-	VALUE comparedTo, VALUE splat)
+vm_when_splat(unsigned char overriden, VALUE comparedTo, VALUE splat)
 {
     VALUE ary = rb_check_convert_type(splat, T_ARRAY, "Array", "to_a");
     if (NIL_P(ary)) {
@@ -441,7 +432,7 @@ vm_when_splat(void *cache, unsigned char overriden,
     long i, count = RARRAY_LEN(ary);
     for (i = 0; i < count; i++) {
 	VALUE o = RARRAY_AT(ary, i);
-	if (RTEST(vm_fast_eqq(cache, o, comparedTo, overriden))) {
+	if (RTEST(vm_fast_eqq(o, comparedTo, overriden))) {
 	    return Qtrue;
 	}
     }

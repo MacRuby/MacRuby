@@ -405,7 +405,7 @@ rb_vm_struct_aset(VALUE rcv, SEL sel, VALUE index, VALUE val)
     char buf[100];
     snprintf(buf, sizeof buf, "%s=:", bs_boxed->as.s->fields[idx].name);
 
-    return rb_vm_call(rcv, sel_registerName(buf), 1, &val, false);
+    return rb_vm_call(rcv, sel_registerName(buf), 1, &val);
 }
 
 static VALUE
@@ -1313,7 +1313,8 @@ RoxorCore::load_bridge_support(const char *path, const char *framework_path,
     if (!ok) {
 	rb_raise(rb_eRuntimeError, "%s", error);
     }
-#if defined(__LP64__)
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
+# if defined(__LP64__)
     static bool R6399046_fixed = false;
     // XXX work around for
     // <rdar://problem/6399046> NSNotFound 64-bit value is incorrect
@@ -1327,6 +1328,7 @@ RoxorCore::load_bridge_support(const char *path, const char *framework_path,
 	    R6399046_fixed = true;
 	}
     }
+# endif
 #endif
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
     static bool R6401816_fixed = false;

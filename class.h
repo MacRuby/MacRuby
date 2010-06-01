@@ -30,14 +30,14 @@ typedef struct rb_class_flags_cache {
     struct rb_class_flags_cache *next;
 } rb_class_flags_cache_t;
 
-#define CACHE_SIZE 0x1000
+#define CLASS_FLAGS_CACHE_SIZE 0x1000
 
 extern rb_class_flags_cache_t *rb_class_flags;
 
 static unsigned int
 rb_class_flags_hash(Class k)
 {
-    return ((unsigned long)k >> 2) & (CACHE_SIZE - 1);
+    return ((unsigned long)k >> 2) & (CLASS_FLAGS_CACHE_SIZE - 1);
 }
 
 static inline unsigned long

@@ -106,7 +106,7 @@ rb_get_path_check(VALUE obj, int check)
     }
 
     if (rb_vm_respond_to(obj, selToPath, true)) {
-	tmp = rb_vm_call(obj, selToPath, 0, NULL, false);
+	tmp = rb_vm_call(obj, selToPath, 0, NULL);
     }
     else {
 	tmp = rb_check_string_type(obj);

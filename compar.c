@@ -16,7 +16,6 @@
 VALUE rb_mComparable;
 
 static SEL cmp = 0;
-static struct mcache *cmp_cache = NULL;
 
 void
 rb_cmperr(VALUE x, VALUE y)
@@ -37,15 +36,13 @@ rb_cmperr(VALUE x, VALUE y)
 VALUE
 rb_objs_cmp(VALUE x, VALUE y)
 {
-    return rb_vm_call_with_cache(cmp_cache, x, cmp, 1, &y);
+    return rb_vm_call(x, cmp, 1, &y);
 }
 
 static VALUE
 cmp_eq(VALUE *a)
 {
-    //VALUE c = rb_funcall(a[0], cmp, 1, a[1]);
-    VALUE c = rb_vm_call_with_cache(cmp_cache, a[0], cmp, 1, &a[1]);
-
+    VALUE c = rb_vm_call(a[0], cmp, 1, &a[1]);
     if (NIL_P(c)) {
 	return Qfalse;
     }
@@ -92,10 +89,10 @@ cmp_equal(VALUE x, SEL sel, VALUE y)
 static VALUE
 cmp_gt(VALUE x, SEL sel, VALUE y)
 {
-    //VALUE c = rb_funcall(x, cmp, 1, y);
-    VALUE c = rb_vm_call_with_cache(cmp_cache, x, cmp, 1, &y);
-
-    if (rb_cmpint(c, x, y) > 0) return Qtrue;
+    VALUE c = rb_vm_call(x, cmp, 1, &y);
+    if (rb_cmpint(c, x, y) > 0) {
+	return Qtrue;
+    }
     return Qfalse;
 }
 
@@ -110,10 +107,10 @@ cmp_gt(VALUE x, SEL sel, VALUE y)
 static VALUE
 cmp_ge(VALUE x, SEL sel, VALUE y)
 {
-    //VALUE c = rb_funcall(x, cmp, 1, y);
-    VALUE c = rb_vm_call_with_cache(cmp_cache, x, cmp, 1, &y);
-
-    if (rb_cmpint(c, x, y) >= 0) return Qtrue;
+    VALUE c = rb_vm_call(x, cmp, 1, &y);
+    if (rb_cmpint(c, x, y) >= 0) {
+	return Qtrue;
+    }
     return Qfalse;
 }
 
@@ -128,10 +125,10 @@ cmp_ge(VALUE x, SEL sel, VALUE y)
 static VALUE
 cmp_lt(VALUE x, SEL sel, VALUE y)
 {
-    //VALUE c = rb_funcall(x, cmp, 1, y);
-    VALUE c = rb_vm_call_with_cache(cmp_cache, x, cmp, 1, &y);
-
-    if (rb_cmpint(c, x, y) < 0) return Qtrue;
+    VALUE c = rb_vm_call(x, cmp, 1, &y);
+    if (rb_cmpint(c, x, y) < 0) {
+	return Qtrue;
+    }
     return Qfalse;
 }
 
@@ -146,10 +143,10 @@ cmp_lt(VALUE x, SEL sel, VALUE y)
 static VALUE
 cmp_le(VALUE x, SEL sel, VALUE y)
 {
-    //VALUE c = rb_funcall(x, cmp, 1, y);
-    VALUE c = rb_vm_call_with_cache(cmp_cache, x, cmp, 1, &y);
-
-    if (rb_cmpint(c, x, y) <= 0) return Qtrue;
+    VALUE c = rb_vm_call(x, cmp, 1, &y);
+    if (rb_cmpint(c, x, y) <= 0) {
+	return Qtrue;
+    }
     return Qfalse;
 }
 
@@ -225,5 +222,4 @@ Init_Comparable(void)
     rb_objc_define_method(rb_mComparable, "between?", cmp_between, 2);
 
     cmp = sel_registerName("<=>:");
-    cmp_cache = rb_vm_get_call_cache(cmp);
 }

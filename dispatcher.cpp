@@ -347,10 +347,8 @@ method_missing(VALUE obj, SEL sel, rb_vm_block_t *block, int argc,
 	return Qnil; // never reached
     }
     else {
-	struct mcache *cache = GET_CORE()->method_cache_get(selMethodMissing,
-		false);
-	return rb_vm_call_with_cache2(cache, block, obj, NULL, selMethodMissing,
-		argc + 1, new_argv);
+	return rb_vm_call2(block, obj, (VALUE)k, selMethodMissing, argc + 1,
+		new_argv);
     }
 }
 
@@ -464,8 +462,9 @@ fill_rcache(struct mcache *cache, Class klass, SEL sel,
 	rb_vm_method_node_t *node)
 {
     cache->flag = MCACHE_RCALL;
-    rcache.klass = klass;
-    rcache.node = node;
+    cache->sel = sel;
+    cache->klass = klass;
+    cache->as.rcall.node = node;
 }
 
 static void
@@ -473,12 +472,13 @@ fill_ocache(struct mcache *cache, VALUE self, Class klass, IMP imp, SEL sel,
 	    Method method, int argc)
 {
     cache->flag = MCACHE_OCALL;
-    ocache.klass = klass;
-    ocache.imp = imp;
-    ocache.bs_method = GET_CORE()->find_bs_method(klass, sel);
+    cache->sel = sel;
+    cache->klass = klass;
+    cache->as.ocall.imp = imp;
+    cache->as.ocall.bs_method = GET_CORE()->find_bs_method(klass, sel);
 
     char types[200];
-    if (!rb_objc_get_types(self, klass, sel, method, ocache.bs_method,
+    if (!rb_objc_get_types(self, klass, sel, method, cache->as.ocall.bs_method,
 		types, sizeof types)) {
 	printf("cannot get encoding types for %c[%s %s]\n",
 		class_isMetaClass(klass) ? '+' : '-',
@@ -487,8 +487,8 @@ fill_ocache(struct mcache *cache, VALUE self, Class klass, IMP imp, SEL sel,
 	abort();
     }
     bool variadic = false;
-    if (ocache.bs_method != NULL && ocache.bs_method->variadic
-	&& method != NULL) {
+    if (cache->as.ocall.bs_method != NULL
+	    && cache->as.ocall.bs_method->variadic && method != NULL) {
 	// TODO honor printf_format
 	const int real_argc = method_getNumberOfArguments(method) - 2;
 	if (real_argc < argc) {
@@ -501,8 +501,8 @@ fill_ocache(struct mcache *cache, VALUE self, Class klass, IMP imp, SEL sel,
 	}
 	variadic = true;
     }
-    ocache.stub = (rb_vm_objc_stub_t *)GET_CORE()->gen_stub(types, variadic,
-	    argc, true);
+    cache->as.ocall.stub = (rb_vm_objc_stub_t *)GET_CORE()->gen_stub(types,
+	    variadic, argc, true);
 }
 
 static bool
@@ -520,7 +520,6 @@ reinstall_method_maybe(Class klass, SEL sel, const char *types)
     }
 
     GET_CORE()->retype_method(klass, node, method_getTypeEncoding(m), types);
-
     return true;
 }
 
@@ -536,22 +535,34 @@ sel_equal(Class klass, SEL x, SEL y)
     return x_imp == y_imp;
 }
 
+static int
+mcache_hash(Class klass, SEL sel)
+{
+    return (((unsigned long)klass >> 3) ^ (unsigned long)sel)
+	& (VM_MCACHE_SIZE - 1);
+}
+
+static struct mcache *
+mcache_get(RoxorVM *vm, Class klass, SEL sel, bool super)
+{
+    struct mcache *cache;
+    if (super) {
+	const int hash = mcache_hash(klass, sel) + 1;
+	cache = &vm->get_mcache()[hash];
+	cache->flag = 0; // TODO
+    }
+    else {
+	const int hash = mcache_hash(klass, sel);
+	cache = &vm->get_mcache()[hash];
+    }
+    return cache;
+}
+
 static force_inline VALUE
-__rb_vm_dispatch(RoxorVM *vm, struct mcache *cache, VALUE top, VALUE self,
+vm_call_with_cache(RoxorVM *vm, struct mcache *cache, VALUE top, VALUE self,
 	Class klass, SEL sel, rb_vm_block_t *block, unsigned char opt,
 	int argc, const VALUE *argv)
 {
-    if (cache == NULL) {
-	if (sel == 0 && opt == DISPATCH_SUPER) {
-	    rb_raise(rb_eNoMethodError, "super called outside of method");
-	}
-	abort(); 
-    }
-
-    if (klass == NULL) {
-	klass = (Class)CLASS_OF(self);
-    }
-
 #if ROXOR_VM_DEBUG
     bool cached = true;
 #endif
@@ -560,14 +571,7 @@ __rb_vm_dispatch(RoxorVM *vm, struct mcache *cache, VALUE top, VALUE self,
     Class current_super_class = vm->get_current_super_class();
     SEL current_super_sel = vm->get_current_super_sel();
 
-    // XXX: super method cache is disabled because it causes random runtime
-    // bugs in rails. Instead of fixing the problem, we wait for the new
-    // method cache implementation which should be different (and thread-safe).
-    if (opt == DISPATCH_SUPER) {
-	cache->flag = 0;
-    }
-
-    if (cache->flag == 0) {
+    if (cache->sel != sel || cache->klass != klass || cache->flag == 0) {
 recache:
 #if ROXOR_VM_DEBUG
 	cached = false;
@@ -605,6 +609,10 @@ recache2:
 	    else {
 		// objc call
 		fill_ocache(cache, self, klass, imp, sel, method, argc);
+	    }
+
+	    if (opt == DISPATCH_SUPER) {
+		cache->flag |= MCACHE_SUPER;
 	    }
 	}
 	else {
@@ -705,11 +713,13 @@ recache2:
 		vm_gen_bs_func_types(argc, argv, bs_func, types);
 
 		cache->flag = MCACHE_FCALL;
-		fcache.bs_function = bs_func;
-		fcache.imp = (IMP)dlsym(RTLD_DEFAULT, bs_func->name);
-		assert(fcache.imp != NULL);
-		fcache.stub = (rb_vm_c_stub_t *)GET_CORE()->gen_stub(types,
-			bs_func->variadic, bs_func->args_count, false);
+		cache->sel = sel;
+		cache->klass = klass;
+		cache->as.fcall.bs_function = bs_func;
+		cache->as.fcall.imp = (IMP)dlsym(RTLD_DEFAULT, bs_func->name);
+		assert(cache->as.fcall.imp != NULL);
+		cache->as.fcall.stub = (rb_vm_c_stub_t *)GET_CORE()->gen_stub(
+			types, bs_func->variadic, bs_func->args_count, false);
 	    }
 	    else {
 		// Still nothing, then let's call #method_missing.
@@ -719,10 +729,7 @@ recache2:
     }
 
 dispatch:
-    if (cache->flag == MCACHE_RCALL) {
-	if (rcache.klass != klass) {
-	    goto recache;
-	}
+    if (cache->flag & MCACHE_RCALL) {
 	if (!cache_method) {
 	    cache->flag = 0;
 	}
@@ -733,7 +740,7 @@ dispatch:
 		class_getName(klass),
 		(void *)self,
 		sel_getName(sel),
-		rcache.node->ruby_imp,
+		cache->as.rcall.node->ruby_imp,
 		block,
 		argc,
 		opt,
@@ -791,8 +798,8 @@ dispatch:
 	    MACRUBY_METHOD_ENTRY(class_name, method_name, file, line);
 	}
 
-	VALUE v = __rb_vm_ruby_dispatch(top, self, sel, rcache.node, opt,
-		argc, argv);
+	VALUE v = __rb_vm_ruby_dispatch(top, self, sel, cache->as.rcall.node,
+		opt, argc, argv);
 
 	// DTrace probe: method__return
 	if (MACRUBY_METHOD_RETURN_ENABLED()) {
@@ -807,10 +814,7 @@ dispatch:
 
 	return v;
     }
-    else if (cache->flag == MCACHE_OCALL) {
-	if (ocache.klass != klass) {
-	    goto recache;
-	}
+    else if (cache->flag & MCACHE_OCALL) {
 	if (!cache_method) {
 	    cache->flag = 0;
 	}
@@ -843,21 +847,24 @@ dispatch:
 	}
 
 #if ROXOR_VM_DEBUG
-	printf("objc dispatch %c[<%s %p> %s] imp=%p argc=%d (cached=%s)\n",
+	printf("objc dispatch %c[<%s %p> %s] imp=%p cache=%p argc=%d (cached=%s)\n",
 		class_isMetaClass(klass) ? '+' : '-',
 		class_getName(klass),
 		(void *)self,
 		sel_getName(sel),
-		ocache.imp,
+		cache->as.ocall.imp,
+		cache,
 		argc,
 		cached ? "true" : "false");
 #endif
 
 	id ocrcv = RB2OC(self);
 
- 	if (ocache.bs_method != NULL) {
-	    for (int i = 0; i < (int)ocache.bs_method->args_count; i++) {
-		bs_element_arg_t *arg = &ocache.bs_method->args[i];
+ 	if (cache->as.ocall.bs_method != NULL) {
+	    Class ocklass = object_getClass(ocrcv);
+	    for (int i = 0; i < (int)cache->as.ocall.bs_method->args_count;
+		    i++) {
+		bs_element_arg_t *arg = &cache->as.ocall.bs_method->args[i];
 		if (arg->sel_of_type != NULL) {
 		    // BridgeSupport tells us that this argument contains a
 		    // selector of the given type, but we don't have any
@@ -870,12 +877,12 @@ dispatch:
 		    // that either the receiver or one of the arguments of this
 		    // call is the future target.
 		    const int arg_i = arg->index;
-		    assert(arg_i >= 0);
+		    assert(arg_i >= 0 && arg_i < argc);
 		    if (argv[arg_i] != Qnil) {
 			ID arg_selid = rb_to_id(argv[arg_i]);
 			SEL arg_sel = sel_registerName(rb_id2name(arg_selid));
 
-			if (reinstall_method_maybe(*(Class *)ocrcv, arg_sel,
+			if (reinstall_method_maybe(ocklass, arg_sel,
 				    arg->sel_of_type)) {
 			    goto sel_target_found;
 			}
@@ -896,18 +903,18 @@ sel_target_found:
 	    }
 	}
 
-	return __rb_vm_objc_dispatch(ocache.stub, ocache.imp, ocrcv, sel,
-		argc, argv);
+	return __rb_vm_objc_dispatch(cache->as.ocall.stub, cache->as.ocall.imp,
+		ocrcv, sel, argc, argv);
     }
-    else if (cache->flag == MCACHE_FCALL) {
+    else if (cache->flag & MCACHE_FCALL) {
 #if ROXOR_VM_DEBUG
 	printf("C dispatch %s() imp=%p argc=%d (cached=%s)\n",
-		fcache.bs_function->name,
-		fcache.imp,
+		cache->as.fcall.bs_function->name,
+		cache->as.fcall.imp,
 		argc,
 		cached ? "true" : "false");
 #endif
-	return (*fcache.stub)(fcache.imp, argc, argv);
+	return (*cache->as.fcall.stub)(cache->as.fcall.imp, argc, argv);
     }
 
     printf("method dispatch is b0rked\n");
@@ -962,6 +969,15 @@ call_method_missing:
 	    ? METHOD_MISSING_VCALL : opt == DISPATCH_SUPER
 		? METHOD_MISSING_SUPER : METHOD_MISSING_DEFAULT;
     return method_missing((VALUE)self, sel, block, argc, argv, status);
+}
+
+static force_inline VALUE
+vm_call(RoxorVM *vm, VALUE top, VALUE self, Class klass, SEL sel,
+	rb_vm_block_t *block, unsigned char opt, int argc, const VALUE *argv)
+{
+    struct mcache *cache = mcache_get(vm, klass, sel, opt == DISPATCH_SUPER);
+    return vm_call_with_cache(vm, cache, top, self, klass, sel, block, opt,
+	    argc, argv);
 }
 
 static force_inline void
@@ -1022,9 +1038,16 @@ __rb_vm_resolve_args(VALUE **pargv, size_t argv_size, int *pargc, va_list ar)
 
 extern "C"
 VALUE
-rb_vm_dispatch(struct mcache *cache, VALUE top, VALUE self, SEL sel,
-	rb_vm_block_t *block, unsigned char opt, int argc, ...)
+rb_vm_dispatch(VALUE top, VALUE self, SEL sel, rb_vm_block_t *block,
+	unsigned char opt, int argc, ...)
 {
+    if (sel == 0) {
+	if (opt == DISPATCH_SUPER) {
+	    rb_raise(rb_eNoMethodError, "super called outside of method");
+	}
+	abort(); 
+    }
+
     VALUE base_argv[MAX_DISPATCH_ARGS];
     VALUE *argv = base_argv;
     if (argc > 0) {
@@ -1056,47 +1079,36 @@ rb_vm_dispatch(struct mcache *cache, VALUE top, VALUE self, SEL sel,
 	~Finally() { vm->pop_current_binding(); }
     } finalizer(vm);
 
-    VALUE retval = __rb_vm_dispatch(vm, cache, top, self, NULL, sel, block,
+    return vm_call(vm, top, self, (Class)CLASS_OF(self), sel, block,
 	    opt, argc, argv);
-
-    return retval;
 }
 
 extern "C"
 VALUE
-rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *argv, bool super)
+rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *argv)
 {
-    struct mcache *cache;
-    unsigned char opt = DISPATCH_FCALL;
-    if (super) {
-	cache = (struct mcache *)alloca(sizeof(struct mcache));
-	cache->flag = 0;
-	opt = DISPATCH_SUPER;
-    }
-    else {
-	cache = GET_CORE()->method_cache_get(sel, false);
-    }
-
-    return __rb_vm_dispatch(GET_VM(), cache, 0, self, NULL, sel, NULL, opt,
-	    argc, argv);
+    return vm_call(GET_VM(), 0, self, (Class)CLASS_OF(self), sel, NULL,
+	    DISPATCH_FCALL, argc, argv);
 }
 
 extern "C"
 VALUE
-rb_vm_call_with_cache(void *cache, VALUE self, SEL sel, int argc, 
+rb_vm_call_super(VALUE self, SEL sel, int argc, const VALUE *argv)
+{
+    return vm_call(GET_VM(), 0, self, (Class)CLASS_OF(self), sel, NULL,
+	    DISPATCH_SUPER, argc, argv);
+}
+
+extern "C"
+VALUE
+rb_vm_call2(rb_vm_block_t *block, VALUE self, VALUE klass, SEL sel, int argc,
 	const VALUE *argv)
 {
-    return __rb_vm_dispatch(GET_VM(), (struct mcache *)cache, 0, self, NULL,
-	    sel, NULL, DISPATCH_FCALL, argc, argv);
-}
-
-extern "C"
-VALUE
-rb_vm_call_with_cache2(void *cache, rb_vm_block_t *block, VALUE self,
-	VALUE klass, SEL sel, int argc, const VALUE *argv)
-{
-    return __rb_vm_dispatch(GET_VM(), (struct mcache *)cache, 0, self,
-	    (Class)klass, sel, block, DISPATCH_FCALL, argc, argv);
+    if (klass == 0) {
+	klass = CLASS_OF(self);
+    }
+    return vm_call(GET_VM(), 0, self, (Class)klass, sel, block,
+	    DISPATCH_FCALL, argc, argv);
 }
 
 static rb_vm_block_t *
@@ -1264,8 +1276,8 @@ block_call:
 
     if (b->flags & VM_BLOCK_METHOD) {
 	rb_vm_method_t *m = (rb_vm_method_t *)b->imp;
-	return rb_vm_call_with_cache2(m->cache, NULL, m->recv, m->oclass,
-		m->sel, argc, argv);
+	return vm_call_with_cache(vm, (struct mcache *)m->cache, 0, m->recv,
+		(Class)m->oclass, m->sel, NULL, DISPATCH_FCALL, argc, argv);
     }
     return __rb_vm_bcall(self, sel, (VALUE)b->dvars, b, b->imp, b->arity,
 	    argc, argv);
@@ -1655,7 +1667,7 @@ RoxorCore::respond_to(VALUE obj, VALUE klass, SEL sel, bool priv,
 		args[n++] = Qtrue;
 	    }
 	}
-	return rb_vm_call(obj, selRespondTo, n, args, false) == Qtrue;
+	return rb_vm_call(obj, selRespondTo, n, args) == Qtrue;
     }
 }
 

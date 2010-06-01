@@ -13,6 +13,8 @@
 extern "C" {
 #endif
 
+#include "bs.h"
+
 void *rb_pointer_get_data(VALUE rcv, const char *type);
 VALUE rb_pointer_new(const char *type_str, void *val, size_t len);
 VALUE rb_pointer_new2(const char *type_str, VALUE val);
@@ -20,8 +22,6 @@ bool rb_boxed_is_type(VALUE klass, const char *type);
 
 #if defined(__cplusplus)
 } // extern "C"
-
-#include "bs.h"
 
 typedef struct rb_vm_bs_boxed {
     bs_element_type_t bs_type;

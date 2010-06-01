@@ -1565,12 +1565,10 @@ sort_by_i(VALUE i)
 static VALUE
 rary_sort_by_bang(VALUE ary, SEL sel)
 {
-    VALUE sorted;
-
     RETURN_ENUMERATOR(ary, 0, 0);
     rb_ary_modify(ary);
-    sorted = rb_objc_block_call(ary, sel_registerName("sort_by"), NULL, 0, 0,
-	sort_by_i, 0);
+    VALUE sorted = rb_objc_block_call(ary, sel_registerName("sort_by"), 0, 0,
+	    sort_by_i, 0);
     rb_ary_replace(ary, sorted);
     return ary;
 }
@@ -2058,8 +2056,8 @@ take_items(VALUE obj, long n)
     args[0] = result;
     args[1] = (VALUE)n;
     
-    rb_objc_block_call(obj, selEach, cacheEach, 0, 0,
-	    (VALUE(*)(ANYARGS))take_i, (VALUE)args);
+    rb_objc_block_call(obj, selEach, 0, 0, (VALUE(*)(ANYARGS))take_i,
+	    (VALUE)args);
 
     return result;
 }

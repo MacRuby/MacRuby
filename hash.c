@@ -32,8 +32,6 @@ VALUE rb_cRubyHash;
 
 static ID id_yield;
 
-static void *defaultCache = NULL;
-static void *hashCache = NULL;
 static SEL selFlattenBang = 0;
 static SEL selDefault = 0;
 static SEL selHash = 0;
@@ -41,7 +39,7 @@ static SEL selHash = 0;
 VALUE
 rb_hash(VALUE obj)
 {
-    VALUE v = rb_vm_call_with_cache(hashCache, obj, selHash, 0, NULL);
+    VALUE v = rb_vm_call(obj, selHash, 0, NULL);
 retry:
     switch (TYPE(v)) {
 	case T_FIXNUM:
@@ -428,10 +426,10 @@ rhash_rehash(VALUE hash, SEL sel)
  *
  */
 
-VALUE
+static inline VALUE
 rhash_call_default(VALUE hash, VALUE key)
 {
-    return rb_vm_call_with_cache(defaultCache, hash, selDefault, 1, &key);
+    return rb_vm_call(hash, selDefault, 1, &key);
 }
 
 VALUE
@@ -1617,7 +1615,7 @@ rhash_flatten(VALUE hash, SEL sel, int argc, VALUE *argv)
 	tmp = INT2FIX(1);
 	argv = &tmp;
     }
-    rb_vm_call(ary, selFlattenBang, argc, argv, false);
+    rb_vm_call(ary, selFlattenBang, argc, argv);
     return ary;
 }
 
@@ -1773,8 +1771,6 @@ Init_Hash(void)
     selFlattenBang = sel_registerName("flatten!:");
     selDefault = sel_registerName("default:");
     selHash = sel_registerName("hash");
-    defaultCache = rb_vm_get_call_cache(selDefault);
-    hashCache = rb_vm_get_call_cache(selHash);
 
     id_yield = rb_intern("yield");
 

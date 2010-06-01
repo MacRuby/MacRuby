@@ -1753,11 +1753,10 @@ static VALUE
 float_numerator(VALUE self, SEL sel)
 {
     double d = RFLOAT_VALUE(self);
-    if (isinf(d) || isnan(d))
+    if (isinf(d) || isnan(d)) {
 	return self;
-    return rb_vm_call(self, sel, 0, 0, true);
-//    return ZERO;
-//    return rb_call_super(0, 0);
+    }
+    return rb_vm_call_super(self, sel, 0, 0);
 }
 
 /*
@@ -1773,9 +1772,10 @@ static VALUE
 float_denominator(VALUE self, SEL sel)
 {
     double d = RFLOAT_VALUE(self);
-    if (isinf(d) || isnan(d))
+    if (isinf(d) || isnan(d)) {
 	return INT2FIX(1);
-    return rb_vm_call(self, sel, 0, 0, true);
+    }
+    return rb_vm_call_super(self, sel, 0, 0);
 //    return ZERO;
 //    return rb_call_super(0, 0);
 }

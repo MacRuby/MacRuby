@@ -415,7 +415,7 @@ io_write(VALUE io, SEL sel, VALUE data)
     VALUE tmp = rb_io_check_io(io);
     if (NIL_P(tmp)) {
 	// receiver is not IO, dispatch the write method on it
-	return rb_vm_call(io, selWrite, 1, &data, false);
+	return rb_vm_call(io, selWrite, 1, &data);
     }
     io = tmp;
     

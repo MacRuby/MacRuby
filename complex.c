@@ -31,28 +31,28 @@ static SEL sel_abs, sel_abs2, sel_arg, sel_cmp, sel_conj, sel_convert,
 inline static VALUE \
 f_##n(VALUE x, VALUE y)\
 {\
-    return rb_vm_call(x, op, 1, &y, false);\
+    return rb_vm_call(x, op, 1, &y);\
 }
 
 #define fun1(n) \
 inline static VALUE \
 f_##n(VALUE x)\
 {\
-    return rb_vm_call(x, sel_##n, 0, NULL, false);\
+    return rb_vm_call(x, sel_##n, 0, NULL);\
 }
 
 #define fun2(n) \
 inline static VALUE \
 f_##n(VALUE x, VALUE y)\
 {\
-    return rb_vm_call(x, sel_##n, 1, &y, false);\
+    return rb_vm_call(x, sel_##n, 1, &y);\
 }
 
 #define math1(n) \
 inline static VALUE \
 m_##n(VALUE x)\
 {\
-    return rb_vm_call(rb_mMath, sel_##n, 1, &x, false);\
+    return rb_vm_call(rb_mMath, sel_##n, 1, &x);\
 }
 
 #define math2(n) \
@@ -60,7 +60,7 @@ inline static VALUE \
 m_##n(VALUE x, VALUE y)\
 {\
     VALUE args[2]; args[0] = x; args[1] = y;\
-    return rb_vm_call(rb_mMath, sel_##n, 2, args, false);\
+    return rb_vm_call(rb_mMath, sel_##n, 2, args);\
 }
 
 #define PRESERVE_SIGNEDZERO
@@ -74,7 +74,7 @@ f_add(VALUE x, VALUE y)
     else if (FIXNUM_P(x) && FIX2LONG(x) == 0)
 	return y;
 #endif
-    return rb_vm_call(x, selPLUS, 1, &y, false);
+    return rb_vm_call(x, selPLUS, 1, &y);
 }
 
 inline static VALUE
@@ -90,31 +90,34 @@ f_cmp(VALUE x, VALUE y)
 	}
 	return INT2FIX(c);
     }
-    return rb_vm_call(x, selCmp, 1, &y, false);
+    return rb_vm_call(x, selCmp, 1, &y);
 }
 
 inline static VALUE
 f_div(VALUE x, VALUE y)
 {
-    if (FIXNUM_P(y) && FIX2LONG(y) == 1)
+    if (FIXNUM_P(y) && FIX2LONG(y) == 1) {
 	return x;
-    return rb_vm_call(x, selDIV, 1, &y, false);
+    }
+    return rb_vm_call(x, selDIV, 1, &y);
 }
 
 inline static VALUE
 f_gt_p(VALUE x, VALUE y)
 {
-    if (FIXNUM_P(x) && FIXNUM_P(y))
+    if (FIXNUM_P(x) && FIXNUM_P(y)) {
 	return f_boolcast(FIX2LONG(x) > FIX2LONG(y));
-    return rb_vm_call(x, selGT, 1, &y, false);
+    }
+    return rb_vm_call(x, selGT, 1, &y);
 }
 
 inline static VALUE
 f_lt_p(VALUE x, VALUE y)
 {
-    if (FIXNUM_P(x) && FIXNUM_P(y))
+    if (FIXNUM_P(x) && FIXNUM_P(y)) {
 	return f_boolcast(FIX2LONG(x) < FIX2LONG(y));
-    return rb_vm_call(x, selLT, 1, &y, false);
+    }
+    return rb_vm_call(x, selLT, 1, &y);
 }
 
 binop(mod, selMOD)
@@ -142,7 +145,7 @@ f_mul(VALUE x, VALUE y)
 	    return y;
     }
 #endif
-    return rb_vm_call(x, selMULT, 1, &y, false);
+    return rb_vm_call(x, selMULT, 1, &y);
 }
 
 inline static VALUE
@@ -152,7 +155,7 @@ f_sub(VALUE x, VALUE y)
     if (FIXNUM_P(y) && FIX2LONG(y) == 0)
 	return x;
 #endif
-    return rb_vm_call(x, selMINUS, 1, &y, false);
+    return rb_vm_call(x, selMINUS, 1, &y);
 }
 
 fun1(abs)
@@ -181,7 +184,7 @@ f_eqeq_p(VALUE x, VALUE y)
     if (FIXNUM_P(x) && FIXNUM_P(y)) {
 	return f_boolcast(FIX2LONG(x) == FIX2LONG(y));
     }
-    return rb_vm_call(x, selEq, 1, &y, false);
+    return rb_vm_call(x, selEq, 1, &y);
 }
 
 fun2(expt)
@@ -196,7 +199,7 @@ f_negative_p(VALUE x)
 	return f_boolcast(FIX2LONG(x) < 0);
     }
     VALUE v = ZERO;
-    return rb_vm_call(x, selLT, 1, &v, false);
+    return rb_vm_call(x, selLT, 1, &v);
 }
 
 #define f_positive_p(x) (!f_negative_p(x))
@@ -217,7 +220,7 @@ f_zero_p(VALUE x)
       }
     }
     VALUE v = ZERO;
-    return rb_vm_call(x, selEq, 1, &v, false);
+    return rb_vm_call(x, selEq, 1, &v);
 }
 
 #define f_nonzero_p(x) (!f_zero_p(x))
@@ -240,7 +243,7 @@ f_one_p(VALUE x)
       }
     }
     VALUE v = ONE;
-    return rb_vm_call(x, selEq, 1, &v, false);
+    return rb_vm_call(x, selEq, 1, &v);
 }
 
 inline static VALUE
@@ -479,7 +482,7 @@ f_complex_new2(VALUE klass, VALUE x, VALUE y)
 static VALUE
 nucomp_f_complex(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
-    return rb_vm_call(rb_cComplex, sel_convert, argc, argv, false);
+    return rb_vm_call(rb_cComplex, sel_convert, argc, argv);
 }
 
 #define imp1(n) \

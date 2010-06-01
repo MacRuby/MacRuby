@@ -583,7 +583,7 @@ range_values(VALUE vmax, VALUE *begp, int *exclp)
     if (!rb_vm_respond_to(end, selMINUS, false)) {
 	return Qfalse;
     }
-    VALUE r = rb_vm_call(end, selMINUS, 1, begp, false);
+    VALUE r = rb_vm_call(end, selMINUS, 1, begp);
     if (NIL_P(r)) {
 	return Qfalse;
     }
@@ -758,7 +758,7 @@ fixnum:
 		return DOUBLE2NUM(d);
 	    }
 	default:
-	    return rb_vm_call(v, selPLUS, 1, &beg, false);
+	    return rb_vm_call(v, selPLUS, 1, &beg);
     }
 }
 

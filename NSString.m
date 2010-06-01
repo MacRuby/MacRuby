@@ -206,8 +206,7 @@ nsstr_to_rstr(id nsstr)
 static VALUE
 nsstr_forward_m1(id rcv, SEL sel, int argc, VALUE *argv)
 {
-    return rb_vm_call_with_cache2(rb_vm_get_call_cache(sel),
-	    rb_vm_current_block(), nsstr_to_rstr(rcv), 0, sel, argc, argv);
+    return rb_vm_call2(rb_vm_current_block(), nsstr_to_rstr(rcv), 0, sel, argc, argv);
 }
 
 static VALUE
@@ -241,8 +240,7 @@ nsstr_forward_bang_m1(id rcv, SEL sel, int argc, VALUE *argv)
 {
     CHECK_MUTABLE(rcv);
     VALUE rcv_rstr = nsstr_to_rstr(rcv);
-    VALUE ret = rb_vm_call_with_cache2(rb_vm_get_call_cache(sel),
-	    rb_vm_current_block(), rcv_rstr, 0, sel, argc, argv);
+    VALUE ret = rb_vm_call2(rb_vm_current_block(), rcv_rstr, 0, sel, argc, argv);
     TRY_MOP([rcv setString:(id)rcv_rstr]);
     return ret;
 }

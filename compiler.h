@@ -357,8 +357,6 @@ class RoxorCompiler {
 	void compile_return_from_block(Value *val, int id);
 	void compile_return_from_block_handler(int id);
 	Value *compile_jump(NODE *node);
-	virtual Value *compile_mcache(SEL sel, bool super);
-	Value *compile_get_mcache(Value *sel, bool super);
 	virtual Value *compile_ccache(ID id);
 	virtual Value *compile_sel(SEL sel, bool add_to_bb=true) {
 	    return compile_const_pointer(sel, PtrTy);
@@ -431,7 +429,6 @@ class RoxorAOTCompiler : public RoxorCompiler {
 	Function *compile_main_function(NODE *node);
 
     private:
-	std::map<SEL, GlobalVariable *> mcaches;
 	std::map<ID, GlobalVariable *> ccaches;
 	std::map<SEL, GlobalVariable *> sels;
 	std::map<ID, GlobalVariable *> ids;
@@ -443,7 +440,6 @@ class RoxorAOTCompiler : public RoxorCompiler {
 	GlobalVariable *cStandardError_gvar;
 	std::vector<GlobalVariable *> class_gvars;
 
-	Value *compile_mcache(SEL sel, bool super);
 	Value *compile_ccache(ID id);
 	Value *compile_sel(SEL sel, bool add_to_bb=true);
 	void compile_prepare_method(Value *classVal, Value *sel,
