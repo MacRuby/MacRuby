@@ -444,15 +444,18 @@ __rb_vm_objc_dispatch(rb_vm_objc_stub_t *stub, IMP imp, id rcv, SEL sel,
 	return (*stub)(imp, rcv, sel, argc, argv);
     }
     @catch (id exc) {
-	VALUE rbexc = rb_oc2rb_exception(exc);
+	bool created = false;
+	VALUE rbexc = rb_oc2rb_exception(exc, &created);
 #if __LP64__
 	if (rb_vm_current_exception() == Qnil) {
-	    rb_vm_set_current_exception(rbexc);	
+	    rb_vm_set_current_exception(rbexc);
+	    throw;
+	}
+#endif
+	if (created) {
+	    rb_exc_raise(rbexc);
 	}
 	throw;
-#else
-	rb_exc_raise(rbexc);
-#endif
     }
     abort(); // never reached
 }
