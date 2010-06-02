@@ -621,32 +621,26 @@ rb_rb2oc_exception(VALUE exc)
 {
     NSString *name = [NSString stringWithUTF8String:rb_obj_classname(exc)];
     NSString *reason = (NSString *)rb_format_exception_message(exc);
+#if 0
+    // This is technically not required, and it seems that some exceptions
+    // don't like to be treated like NSDictionary values...
     NSDictionary *dict = [NSDictionary dictionaryWithObject:(id)exc
 	forKey:@"RubyException"];
+#else
+    NSDictionary *dict = nil;
+#endif
     return [NSException exceptionWithName:name reason:reason userInfo:dict];
 }
 
 VALUE
-rb_oc2rb_exception(id exc, bool *created)
+rb_oc2rb_exception(id exc)
 {
-    VALUE e;
-    id rubyExc;
-
-    rubyExc = [[exc userInfo] objectForKey:@"RubyException"];
-    if (rubyExc == nil) {
-	*created = true;
-
-	char buf[1000];
-	snprintf(buf, sizeof buf, "%s: %s", [[exc name] UTF8String],
-		[[exc reason] UTF8String]);
-	e = rb_exc_new2(rb_eRuntimeError, buf);
-	// Set the backtrace for Obj-C exceptions
-	rb_iv_set(e, "bt", rb_vm_backtrace(0));
-    }
-    else {
-	*created = false;
-	e = (VALUE)rubyExc;
-    }
+    char buf[1000];
+    snprintf(buf, sizeof buf, "%s: %s", [[exc name] UTF8String],
+	    [[exc reason] UTF8String]);
+    VALUE e = rb_exc_new2(rb_eRuntimeError, buf);
+    // Set the backtrace for Obj-C exceptions
+    rb_iv_set(e, "bt", rb_vm_backtrace(0));
     return e;
 }
 
