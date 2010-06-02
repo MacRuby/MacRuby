@@ -48,7 +48,7 @@ module RbConfig
   DESTDIR = '' unless defined? DESTDIR
   ARCHFLAGS = 
     if e = ENV['ARCHFLAGS']
-      e
+      e.dup
     elsif e = ENV['RC_ARCHS']
       e.split.map { |a| "-arch \#{a}" }.join(' ')
     else
@@ -113,12 +113,12 @@ module RbConfig
   CONFIG["target_vendor"] = "apple"
   CONFIG["target_os"] = "darwin9.0"
   CONFIG["CC"] = "/usr/bin/gcc"
-  CONFIG["CFLAGS"] = "$(ARCHFLAGS) -fexceptions -fno-common -pipe $(cflags)"
-  CONFIG["LDFLAGS"] = "$(ARCHFLAGS)"
+  CONFIG["CFLAGS"] = "$(ARCH_FLAG) -fexceptions -fno-common -pipe $(cflags)"
+  CONFIG["LDFLAGS"] = "$(ARCH_FLAG)"
   CONFIG["CPPFLAGS"] = "$(cppflags)"
   CONFIG["OBJEXT"] = "o"
   CONFIG["CXX"] = "/usr/bin/g++"
-  CONFIG["CXXFLAGS"] = "$(ARCHFLAGS)"
+  CONFIG["CXXFLAGS"] = "$(ARCH_FLAG)"
   CONFIG["CPP"] = "/usr/bin/gcc -E"
   CONFIG["GREP"] = "/usr/bin/grep"
   CONFIG["EGREP"] = "/usr/bin/grep -E"
@@ -147,8 +147,8 @@ module RbConfig
   CONFIG["ARCH_FLAG"] = ARCHFLAGS
   CONFIG["STATIC"] = ""
   CONFIG["CCDLFLAGS"] = "-fno-common"
-  CONFIG["LDSHARED"] = "$(CC) -dynamic -bundle -undefined suppress -flat_namespace $(ARCHFLAGS)"
-  CONFIG["LDSHAREDXX"] = "$(CXX) -dynamic -bundle -undefined suppress -flat_namespace $(ARCHFLAGS)"
+  CONFIG["LDSHARED"] = "$(CC) -dynamic -bundle -undefined suppress -flat_namespace $(ARCH_FLAG)"
+  CONFIG["LDSHAREDXX"] = "$(CXX) -dynamic -bundle -undefined suppress -flat_namespace $(ARCH_FLAG)"
   CONFIG["DLEXT"] = "bundle"
   CONFIG["DLEXT2"] = ""
   CONFIG["LIBEXT"] = "a"
@@ -169,7 +169,7 @@ module RbConfig
   CONFIG["optflags"] = "-O3"
   CONFIG["debugflags"] = "-g"
   CONFIG["warnflags"] = "-Wall"
-  CONFIG["LIBRUBY_LDSHARED"] = "/usr/bin/gcc -dynamiclib -undefined suppress -flat_namespace $(ARCHFLAGS)"
+  CONFIG["LIBRUBY_LDSHARED"] = "/usr/bin/gcc -dynamiclib -undefined suppress -flat_namespace $(ARCH_FLAG)"
   CONFIG["LIBRUBY_DLDFLAGS"] = "-install_name $(libdir)/lib$(RUBY_SO_NAME).dylib -current_version $(MAJOR).$(MINOR).$(TEENY) -compatibility_version $(MAJOR).$(MINOR)"
   CONFIG["rubyw_install_name"] = ""
   CONFIG["RUBYW_INSTALL_NAME"] = ""
