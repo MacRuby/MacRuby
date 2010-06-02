@@ -714,7 +714,6 @@ recache2:
 		}
 		std::string types;
 		vm_gen_bs_func_types(argc, argv, bs_func, types);
-		printf("dispatching `%s' with types `%s'\n", (char *)selname, types.c_str());
 
 		cache->flag = MCACHE_FCALL;
 		cache->sel = sel;
