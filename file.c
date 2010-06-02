@@ -2305,6 +2305,16 @@ skiproot(const char *path)
     return (char *)path;
 }
 
+#define nextdirsep rb_path_next
+char *
+rb_path_next(const char *s)
+{
+    while (*s && !isdirsep(*s)) {
+	s = CharNext(s);
+    }
+    return (char *)s;
+}
+
 #define skipprefix(path) (path)
 
 #define strrdirsep rb_path_last_separator
@@ -2403,8 +2413,203 @@ rb_file_s_absolute_path(VALUE rcv, SEL sel, int argc, VALUE *argv)
 	return rb_file_absolute_path(argv[0], Qnil);
     }
     rb_scan_args(argc, argv, "11", &fname, &dname);
-
     return rb_file_absolute_path(fname, dname);
+}
+
+static void
+realpath_rec(long *prefixlenp, VALUE *resolvedp, char *unresolved, VALUE loopcheck, int strict, int last)
+{
+    ID resolving = rb_intern("resolving");
+    while (*unresolved) {
+        char *testname = unresolved;
+        char *unresolved_firstsep = rb_path_next(unresolved);
+        long testnamelen = unresolved_firstsep - unresolved;
+        char *unresolved_nextname = unresolved_firstsep;
+        while (isdirsep(*unresolved_nextname)) unresolved_nextname++;
+        unresolved = unresolved_nextname;
+        if (testnamelen == 1 && testname[0] == '.') {
+        }
+        else if (testnamelen == 2 && testname[0] == '.' && testname[1] == '.') {
+            if (*prefixlenp < RSTRING_LEN(*resolvedp)) {
+                char *resolved_names = (char *)RSTRING_PTR(*resolvedp) + *prefixlenp;
+                char *lastsep = rb_path_last_separator(resolved_names);
+                long len = lastsep ? lastsep - resolved_names : 0;
+                rb_str_set_len(*resolvedp, *prefixlenp + len);
+            }
+        }
+        else {
+            VALUE checkval;
+            VALUE testpath = rb_str_dup(*resolvedp);
+            if (*prefixlenp < RSTRING_LEN(testpath))
+                rb_str_cat2(testpath, "/");
+            rb_str_cat(testpath, testname, testnamelen);
+            checkval = rb_hash_aref(loopcheck, testpath);
+            if (!NIL_P(checkval)) {
+                if (checkval == ID2SYM(resolving)) {
+                    errno = ELOOP;
+                    rb_sys_fail((char *)RSTRING_PTR(testpath));
+                }
+                else {
+                    *resolvedp = rb_str_dup(checkval);
+                }
+            }
+            else {
+                struct stat sbuf;
+                int ret;
+                ret = lstat((char *)RSTRING_PTR(testpath), &sbuf);
+                if (ret == -1) {
+                    if (errno == ENOENT) {
+                        if (strict || !last || *unresolved_firstsep)
+                            rb_sys_fail(RSTRING_PTR(testpath));
+                        *resolvedp = testpath;
+                        break;
+                    }
+                    else {
+                        rb_sys_fail((char *)RSTRING_PTR(testpath));
+                    }
+                }
+#ifdef HAVE_READLINK
+                if (S_ISLNK(sbuf.st_mode)) {
+                    volatile VALUE link;
+                    char *link_prefix, *link_names;
+                    long link_prefixlen;
+                    rb_hash_aset(loopcheck, testpath, ID2SYM(resolving));
+                    link = rb_file_s_readlink(rb_cFile, 0, testpath);
+                    link_prefix = (char *)RSTRING_PTR(link);
+                    link_names = skiproot(link_prefix);
+                    link_prefixlen = link_names - link_prefix;
+                    if (link_prefixlen == 0) {
+                        realpath_rec(prefixlenp, resolvedp, link_names, loopcheck, strict, *unresolved_firstsep == '\0');
+                    }
+                    else {
+                        *resolvedp = rb_str_new(link_prefix, link_prefixlen);
+                        *prefixlenp = link_prefixlen;
+                        realpath_rec(prefixlenp, resolvedp, link_names, loopcheck, strict, *unresolved_firstsep == '\0');
+                    }
+                    rb_hash_aset(loopcheck, testpath, rb_str_dup(*resolvedp));
+                }
+                else
+#endif
+                {
+                    VALUE s = rb_str_dup(testpath);
+                    rb_hash_aset(loopcheck, s, s);
+                    *resolvedp = testpath;
+                }
+            }
+        }
+    }
+}
+
+VALUE
+rb_realpath_internal(VALUE basedir, VALUE path, int strict)
+{
+    long prefixlen;
+    VALUE resolved;
+    volatile VALUE unresolved_path;
+    VALUE loopcheck;
+    volatile VALUE curdir = Qnil;
+
+    char *path_names = NULL, *basedir_names = NULL, *curdir_names = NULL;
+    char *ptr, *prefixptr = NULL;
+
+    rb_secure(2);
+
+    FilePathValue(path);
+    unresolved_path = rb_str_dup(path);
+
+    if (!NIL_P(basedir)) {
+        FilePathValue(basedir);
+        basedir = rb_str_dup(basedir);
+    }
+
+    ptr = (char *)RSTRING_PTR(unresolved_path);
+    path_names = skiproot(ptr);
+    if (ptr != path_names) {
+        resolved = rb_str_new(ptr, path_names - ptr);
+        goto root_found;
+    }
+
+    if (!NIL_P(basedir)) {
+        ptr = (char *)RSTRING_PTR(basedir);
+        basedir_names = skiproot(ptr);
+        if (ptr != basedir_names) {
+            resolved = rb_str_new(ptr, basedir_names - ptr);
+            goto root_found;
+        }
+    }
+
+    curdir = my_getcwd();
+    ptr = (char *)RSTRING_PTR(curdir);
+    curdir_names = skiproot(ptr);
+    resolved = rb_str_new(ptr, curdir_names - ptr);
+
+  root_found:
+    prefixptr = (char *)RSTRING_PTR(resolved);
+    prefixlen = RSTRING_LEN(resolved);
+    ptr = chompdirsep(prefixptr);
+    if (*ptr) {
+        prefixlen = ++ptr - prefixptr;
+        rb_str_set_len(resolved, prefixlen);
+    }
+#ifdef FILE_ALT_SEPARATOR
+    while (prefixptr < ptr) {
+	if (*prefixptr == FILE_ALT_SEPARATOR) {
+	    *prefixptr = '/';
+	}
+	prefixptr = CharNext(prefixptr);
+    }
+#endif
+
+    loopcheck = rb_hash_new();
+    if (curdir_names)
+        realpath_rec(&prefixlen, &resolved, curdir_names, loopcheck, 1, 0);
+    if (basedir_names)
+        realpath_rec(&prefixlen, &resolved, basedir_names, loopcheck, 1, 0);
+    realpath_rec(&prefixlen, &resolved, path_names, loopcheck, strict, 1);
+
+    OBJ_TAINT(resolved);
+    return resolved;
+}
+
+/*
+ * call-seq:
+ *     File.realpath(pathname [, dir_string])  ->  real_pathname
+ *
+ *  Returns the real (absolute) pathname of _pathname_ in the actual
+ *  filesystem not containing symlinks or useless dots.
+ *
+ *  If _dir_string_ is given, it is used as a base directory
+ *  for interpreting relative pathname instead of the current directory.
+ *
+ *  All components of the pathname must exist when this method is
+ *  called.
+ */
+static VALUE
+rb_file_s_realpath(VALUE klass, SEL sel, int argc, VALUE *argv)
+{
+    VALUE path, basedir;
+    rb_scan_args(argc, argv, "11", &path, &basedir);
+    return rb_realpath_internal(basedir, path, 1);
+}
+
+/*
+ * call-seq:
+ *     File.realdirpath(pathname [, dir_string])  ->  real_pathname
+ *
+ *  Returns the real (absolute) pathname of _pathname_ in the actual filesystem.
+ *  The real pathname doesn't contain symlinks or useless dots.
+ *
+ *  If _dir_string_ is given, it is used as a base directory
+ *  for interpreting relative pathname instead of the current directory.
+ *
+ *  The last component of the real pathname can be nonexistent.
+ */
+static VALUE
+rb_file_s_realdirpath(VALUE klass, SEL sel, int argc, VALUE *argv)
+{
+    VALUE path, basedir;
+    rb_scan_args(argc, argv, "11", &path, &basedir);
+    return rb_realpath_internal(basedir, path, 0);
 }
 
 static int
@@ -4009,6 +4214,8 @@ Init_File(void)
     rb_objc_define_method(rb_ccFile, "truncate", rb_file_s_truncate, 2);
     rb_objc_define_method(rb_ccFile, "expand_path", rb_file_s_expand_path, -1);
     rb_objc_define_method(rb_ccFile, "absolute_path", rb_file_s_absolute_path, -1);
+    rb_objc_define_method(rb_ccFile, "realpath", rb_file_s_realpath, -1);
+    rb_objc_define_method(rb_ccFile, "realdirpath", rb_file_s_realdirpath, -1);
     rb_objc_define_method(rb_ccFile, "basename", rb_file_s_basename, -1);
     rb_objc_define_method(rb_ccFile, "dirname", rb_file_s_dirname, 1);
     rb_objc_define_method(rb_ccFile, "extname", rb_file_s_extname, 1);
