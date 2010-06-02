@@ -763,7 +763,8 @@ static VALUE
 nsary_reject(id rcv, SEL sel)
 {
     RETURN_ENUMERATOR(rcv, 0, 0);
-    return reject([rcv mutableCopy]);
+    reject([rcv mutableCopy]);
+    return (VALUE)rcv;
 }
 
 static VALUE
