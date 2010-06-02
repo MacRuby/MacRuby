@@ -414,4 +414,5 @@ Init_NSString(void)
     rb_objc_define_method(rb_cString, "ascii_only?", rstr_only, 0);
     rb_objc_define_method(rb_cString, "bytes", rstr_only, 0);
     rb_objc_define_method(rb_cString, "each_byte", rstr_only, 0);
+    rb_objc_define_method(rb_cString, "to_data", rstr_only, 0);
 }

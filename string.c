@@ -1763,6 +1763,22 @@ rstr_setbyte(VALUE self, SEL sel, VALUE index, VALUE value)
 
 /*
  *  call-seq:
+ *     str.to_data => NSData
+ *
+ *  returns an NSData object wrapping the receiver's internal storage.
+ */
+
+static VALUE
+rstr_to_data(VALUE self, SEL sel)
+{
+    CFDataRef data = CFDataCreate(NULL, (const UInt8 *)RSTR(self)->data.bytes,
+	    RSTR(self)->length_in_bytes); 
+    CFMakeCollectable(data);
+    return (VALUE)data;
+}
+
+/*
+ *  call-seq:
  *     str.force_encoding(encoding)   => str
  *
  *  Changes the encoding to +encoding+ and returns self.
@@ -5726,6 +5742,7 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "bytesize", rstr_bytesize, 0);
     rb_objc_define_method(rb_cRubyString, "getbyte", rstr_getbyte, 1);
     rb_objc_define_method(rb_cRubyString, "setbyte", rstr_setbyte, 2);
+    rb_objc_define_method(rb_cRubyString, "to_data", rstr_to_data, 0);
     rb_objc_define_method(rb_cRubyString, "force_encoding",
 	    rstr_force_encoding, 1);
     rb_objc_define_method(rb_cRubyString, "valid_encoding?",
