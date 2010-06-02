@@ -1771,6 +1771,7 @@ rstr_setbyte(VALUE self, SEL sel, VALUE index, VALUE value)
 static VALUE
 rstr_to_data(VALUE self, SEL sel)
 {
+    str_make_data_binary(RSTR(self));
     CFDataRef data = CFDataCreate(NULL, (const UInt8 *)RSTR(self)->data.bytes,
 	    RSTR(self)->length_in_bytes); 
     CFMakeCollectable(data);
