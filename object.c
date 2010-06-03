@@ -2595,11 +2595,19 @@ rb_cstr_to_dbl(const char *p, int badcheck)
     double d;
     const char *ellipsis = "";
     int w;
-#define OutOfRange() (((w = end - p) > 20) ? (w = 20, ellipsis = "...") : (ellipsis = ""))
+    enum {max_width = 20};
+#define OutOfRange() ((end - p > max_width) ? \
+		      (w = max_width, ellipsis = "...") : \
+		      (w = (int)(end - p), ellipsis = ""))
 
     if (!p) return 0.0;
     q = p;
     while (ISSPACE(*p)) p++;
+
+    if (!badcheck && p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) {
+	return 0.0;
+    }
+
     d = strtod(p, &end);
     if (errno == ERANGE) {
 	OutOfRange();
@@ -2638,6 +2646,11 @@ rb_cstr_to_dbl(const char *p, int badcheck)
 	}
 	*n = '\0';
 	p = buf;
+
+	if (!badcheck && p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) {
+	    return 0.0;
+	}
+
 	d = strtod(p, &end);
 	if (errno == ERANGE) {
 	    OutOfRange();
@@ -2657,7 +2670,6 @@ rb_cstr_to_dbl(const char *p, int badcheck)
     }
     return d;
 }
-
 double
 rb_str_to_dbl(VALUE str, int badcheck)
 {
