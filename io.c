@@ -1104,24 +1104,20 @@ rb_io_sysread(VALUE self, SEL sel, int argc, VALUE *argv)
     }
 
     if (!NIL_P(buffer)) {
-	buffer = rb_obj_as_string(buffer);
-    }
-    
-    uint8_t *bytes = xmalloc(to_read);
-    
-    if (read(io->read_fd, bytes, (size_t)to_read) == -1) {
-	bytes = NULL;
-	rb_sys_fail("read(2) failed.");
-    }
-
-    VALUE fresh = rb_bstr_new_with_data(bytes, to_read);
-    if (NIL_P(buffer)) {
-	buffer = fresh;
+	// TODO: throw an error if the provided string can't be modified in place
+	buffer = rb_str_bstr(rb_obj_as_string(buffer));
     }
     else {
-	str_replace_with_string(str_need_string(buffer), str_need_string(fresh));
+	buffer = rb_bstr_new();
     }
-    bytes = NULL;
+    rb_bstr_resize(buffer, to_read);	
+    
+    uint8_t *bytes = rb_bstr_bytes(buffer);
+    
+    if (read(io->read_fd, bytes, (size_t)to_read) == -1) {
+	rb_sys_fail("read(2) failed.");
+    }
+    
     return buffer;
 }
 
