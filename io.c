@@ -1087,6 +1087,44 @@ rb_io_write_nonblock(VALUE io, SEL sel, VALUE str)
  *     f.sysread(16)   #=> "This is line one"
  */
 
+static VALUE
+rb_io_sysread(VALUE self, SEL sel, int argc, VALUE *argv)
+{
+    VALUE count, buffer;
+    rb_scan_args(argc, argv, "11", &count, &buffer);
+    const long to_read = NUM2LONG(count);
+
+    rb_io_t *io = ExtractIOStruct(self);
+    rb_io_assert_readable(io);
+
+    // TODO: throw error if the buffer is not empty;
+
+    if (to_read == 0) {
+	return INT2FIX(0);
+    }
+
+    if (!NIL_P(buffer)) {
+	buffer = rb_obj_as_string(buffer);
+    }
+    
+    uint8_t *bytes = xmalloc(to_read);
+    
+    if (read(io->read_fd, bytes, (size_t)to_read) == -1) {
+	bytes = NULL;
+	rb_sys_fail("read(2) failed.");
+    }
+
+    VALUE fresh = rb_bstr_new_with_data(bytes, to_read);
+    if (NIL_P(buffer)) {
+	buffer = fresh;
+    }
+    else {
+	str_replace_with_string(str_need_string(buffer), str_need_string(fresh));
+    }
+    bytes = NULL;
+    return buffer;
+}
+
 /*
  *  call-seq:
  *     ios.read([length [, buffer]])    => string, buffer, or nil
@@ -4596,7 +4634,7 @@ Init_IO(void)
     rb_objc_define_method(rb_cIO, "chars",  rb_io_chars, 0);
 
     rb_objc_define_method(rb_cIO, "syswrite", io_write, 1);
-    rb_objc_define_method(rb_cIO, "sysread",  io_read, -1);
+    rb_objc_define_method(rb_cIO, "sysread",  rb_io_sysread, -1);
 
     rb_objc_define_method(rb_cIO, "fileno", rb_io_fileno, 0);
     rb_define_alias(rb_cIO, "to_i", "fileno");
