@@ -2680,15 +2680,15 @@ rb_str_to_dbl(VALUE str, int badcheck)
     s = RSTRING_PTR(str);
     len = RSTRING_LEN(str);
     if (s) {
+	if (badcheck && memchr(s, '\0', len)) {
+	    rb_raise(rb_eArgError, "string for Float contains null byte");
+	}
 	if (s[len]) {		/* no sentinel somehow */
 	    char *p = ALLOCA_N(char, len+1);
 
 	    MEMCPY(p, s, char, len);
 	    p[len] = '\0';
 	    s = p;
-	}
-	if (badcheck && len != strlen(s)) {
-	    rb_raise(rb_eArgError, "string for Float contains null byte");
 	}
     }
     return rb_cstr_to_dbl(s, badcheck);
@@ -2708,7 +2708,7 @@ rb_Float(VALUE val)
 	return DOUBLE2NUM(rb_big2dbl(val));
 
       case T_STRING:
-	return DOUBLE2NUM(rb_str_to_dbl(val, Qtrue));
+	return DOUBLE2NUM(rb_str_to_dbl(val, 1));
 
       case T_NIL:
 	rb_raise(rb_eTypeError, "can't convert nil into Float");

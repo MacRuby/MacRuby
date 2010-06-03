@@ -3414,7 +3414,7 @@ rstr_chr(VALUE str, SEL sel)
 static VALUE
 rstr_to_f(VALUE str, SEL sel)
 {
-    return DOUBLE2NUM(rb_str_to_dbl(str, Qfalse));
+    return DOUBLE2NUM(rb_str_to_dbl(str, 0));
 }
 
 /*
