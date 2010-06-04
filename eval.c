@@ -189,18 +189,39 @@ extern VALUE rb_progname;
 void rb_require_libraries(void);
 
 int
+ruby_executable_node(void *n, int *status)
+{
+    VALUE v = (VALUE)n;
+    int s;
+
+    switch (v) {
+      case Qtrue:
+        s = EXIT_SUCCESS;
+	break;
+      case Qfalse:
+	s = EXIT_FAILURE;
+	break;
+      default:
+	if (!FIXNUM_P(v)) {
+	    return TRUE;
+	}
+	s = FIX2INT(v);
+    }
+    if (status) {
+	*status = s;
+    }
+    return FALSE;
+}
+
+int
 ruby_run_node(void *n)
 {
+    int status;
+    if (!ruby_executable_node(n, &status)) {
+	ruby_cleanup(0);
+	return status;
+    }
     rb_require_libraries();
-    if ((VALUE)n == Qtrue) {
-	return EXIT_SUCCESS;
-    }
-    else if ((VALUE)n == Qfalse) {
-	return EXIT_FAILURE;
-    }
-    else if (FIXNUM_P(n)) {
-	return FIX2INT(n);
-    }
     rb_vm_run(RSTRING_PTR(rb_progname), (NODE *)n, NULL, false);
     return ruby_cleanup(0);
 }
