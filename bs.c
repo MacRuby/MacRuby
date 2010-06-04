@@ -1063,30 +1063,57 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
           if (func_ptr != NULL 
               && func_ptr_arg_depth == xmlTextReaderDepth(reader)) {
 
+	      bs_element_retval_t *retval = NULL;
+	      bs_element_arg_t *arg = NULL;
+	      unsigned args_count;
+
+	      if (atom->val == BS_XML_RETVAL) {
+		  retval = func != NULL ? func->retval : method->retval;
+	      }
+	      else {
+		  args_count = func != NULL ? func->args_count : method->args_count;
+		  arg = &args[args_count - 1];
+	      }
+
+	      // Let's get the old type to keep the number of pointers
+	      char *old_type = (retval ? retval->type : arg->type);
+	      int nb_ptr = 0;
+
+	      while (old_type && *old_type == '^') {
+		  nb_ptr++;
+		  old_type++;
+	      }
+	      // Decrementing because if we have ^^?, the last ^ (along with ?)
+	      // is going to be replaced by <...>, so we don't want to keep it
+	      nb_ptr--;
+
 	      char tmp_type[1026]; // 2 less to fit <, and >
 	      char new_type[1028];
 
-	      // return type
+	      // Function ptr return type
 	      strlcpy(tmp_type, func_ptr->retval->type, sizeof(tmp_type));
 	      free(func_ptr->retval->type);
-	      // args
+	      // Function ptr args
 	      for (i = 0; i < func_ptr->args_count; i++) {
 		  strlcat(tmp_type, fptr_args[i].type, sizeof(tmp_type));
 		  free(fptr_args[i].type);
 	      }
-	      snprintf(new_type, sizeof(new_type),
+	      // Clear the final type string
+	      memset(new_type, 0, sizeof(new_type));
+	      // Copy the number of pointers
+	      for (int i = 0; i < nb_ptr; i++) {
+		  strlcat(new_type, "^", sizeof(new_type));
+	      }
+	      // Append the function pointer type
+	      snprintf(new_type + nb_ptr, sizeof(new_type) - nb_ptr,
 		       "%c%s%c", _MR_C_FPTR_B, tmp_type, _MR_C_FPTR_E);
 
-	      if (atom->val == BS_XML_RETVAL) {
-		  bs_element_retval_t *retval =
-		      func != NULL ? func->retval : method->retval;
+	      // Free the old values
+	      if (retval) {
 		  free(retval->type);
 		  retval->type = strdup(new_type);
 	      }
 	      else {
-		  unsigned args_count = 
-		      func != NULL ? func->args_count : method->args_count;
-		  bs_element_arg_t *arg = &args[args_count - 1];
 		  free(arg->type);
 		  arg->type = strdup(new_type);
 	      }
