@@ -745,12 +745,6 @@ static void
 rb_pointer_init_type(rb_vm_pointer_t *ptr, VALUE type)
 {
     const char *type_str = StringValuePtr(type);
-    // LLVM doesn't allow to get a pointer to Type::VoidTy, and for convenience
-    // reasons we map a pointer to void as a pointer to unsigned char.
-    if (*type_str == 'v') {
-	type_str = "C";
-	type = rb_str_new2(type_str);
-    }
 
     GC_WB(&ptr->type, type);
 
@@ -826,6 +820,10 @@ rb_pointer_s_new(VALUE rcv, SEL sel, int argc, VALUE *argv)
     }
 
     const char *type_str = convert_ffi_type(type, false);
+    // There's no such thing as void type in ruby
+    if (*type_str == 'v') {
+	rb_raise(rb_eTypeError, "Void pointer is not allowed");
+    }
 
     return rb_pointer_new(type_str,
 	    xmalloc(GET_CORE()->get_sizeof(type_str) * rlen), rlen);
