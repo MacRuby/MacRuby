@@ -536,10 +536,6 @@ rb_define_hooked_variable(const char *name, VALUE *var,
     gvar->getter = getter != NULL ? getter : var_getter;
     gvar->setter = setter != NULL ? setter : var_setter;
     gvar->marker = var_marker;
-
-    if (var != NULL) {
-	GC_ROOT(var);
-    }
 }
 
 void

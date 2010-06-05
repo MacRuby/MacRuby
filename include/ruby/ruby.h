@@ -802,8 +802,6 @@ VALUE rb_funcall(VALUE, ID, int, ...);
 VALUE rb_funcall2(VALUE, ID, int, const VALUE*);
 VALUE rb_funcall3(VALUE, ID, int, const VALUE*);
 int rb_scan_args(int, const VALUE*, const char*, ...);
-VALUE rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *args);
-VALUE rb_vm_call_super(VALUE self, SEL sel, int argc, const VALUE *args);
 
 VALUE rb_gv_set(const char*, VALUE);
 VALUE rb_gv_get(const char*);
@@ -841,25 +839,7 @@ typedef VALUE rb_block_call_func(VALUE, VALUE, int, VALUE*);
 
 VALUE rb_each(VALUE);
 
-VALUE rb_vm_yield(int argc, const VALUE *argv);
-
-static inline VALUE
-rb_yield(VALUE val)
-{
-    if (val == Qundef) {
-	return rb_vm_yield(0, 0);
-    }
-    else {
-	return rb_vm_yield(1, &val);
-    }
-}
-
-static inline VALUE
-rb_yield_values2(int argc, const VALUE *argv)
-{
-    return rb_vm_yield(argc, argv);
-}
-
+VALUE rb_yield(VALUE val);
 VALUE rb_yield_values(int n, ...);
 VALUE rb_yield_values2(int n, const VALUE *argv);
 VALUE rb_yield_splat(VALUE);
@@ -1087,15 +1067,6 @@ extern auto_zone_t *__auto_zone;
 	*(void **)dst = nv; \
     } \
     while (0)
-
-static inline void
-rb_objc_root(void *addr)
-{
-    if (addr != NULL) {
-	auto_zone_add_root(__auto_zone, addr, *(void **)addr);
-    }
-}
-#define GC_ROOT(addr) (rb_objc_root((void *)addr))
 
 static inline void *
 rb_objc_retain(void *addr)

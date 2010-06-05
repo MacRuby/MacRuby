@@ -121,7 +121,7 @@ LLVM_MODULES = "core jit nativecodegen bitwriter bitreader"
 EXPORTED_SYMBOLS_LIST = "./exported_symbols_list"
 
 OPTZFLAG = "-O#{OPTZ_LEVEL}"
-CFLAGS = "-I. -I./include -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -g -Wall -fexceptions #{OPTZFLAG}"
+CFLAGS = "-I. -I./include #{ARCHFLAGS} -fno-common -pipe -g -Wall -fexceptions #{OPTZFLAG}"
 CFLAGS << " -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
 OBJC_CFLAGS = CFLAGS + " -fobjc-gc-only"
 CXXFLAGS = `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.sub(/-DNDEBUG/, '').sub(/-fno-exceptions/, '').strip
@@ -148,8 +148,8 @@ else
 end
 
 OBJS_CFLAGS = {
-  # Make sure everything gets inlined properly + compile as Objective-C++.
-  'dispatcher' => '--param inline-unit-growth=10000 --param large-function-growth=10000 -x objective-c++',
+  'dispatcher' => '-x objective-c++', # compile as Objective-C++.
+  'bs' => '-I/usr/include/libxml2'    # need to access libxml2
 }
 
 # We monkey-patch the method that Rake uses to display the tasks so we can add

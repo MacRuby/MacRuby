@@ -76,8 +76,9 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     return_from_block_ids = 0;
     ensure_pn = NULL;
     block_declaration = false;
+    dispatch_argv = NULL;
 
-    dispatcherFunc = NULL;
+    dispatchFunc = get_function("vm_dispatch");
     fastPlusFunc = get_function("vm_fast_plus");
     fastMinusFunc = get_function("vm_fast_minus");
     fastMultFunc = get_function("vm_fast_mult");
@@ -138,7 +139,7 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     newStringFunc = NULL;
     newString2Func = NULL;
     newString3Func = NULL;
-    yieldFunc = NULL;
+    yieldFunc = get_function("vm_yield_args");
     getBrokenFunc = NULL;
     blockEvalFunc = NULL;
     gvarSetFunc = NULL;
@@ -662,24 +663,49 @@ RoxorCompiler::attach_current_line_metadata(Instruction *insn)
 }
 
 Value *
-RoxorCompiler::compile_dispatch_call(std::vector<Value *> &params)
+RoxorCompiler::recompile_dispatch_argv(std::vector<Value *> &params, int offset)
 {
-    if (dispatcherFunc == NULL) {
-	// VALUE rb_vm_dispatch(VALUE top, VALUE self, SEL sel, void *block,
-	// 	unsigned char opt, int argc, ...);
-	std::vector<const Type *> types;
-	types.push_back(RubyObjTy);
-	types.push_back(RubyObjTy);
-	types.push_back(PtrTy);
-	types.push_back(PtrTy);
-	types.push_back(Int8Ty);
-	types.push_back(Int32Ty);
-	FunctionType *ft = FunctionType::get(RubyObjTy, types, true);
-	dispatcherFunc = cast<Function>
-	    (module->getOrInsertFunction("rb_vm_dispatch", ft));
+    const long argc = params.size() - offset;
+
+    if (argc == 0) {
+	return compile_const_pointer(NULL, RubyObjPtrTy);
     }
 
-    Instruction *insn = compile_protected_call(dispatcherFunc, params);
+    assert(argc > 0);
+
+    Instruction *first = bb->getParent()->getEntryBlock().getFirstNonPHI();
+    if (dispatch_argv == NULL) {
+	dispatch_argv = new AllocaInst(RubyObjTy,
+		ConstantInt::get(Int32Ty, argc), "argv", first);
+    }
+    else {
+	Value *size = dispatch_argv->getArraySize();
+	if (argc > cast<ConstantInt>(size)->getSExtValue()) {
+	    AllocaInst *new_argv = new AllocaInst(RubyObjTy,
+		    ConstantInt::get(Int32Ty, argc), "argv", first);
+	    dispatch_argv->replaceAllUsesWith(new_argv);
+	    dispatch_argv->eraseFromParent();
+	    dispatch_argv = new_argv;
+	}
+    }
+
+    for (int i = 0; i < argc; i++) {
+	Value *idx = ConstantInt::get(Int32Ty, i);
+	Value *slot = GetElementPtrInst::Create(dispatch_argv, idx, "", bb);
+	new StoreInst(params[offset + i], slot, "", bb);
+    }
+
+    return dispatch_argv;
+}
+
+Value *
+RoxorCompiler::compile_dispatch_call(std::vector<Value *> &params)
+{
+    Value *argv = recompile_dispatch_argv(params, 6);
+    params.erase(params.begin() + 6, params.end());
+    params.push_back(argv);
+
+    Instruction *insn = compile_protected_call(dispatchFunc, params);
     attach_current_line_metadata(insn);
     return insn;
 }
@@ -718,7 +744,10 @@ RoxorCompiler::compile_attribute_assign(NODE *node, Value *extra_val)
     params.push_back(compile_const_pointer(NULL));
     unsigned char opt = 0;
     if (recv == current_self) {
-	opt = DISPATCH_SELF_ATTRASGN;
+	opt = DISPATCH_FCALL;
+    }
+    if (argc < (int)args.size()) {
+	opt |= DISPATCH_SPLAT;
     }
     params.push_back(ConstantInt::get(Int8Ty, opt));
     params.push_back(ConstantInt::get(Int32Ty, argc));
@@ -728,11 +757,13 @@ RoxorCompiler::compile_attribute_assign(NODE *node, Value *extra_val)
 	params.push_back(*i);
     }
 
+    // The return value of these assignments is always the new value.
+    Value *retval = params.back();
+
     if (compile_optimized_dispatch_call(sel, argc, params) == NULL) {
 	compile_dispatch_call(params);
     }
-    // The return value of these assignments is always the new value.
-    return params.back();
+    return retval;
 }
 
 void
@@ -2315,12 +2346,14 @@ RoxorCompiler::compile_scope(NODE *node)
     Function *f = Function::Create(ft, GlobalValue::ExternalLinkage,
 	    function_name, module);
 
+    AllocaInst *old_dispatch_argv = dispatch_argv;
     BasicBlock *old_rescue_invoke_bb = rescue_invoke_bb;
     BasicBlock *old_rescue_rethrow_bb = rescue_rethrow_bb;
     BasicBlock *old_entry_bb = entry_bb;
     BasicBlock *old_bb = bb;
     BasicBlock *new_rescue_invoke_bb = NULL;
     BasicBlock *new_rescue_rethrow_bb = NULL;
+    dispatch_argv = NULL;
     rescue_invoke_bb = NULL;
     rescue_rethrow_bb = NULL;
     bb = BasicBlock::Create(context, "MainBlock", f);
@@ -2591,6 +2624,7 @@ RoxorCompiler::compile_scope(NODE *node)
     rescue_rethrow_bb = old_rescue_rethrow_bb;
     rescue_invoke_bb = old_rescue_invoke_bb;
 
+    dispatch_argv = old_dispatch_argv;
     bb = old_bb;
     entry_bb = old_entry_bb;
     lvars = old_lvars;
@@ -2600,6 +2634,328 @@ RoxorCompiler::compile_scope(NODE *node)
     debug_subprogram = old_debug_subprogram;
 
     return f;
+}
+
+Value *
+RoxorCompiler::compile_call(NODE *node)
+{
+    NODE *recv = node->nd_recv;
+    NODE *args = node->nd_args;
+    ID mid = node->nd_mid;
+
+    if (nd_type(node) == NODE_CALL) {
+	assert(recv != NULL);
+    }
+    else {
+	assert(recv == NULL);
+    }
+
+    const bool block_given = current_block_func != NULL
+	&& current_block_node != NULL;
+    const bool super_call = nd_type(node) == NODE_SUPER
+	|| nd_type(node) == NODE_ZSUPER;
+
+    if (super_call) {
+	mid = current_mid;
+    }
+    else {
+	assert(mid > 0);
+    }
+
+    bool splat_args = false;
+    bool positive_arity = false;
+    if (nd_type(node) == NODE_ZSUPER) {
+	assert(args == NULL);
+	assert(current_non_block_func != NULL);
+	const long s = current_non_block_func->getArgumentList().size();
+	positive_arity = s - 2 > 0; /* skip self and sel */
+    }
+    else {
+	NODE *n = args;
+rescan_args:
+	if (n != NULL) {
+	    switch (nd_type(n)) {
+		case NODE_ARRAY:
+		    positive_arity = n->nd_alen > 0;
+		    break;
+
+		case NODE_SPLAT:
+		case NODE_ARGSPUSH:
+		case NODE_ARGSCAT:
+		    splat_args = true;
+		    positive_arity = true;
+		    break;
+
+		case NODE_BLOCK_PASS:
+		    n = n->nd_head;
+		    if (n != NULL) {
+			goto rescan_args;
+		    }
+		    positive_arity = false;
+		    break;
+
+		default:
+		    compile_node_error("invalid call args", n);
+	    }
+	}
+    }
+
+    // Recursive method call optimization. Not for everyone.
+    if (!block_given && !super_call && !splat_args && !block_declaration
+	    && positive_arity && mid == current_mid && recv == NULL) {
+
+	Function *f = bb->getParent();
+	const unsigned long argc = args == NULL ? 0 : args->nd_alen;
+
+	if (f->arg_size() - 2 == argc) {
+	    std::vector<Value *> params;
+
+	    Function::arg_iterator arg = f->arg_begin();
+
+	    params.push_back(arg++); // self
+	    params.push_back(arg++); // sel 
+
+	    for (NODE *n = args; n != NULL; n = n->nd_next) {
+		params.push_back(compile_node(n->nd_head));
+	    }
+
+	    CallInst *inst = CallInst::Create(f, params.begin(), params.end(),
+		    "", bb);
+	    // Promote for tail call elimitation.
+	    inst->setTailCall(true);
+	    return cast<Value>(inst);
+	}
+    }
+
+    // Let's set the block state as NULL temporarily, when we
+    // compile the receiver and the arguments. 
+    Function *old_current_block_func = current_block_func;
+    NODE *old_current_block_node = current_block_node;
+    current_block_func = NULL;
+    current_block_node = NULL;
+
+    // Prepare the dispatcher parameters.
+    std::vector<Value *> params;
+
+    // Prepare the selector.
+    Value *sel_val;
+    SEL sel;
+    if (mid != 0) {
+	sel = mid_to_sel(mid, positive_arity ? 1 : 0);
+	sel_val = compile_sel(sel);
+	if (block_declaration && super_call) {
+	    // A super call inside a block. The selector cannot
+	    // be determined at compilation time, but at runtime:
+	    //
+	    //  VALUE my_block(VALUE rcv, SEL sel, ...)
+	    //	// ...
+	    //	SEL super_sel = sel;
+	    //  if (super_sel == 0)
+	    //	    super_sel = <hardcoded-mid>;
+	    //	rb_vm_dispatch(..., super_sel, ...);
+	    Function *f = bb->getParent();
+	    Function::arg_iterator arg = f->arg_begin();
+	    arg++; // skip self
+	    Value *dyn_sel = arg;
+	    Value *is_null = new ICmpInst(*bb, ICmpInst::ICMP_EQ, dyn_sel,
+		    compile_const_pointer(NULL));
+	    sel_val = SelectInst::Create(is_null, sel_val, dyn_sel, "", bb);
+	}
+    }	
+    else {
+	assert(super_call);
+	// A super call outside a method definition. Compile a
+	// null selector, the runtime will raise an exception.
+	sel = 0;
+	sel_val = compile_const_pointer(NULL);
+    }
+
+    // Top.
+    params.push_back(current_self);
+
+    // Self.
+    params.push_back(recv == NULL ? current_self : compile_node(recv));
+
+    // Selector.
+    params.push_back(sel_val);
+
+    // RubySpec requires that we compile the block *after* the arguments, so we
+    // do pass NULL as the block for the moment.
+    params.push_back(compile_const_pointer(NULL));
+    NODE *real_args = args;
+    if (real_args != NULL && nd_type(real_args) == NODE_BLOCK_PASS) {
+	real_args = args->nd_head;
+    }
+
+    // Call option.
+    unsigned char call_opt = 0;
+    if (super_call) {
+	call_opt |= DISPATCH_SUPER; 
+    }
+    else if (nd_type(node) == NODE_VCALL) {
+	call_opt |= DISPATCH_VCALL;
+    }
+    else if (nd_type(node) == NODE_FCALL) {
+	call_opt |= DISPATCH_FCALL;
+    }
+    params.push_back(ConstantInt::get(Int8Ty, call_opt));
+
+    // Arguments.
+    int argc = 0;
+    if (nd_type(node) == NODE_ZSUPER) {
+	Function::ArgumentListType &fargs =
+	    current_non_block_func->getArgumentList();
+	const int fargs_arity = fargs.size() - 2;
+	params.push_back(ConstantInt::get(Int32Ty, fargs_arity));
+	Function::ArgumentListType::iterator iter = fargs.begin();
+	iter++; // skip self
+	iter++; // skip sel
+	const int rest_pos = current_arity.max == -1
+	    ? (current_arity.left_req
+		    + (current_arity.real - current_arity.min - 1))
+	    : -1;
+	int i = 0;
+	while (iter != fargs.end()) {
+	    if (i == rest_pos) {
+		params.push_back(splatArgFollowsVal);
+		splat_args = true;
+	    }
+
+	    // We can't simply push the direct argument address
+	    // because if may have a default value.
+	    ID argid = rb_intern(iter->getName().data());
+	    Value *argslot;
+	    if (block_declaration) {
+		if (std::find(dvars.begin(), dvars.end(), argid)
+			== dvars.end()) {
+		    // Dvar does not exist yet, so we create it
+		    // on demand!
+		    dvars.push_back(argid);
+		}
+		argslot = compile_dvar_slot(argid);			
+	    }
+	    else {
+		argslot = compile_lvar_slot(argid);
+	    }
+
+	    params.push_back(new LoadInst(argslot, "", bb));
+
+	    ++i;
+	    ++iter;
+	}
+	argc = fargs_arity;
+    }
+    else if (real_args != NULL) {
+	std::vector<Value *> arguments;
+	compile_dispatch_arguments(real_args, arguments, &argc);
+	params.push_back(ConstantInt::get(Int32Ty, argc));
+	for (std::vector<Value *>::iterator i = arguments.begin();
+		i != arguments.end(); ++i) {
+	    params.push_back(*i);
+	}
+    }
+    else {
+	params.push_back(ConstantInt::get(Int32Ty, 0));
+    }
+
+    // In case we have splat args, modify the call option.
+    if (splat_args) {
+	call_opt |= DISPATCH_SPLAT;
+	params[4] = ConstantInt::get(Int8Ty, call_opt);
+    }
+
+    // Restore the block state.
+    current_block_func = old_current_block_func;
+    current_block_node = old_current_block_node;
+
+    // Now compile the block and insert it in the params list!
+    Value *blockVal;
+    if (args != NULL && nd_type(args) == NODE_BLOCK_PASS) {
+	assert(!block_given);
+	assert(args->nd_body != NULL);
+	blockVal = compile_block_get(compile_node(args->nd_body));
+    }
+    else {
+	if (block_given) {
+	    blockVal = compile_block_create();
+	}
+	else if (nd_type(node) == NODE_ZSUPER && current_block_arg != NULL) {
+	    blockVal = compile_block_get(current_block_arg);	
+	}
+	else {
+	    blockVal = compile_const_pointer(NULL);
+	}
+    }
+    params[3] = blockVal;
+
+    // If we are calling a method that needs a top-level binding object, let's
+    // create it. (Note: this won't work if the method is aliased, but we can
+    // live with that for now)
+    if (debug_mode
+	    || (!super_call
+		&& (sel == selEval
+		    || sel == selInstanceEval
+		    || sel == selClassEval
+		    || sel == selModuleEval
+		    || sel == selLocalVariables
+		    || sel == selBinding))) {
+	compile_binding();
+    }
+
+    // Can we optimize the call?
+    if (!super_call && !splat_args) {
+	Value *opt_call = compile_optimized_dispatch_call(sel, argc, params);
+	if (opt_call != NULL) {
+	    return opt_call;
+	}
+    }
+
+    // Looks like we can't, just do a regular dispatch then.
+    return compile_dispatch_call(params);
+}
+
+Value *
+RoxorCompiler::compile_yield(NODE *node)
+{
+    std::vector<Value *> args;
+    int argc = 0;
+    if (node->nd_head != NULL) {
+	compile_dispatch_arguments(node->nd_head, args, &argc);
+    }
+    Value *argv = recompile_dispatch_argv(args, 0);
+
+    std::vector<Value *> params;
+    params.push_back(ConstantInt::get(Int32Ty, argc));
+    unsigned char opt = 0;
+    if (argc < (int)args.size()) {
+	opt |= DISPATCH_SPLAT;
+    }
+    params.push_back(ConstantInt::get(Int8Ty, opt));
+    params.push_back(argv);    
+
+    Value *val = compile_protected_call(yieldFunc, params);
+
+    if (getBrokenFunc == NULL) {
+	// VALUE rb_vm_get_broken_value(void)
+	getBrokenFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_vm_get_broken_value",
+		    RubyObjTy, NULL));
+    }
+
+    Value *broken = CallInst::Create(getBrokenFunc, "", bb);
+    Value *is_broken = new ICmpInst(*bb, ICmpInst::ICMP_NE, broken, undefVal);
+
+    Function *f = bb->getParent();
+    BasicBlock *broken_bb = BasicBlock::Create(context, "broken", f);
+    BasicBlock *next_bb = BasicBlock::Create(context, "next", f);
+
+    BranchInst::Create(broken_bb, next_bb, is_broken, bb);
+
+    bb = broken_bb;
+    ReturnInst::Create(context, broken, bb);
+
+    bb = next_bb;
+    return val;
 }
 
 Value *
@@ -2847,7 +3203,6 @@ RoxorCompiler::compile_node(NODE *node)
 		params.push_back(recv);
 		params.push_back(compile_sel(sel));
 		params.push_back(compile_const_pointer(NULL));
-		params.push_back(ConstantInt::get(Int8Ty, 0));
 
 		int argc = 0;
 		std::vector<Value *> arguments;
@@ -2857,6 +3212,13 @@ RoxorCompiler::compile_node(NODE *node)
 			    arguments,
 			    &argc);
 		}
+
+		unsigned char opt = 0;
+		if (argc < (int)arguments.size()) {
+		    opt |= DISPATCH_SPLAT;
+		}
+		params.push_back(ConstantInt::get(Int8Ty, opt));
+
 		params.push_back(ConstantInt::get(Int32Ty, argc));
 		for (std::vector<Value *>::iterator i = arguments.begin();
 			i != arguments.end(); ++i) {
@@ -3311,286 +3673,7 @@ RoxorCompiler::compile_node(NODE *node)
 	case NODE_CALL:
 	case NODE_FCALL:
 	case NODE_VCALL:
-	    {
-		NODE *recv;
-		NODE *args;
-		ID mid;
-
-		recv = node->nd_recv;
-		args = node->nd_args;
-		mid = node->nd_mid;
-
-		if (nd_type(node) == NODE_CALL) {
-		    assert(recv != NULL);
-		}
-		else {
-		    assert(recv == NULL);
-		}
-
-		const bool block_given = current_block_func != NULL
-		    && current_block_node != NULL;
-		const bool super_call = nd_type(node) == NODE_SUPER
-		    || nd_type(node) == NODE_ZSUPER;
-
-		if (super_call) {
-		    mid = current_mid;
-		}
-		else {
-		    assert(mid > 0);
-		}
-
-		bool splat_args = false;
-		bool positive_arity = false;
-		if (nd_type(node) == NODE_ZSUPER) {
-		    assert(args == NULL);
-		    assert(current_non_block_func != NULL);
-		    positive_arity = 
-			current_non_block_func->getArgumentList().size()
-			    - 2 /* skip self and sel */ > 0;
-		}
-		else {
-		    NODE *n = args;
-rescan_args:
-		    if (n != NULL) {
-			switch (nd_type(n)) {
-			    case NODE_ARRAY:
-				positive_arity = n->nd_alen > 0;
-				break;
-
-			    case NODE_SPLAT:
-			    case NODE_ARGSPUSH:
-			    case NODE_ARGSCAT:
-				splat_args = true;
-				positive_arity = true;
-				break;
-
-			    case NODE_BLOCK_PASS:
-				n = n->nd_head;
-				if (n != NULL) {
-				    goto rescan_args;
-				}
-				positive_arity = false;
-				break;
-
-			    default:
-				compile_node_error("invalid call args", n);
-			}
-		    }
-		}
-
-		// Recursive method call optimization. Not for everyone.
-		if (!block_given && !super_call && !splat_args
-		    && !block_declaration && positive_arity
-		    && mid == current_mid && recv == NULL) {
-
-		    Function *f = bb->getParent();
-		    const unsigned long argc =
-			args == NULL ? 0 : args->nd_alen;
-
-		    if (f->arg_size() - 2 == argc) {
-			std::vector<Value *> params;
-
-			Function::arg_iterator arg = f->arg_begin();
-
-			params.push_back(arg++); // self
-			params.push_back(arg++); // sel 
-
-			for (NODE *n = args; n != NULL; n = n->nd_next) {
-			    params.push_back(compile_node(n->nd_head));
-			}
-
-			CallInst *inst = CallInst::Create(f, params.begin(),
-				params.end(), "", bb);
-			// Promote for tail call elimitation.
-			inst->setTailCall(true);
-			return cast<Value>(inst);
-		    }
-		}
-
-		// Let's set the block state as NULL temporarily, when we
-		// compile the receiver and the arguments. 
-		Function *old_current_block_func = current_block_func;
-		NODE *old_current_block_node = current_block_node;
-		current_block_func = NULL;
-		current_block_node = NULL;
-
-		// Prepare the dispatcher parameters.
-		std::vector<Value *> params;
-
-		// Prepare the selector.
-		Value *sel_val;
-		SEL sel;
-		if (mid != 0) {
-		    sel = mid_to_sel(mid, positive_arity ? 1 : 0);
-		    sel_val = compile_sel(sel);
-		    if (block_declaration && super_call) {
-			// A super call inside a block. The selector cannot
-			// be determined at compilation time, but at runtime:
-			//
-			//  VALUE my_block(VALUE rcv, SEL sel, ...)
-			//  {
-			//	// ...
-			//	SEL super_sel = sel;
-			//  	if (super_sel == 0) {
-			//	    super_sel = <hardcoded-mid>;
-			//	}
-			//	rb_vm_dispatch(..., super_sel, ...);
-			Function *f = bb->getParent();
-			Function::arg_iterator arg = f->arg_begin();
-			arg++; // skip self
-			Value *dyn_sel = arg;
-			Value *is_null = new ICmpInst(*bb, ICmpInst::ICMP_EQ,
-				dyn_sel, compile_const_pointer(NULL));
-			sel_val = SelectInst::Create(is_null, sel_val, dyn_sel,
-				"", bb);
-		    }
-		}
-		else {
-		    assert(super_call);
-		    // A super call outside a method definition. Compile a
-		    // null selector, the runtime will raise an exception.
-		    sel = 0;
-		    sel_val = compile_const_pointer(NULL);
-		}
-
-		// Top.
-		params.push_back(current_self);
-
-		// Self.
-		params.push_back(recv == NULL ? current_self
-			: compile_node(recv));
-
-		// Selector.
-		params.push_back(sel_val);
-
-		// RubySpec requires that we compile the block *after* the
-		// arguments, so we do pass NULL as the block for the moment.
-		params.push_back(compile_const_pointer(NULL));
-		NODE *real_args = args;
-		if (real_args != NULL
-		    && nd_type(real_args) == NODE_BLOCK_PASS) {
-		    real_args = args->nd_head;
-		}
-
-		// Call option.
-		const unsigned char call_opt = super_call 
-		    ? DISPATCH_SUPER
-		    : (nd_type(node) == NODE_VCALL)
-			? DISPATCH_VCALL
-			: (nd_type(node) == NODE_FCALL)
-			    ? DISPATCH_FCALL : 0;	
-		params.push_back(ConstantInt::get(Int8Ty, call_opt));
-
-		// Arguments.
-		int argc = 0;
-		if (nd_type(node) == NODE_ZSUPER) {
-		    Function::ArgumentListType &fargs =
-			current_non_block_func->getArgumentList();
-		    const int fargs_arity = fargs.size() - 2;
-		    params.push_back(ConstantInt::get(Int32Ty, fargs_arity));
-		    Function::ArgumentListType::iterator iter = fargs.begin();
-		    iter++; // skip self
-		    iter++; // skip sel
-		    const int rest_pos = current_arity.max == -1
-			? (current_arity.left_req
-				+ (current_arity.real - current_arity.min - 1))
-			: -1;
-		    int i = 0;
-		    while (iter != fargs.end()) {
-			if (i == rest_pos) {
-			    params.push_back(splatArgFollowsVal); 
-			}
-
-			// We can't simply push the direct argument address
-			// because if may have a default value.
-			ID argid = rb_intern(iter->getName().data());
-			Value *argslot;
-			if (block_declaration) {
-			    if (std::find(dvars.begin(), dvars.end(), argid)
-				    == dvars.end()) {
-				// Dvar does not exist yet, so we create it
-				// on demand!
-				dvars.push_back(argid);
-			    }
-			    argslot = compile_dvar_slot(argid);			
-			}
-			else {
-			    argslot = compile_lvar_slot(argid);
-			}
-
-			params.push_back(new LoadInst(argslot, "", bb));
-
-			++i;
-			++iter;
-		    }
-		    argc = fargs_arity;
-		}
-		else if (real_args != NULL) {
-		    std::vector<Value *> arguments;
-		    compile_dispatch_arguments(real_args, arguments, &argc);
-		    params.push_back(ConstantInt::get(Int32Ty, argc));
-		    for (std::vector<Value *>::iterator i = arguments.begin();
-			 i != arguments.end(); ++i) {
-			params.push_back(*i);
-		    }
-		}
-		else {
-		    params.push_back(ConstantInt::get(Int32Ty, 0));
-		}
-
-		// Restore the block state.
-		current_block_func = old_current_block_func;
-		current_block_node = old_current_block_node;
-
-		// Now compile the block and insert it in the params list!
-		Value *blockVal;
-		if (args != NULL && nd_type(args) == NODE_BLOCK_PASS) {
-		    assert(!block_given);
-		    assert(args->nd_body != NULL);
-		    blockVal = compile_block_get(compile_node(args->nd_body));
-		}
-		else {
-		    if (block_given) {
-			blockVal = compile_block_create();
-		    }
-		    else if (nd_type(node) == NODE_ZSUPER
-			    && current_block_arg != NULL) {
-			blockVal = compile_block_get(current_block_arg);	
-		    }
-		    else {
-			blockVal = compile_const_pointer(NULL);
-		    }
-		}
-		params[3] = blockVal;
-
-		// If we are calling a method that needs a top-level binding
-		// object, let's create it.
-		// (Note: this won't work if the method is aliased, but we can
-		//  live with that for now)
-		if (debug_mode
-		    || (!super_call
-			&& (sel == selEval
-			    || sel == selInstanceEval
-			    || sel == selClassEval
-			    || sel == selModuleEval
-			    || sel == selLocalVariables
-			    || sel == selBinding))) {
-		    compile_binding();
-		}
-
-		// Can we optimize the call?
-		if (!super_call && !splat_args) {
-		    Value *optimizedCall =
-			compile_optimized_dispatch_call(sel, argc, params);
-		    if (optimizedCall != NULL) {
-			return optimizedCall;
-		    }
-		}
-
-		// Looks like we can't, just do a regular dispatch then.
-		return compile_dispatch_call(params);
-	    }
-	    break;
+	    return compile_call(node);
 
 	case NODE_ATTRASGN:
 	    return compile_attribute_assign(node, NULL);
@@ -4427,52 +4510,7 @@ rescan_args:
 	    break;
 
 	case NODE_YIELD:
-	    {
-		if (yieldFunc == NULL) {
-		    // VALUE rb_vm_yield_args(int argc, ...)
-		    std::vector<const Type *> types;
-		    types.push_back(Int32Ty);
-		    FunctionType *ft =
-			FunctionType::get(RubyObjTy, types, true);
-		    yieldFunc = cast<Function>(module->getOrInsertFunction(
-				"rb_vm_yield_args", ft));
-		}
-
-		std::vector<Value *> params;
-		int argc = 0;
-		if (node->nd_head != NULL) {
-		    compile_dispatch_arguments(node->nd_head, params, &argc);
-		}
-		params.insert(params.begin(),
-			ConstantInt::get(Int32Ty, argc));
-
-		Value *val = compile_protected_call(yieldFunc, params);
-
-		if (getBrokenFunc == NULL) {
-		    // VALUE rb_vm_get_broken_value(void)
-		    getBrokenFunc = cast<Function>(module->getOrInsertFunction(
-				"rb_vm_get_broken_value",
-				RubyObjTy, NULL));
-		}
-
-		Value *broken = CallInst::Create(getBrokenFunc, "", bb);
-		Value *is_broken = new ICmpInst(*bb, ICmpInst::ICMP_NE, broken,
-			undefVal);
-
-		Function *f = bb->getParent();
-		BasicBlock *broken_bb = BasicBlock::Create(context, "broken",
-			f);
-		BasicBlock *next_bb = BasicBlock::Create(context, "next", f);
-
-		BranchInst::Create(broken_bb, next_bb, is_broken, bb);
-
-		bb = broken_bb;
-		ReturnInst::Create(context, broken, bb);
-		
-		bb = next_bb;
-		return val;
-	    }
-	    break;
+	    return compile_yield(node);
 
 	case NODE_COLON2:
 	    {
@@ -6264,6 +6302,7 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
     rescue_invoke_bb = old_rescue_invoke_bb;
 #endif
 
+#if 0 // XXX
     if (ruby_func != NULL) {
 	// Now that the function is finished, we can inline the Ruby method.
 	if (CallInst::classof(ruby_call_insn)) {
@@ -6271,6 +6310,7 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
 	    InlineFunction(insn);
 	}
     }
+#endif
 
     return f;
 }

@@ -1095,7 +1095,7 @@ Init_Exception(void)
     rb_eConverterNotFoundError = rb_define_class_under(rb_cEncoding, "ConverterNotFoundError", rb_eEncodingError);
 
     syserr_tbl = st_init_numtable();
-    GC_ROOT(&syserr_tbl);
+    GC_RETAIN(syserr_tbl);
     rb_eSystemCallError = rb_define_class("SystemCallError", rb_eStandardError);
     rb_objc_define_method(rb_eSystemCallError, "initialize", syserr_initialize, -1);
     rb_objc_define_method(rb_eSystemCallError, "errno", syserr_errno, 0);

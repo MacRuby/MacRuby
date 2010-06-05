@@ -1077,7 +1077,7 @@ rb_obj_freeze_m(VALUE obj, SEL sel)
 immediate:
 	    if (!immediate_frozen_tbl) {
 		immediate_frozen_tbl = st_init_numtable();
-		GC_ROOT(&immediate_frozen_tbl);
+		GC_RETAIN(immediate_frozen_tbl);
 	    }
 	    st_insert(immediate_frozen_tbl, obj, (st_data_t)Qtrue);
 	}

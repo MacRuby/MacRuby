@@ -10,10 +10,10 @@
 #define __COMPILER_H_
 
 // For the dispatcher.
-#define DISPATCH_VCALL		1  // no receiver, no argument
-#define DISPATCH_FCALL		2  // no receiver, one or more arguments
-#define DISPATCH_SUPER		3  // super call
-#define DISPATCH_SELF_ATTRASGN	4  // self attribute assignment
+#define DISPATCH_VCALL		0x1  // no receiver, no argument
+#define DISPATCH_FCALL		0x2  // no receiver, one or more arguments
+#define DISPATCH_SUPER		0x4  // super call
+#define DISPATCH_SPLAT		0x8  // has splat
 #define SPLAT_ARG_FOLLOWS	0xdeadbeef
 
 // For const lookup.
@@ -127,8 +127,9 @@ class RoxorCompiler {
 	int return_from_block_ids;
 	PHINode *ensure_pn;
 	bool block_declaration;
+	AllocaInst *dispatch_argv;
 
-	Function *dispatcherFunc;
+	Function *dispatchFunc;
 	Function *fastPlusFunc;
 	Function *fastMinusFunc;
 	Function *fastMultFunc;
@@ -308,10 +309,13 @@ class RoxorCompiler {
 	bool should_inline_function(Function *f);
 
 	Function *compile_scope(NODE *node);
+	Value *compile_call(NODE *node);
+	Value *compile_yield(NODE *node);
 	Instruction *compile_protected_call(Value *imp, Value **args_begin,
 		Value **args_end);
-	Instruction *compile_protected_call(Value *imp,
-		std::vector<Value *> &params);
+	Instruction *compile_protected_call(Value *imp, std::vector<Value *>
+		&params);
+	Value *recompile_dispatch_argv(std::vector<Value *> &params, int idx);
 	void compile_dispatch_arguments(NODE *args,
 		std::vector<Value *> &arguments, int *pargc);
 	Function::ArgumentListType::iterator compile_optional_arguments(

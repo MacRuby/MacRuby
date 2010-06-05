@@ -12,6 +12,10 @@
  */
 #include "ossl.h"
 
+// for rb_vm_call_super()
+#include "ruby/node.h"
+#include "vm.h"
+
 #if defined(HAVE_UNISTD_H)
 #  include <unistd.h> /* for read(), and write() */
 #endif

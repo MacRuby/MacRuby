@@ -4536,12 +4536,15 @@ must_respond_to(ID mid, VALUE val, ID id)
     }
 }
 
-
 static void
 stdout_setter(VALUE val, ID id, VALUE *variable)
 {
     must_respond_to(id_write, val, id);
-    *variable = val;
+    if (*variable != val) {
+	GC_RELEASE(*variable);
+	*variable = val;
+	GC_RETAIN(*variable);
+    }
 }
 
 void
@@ -4602,9 +4605,9 @@ Init_IO(void)
     rb_output_fs = Qnil;
     rb_define_hooked_variable("$,", &rb_output_fs, 0, rb_str_setter);
 
-    rb_global_variable(&rb_default_rs);
     rb_rs = rb_default_rs = rb_str_new2("\n");
-    rb_objc_retain((void *)rb_rs);
+    GC_RETAIN(rb_default_rs);
+    GC_RETAIN(rb_rs);
     rb_output_rs = Qnil;
     OBJ_FREEZE(rb_default_rs);	/* avoid modifying RS_default */
     rb_define_hooked_variable("$/", &rb_rs, 0, rb_str_setter);

@@ -45,12 +45,6 @@ static VALUE nomem_error;
 static bool dont_gc = false;
 
 void
-rb_global_variable(VALUE *var)
-{
-    rb_gc_register_address(var);
-}
-
-void
 rb_memerror(void)
 {
     rb_exc_raise(nomem_error);
@@ -286,12 +280,6 @@ const void *
 rb_objc_release_ni(const void *addr)
 {
     return rb_objc_release((void *)addr);
-}
-
-void
-rb_gc_register_address(VALUE *addr)
-{
-    rb_objc_root(addr);
 }
 
 void
@@ -1061,8 +1049,8 @@ Init_GC(void)
 
     rb_objc_define_module_function(rb_mObSpace, "_id2ref", id2ref, 1);
 
-    rb_global_variable(&nomem_error);
     nomem_error = rb_exc_new2(rb_eNoMemError, "failed to allocate memory");
+    GC_RETAIN(nomem_error);
 
     rb_objc_define_method(rb_mKernel, "__id__", rb_obj_id, 0);
     rb_objc_define_method(rb_mKernel, "object_id", rb_obj_id, 0);

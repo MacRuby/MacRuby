@@ -188,6 +188,21 @@ rb_f_public_send(VALUE recv, SEL sel, int argc, VALUE *argv)
 /* yield */
 
 VALUE
+rb_yield(VALUE val)
+{
+    if (val == Qundef) {
+        return rb_vm_yield(0, NULL);
+    }
+    return rb_vm_yield(1, &val);
+}
+
+VALUE
+rb_yield_values2(int argc, const VALUE *argv)
+{
+    return rb_vm_yield(argc, argv);
+}
+
+VALUE
 rb_yield_values(int n, ...)
 {
     if (n == 0) {

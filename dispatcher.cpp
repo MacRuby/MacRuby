@@ -23,8 +23,8 @@
 #define MAX_DISPATCH_ARGS 	100
 
 static force_inline void
-__rb_vm_fix_args(const VALUE *argv, VALUE *new_argv,
-	const rb_vm_arity_t &arity, int argc)
+vm_fix_args(const VALUE *argv, VALUE *new_argv, const rb_vm_arity_t &arity,
+	int argc)
 {
     assert(argc >= arity.min);
     assert((arity.max == -1) || (argc <= arity.max));
@@ -74,9 +74,16 @@ static force_inline VALUE
 __rb_vm_bcall(VALUE self, SEL sel, VALUE dvars, rb_vm_block_t *b,
 	IMP pimp, const rb_vm_arity_t &arity, int argc, const VALUE *argv)
 {
-    if ((arity.real != argc) || (arity.max == -1)) {
-	VALUE *new_argv = (VALUE *)xmalloc_ptrs(sizeof(VALUE) * arity.real);
-	__rb_vm_fix_args(argv, new_argv, arity, argc);
+    VALUE buf[100];
+    if (arity.real != argc || arity.max == -1) {
+	VALUE *new_argv;
+	if (arity.real < 100) {
+	    new_argv = buf;
+	}
+	else {
+	    new_argv = (VALUE *)xmalloc_ptrs(sizeof(VALUE) * arity.real);
+	}
+	vm_fix_args(argv, new_argv, arity, argc);
 	argv = new_argv;
 	argc = arity.real;
     }
@@ -124,9 +131,16 @@ static force_inline VALUE
 __rb_vm_rcall(VALUE self, SEL sel, IMP pimp, const rb_vm_arity_t &arity,
 	int argc, const VALUE *argv)
 {
-    if ((arity.real != argc) || (arity.max == -1)) {
-	VALUE *new_argv = (VALUE *)xmalloc_ptrs(sizeof(VALUE) * arity.real);
-	__rb_vm_fix_args(argv, new_argv, arity, argc);
+    VALUE buf[100];
+    if (arity.real != argc || arity.max == -1) {
+	VALUE *new_argv;
+	if (arity.real < 100) {
+	    new_argv = buf;
+	}
+	else {
+	    new_argv = (VALUE *)xmalloc_ptrs(sizeof(VALUE) * arity.real);
+	}
+	vm_fix_args(argv, new_argv, arity, argc);
 	argv = new_argv;
 	argc = arity.real;
     }
@@ -369,9 +383,8 @@ rb_vm_removed_imp(void *rcv, SEL sel)
 }
 
 static force_inline VALUE
-__rb_vm_ruby_dispatch(VALUE top, VALUE self, SEL sel,
-	rb_vm_method_node_t *node, unsigned char opt,
-	int argc, const VALUE *argv)
+ruby_dispatch(VALUE top, VALUE self, SEL sel, rb_vm_method_node_t *node,
+	unsigned char opt, int argc, const VALUE *argv)
 {
     const rb_vm_arity_t &arity = node->arity;
     if ((argc < arity.min) || ((arity.max != -1) && (argc > arity.max))) {
@@ -538,34 +551,14 @@ sel_equal(Class klass, SEL x, SEL y)
     return x_imp == y_imp;
 }
 
-static int
-mcache_hash(Class klass, SEL sel)
-{
-    return (((unsigned long)klass >> 3) ^ (unsigned long)sel)
-	& (VM_MCACHE_SIZE - 1);
-}
-
-static struct mcache *
-mcache_get(RoxorVM *vm, Class klass, SEL sel, bool super)
-{
-    struct mcache *cache;
-    if (super) {
-	const int hash = mcache_hash(klass, sel) + 1;
-	cache = &vm->get_mcache()[hash];
-	cache->flag = 0; // TODO
-    }
-    else {
-	const int hash = mcache_hash(klass, sel);
-	cache = &vm->get_mcache()[hash];
-    }
-    return cache;
-}
-
-static force_inline VALUE
-vm_call_with_cache(RoxorVM *vm, struct mcache *cache, VALUE top, VALUE self,
+extern "C"
+VALUE
+rb_vm_dispatch(void *_vm, struct mcache *cache, VALUE top, VALUE self,
 	Class klass, SEL sel, rb_vm_block_t *block, unsigned char opt,
 	int argc, const VALUE *argv)
 {
+    RoxorVM *vm = (RoxorVM *)_vm;
+
 #if ROXOR_VM_DEBUG
     bool cached = true;
 #endif
@@ -574,6 +567,11 @@ vm_call_with_cache(RoxorVM *vm, struct mcache *cache, VALUE top, VALUE self,
     Class current_super_class = vm->get_current_super_class();
     SEL current_super_sel = vm->get_current_super_sel();
 
+    if (opt & DISPATCH_SUPER) {
+	// TODO
+	goto recache;
+    }
+
     if (cache->sel != sel || cache->klass != klass || cache->flag == 0) {
 recache:
 #if ROXOR_VM_DEBUG
@@ -581,7 +579,7 @@ recache:
 #endif
 
 	Method method;
-	if (opt == DISPATCH_SUPER) {
+	if (opt & DISPATCH_SUPER) {
 	    if (!sel_equal(klass, current_super_sel, sel)) {
 		current_super_sel = sel;
 		current_super_class = klass;
@@ -614,7 +612,7 @@ recache2:
 		fill_ocache(cache, self, klass, imp, sel, method, argc);
 	    }
 
-	    if (opt == DISPATCH_SUPER) {
+	    if (opt & DISPATCH_SUPER) {
 		cache->flag |= MCACHE_SUPER;
 	    }
 	}
@@ -628,7 +626,7 @@ recache2:
 	    }
 
 	    // Does the receiver implements -forwardInvocation:?
-	    if (opt != DISPATCH_SUPER
+	    if ((opt & DISPATCH_SUPER) == 0
 		    && rb_objc_supports_forwarding(self, sel)) {
 		fill_ocache(cache, self, klass, (IMP)objc_msgSend, sel, NULL,
 			argc);
@@ -786,6 +784,7 @@ dispatch:
 		vm->pop_broken_with();
 		vm->set_current_super_class(current_super_class);
 		vm->set_current_super_sel(current_super_sel);
+		vm->pop_current_binding();
 	    }
 	} finalizer(block_already_current, current_klass,
 		old_current_super_class, old_current_super_sel, vm);
@@ -801,7 +800,7 @@ dispatch:
 	    MACRUBY_METHOD_ENTRY(class_name, method_name, file, line);
 	}
 
-	VALUE v = __rb_vm_ruby_dispatch(top, self, sel, cache->as.rcall.node,
+	VALUE v = ruby_dispatch(top, self, sel, cache->as.rcall.node,
 		opt, argc, argv);
 
 	// DTrace probe: method__return
@@ -967,151 +966,17 @@ call_method_missing:
 	}
     }
 
-    rb_vm_method_missing_reason_t status =
-	opt == DISPATCH_VCALL
-	    ? METHOD_MISSING_VCALL : opt == DISPATCH_SUPER
-		? METHOD_MISSING_SUPER : METHOD_MISSING_DEFAULT;
+    rb_vm_method_missing_reason_t status;
+    if (opt & DISPATCH_VCALL) {
+	status = METHOD_MISSING_VCALL;
+    }
+    else if (opt & DISPATCH_SUPER) {
+	status = METHOD_MISSING_SUPER;
+    }
+    else {
+	status = METHOD_MISSING_DEFAULT;
+    }
     return method_missing((VALUE)self, sel, block, argc, argv, status);
-}
-
-static force_inline VALUE
-vm_call(RoxorVM *vm, VALUE top, VALUE self, Class klass, SEL sel,
-	rb_vm_block_t *block, unsigned char opt, int argc, const VALUE *argv)
-{
-    struct mcache *cache = mcache_get(vm, klass, sel, opt == DISPATCH_SUPER);
-    return vm_call_with_cache(vm, cache, top, self, klass, sel, block, opt,
-	    argc, argv);
-}
-
-static force_inline void
-__rb_vm_resolve_args(VALUE **pargv, size_t argv_size, int *pargc, va_list ar)
-{
-    // TODO we should only determine the real argc here (by taking into
-    // account the length splat arguments) and do the real unpacking of
-    // splat arguments in __rb_vm_rcall(). This way we can optimize more
-    // things (for ex. no need to unpack splats that are passed as a splat
-    // argument in the method being called!).
-    unsigned int i, argc = *pargc, real_argc = 0;
-    VALUE *argv = *pargv;
-    bool splat_arg_follows = false;
-    for (i = 0; i < argc; i++) {
-	VALUE arg = va_arg(ar, VALUE);
-	if (arg == SPLAT_ARG_FOLLOWS) {
-	    splat_arg_follows = true;
-	    i--;
-	}
-	else {
-	    if (splat_arg_follows) {
-		VALUE ary = rb_check_convert_type(arg, T_ARRAY, "Array",
-			"to_a");
-		if (NIL_P(ary)) {
-		    ary = rb_ary_new3(1, arg);
-		}
-		int count = RARRAY_LEN(ary);
-		if (real_argc + count >= argv_size) {
-		    const size_t new_argv_size = real_argc + count + 100;
-		    VALUE *new_argv = (VALUE *)xmalloc_ptrs(sizeof(VALUE)
-			    * new_argv_size);
-		    memcpy(new_argv, argv, sizeof(VALUE) * argv_size);
-		    argv = new_argv;
-		    argv_size = new_argv_size;
-		}
-		for (int j = 0; j < count; j++) {
-		    argv[real_argc++] = RARRAY_AT(ary, j);
-		}
-		splat_arg_follows = false;
-	    }
-	    else {
-		if (real_argc >= argv_size) {
-		    const size_t new_argv_size = real_argc + 100;
-		    VALUE *new_argv = (VALUE *)xmalloc_ptrs(sizeof(VALUE)
-			    * new_argv_size);
-		    memcpy(new_argv, argv, sizeof(VALUE) * argv_size);
-		    argv = new_argv;
-		    argv_size = new_argv_size;
-		}
-		argv[real_argc++] = arg;
-	    }
-	}
-    }
-
-    *pargv = argv;
-    *pargc = real_argc;
-}
-
-extern "C"
-VALUE
-rb_vm_dispatch(VALUE top, VALUE self, SEL sel, rb_vm_block_t *block,
-	unsigned char opt, int argc, ...)
-{
-    if (sel == 0) {
-	if (opt == DISPATCH_SUPER) {
-	    rb_raise(rb_eNoMethodError, "super called outside of method");
-	}
-	abort(); 
-    }
-
-    VALUE base_argv[MAX_DISPATCH_ARGS];
-    VALUE *argv = base_argv;
-    if (argc > 0) {
-	va_list ar;
-	va_start(ar, argc);
-	__rb_vm_resolve_args(&argv, MAX_DISPATCH_ARGS, &argc, ar);
-	va_end(ar);
-
-	if (argc == 0) {
-	    const char *selname = sel_getName(sel);
-	    const size_t selnamelen = strlen(selname);
-	    if (selname[selnamelen - 1] == ':') {
-		// Because
-		//   def foo; end; foo(*[])
-		// creates foo but dispatches foo:.
-		char buf[100];
-		strncpy(buf, selname, sizeof buf);
-		buf[selnamelen - 1] = '\0';
-		sel = sel_registerName(buf);
-	    }
-	}
-    }
-
-    RoxorVM *vm = GET_VM();
-
-    struct Finally {
-	RoxorVM *vm;
-	Finally(RoxorVM *_vm) { vm = _vm; }
-	~Finally() { vm->pop_current_binding(); }
-    } finalizer(vm);
-
-    return vm_call(vm, top, self, (Class)CLASS_OF(self), sel, block,
-	    opt, argc, argv);
-}
-
-extern "C"
-VALUE
-rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *argv)
-{
-    return vm_call(GET_VM(), 0, self, (Class)CLASS_OF(self), sel, NULL,
-	    DISPATCH_FCALL, argc, argv);
-}
-
-extern "C"
-VALUE
-rb_vm_call_super(VALUE self, SEL sel, int argc, const VALUE *argv)
-{
-    return vm_call(GET_VM(), 0, self, (Class)CLASS_OF(self), sel, NULL,
-	    DISPATCH_SUPER, argc, argv);
-}
-
-extern "C"
-VALUE
-rb_vm_call2(rb_vm_block_t *block, VALUE self, VALUE klass, SEL sel, int argc,
-	const VALUE *argv)
-{
-    if (klass == 0) {
-	klass = CLASS_OF(self);
-    }
-    return vm_call(GET_VM(), 0, self, (Class)klass, sel, block,
-	    DISPATCH_FCALL, argc, argv);
 }
 
 static rb_vm_block_t *
@@ -1177,8 +1042,8 @@ RoxorVM::uncache_or_dup_block(rb_vm_block_t *b)
 }
 
 static force_inline VALUE
-rb_vm_block_eval0(rb_vm_block_t *b, SEL sel, VALUE self, int argc,
-	const VALUE *argv)
+vm_block_eval(RoxorVM *vm, rb_vm_block_t *b, SEL sel, VALUE self,
+	int argc, const VALUE *argv)
 {
     if ((b->flags & VM_BLOCK_IFUNC) == VM_BLOCK_IFUNC) {
 	// Special case for blocks passed with rb_objc_block_call(), to
@@ -1258,7 +1123,6 @@ block_call:
     }
     b->flags |= VM_BLOCK_ACTIVE;
 
-    RoxorVM *vm = GET_VM();
     Class old_current_class = vm->get_current_class();
     vm->set_current_class((Class)b->klass);
 
@@ -1279,7 +1143,7 @@ block_call:
 
     if (b->flags & VM_BLOCK_METHOD) {
 	rb_vm_method_t *m = (rb_vm_method_t *)b->imp;
-	return vm_call_with_cache(vm, (struct mcache *)m->cache, 0, m->recv,
+	return rb_vm_dispatch(vm, (struct mcache *)m->cache, 0, m->recv,
 		(Class)m->oclass, m->sel, NULL, DISPATCH_FCALL, argc, argv);
     }
     return __rb_vm_bcall(self, sel, (VALUE)b->dvars, b, b->imp, b->arity,
@@ -1290,7 +1154,7 @@ extern "C"
 VALUE
 rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
 {
-    return rb_vm_block_eval0(b, NULL, b->self, argc, argv);
+    return vm_block_eval(GET_VM(), b, NULL, b->self, argc, argv);
 }
 
 extern "C"
@@ -1299,13 +1163,15 @@ rb_vm_block_eval2(rb_vm_block_t *b, VALUE self, SEL sel, int argc,
 	const VALUE *argv)
 {
     // TODO check given arity and raise exception
-    return rb_vm_block_eval0(b, sel, self, argc, argv);
+    return vm_block_eval(GET_VM(), b, sel, self, argc, argv);
 }
 
-static force_inline VALUE
-rb_vm_yield0(int argc, const VALUE *argv)
+extern "C"
+VALUE
+rb_vm_yield_args(void *_vm, int argc, const VALUE *argv)
 {
-    RoxorVM *vm = GET_VM();
+    RoxorVM *vm = (RoxorVM *)_vm;
+
     rb_vm_block_t *b = vm->current_block();
     if (b == NULL) {
 	rb_raise(rb_eLocalJumpError, "no block given");
@@ -1336,14 +1202,7 @@ rb_vm_yield0(int argc, const VALUE *argv)
 	}
     } finalizer(vm, b);
 
-    return rb_vm_block_eval0(b, NULL, b->self, argc, argv);
-}
-
-extern "C"
-VALUE
-rb_vm_yield(int argc, const VALUE *argv)
-{
-    return rb_vm_yield0(argc, argv);
+    return vm_block_eval(vm, b, NULL, b->self, argc, argv);
 }
 
 extern "C"
@@ -1382,22 +1241,7 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
 	}
     } finalizer(vm, b, old_class, old_self);
 
-    return rb_vm_block_eval0(b, NULL, b->self, argc, argv);
-}
-
-extern "C"
-VALUE 
-rb_vm_yield_args(int argc, ...)
-{
-    VALUE base_argv[MAX_DISPATCH_ARGS];
-    VALUE *argv = &base_argv[0];
-    if (argc > 0) {
-	va_list ar;
-	va_start(ar, argc);
-	__rb_vm_resolve_args(&argv, MAX_DISPATCH_ARGS, &argc, ar);
-	va_end(ar);
-    }
-    return rb_vm_yield0(argc, argv);
+    return vm_block_eval(vm, b, NULL, b->self, argc, argv);
 }
 
 force_inline rb_vm_block_t *

@@ -6,6 +6,9 @@
 */
 
 #include "ruby.h"
+#include "ruby/node.h"
+#include "vm.h"
+
 #include <math.h>
 #include <float.h>
 
@@ -1979,25 +1982,20 @@ make_patterns(void)
     if (rat_pat) return;
 
     rat_pat = rb_reg_new(rat_pat_source, sizeof rat_pat_source - 1, 0);
-    rb_global_variable(&rat_pat);
-//    rb_gc_register_mark_object(rat_pat);
+    GC_RETAIN(rat_pat);
 
     an_e_pat = rb_reg_new(an_e_pat_source, sizeof an_e_pat_source - 1, 0);
-    rb_global_variable(&an_e_pat);
-//    rb_gc_register_mark_object(an_e_pat);
+    GC_RETAIN(an_e_pat);
 
     a_dot_pat = rb_reg_new(a_dot_pat_source, sizeof a_dot_pat_source - 1, 0);
-    rb_global_variable(&a_dot_pat);
-//    rb_gc_register_mark_object(a_dot_pat);
+    GC_RETAIN(a_dot_pat);
 
     underscores_pat = rb_reg_new(underscores_pat_source,
-				 sizeof underscores_pat_source - 1, 0);
-    rb_global_variable(&underscores_pat);
-//    rb_gc_register_mark_object(underscores_pat);
+	    sizeof underscores_pat_source - 1, 0);
+    GC_RETAIN(underscores_pat);
 
     an_underscore = rb_usascii_str_new2("_");
-    rb_global_variable(&an_underscore);
-//    rb_gc_register_mark_object(an_underscore);
+    GC_RETAIN(an_underscore);
 }
 
 #define id_match rb_intern("match")

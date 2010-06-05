@@ -317,11 +317,6 @@ void rb_vm_remove_method(Class klass, ID name);
 void rb_vm_alias(VALUE klass, ID name, ID def);
 bool rb_vm_copy_method(Class klass, Method method);
 void rb_vm_copy_methods(Class from_class, Class to_class);
-VALUE rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *args);
-VALUE rb_vm_call2(rb_vm_block_t *block, VALUE self, VALUE klass, SEL sel,
-	int argc, const VALUE *argv);
-VALUE rb_vm_call_super(VALUE self, SEL sel, int argc, const VALUE *args);
-VALUE rb_vm_yield(int argc, const VALUE *argv);
 VALUE rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv);
 bool rb_vm_respond_to(VALUE obj, SEL sel, bool priv);
 bool rb_vm_respond_to2(VALUE obj, VALUE klass, SEL sel, bool priv, bool check_override);
@@ -527,6 +522,7 @@ typedef VALUE rb_vm_objc_stub_t(IMP imp, id self, SEL sel, int argc,
 typedef VALUE rb_vm_c_stub_t(IMP imp, int argc, const VALUE *argv);
 
 #include "bridgesupport.h"
+#include "compiler.h"
 
 struct mcache {
 #define MCACHE_RCALL 0x1 // Ruby call
@@ -554,6 +550,66 @@ struct mcache {
 };
 
 #define VM_MCACHE_SIZE	0x1000
+
+VALUE rb_vm_dispatch(void *_vm, struct mcache *cache, VALUE top, VALUE self,
+	Class klass, SEL sel, rb_vm_block_t *block, unsigned char opt,
+	int argc, const VALUE *argv);
+
+void *rb_vm_current_vm(void) __attribute__((const));
+struct mcache *rb_vm_get_mcache(void *vm) __attribute__((const));
+
+static inline int
+rb_vm_mcache_hash(Class klass, SEL sel)
+{
+    return (((unsigned long)klass >> 3) ^ (unsigned long)sel)
+	& (VM_MCACHE_SIZE - 1);
+}
+
+static inline VALUE
+rb_vm_call0(void *vm, VALUE top, VALUE self, Class klass, SEL sel,
+	rb_vm_block_t *block, unsigned char opt, int argc, const VALUE *argv)
+{
+    int hash = rb_vm_mcache_hash(klass, sel);
+    if (opt & DISPATCH_SUPER) {
+	hash++;
+    }
+    struct mcache *cache = &rb_vm_get_mcache(vm)[hash];
+    return rb_vm_dispatch(vm, cache, top, self, klass, sel, block, opt,
+	    argc, argv);
+}
+
+static inline VALUE
+rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *argv)
+{
+    return rb_vm_call0(rb_vm_current_vm(), 0, self, (Class)CLASS_OF(self), sel,
+	    NULL, DISPATCH_FCALL, argc, argv);
+}
+
+static inline VALUE
+rb_vm_call_super(VALUE self, SEL sel, int argc, const VALUE *argv)
+{
+    return rb_vm_call0(rb_vm_current_vm(), 0, self, (Class)CLASS_OF(self), sel,
+	    NULL, DISPATCH_SUPER, argc, argv);
+}
+
+static inline VALUE
+rb_vm_call2(rb_vm_block_t *block, VALUE self, VALUE klass, SEL sel, int argc,
+	const VALUE *argv)
+{
+    if (klass == 0) {
+	klass = CLASS_OF(self);
+    }
+    return rb_vm_call0(rb_vm_current_vm(), 0, self, (Class)klass, sel, block,
+	    DISPATCH_FCALL, argc, argv);
+}
+
+VALUE rb_vm_yield_args(void *vm, int argc, const VALUE *argv);
+
+static inline VALUE
+rb_vm_yield(int argc, const VALUE *argv)
+{
+    return rb_vm_yield_args(rb_vm_current_vm(), argc, argv);
+}
 
 #if defined(__cplusplus)
 }
@@ -981,18 +1037,14 @@ class RoxorVM {
 	    return NULL;
 	}
 
-	void push_current_binding(rb_vm_binding_t *binding, bool retain=true) {
-	    if (retain) {
-		rb_objc_retain(binding);
-	    }
+	void push_current_binding(rb_vm_binding_t *binding) {
+	    GC_RETAIN(binding);
 	    bindings.push_back(binding);
 	}
 
-	void pop_current_binding(bool release=true) {
+	void pop_current_binding() {
 	    if (!bindings.empty()) {
-		if (release) {
-		    rb_objc_release(bindings.back());
-		}
+		GC_RELEASE(bindings.back());
 		bindings.pop_back();
 	    }
 	}

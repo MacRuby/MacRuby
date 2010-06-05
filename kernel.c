@@ -166,8 +166,128 @@ vm_set_const(VALUE outer, ID id, VALUE obj, unsigned char dynamic_class)
     rb_const_set(outer, id, obj);
 }
 
-VALUE rb_vm_dispatch(VALUE top, VALUE self, void *sel, void *block,
-	unsigned char opt, int argc, ...);
+static void __attribute__((noinline))
+vm_resolve_args(VALUE **pargv, size_t argv_size, int *pargc, VALUE *args)
+{
+    unsigned int i, argc = *pargc, real_argc = 0, j = 0;
+    VALUE *argv = *pargv;
+    bool splat_arg_follows = false;
+    for (i = 0; i < argc; i++) {
+	VALUE arg = args[j++];
+	if (arg == SPLAT_ARG_FOLLOWS) {
+	    splat_arg_follows = true;
+	    i--;
+	}
+	else {
+	    if (splat_arg_follows) {
+		VALUE ary = rb_check_convert_type(arg, T_ARRAY, "Array",
+			"to_a");
+		if (NIL_P(ary)) {
+		    ary = rb_ary_new3(1, arg);
+		}
+		int count = RARRAY_LEN(ary);
+		if (real_argc + count >= argv_size) {
+		    const size_t new_argv_size = real_argc + count + 100;
+		    VALUE *new_argv = (VALUE *)xmalloc_ptrs(sizeof(VALUE)
+			    * new_argv_size);
+		    memcpy(new_argv, argv, sizeof(VALUE) * argv_size);
+		    argv = new_argv;
+		    argv_size = new_argv_size;
+		}
+		int j;
+		for (j = 0; j < count; j++) {
+		    argv[real_argc++] = RARRAY_AT(ary, j);
+		}
+		splat_arg_follows = false;
+	    }
+	    else {
+		if (real_argc >= argv_size) {
+		    const size_t new_argv_size = real_argc + 100;
+		    VALUE *new_argv = (VALUE *)xmalloc_ptrs(sizeof(VALUE)
+			    * new_argv_size);
+		    memcpy(new_argv, argv, sizeof(VALUE) * argv_size);
+		    argv = new_argv;
+		    argv_size = new_argv_size;
+		}
+		argv[real_argc++] = arg;
+	    }
+	}
+    }
+    *pargv = argv;
+    *pargc = real_argc;
+}
+
+static inline VALUE
+vm_class_of(VALUE obj)
+{
+    // TODO: separate the const bits of CLASS_OF to make sure they will get
+    // reduced by the optimizer.
+    return CLASS_OF(obj);
+}
+
+inline VALUE
+vm_dispatch(VALUE top, VALUE self, void *sel, void *block, unsigned char opt,
+	int argc, VALUE *argv)
+{
+    if (opt & DISPATCH_SUPER) {
+	if (sel == 0) {
+	    rb_raise(rb_eNoMethodError, "super called outside of method");
+	}
+    }
+
+    VALUE buf[100];
+    if (opt & DISPATCH_SPLAT) {
+	if (argc == 1 && !SPECIAL_CONST_P(argv[1])
+		&& *(VALUE *)argv[1] == rb_cRubyArray) {
+	    argc = RARY(argv[1])->len;
+	    argv = rary_ptr(argv[1]);
+	}
+	else {
+	    VALUE *new_argv = buf;
+	    vm_resolve_args(&new_argv, 100, &argc, argv);
+	    argv = new_argv;
+	}
+	if (argc == 0) {
+	    const char *selname = sel_getName(sel);
+	    const size_t selnamelen = strlen(selname);
+	    if (selname[selnamelen - 1] == ':') {
+		// Because
+		//   def foo; end; foo(*[])
+		// creates foo but dispatches foo:.
+		char buf[100];
+		strncpy(buf, selname, sizeof buf);
+		buf[selnamelen - 1] = '\0';
+		sel = sel_registerName(buf);
+	    }
+	}
+    }
+
+    void *vm = rb_vm_current_vm();
+    VALUE klass = vm_class_of(self);
+    return rb_vm_call0(vm, top, self, (Class)klass, (SEL)sel,
+	    (rb_vm_block_t *)block, opt, argc, argv);
+}
+
+inline VALUE
+vm_yield_args(int argc, unsigned char opt, VALUE *argv)
+{
+    VALUE buf[100];
+    if (opt & DISPATCH_SPLAT) {
+	if (argc == 1 && !SPECIAL_CONST_P(argv[1])
+		&& *(VALUE *)argv[1] == rb_cRubyArray) {
+	    argc = RARY(argv[1])->len;
+	    argv = rary_ptr(argv[1]);
+	}
+	else {
+	    VALUE *new_argv = buf;
+	    vm_resolve_args(&new_argv, 100, &argc, argv);
+	    argv = new_argv;
+	}
+    }
+
+    void *vm = rb_vm_current_vm();
+    return rb_vm_yield_args(vm, argc, argv);
+}
 
 // Only numeric immediates have their lsb at 1.
 #define NUMERIC_IMM_P(x) ((x & 0x1) == 0x1)
@@ -189,7 +309,7 @@ vm_fast_plus(VALUE left, VALUE right, unsigned char overriden)
 	    return DBL2FIXFLOAT(res);
 	}
     }
-    return rb_vm_dispatch(0, left, selPLUS, NULL, 0, 1, right);
+    return vm_dispatch(0, left, selPLUS, NULL, 0, 1, &right);
 }
 
 inline VALUE
@@ -207,7 +327,7 @@ vm_fast_minus(VALUE left, VALUE right, unsigned char overriden)
 	    return DBL2FIXFLOAT(res);
 	}
     }
-    return rb_vm_dispatch(0, left, selMINUS, NULL, 0, 1, right);
+    return vm_dispatch(0, left, selMINUS, NULL, 0, 1, &right);
 }
 
 inline VALUE
@@ -225,7 +345,7 @@ vm_fast_mult(VALUE left, VALUE right, unsigned char overriden)
 	    return DBL2FIXFLOAT(res);
 	}
     }
-    return rb_vm_dispatch(0, left, selMULT, NULL, 0, 1, right);
+    return vm_dispatch(0, left, selMULT, NULL, 0, 1, &right);
 }
 
 inline VALUE
@@ -251,7 +371,7 @@ vm_fast_div(VALUE left, VALUE right, unsigned char overriden)
 	    return DBL2FIXFLOAT(res);
 	}
     }
-    return rb_vm_dispatch(0, left, selDIV, NULL, 0, 1, right);
+    return vm_dispatch(0, left, selDIV, NULL, 0, 1, &right);
 }
 
 inline VALUE
@@ -265,7 +385,7 @@ vm_fast_lt(VALUE left, VALUE right, unsigned char overriden)
 	    return IMM2DBL(left) < IMM2DBL(right) ? Qtrue : Qfalse;
 	}
     }
-    return rb_vm_dispatch(0, left, selLT, NULL, 0, 1, right);
+    return vm_dispatch(0, left, selLT, NULL, 0, 1, &right);
 }
 
 inline VALUE
@@ -279,7 +399,7 @@ vm_fast_le(VALUE left, VALUE right, unsigned char overriden)
 	    return IMM2DBL(left) <= IMM2DBL(right) ? Qtrue : Qfalse;
 	}
     }
-    return rb_vm_dispatch(0, left, selLE, NULL, 0, 1, right);
+    return vm_dispatch(0, left, selLE, NULL, 0, 1, &right);
 }
 
 inline VALUE
@@ -293,7 +413,7 @@ vm_fast_gt(VALUE left, VALUE right, unsigned char overriden)
 	    return IMM2DBL(left) > IMM2DBL(right) ? Qtrue : Qfalse;
 	}
     }
-    return rb_vm_dispatch(0, left, selGT, NULL, 0, 1, right);
+    return vm_dispatch(0, left, selGT, NULL, 0, 1, &right);
 }
 
 inline VALUE
@@ -307,7 +427,7 @@ vm_fast_ge(VALUE left, VALUE right, unsigned char overriden)
 	    return IMM2DBL(left) >= IMM2DBL(right) ? Qtrue : Qfalse;
 	}
     }
-    return rb_vm_dispatch(0, left, selGE, NULL, 0, 1, right);
+    return vm_dispatch(0, left, selGE, NULL, 0, 1, &right);
 }
 
 inline VALUE
@@ -327,7 +447,7 @@ vm_fast_eq(VALUE left, VALUE right, unsigned char overriden)
 	}
 	// TODO: opt for non-immediate types
     }
-    return rb_vm_dispatch(0, left, selEq, NULL, 0, 1, right);
+    return vm_dispatch(0, left, selEq, NULL, 0, 1, &right);
 }
 
 inline VALUE
@@ -347,7 +467,7 @@ vm_fast_eqq(VALUE left, VALUE right, unsigned char overriden)
 	}
 	// TODO: opt for non-immediate types
     }
-    return rb_vm_dispatch(0, left, selEqq, NULL, 0, 1, right);
+    return vm_dispatch(0, left, selEqq, NULL, 0, 1, &right);
 }
 
 inline VALUE
@@ -367,7 +487,7 @@ vm_fast_neq(VALUE left, VALUE right, unsigned char overriden)
 	}
 	// TODO: opt for non-immediate types
     }
-    return rb_vm_dispatch(0, left, selNeq, NULL, 0, 1, right);
+    return vm_dispatch(0, left, selNeq, NULL, 0, 1, &right);
 }
 
 inline VALUE
@@ -384,7 +504,7 @@ vm_fast_aref(VALUE obj, VALUE other, unsigned char overriden)
 	    return rhash_aref(obj, 0, other);
 	}
     }
-    return rb_vm_dispatch(0, obj, selAREF, NULL, 0, 1, other);
+    return vm_dispatch(0, obj, selAREF, NULL, 0, 1, &other);
 }
 
 inline VALUE
@@ -402,7 +522,8 @@ vm_fast_aset(VALUE obj, VALUE other1, VALUE other2, unsigned char overriden)
 	    return rhash_aset(obj, 0, other1, other2);
 	}
     }
-    return rb_vm_dispatch(0, obj, selASET, NULL, 0, 2, other1, other2);
+    VALUE args[] = {other1, other2};
+    return vm_dispatch(0, obj, selASET, NULL, 0, 2, args);
 }
 
 inline VALUE
@@ -419,7 +540,7 @@ vm_fast_shift(VALUE obj, VALUE other, unsigned char overriden)
 	    return rstr_concat(obj, 0, other);
 	}
     }
-    return rb_vm_dispatch(0, obj, selLTLT, NULL, 0, 1, other);
+    return vm_dispatch(0, obj, selLTLT, NULL, 0, 1, &other);
 }
 
 inline VALUE

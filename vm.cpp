@@ -302,7 +302,7 @@ RoxorCore::RoxorCore(void)
 {
     running = false;
     abort_on_exception = false;
-    inlining_enabled = getenv("VM_DISABLE_INLINING") == NULL;
+    inlining_enabled = false; //XXX getenv("VM_DISABLE_INLINING") == NULL;
 
     pthread_assert(pthread_mutex_init(&gl, 0));
 
@@ -539,6 +539,16 @@ RoxorCore::optimize(Function *func)
     fpm->run(*func);
 }
 
+extern "C"
+void
+rb_verify_module(void)
+{
+    if (verifyModule(*RoxorCompiler::module, PrintMessageAction)) {
+	printf("Error during module verification\n");
+	abort();
+    }
+}
+
 IMP
 RoxorCore::compile(Function *func, bool run_optimize)
 {
@@ -551,10 +561,7 @@ RoxorCore::compile(Function *func, bool run_optimize)
     // in AOT mode, the verifier is already called
     // (and calling it here would check functions not fully compiled yet)
     if (!ruby_aot_compile) {
-	if (verifyModule(*RoxorCompiler::module, PrintMessageAction)) {
-	    printf("Error during module verification\n");
-	    abort();
-	}
+	rb_verify_module();
     }
 
     uint64_t start = mach_absolute_time();
@@ -2507,15 +2514,17 @@ RoxorCore::undef_method(Class klass, SEL sel)
     ruby_methods.erase(iter);
 #endif
 
-    ID mid = sanitize_mid(sel);
-    if (mid != 0) {
-	VALUE sym = ID2SYM(mid);
-	if (RCLASS_SINGLETON(klass)) {
-	    VALUE sk = rb_iv_get((VALUE)klass, "__attached__");
-	    rb_vm_call(sk, selSingletonMethodUndefined, 1, &sym);
-	}
-	else {
-	    rb_vm_call((VALUE)klass, selMethodUndefined, 1, &sym);
+    if (get_running()) {
+	ID mid = sanitize_mid(sel);
+	if (mid != 0) {
+	    VALUE sym = ID2SYM(mid);
+	    if (RCLASS_SINGLETON(klass)) {
+		VALUE sk = rb_iv_get((VALUE)klass, "__attached__");
+		rb_vm_call(sk, selSingletonMethodUndefined, 1, &sym);
+	    }
+	    else {
+		rb_vm_call((VALUE)klass, selMethodUndefined, 1, &sym);
+	    }
 	}
     }
 }
@@ -2966,14 +2975,14 @@ extern "C"
 void
 rb_vm_add_binding(rb_vm_binding_t *binding)
 {
-    GET_VM()->push_current_binding(binding, false);
+    GET_VM()->push_current_binding(binding);
 }
 
 extern "C"
 void
 rb_vm_pop_binding(void)
 {
-    GET_VM()->pop_current_binding(false);
+    GET_VM()->pop_current_binding();
 }
 
 // Should be used inside a method implementation.
@@ -3638,7 +3647,7 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 
     // Compile IR.
     if (binding != NULL) {
-	vm->push_current_binding(binding, false);
+	vm->push_current_binding(binding);
     }
     bool old_inside_eval = compiler->is_inside_eval();
     compiler->set_inside_eval(inside_eval);
@@ -3647,7 +3656,7 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
     compiler->set_fname(NULL);
     compiler->set_inside_eval(old_inside_eval);
     if (binding != NULL) {
-	vm->pop_current_binding(false);
+	vm->pop_current_binding();
     }
 
     // Optimize & compile the function.
@@ -3733,10 +3742,7 @@ rb_vm_aot_compile(NODE *node)
     f->setName(RSTRING_PTR(ruby_aot_init_func));
 
     // Force a module verification.
-    if (verifyModule(*RoxorCompiler::module, PrintMessageAction)) {
-	printf("Error during module verification\n");
-	abort();
-    }
+    rb_verify_module();
 
     // Optimize the IR.
     GET_CORE()->optimize(f);
@@ -4118,6 +4124,20 @@ rb_vm_create_vm(void)
 {
     return (void *)new RoxorVM(*GET_VM());
 }
+
+extern "C"
+void *
+rb_vm_current_vm(void)
+{
+    return (void *)GET_VM();
+}
+
+extern "C"
+struct mcache *
+rb_vm_get_mcache(void *vm)
+{
+    return ((RoxorVM *)vm)->get_mcache();
+} 
 
 void
 RoxorCore::register_thread(VALUE thread)
@@ -4854,10 +4874,7 @@ rb_vm_finalize(void)
 
 
     if (getenv("VM_VERIFY_IR") != NULL) {
-	if (verifyModule(*RoxorCompiler::module, PrintMessageAction)) {
-	    printf("Error during module verification\n");
-	    abort();
-	}
+	rb_verify_module();
 	printf("IR verified!\n");
     }
 

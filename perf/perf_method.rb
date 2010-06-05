@@ -56,7 +56,7 @@ perf_test('args') do
   end
 end
 
-perf_test('splat') do
+perf_test('msplat') do
   o = TestMethod.new
   i = 0
   while i < 200000
@@ -69,6 +69,19 @@ perf_test('splat') do
     o.splat_method(i, i, i)
     o.splat_method(i, i)
     o.splat_method(i)
+    i += 1
+  end
+end
+
+perf_test('dsplat') do
+  o = TestMethod.new
+  i = 0
+  a = [1,2,3,4,5,6]
+  while i < 1000000
+    o.args_method(*a); o.args_method(*a); o.args_method(*a)
+    o.args_method(*a); o.args_method(*a); o.args_method(*a)
+    o.args_method(*a); o.args_method(*a); o.args_method(*a)
+    o.args_method(*a); o.args_method(*a); o.args_method(*a)
     i += 1
   end
 end

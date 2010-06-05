@@ -1356,7 +1356,6 @@ ruby_prog_init(void)
     rb_define_hooked_variable("$PROGRAM_NAME", &rb_progname, 0, set_arg0);
 
     rb_define_global_const("ARGV", rb_argv);
-    rb_global_variable(&rb_argv0);
 
     rb_vm_set_running(true);
 }
@@ -1410,6 +1409,7 @@ ruby_process_options(int argc, char **argv)
     MEMZERO(opt, opt, 1);
     ruby_script(argv[0]);	/* for the time being */
     rb_argv0 = rb_progname;
+    GC_RETAIN(rb_argv0);
     args->argc = argc;
     args->argv = argv;
     args->opt = opt;
