@@ -6302,16 +6302,6 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
     rescue_invoke_bb = old_rescue_invoke_bb;
 #endif
 
-#if 0 // XXX
-    if (ruby_func != NULL) {
-	// Now that the function is finished, we can inline the Ruby method.
-	if (CallInst::classof(ruby_call_insn)) {
-	    CallInst *insn = cast<CallInst>(ruby_call_insn);
-	    InlineFunction(insn);
-	}
-    }
-#endif
-
     return f;
 }
 

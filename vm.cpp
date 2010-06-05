@@ -302,7 +302,6 @@ RoxorCore::RoxorCore(void)
 {
     running = false;
     abort_on_exception = false;
-    inlining_enabled = false; //XXX getenv("VM_DISABLE_INLINING") == NULL;
 
     pthread_assert(pthread_mutex_init(&gl, 0));
 
@@ -328,6 +327,8 @@ RoxorCore::RoxorCore(void)
     InitializeNativeTarget();
 
     CodeGenOpt::Level opt = CodeGenOpt::Default;
+    inlining_enabled = false;
+    optims_enabled = true;
     const char *env_str = getenv("VM_OPT_LEVEL");
     if (env_str != NULL) {
 	const int tmp = atoi(env_str);
@@ -335,6 +336,7 @@ RoxorCore::RoxorCore(void)
 	    switch (tmp) {
 		case 0:
 		    opt = CodeGenOpt::None;
+		    optims_enabled = false;
 		    break;
 		case 1:
 		    opt = CodeGenOpt::Less;
@@ -344,6 +346,7 @@ RoxorCore::RoxorCore(void)
 		    break;
 		case 3:
 		    opt = CodeGenOpt::Aggressive;
+		    inlining_enabled = true;
 		    break;
 	    }
 	}
@@ -536,7 +539,9 @@ RoxorCore::optimize(Function *func)
     if (inlining_enabled) {
 	RoxorCompiler::shared->inline_function_calls(func);
     }
-    fpm->run(*func);
+    if (optims_enabled) {
+	fpm->run(*func);
+    }
 }
 
 extern "C"

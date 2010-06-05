@@ -668,6 +668,7 @@ class RoxorCore {
 
 	// State.
 	bool inlining_enabled;
+	bool optims_enabled;
 	bool running;
 	bool abort_on_exception;
 	VALUE loaded_features;
