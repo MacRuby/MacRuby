@@ -1117,9 +1117,6 @@ rb_objc_release(void *addr)
 }
 #define GC_RELEASE(obj) (rb_objc_release((void *)obj))
 
-void *rb_gc_read_weak_ref(void **referrer);
-void rb_gc_assign_weak_ref(const void *value, const void **location);
-
 #if RUBY_INCLUDED_AS_FRAMEWORK
 #include <MacRuby/ruby/missing.h>
 #include <MacRuby/ruby/intern.h>

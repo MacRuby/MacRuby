@@ -2786,14 +2786,15 @@ rb_vm_add_lvar_use(rb_vm_var_uses **var_uses, void *use,
 	|| ((*var_uses)->uses_count == VM_LVAR_USES_SIZE)) {
 
 	rb_vm_var_uses *new_uses =
-	    (rb_vm_var_uses *)malloc(sizeof(rb_vm_var_uses));
-	new_uses->next = *var_uses;
+	    (rb_vm_var_uses *)xmalloc(sizeof(rb_vm_var_uses));
 	new_uses->uses_count = 0;
+	GC_WB(&new_uses->next, *var_uses);
+	// var_uses should be on the stack so no need for GC_WB
 	*var_uses = new_uses;
     }
 
     const int current_index = (*var_uses)->uses_count;
-    rb_gc_assign_weak_ref(use, (const void **)&(*var_uses)->uses[current_index]);
+    GC_WB(&(*var_uses)->uses[current_index], use);
     (*var_uses)->use_types[current_index] = use_type;
     ++(*var_uses)->uses_count;
 }
@@ -2836,23 +2837,12 @@ void
 rb_vm_keep_vars(rb_vm_var_uses *uses, int lvars_size, ...)
 {
     rb_vm_var_uses *current = uses;
-    int use_index;
 
-    while (current != NULL) {
-	for (use_index = 0; use_index < current->uses_count; ++use_index) {
-	    if (rb_gc_read_weak_ref(&current->uses[use_index]) != NULL) {
-		goto use_found;
-	    }
-	}
-
-	void *old_current = current;
-	current = current->next;
-	free(old_current);
+    if ((current == NULL) || (current->uses_count == 0)) {
+	// there's no use alive so nothing to do
+	return;
     }
-    // there's no use alive anymore so nothing to do
-    return;
 
-use_found:
     rb_vm_kept_local *locals = (rb_vm_kept_local *)xmalloc(
 	    sizeof(rb_vm_kept_local)*lvars_size);
 
@@ -2867,50 +2857,45 @@ use_found:
     va_end(ar);
 
     while (current != NULL) {
-	for (; use_index < current->uses_count; ++use_index) {
-	    void *use = rb_gc_read_weak_ref(&current->uses[use_index]);
-	    if (use != NULL) {
-		unsigned char type = current->use_types[use_index];
-		rb_vm_local_t *locals_to_replace;
-		if (type == VM_LVAR_USE_TYPE_BLOCK) {
-		    rb_vm_block_t *block = (rb_vm_block_t *)use;
-		    for (int dvar_index = 0; dvar_index < block->dvars_size; ++dvar_index) {
-			for (int lvar_index = 0; lvar_index < lvars_size; ++lvar_index) {
-			    if (block->dvars[dvar_index] == locals[lvar_index].stack_address) {
-				GC_WB(&block->dvars[dvar_index], locals[lvar_index].new_address);
-				break;
-			    }
-			}
-		    }
-
-		    // the parent pointers can't be used anymore
-		    block->parent_block = NULL;
-		    block->parent_var_uses = NULL;
-
-		    locals_to_replace = block->locals;
-		}
-		else { // VM_LVAR_USE_TYPE_BINDING
-		    rb_vm_binding_t *binding = (rb_vm_binding_t *)use;
-		    locals_to_replace = binding->locals;
-		}
-
-		for (rb_vm_local_t *l = locals_to_replace; l != NULL; l = l->next) {
+	for (int use_index = 0; use_index < current->uses_count; ++use_index) {
+	    void *use = current->uses[use_index];
+	    unsigned char type = current->use_types[use_index];
+	    rb_vm_local_t *locals_to_replace;
+	    if (type == VM_LVAR_USE_TYPE_BLOCK) {
+		rb_vm_block_t *block = (rb_vm_block_t *)use;
+		for (int dvar_index = 0; dvar_index < block->dvars_size; ++dvar_index) {
 		    for (int lvar_index = 0; lvar_index < lvars_size; ++lvar_index) {
-			if (l->value == locals[lvar_index].stack_address) {
-			    GC_WB(&l->value, locals[lvar_index].new_address);
+			if (block->dvars[dvar_index] == locals[lvar_index].stack_address) {
+			    GC_WB(&block->dvars[dvar_index], locals[lvar_index].new_address);
 			    break;
 			}
 		    }
 		}
 
-		// indicate to the GC that we do not have a reference here anymore
-		rb_gc_assign_weak_ref(NULL, (const void **)&current->uses[use_index]);
+		// the parent pointers can't be used anymore
+		block->parent_block = NULL;
+		block->parent_var_uses = NULL;
+
+		locals_to_replace = block->locals;
 	    }
+	    else { // VM_LVAR_USE_TYPE_BINDING
+		rb_vm_binding_t *binding = (rb_vm_binding_t *)use;
+		locals_to_replace = binding->locals;
+	    }
+
+	    for (rb_vm_local_t *l = locals_to_replace; l != NULL; l = l->next) {
+		for (int lvar_index = 0; lvar_index < lvars_size; ++lvar_index) {
+		    if (l->value == locals[lvar_index].stack_address) {
+			GC_WB(&l->value, locals[lvar_index].new_address);
+			break;
+		    }
+		}
+	    }
+
+	    // indicate to the GC that we do not have a reference here anymore
+	    GC_WB(&current->uses[use_index], NULL);
 	}
-	void *old_current = current;
 	current = current->next;
-	use_index = 0;
-	free(old_current);
     }
 }
 
