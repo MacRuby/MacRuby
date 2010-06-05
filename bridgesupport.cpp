@@ -745,7 +745,12 @@ static void
 rb_pointer_init_type(rb_vm_pointer_t *ptr, VALUE type)
 {
     const char *type_str = StringValuePtr(type);
-
+    // LLVM doesn't allow to get a pointer to Type::VoidTy, and for convenience
+    // reasons we map a pointer to void as a pointer to unsigned char.
+    if (*type_str == 'v') {
+        type_str = "C";
+        type = rb_str_new2(type_str);
+    }
     GC_WB(&ptr->type, type);
 
     RoxorCore *core = GET_CORE();
