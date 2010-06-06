@@ -172,7 +172,7 @@ EOS
     # Build.
     main = gen_tmpfile('main', 'c')
     File.open(main, 'w') { |io| io.write(main_txt) }
-    linkf = @internal ? "-L. -lmacruby" : "-framework MacRuby"
+    linkf = @internal ? "-L. -lmacruby" : "-L#{RbConfig::CONFIG['libdir']} -lmacruby"
     execute("#{@gcxx} \"#{main}\" -dynamic -bundle -undefined suppress -flat_namespace #{arch_flags} #{linkf} \"#{obj}\" -o \"#{output}\"")
   end
 
@@ -197,7 +197,7 @@ EOS
     # Build.
     main = gen_tmpfile('main', 'c')
     File.open(main, 'w') { |io| io.write(main_txt) }
-    linkf = @internal ? "-L. -lmacruby" : "-framework MacRuby"
+    linkf = @internal ? "-L. -lmacruby" : "-L#{RbConfig::CONFIG['libdir']} -lmacruby"
     objs = objs_data.map { |obj, f| "\"#{obj}\"" }.join(' ') 
     execute("#{@gcxx} \"#{main}\" -dynamiclib -dynamic -undefined suppress -flat_namespace #{arch_flags} #{linkf} #{objs} -o \"#{output}\"")
   end
@@ -273,7 +273,7 @@ EOS
     # Link all objects into executable.
     linkf = @static ? 
       "-L#{RbConfig::CONFIG['libdir']} #{RbConfig::CONFIG['LIBRUBYARG_STATIC_REALLY']}" :
-      "-framework MacRuby -framework Foundation -lobjc -lauto"
+      "-L#{RbConfig::CONFIG['libdir']} -lmacruby -framework Foundation -lobjc -lauto"
     line = "#{@gcxx} -o \"#{output}\" #{arch_flags} #{linkf} "
     objs.each { |o| line << " \"#{o}\"" }
     execute(line)
