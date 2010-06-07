@@ -289,6 +289,40 @@ vm_yield_args(int argc, unsigned char opt, VALUE *argv)
     return rb_vm_yield_args(vm, argc, argv);
 }
 
+inline VALUE
+vm_get_broken_value(void)
+{
+    return rb_vm_get_broken_value(rb_vm_current_vm());
+}
+
+inline VALUE
+vm_returned_from_block(int id)
+{
+    return rb_vm_returned_from_block(rb_vm_current_vm(), id);
+}
+
+inline void
+vm_release_ownership(VALUE obj)
+{
+    rb_vm_release_ownership(obj);
+}
+
+inline void *
+vm_get_block(VALUE obj)
+{
+    if (obj == Qnil) {
+	return NULL;
+    }
+
+    VALUE proc = rb_check_convert_type(obj, T_DATA, "Proc", "to_proc");
+    if (NIL_P(proc)) {
+	rb_raise(rb_eTypeError,
+		"wrong argument type %s (expected Proc)",
+		rb_obj_classname(obj));
+    }
+    return rb_proc_get_block(proc);
+}
+
 // Only numeric immediates have their lsb at 1.
 #define NUMERIC_IMM_P(x) ((x & 0x1) == 0x1)
 

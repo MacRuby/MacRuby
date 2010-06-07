@@ -96,7 +96,7 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     whenSplatFunc = get_function("vm_when_splat");
     prepareBlockFunc = NULL;
     pushBindingFunc = NULL;
-    getBlockFunc = NULL;
+    getBlockFunc = get_function("vm_get_block");
     currentBlockObjectFunc = NULL;
     getConstFunc = get_function("vm_get_const");
     setConstFunc = get_function("vm_set_const");
@@ -140,7 +140,7 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     newString2Func = NULL;
     newString3Func = NULL;
     yieldFunc = get_function("vm_yield_args");
-    getBrokenFunc = NULL;
+    getBrokenFunc = get_function("vm_get_broken_value");
     blockEvalFunc = NULL;
     gvarSetFunc = NULL;
     gvarGetFunc = NULL;
@@ -151,16 +151,15 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     getSpecialFunc = get_function("vm_get_special");
     breakFunc = NULL;
     returnFromBlockFunc = NULL;
-    returnedFromBlockFunc = NULL;
+    returnedFromBlockFunc = get_function("vm_returned_from_block");
     checkReturnFromBlockFunc = NULL;
     setHasEnsureFunc = NULL;
     setScopeFunc = get_function("vm_set_current_scope");
     setCurrentClassFunc = NULL;
-    getCacheFunc = NULL;
     debugTrapFunc = NULL;
     getFFStateFunc = NULL;
     setFFStateFunc = NULL;
-    takeOwnershipFunc = NULL;
+    releaseOwnershipFunc = get_function("vm_release_ownership");
     ocvalToRvalFunc = get_function("vm_ocval_to_rval");
     charToRvalFunc = get_function("vm_char_to_rval");
     ucharToRvalFunc = get_function("vm_uchar_to_rval");
@@ -773,10 +772,7 @@ RoxorCompiler::compile_multiple_assignment_element(NODE *node, Value *val)
 	case NODE_LASGN:
 	case NODE_DASGN:
 	case NODE_DASGN_CURR:
-	    {
-		Value *slot = compile_lvar_slot(node->nd_vid);
-		new StoreInst(val, slot, bb);
-	    }
+	    new StoreInst(val, compile_lvar_slot(node->nd_vid), bb);
 	    break;
 
 	case NODE_IASGN:
@@ -905,19 +901,12 @@ RoxorAOTCompiler::compile_prepare_block_args(Function *func, int *flags)
 Value *
 RoxorCompiler::compile_block_get(Value *block_object)
 {
-    if (getBlockFunc == NULL) {
-	// void *rb_vm_get_block(VALUE obj);
-	getBlockFunc = cast<Function>
-	    (module->getOrInsertFunction("rb_vm_get_block",
-					 PtrTy, RubyObjTy, NULL));
-    }
-
     Value *args[] = { block_object };
     return compile_protected_call(getBlockFunc, args, args + 1);
 }
 
 Value *
-RoxorCompiler::compile_block_create(void)
+RoxorCompiler::compile_prepare_block(void)
 {
     assert(current_block_func != NULL && current_block_node != NULL);
 
@@ -975,6 +964,131 @@ RoxorCompiler::compile_block_create(void)
 
     return CallInst::Create(prepareBlockFunc, params.begin(), params.end(),
 	    "", bb);
+}
+
+Value *
+RoxorCompiler::compile_block(NODE *node)
+{
+    std::vector<ID> old_dvars = dvars;
+
+    BasicBlock *old_current_loop_begin_bb = current_loop_begin_bb;
+    BasicBlock *old_current_loop_body_bb = current_loop_body_bb;
+    BasicBlock *old_current_loop_end_bb = current_loop_end_bb;
+    current_loop_begin_bb = current_loop_end_bb = NULL;
+    Function *old_current_block_func = current_block_func;
+    NODE *old_current_block_node = current_block_node;
+    bool old_current_block = current_block;
+    bool old_current_block_chain = current_block_chain;
+    int old_return_from_block = return_from_block;
+    bool old_dynamic_class = dynamic_class;
+    bool old_block_declaration = block_declaration;
+
+    current_block = true;
+    current_block_chain = true;
+    dynamic_class = true;
+    block_declaration = true;
+
+    assert(node->nd_body != NULL);
+    Value *block = compile_node(node->nd_body);	
+    assert(Function::classof(block));
+
+    block_declaration = old_block_declaration;
+    dynamic_class = old_dynamic_class;
+
+    BasicBlock *return_from_block_bb = NULL;
+    if (!old_current_block_chain && return_from_block != -1) {
+	// The block we just compiled contains one or more return expressions!
+	// We need to enclose further dispatcher calls inside an exception
+	// handler, since return-from-block may use a C++ exception.
+	Function *f = bb->getParent();
+	rescue_invoke_bb = return_from_block_bb =
+	    BasicBlock::Create(context, "return-from-block", f);
+    }
+
+    current_loop_begin_bb = old_current_loop_begin_bb;
+    current_loop_body_bb = old_current_loop_body_bb;
+    current_loop_end_bb = old_current_loop_end_bb;
+    current_block = old_current_block;
+    current_block_chain = old_current_block_chain;
+
+    current_block_func = cast<Function>(block);
+    current_block_node = node->nd_body;
+
+    const int node_type = nd_type(node);
+    const bool is_lambda = node_type == NODE_LAMBDA;
+    Value *caller;
+
+    if (!is_lambda) {
+	assert(node->nd_iter != NULL);
+    }
+
+    if (node_type == NODE_ITER) {
+	caller = compile_node(node->nd_iter);
+    }
+    else {
+	// Dispatch #each on the receiver.
+	std::vector<Value *> params;
+
+	params.push_back(current_self);
+
+	if (!is_lambda) {
+	    // The block must not be passed to the code that generates the
+	    // values we loop on.
+	    current_block_func = NULL;
+	    current_block_node = NULL;
+	    params.push_back(compile_node(node->nd_iter));
+	    current_block_func = cast<Function>(block);
+	    current_block_node = node->nd_body;
+	}
+	else {
+	    params.push_back(current_self);
+	}
+
+	params.push_back(compile_sel((is_lambda ? selLambda : selEach)));
+	params.push_back(compile_prepare_block());
+	int opt = 0;
+	if (is_lambda) {
+	    opt = DISPATCH_FCALL;
+	}
+	params.push_back(ConstantInt::get(Int8Ty, opt));
+	params.push_back(ConstantInt::get(Int32Ty, 0));
+
+	caller = compile_dispatch_call(params);
+    }
+
+    const int block_id = return_from_block_bb != NULL
+	? return_from_block : -1;
+
+    Value *retval_block = CallInst::Create(returnedFromBlockFunc,
+	    ConstantInt::get(Int32Ty, block_id), "", bb);
+
+    Value *is_returned = new ICmpInst(*bb, ICmpInst::ICMP_NE, retval_block,
+	    undefVal);
+
+    Function *f = bb->getParent();
+    BasicBlock *return_bb = BasicBlock::Create(context, "", f);
+    BasicBlock *next_bb = BasicBlock::Create(context, "", f);
+
+    BranchInst::Create(return_bb, next_bb, is_returned, bb);
+
+    bb = return_bb;
+    ReturnInst::Create(context, retval_block, bb);
+
+    bb = next_bb;
+
+    if (return_from_block_bb != NULL) {
+	BasicBlock *old_bb = bb;
+	bb = return_from_block_bb;
+	compile_return_from_block_handler(return_from_block);
+	bb = old_bb;
+	return_from_block = old_return_from_block;
+    }
+
+    current_block_func = old_current_block_func;
+    current_block_node = old_current_block_node;
+    dvars = old_dvars;
+
+    return caller;
 }
 
 Value *
@@ -2877,7 +2991,7 @@ rescan_args:
     }
     else {
 	if (block_given) {
-	    blockVal = compile_block_create();
+	    blockVal = compile_prepare_block();
 	}
 	else if (nd_type(node) == NODE_ZSUPER && current_block_arg != NULL) {
 	    blockVal = compile_block_get(current_block_arg);	
@@ -2934,13 +3048,6 @@ RoxorCompiler::compile_yield(NODE *node)
     params.push_back(argv);    
 
     Value *val = compile_protected_call(yieldFunc, params);
-
-    if (getBrokenFunc == NULL) {
-	// VALUE rb_vm_get_broken_value(void)
-	getBrokenFunc = cast<Function>(module->getOrInsertFunction(
-		    "rb_vm_get_broken_value",
-		    RubyObjTy, NULL));
-    }
 
     Value *broken = CallInst::Create(getBrokenFunc, "", bb);
     Value *is_broken = new ICmpInst(*bb, ICmpInst::ICMP_NE, broken, undefVal);
@@ -3001,15 +3108,10 @@ RoxorCompiler::compile_node(NODE *node)
 	    break;
 
 	case NODE_GASGN:
-	    {
-		assert(node->nd_vid > 0);
-		assert(node->nd_value != NULL);
-		assert(node->nd_entry != NULL);
-
-		return compile_gvar_assignment(node,
-			compile_node(node->nd_value));
-	    }
-	    break;
+	    assert(node->nd_vid > 0);
+	    assert(node->nd_value != NULL);
+	    assert(node->nd_entry != NULL);
+	    return compile_gvar_assignment(node, compile_node(node->nd_value));
 
 	case NODE_CVAR:
 	    assert(node->nd_vid > 0);
@@ -3022,15 +3124,9 @@ RoxorCompiler::compile_node(NODE *node)
 		    compile_node(node->nd_value));
 
 	case NODE_MASGN:
-	    {
-		NODE *rhsn = node->nd_value;
-		assert(rhsn != NULL);
-
-		Value *ary = compile_node(rhsn);
-
-		return compile_multiple_assignment(node, ary);
-	    }
-	    break;
+	    assert(node->nd_value != NULL);
+	    return compile_multiple_assignment(node, 
+		    compile_node(node->nd_value));
 
 	case NODE_DASGN:
 	case NODE_DASGN_CURR:
@@ -3060,23 +3156,14 @@ RoxorCompiler::compile_node(NODE *node)
 			    flag, flagv);
 
 		    Function *f = bb->getParent();
-		    BasicBlock *is_thread_bb =
-			BasicBlock::Create(context, "", f);
-		    BasicBlock *merge_bb =
-			BasicBlock::Create(context, "", f);
+		    BasicBlock *is_thread_bb = BasicBlock::Create(context, "",
+			    f);
+		    BasicBlock *merge_bb = BasicBlock::Create(context, "", f);
 
-		    BranchInst::Create(is_thread_bb, merge_bb,
-			    is_thread, bb);
+		    BranchInst::Create(is_thread_bb, merge_bb, is_thread, bb);
 
 		    bb = is_thread_bb;
-		    if (takeOwnershipFunc == NULL) {
-			takeOwnershipFunc =
-			    cast<Function>(module->getOrInsertFunction(
-				"rb_vm_take_ownership",
-				VoidTy, RubyObjTy, NULL));
-		    }
-
-		    CallInst::Create(takeOwnershipFunc, new_val, "", bb);
+		    CallInst::Create(releaseOwnershipFunc, new_val, "", bb);
 		    BranchInst::Create(merge_bb, bb);
 
 		    bb = merge_bb;
@@ -4379,135 +4466,7 @@ RoxorCompiler::compile_node(NODE *node)
 	case NODE_FOR:
 	case NODE_ITER:
 	case NODE_LAMBDA:
-	    {
-		std::vector<ID> old_dvars = dvars;
-
-		BasicBlock *old_current_loop_begin_bb = current_loop_begin_bb;
-		BasicBlock *old_current_loop_body_bb = current_loop_body_bb;
-		BasicBlock *old_current_loop_end_bb = current_loop_end_bb;
-		current_loop_begin_bb = current_loop_end_bb = NULL;
-		Function *old_current_block_func = current_block_func;
-		NODE *old_current_block_node = current_block_node;
-		bool old_current_block = current_block;
-		bool old_current_block_chain = current_block_chain;
-		int old_return_from_block = return_from_block;
-		bool old_dynamic_class = dynamic_class;
-		bool old_block_declaration = block_declaration;
-
-		current_block = true;
-		current_block_chain = true;
-		dynamic_class = true;
-		block_declaration = true;
-
-		assert(node->nd_body != NULL);
-		Value *block = compile_node(node->nd_body);	
-		assert(Function::classof(block));
-
-		block_declaration = old_block_declaration;
-		dynamic_class = old_dynamic_class;
-
-		BasicBlock *return_from_block_bb = NULL;
-		if (!old_current_block_chain && return_from_block != -1) {
-		    // The block we just compiled contains one or more
-		    // return expressions! We need to enclose further
-		    // dispatcher calls inside an exception handler, since
-		    // return-from-block may use a C++ exception.
-		    Function *f = bb->getParent();
-		    rescue_invoke_bb = return_from_block_bb =
-			BasicBlock::Create(context, "return-from-block", f);
-		}
-
-		current_loop_begin_bb = old_current_loop_begin_bb;
-		current_loop_body_bb = old_current_loop_body_bb;
-		current_loop_end_bb = old_current_loop_end_bb;
-		current_block = old_current_block;
-		current_block_chain = old_current_block_chain;
-
-		current_block_func = cast<Function>(block);
-		current_block_node = node->nd_body;
-
-		const int node_type = nd_type(node);
-		const bool is_lambda = (node_type == NODE_LAMBDA);
-		Value *caller;
-
-		if (!is_lambda) {
-		    assert(node->nd_iter != NULL);
-		}
-
-		if (node_type == NODE_ITER) {
-		    caller = compile_node(node->nd_iter);
-		}
-		else {
-		    // dispatch #each on the receiver
-		    std::vector<Value *> params;
-
-		    params.push_back(current_self);
-
-		    if (!is_lambda) {
-			// the block must not be passed to the code
-			// that generates the values we loop on
-			current_block_func = NULL;
-			current_block_node = NULL;
-			params.push_back(compile_node(node->nd_iter));
-			current_block_func = cast<Function>(block);
-			current_block_node = node->nd_body;
-		    }
-		    else {
-			params.push_back(current_self);
-		    }
-
-		    params.push_back(compile_sel((is_lambda ? selLambda : selEach)));
-		    params.push_back(compile_block_create());
-		    params.push_back(ConstantInt::get(Int8Ty, (is_lambda ? DISPATCH_FCALL : 0)));
-		    params.push_back(ConstantInt::get(Int32Ty, 0));
-
-		    caller = compile_dispatch_call(params);
-		}
-
-		if (returnedFromBlockFunc == NULL) {
-		    // VALUE rb_vm_returned_from_block(int id);
-		    returnedFromBlockFunc = cast<Function>(
-			    module->getOrInsertFunction(
-				"rb_vm_returned_from_block",
-				RubyObjTy, Int32Ty, NULL));
-		}
-
-		const int block_id = return_from_block_bb != NULL
-		    ? return_from_block : -1;
-
-		Value *retval_block = CallInst::Create(returnedFromBlockFunc,
-			ConstantInt::get(Int32Ty, block_id), "", bb);
-
-		Value *is_returned = new ICmpInst(*bb, ICmpInst::ICMP_NE,
-			retval_block, undefVal);
-
-		Function *f = bb->getParent();
-		BasicBlock *return_bb = BasicBlock::Create(context,
-			"return-from-block-fast", f);
-		BasicBlock *next_bb = BasicBlock::Create(context, "next", f);
-
-		BranchInst::Create(return_bb, next_bb, is_returned, bb);
-
-		bb = return_bb;
-		ReturnInst::Create(context, retval_block, bb);
-
-		bb = next_bb;
-
-		if (return_from_block_bb != NULL) {
-		    BasicBlock *old_bb = bb;
-		    bb = return_from_block_bb;
-		    compile_return_from_block_handler(return_from_block);
-		    bb = old_bb;
-		    return_from_block = old_return_from_block;
-		}
-
-		current_block_func = old_current_block_func;
-		current_block_node = old_current_block_node;
-		dvars = old_dvars;
-
-		return caller;
-	    }
-	    break;
+	    return compile_block(node);
 
 	case NODE_YIELD:
 	    return compile_yield(node);
@@ -4615,7 +4574,7 @@ RoxorCompiler::compile_node(NODE *node)
 		params.push_back(current_self);
 		params.push_back(compile_nsobject());
 		params.push_back(compile_sel(sel));
-		params.push_back(compile_block_create());
+		params.push_back(compile_prepare_block());
 		params.push_back(ConstantInt::get(Int8Ty, DISPATCH_FCALL));
 		params.push_back(ConstantInt::get(Int32Ty, 0));
 

@@ -2759,23 +2759,6 @@ RoxorCore::gen_to_ocval_convertor(std::string type)
     return convertor; 
 }
 
-extern "C"
-void *
-rb_vm_get_block(VALUE obj)
-{
-    if (obj == Qnil) {
-	return NULL;
-    }
-
-    VALUE proc = rb_check_convert_type(obj, T_DATA, "Proc", "to_proc");
-    if (NIL_P(proc)) {
-	rb_raise(rb_eTypeError,
-		"wrong argument type %s (expected Proc)",
-		rb_obj_classname(obj));
-    }
-    return rb_proc_get_block(proc);
-}
-
 static const int VM_LVAR_USES_SIZE = 8;
 enum {
     VM_LVAR_USE_TYPE_BLOCK   = 1,
@@ -3354,9 +3337,9 @@ rb_vm_break(VALUE val)
 
 extern "C"
 VALUE
-rb_vm_get_broken_value(void)
+rb_vm_get_broken_value(void *vm)
 {
-    return GET_VM()->get_broken_with();
+    return ((RoxorVM *)vm)->get_broken_with();
 }
 
 extern "C"
@@ -3409,9 +3392,9 @@ rb_vm_return_from_block(VALUE val, int id, rb_vm_block_t *running_block)
 
 extern "C"
 VALUE
-rb_vm_returned_from_block(int id)
+rb_vm_returned_from_block(void *_vm, int id)
 {
-    RoxorVM *vm = GET_VM();
+    RoxorVM *vm = (RoxorVM *)_vm;
     if (id != -1 && vm->get_return_from_block() == id) {
 	vm->set_return_from_block(-1);
     }
@@ -4325,18 +4308,6 @@ rb_vm_thread_locals(VALUE thread, bool create_storage)
 
 extern "C"
 void
-rb_vm_take_ownership(VALUE obj)
-{
-    // This function allows the given object's ownership to be transfered to
-    // the current thread. It is used when objects are allocated from a
-    // thread but assigned into another thread's stack, which is prohibited by
-    // the thread-local collector.
-    GC_RETAIN(obj);
-    GC_RELEASE(obj);
-}
-
-extern "C"
-void
 rb_vm_thread_pre_init(rb_vm_thread_t *t, rb_vm_block_t *body, int argc,
 	const VALUE *argv, void *vm)
 {
@@ -4346,11 +4317,11 @@ rb_vm_thread_pre_init(rb_vm_thread_t *t, rb_vm_block_t *body, int argc,
 	GC_WB(&t->body, body);
 	rb_vm_block_make_detachable_proc(body);
 
-	// Take ownership of all dynamic variables, mark the block as
+	// Release ownership of all dynamic variables, mark the block as
 	// being run from a thread.
 	for (int i = 0; i < body->dvars_size; i++) {
 	    VALUE *dvar = body->dvars[i];
-	    rb_vm_take_ownership(*dvar);
+	    rb_vm_release_ownership(*dvar);
 	}
 	body->flags |= VM_BLOCK_THREAD;
     }

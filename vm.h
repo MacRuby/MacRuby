@@ -472,6 +472,9 @@ void rb_vm_print_current_exception(void);
 
 #define TEST_THREAD_CANCEL() (pthread_testcancel())
 
+VALUE rb_vm_get_broken_value(void *vm);
+VALUE rb_vm_returned_from_block(void *_vm, int id);
+
 VALUE rb_vm_pop_broken_value(void);
 #define RETURN_IF_BROKEN() \
     do { \
@@ -491,6 +494,19 @@ VALUE rb_vm_pop_broken_value(void);
         } \
     } \
     while (0)
+
+static inline void
+rb_vm_release_ownership(VALUE obj)
+{
+    if (!SPECIAL_CONST_P(obj)) {
+	// This function allows the given object's ownership to be transfered
+	// to the current thread. It is used when objects are allocated from a
+	// thread but assigned into another thread's stack, which is prohibited
+	// by the thread-local collector.
+	GC_RETAIN(obj);
+	GC_RELEASE(obj);
+    }
+}
 
 void rb_vm_finalize(void);
 

@@ -207,11 +207,10 @@ class RoxorCompiler {
 	Function *setHasEnsureFunc;
 	Function *setScopeFunc;
 	Function *setCurrentClassFunc;
-	Function *getCacheFunc;
 	Function *debugTrapFunc;
 	Function *getFFStateFunc;
 	Function *setFFStateFunc;
-	Function *takeOwnershipFunc;
+	Function *releaseOwnershipFunc;
 	Function *ocvalToRvalFunc;
 	Function *charToRvalFunc;
 	Function *ucharToRvalFunc;
@@ -333,7 +332,8 @@ class RoxorCompiler {
 	Value *compile_when_splat(Value *comparedToVal, Value *splatVal);
 	Value *compile_attribute_assign(NODE *node, Value *extra_val);
 	virtual Value *compile_prepare_block_args(Function *func, int *flags);
-	Value *compile_block_create(void);
+	Value *compile_prepare_block(void);
+	Value *compile_block(NODE *node);
 	Value *compile_block_get(Value *block_object);
 	Value *compile_binding(void);
 	Value *compile_optimized_dispatch_call(SEL sel, int argc,
