@@ -2911,11 +2911,7 @@ rstr_match2(VALUE self, SEL sel, int argc, VALUE *argv)
     }
     VALUE re = get_pat(argv[0], false);
     argv[0] = self;
-    VALUE result = regexp_match2(re, 0, argc, argv);
-    if (!NIL_P(result) && rb_block_given_p()) {
-	return rb_yield(result);
-    }
-    return result;
+    return regexp_match2(re, 0, argc, argv);
 }
 
 /*
