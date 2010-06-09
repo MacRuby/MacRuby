@@ -29,9 +29,11 @@
 #include <llvm/Target/TargetOptions.h>
 #include <llvm/Target/TargetSelect.h>
 #include <llvm/Transforms/Scalar.h>
+#include <llvm/Transforms/IPO.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/PrettyStackTrace.h>
 #include <llvm/Support/MemoryBuffer.h>
+#include <llvm/Support/StandardPasses.h>
 #include <llvm/Intrinsics.h>
 #include <llvm/Bitcode/ReaderWriter.h>
 #include <llvm/LLVMContext.h>
@@ -3750,8 +3752,11 @@ rb_vm_aot_compile(NODE *node)
     // Force a module verification.
     rb_verify_module();
 
-    // Optimize the IR.
-    GET_CORE()->optimize(f);
+    // Run standard optimization passes on the module.
+    PassManager pm;
+    createStandardModulePasses(&pm, 3, false, true, true, true, true,
+	    createFunctionInliningPass());
+    pm.run(*RoxorCompiler::module);
 
     // Dump the bitcode.
     std::string err;
