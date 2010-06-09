@@ -1,5 +1,5 @@
 /*
- * MacRuby compiler.
+ * MacRuby Compiler.
  *
  * This file is covered by the Ruby license. See COPYING for more details.
  * 
@@ -40,6 +40,7 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     assert(RoxorCompiler::module != NULL);
     debug_info = new DIFactory(*RoxorCompiler::module);
 
+    can_interpret = false;
     debug_mode = _debug_mode;
     fname = "";
     inside_eval = false;
@@ -588,6 +589,56 @@ RoxorCompiler::compile_arity(rb_vm_arity_t &arity)
     assert(sizeof(uint64_t) == sizeof(rb_vm_arity_t));
     memcpy(&v, &arity, sizeof(rb_vm_arity_t));
     return ConstantInt::get(Int64Ty, v);
+}
+
+void
+RoxorCompiler::compile_method_definition(NODE *node)
+{
+    ID mid = node->nd_mid;
+    assert(mid > 0);
+
+    NODE *body = node->nd_defn;
+    assert(body != NULL);
+
+    const bool singleton_method = nd_type(node) == NODE_DEFS;
+
+    const ID old_current_mid = current_mid;
+    current_mid = mid;
+    current_instance_method = !singleton_method;
+    const bool old_current_block_chain = current_block_chain;
+    current_block_chain = false;
+    const bool old_block_declaration = block_declaration;
+    block_declaration = false;
+    const bool old_should_interpret = should_interpret;
+
+    DEBUG_LEVEL_INC();
+    Value *val = compile_node(body);
+    assert(Function::classof(val));
+    Function *func = cast<Function>(val);
+    DEBUG_LEVEL_DEC();
+
+    should_interpret = old_should_interpret;
+    block_declaration = old_block_declaration;
+    current_block_chain = old_current_block_chain;
+    current_mid = old_current_mid;
+    current_instance_method = false;
+
+    Value *classVal;
+    if (singleton_method) {
+	assert(node->nd_recv != NULL);
+	classVal = compile_singleton_class(compile_node(node->nd_recv));
+    }
+    else {
+	classVal = compile_current_class();
+    }
+
+    rb_vm_arity_t arity = rb_vm_node_arity(body);
+    const SEL sel = mid_to_sel(mid, arity.real);
+
+    compile_prepare_method(classVal, compile_sel(sel), singleton_method,
+	    func, arity, body);
+
+    can_interpret = true;
 }
 
 void
@@ -1178,7 +1229,7 @@ RoxorAOTCompiler::compile_slot_cache(ID id)
 }
 
 Value *
-RoxorCompiler::compile_ivar_read(ID vid)
+RoxorCompiler::compile_ivar_get(ID vid)
 {
     Value *args[] = {
 	current_self,
@@ -1229,6 +1280,9 @@ RoxorCompiler::compile_cvar_assignment(ID name, Value *val)
 Value *
 RoxorCompiler::compile_gvar_assignment(NODE *node, Value *val)
 {
+    assert(node->nd_vid > 0);
+    assert(node->nd_entry != NULL);
+
     if (gvarSetFunc == NULL) {
 	// VALUE rb_gvar_set(struct global_entry *entry, VALUE val);
 	gvarSetFunc = cast<Function>(module->getOrInsertFunction(
@@ -1241,6 +1295,22 @@ RoxorCompiler::compile_gvar_assignment(NODE *node, Value *val)
 	val
     };
     return compile_protected_call(gvarSetFunc, args, args + 2);
+}
+
+Value *
+RoxorCompiler::compile_gvar_get(NODE *node)
+{
+    assert(node->nd_vid > 0);
+    assert(node->nd_entry != NULL);
+
+    if (gvarGetFunc == NULL) {
+	// VALUE rb_gvar_get(struct global_entry *entry);
+	gvarGetFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_gvar_get", RubyObjTy, PtrTy, NULL));
+    }
+
+    return CallInst::Create(gvarGetFunc, compile_global_entry(node),
+	    "", bb);
 }
 
 Value *
@@ -3015,11 +3085,15 @@ rescan_args:
 		    || sel == selBinding))) {
 	compile_binding();
     }
+    else {
+	can_interpret = true;
+    }
 
     // Can we optimize the call?
     if (!super_call && !splat_args) {
 	Value *opt_call = compile_optimized_dispatch_call(sel, argc, params);
 	if (opt_call != NULL) {
+	    can_interpret = false;
 	    return opt_call;
 	}
     }
@@ -3065,25 +3139,12 @@ RoxorCompiler::compile_yield(NODE *node)
     return val;
 }
 
-Value *
-RoxorCompiler::compile_node(NODE *node)
+inline Value *
+RoxorCompiler::compile_node0(NODE *node)
 {
-#if ROXOR_COMPILER_DEBUG
-    printf("%s:%ld ", fname, nd_line(node));
-    for (int i = 0; i < level; i++) {
-	printf("...");
-    }
-    printf("... %s\n", ruby_node_name(nd_type(node)));
-#endif
-    if (current_line != nd_line(node)) {
-	current_line = nd_line(node);
-	if (debug_mode) {
-	    compile_debug_trap();
-	}
-    }
-
     switch (nd_type(node)) {
 	case NODE_SCOPE:
+	    can_interpret = true;
 	    return cast<Value>(compile_scope(node));
 
 	case NODE_DVAR:
@@ -3092,25 +3153,10 @@ RoxorCompiler::compile_node(NODE *node)
 	    return new LoadInst(compile_lvar_slot(node->nd_vid), "", bb);
 
 	case NODE_GVAR:
-	    {
-		assert(node->nd_vid > 0);
-		assert(node->nd_entry != NULL);
-
-		if (gvarGetFunc == NULL) {
-		    // VALUE rb_gvar_get(struct global_entry *entry);
-		    gvarGetFunc = cast<Function>(module->getOrInsertFunction(
-				"rb_gvar_get", RubyObjTy, PtrTy, NULL));
-		}
-
-		return CallInst::Create(gvarGetFunc,
-			compile_global_entry(node), "", bb);
-	    }
-	    break;
+	    return compile_gvar_get(node);
 
 	case NODE_GASGN:
-	    assert(node->nd_vid > 0);
 	    assert(node->nd_value != NULL);
-	    assert(node->nd_entry != NULL);
 	    return compile_gvar_assignment(node, compile_node(node->nd_value));
 
 	case NODE_CVAR:
@@ -3130,49 +3176,16 @@ RoxorCompiler::compile_node(NODE *node)
 
 	case NODE_DASGN:
 	case NODE_DASGN_CURR:
+	    assert(node->nd_vid > 0);
+	    assert(node->nd_value != NULL);
+	    return compile_dvar_assignment(node->nd_vid,
+		    compile_node(node->nd_value));
+
 	case NODE_LASGN:
-	    {
-		assert(node->nd_vid > 0);
-		assert(node->nd_value != NULL);
-
-		Value *new_val = compile_node(node->nd_value);
-
-		const int type = nd_type(node);
-		if ((type == NODE_DASGN || type == NODE_DASGN_CURR)
-			&& running_block != NULL) {
-		    // Dynamic variables assignments inside a block are a
-		    // little bit complicated: if we are creating new objects
-		    // we do need to defeat the thread-local collector by
-		    // taking ownership of the objects, otherwise the TLC might
-		    // prematurely collect them. This is because the assignment
-		    // is done into another thread's stack, which is not
-		    // honored by the TLC.
-		    Value *flag = new BitCastInst(running_block, Int32PtrTy,
-			    "", bb);
-		    flag = new LoadInst(flag, "", bb);
-		    Value *flagv = ConstantInt::get(Int32Ty, VM_BLOCK_THREAD);
-		    flag = BinaryOperator::CreateAnd(flag, flagv, "", bb);
-		    Value *is_thread = new ICmpInst(*bb, ICmpInst::ICMP_EQ,
-			    flag, flagv);
-
-		    Function *f = bb->getParent();
-		    BasicBlock *is_thread_bb = BasicBlock::Create(context, "",
-			    f);
-		    BasicBlock *merge_bb = BasicBlock::Create(context, "", f);
-
-		    BranchInst::Create(is_thread_bb, merge_bb, is_thread, bb);
-
-		    bb = is_thread_bb;
-		    CallInst::Create(releaseOwnershipFunc, new_val, "", bb);
-		    BranchInst::Create(merge_bb, bb);
-
-		    bb = merge_bb;
-		}
-
-		new StoreInst(new_val, compile_lvar_slot(node->nd_vid), bb);
-		return new_val;
-	    }
-	    break;
+	    assert(node->nd_vid > 0);
+	    assert(node->nd_value != NULL);
+	    return compile_lvar_assignment(node->nd_vid,
+		    compile_node(node->nd_value));
 
 	case NODE_OP_ASGN_OR:
 	    {
@@ -3735,9 +3748,7 @@ RoxorCompiler::compile_node(NODE *node)
 			std::vector<Value *> params;
 			params.push_back(classVal);
 			params.push_back(compile_const_pointer(NULL));
-			Instruction *insn = compile_protected_call(f, params);
-			attach_current_line_metadata(insn);
-			val = insn;
+			val = compile_protected_call(f, params);
 
 			dynamic_class = old_dynamic_class;
 			compile_set_current_scope(classVal, defaultScope);
@@ -3790,9 +3801,10 @@ RoxorCompiler::compile_node(NODE *node)
 
 	case NODE_IVAR:
 	    assert(node->nd_vid > 0);
-	    return compile_ivar_read(node->nd_vid);
+	    return compile_ivar_get(node->nd_vid);
 
 	case NODE_LIT:
+	    can_interpret = true;
 	case NODE_STR:
 	    assert(node->nd_lit != 0);
 	    return compile_literal(node->nd_lit);
@@ -3909,6 +3921,7 @@ RoxorCompiler::compile_node(NODE *node)
 
 	case NODE_BLOCK:
 	    {
+		can_interpret = true;
 		NODE *n = node;
 		Value *val = NULL;
 
@@ -4021,52 +4034,8 @@ RoxorCompiler::compile_node(NODE *node)
 
 	case NODE_DEFN:
 	case NODE_DEFS:
-	    {
-		ID mid = node->nd_mid;
-		assert(mid > 0);
-
-		NODE *body = node->nd_defn;
-		assert(body != NULL);
-
-		const bool singleton_method = nd_type(node) == NODE_DEFS;
-
-		const ID old_current_mid = current_mid;
-		current_mid = mid;
-		current_instance_method = !singleton_method;
-		const bool old_current_block_chain = current_block_chain;
-		current_block_chain = false;
-		const bool old_block_declaration = block_declaration;
-		block_declaration = false;
-
-		DEBUG_LEVEL_INC();
-		Value *val = compile_node(body);
-		assert(Function::classof(val));
-		Function *new_function = cast<Function>(val);
-		DEBUG_LEVEL_DEC();
-
-		block_declaration = old_block_declaration;
-		current_block_chain = old_current_block_chain;
-		current_mid = old_current_mid;
-		current_instance_method = false;
-
-		Value *classVal;
-		if (singleton_method) {
-		    assert(node->nd_recv != NULL);
-		    classVal = compile_singleton_class(compile_node(node->nd_recv));
-		}
-		else {
-		    classVal = compile_current_class();
-		}
-
-		rb_vm_arity_t arity = rb_vm_node_arity(body);
-		const SEL sel = mid_to_sel(mid, arity.real);
-
-		compile_prepare_method(classVal, compile_sel(sel),
-			singleton_method, new_function, arity, body);
-
-		return nilVal;
-	    }
-	    break;
+	    compile_method_definition(node);
+	    return nilVal;
 
 	case NODE_UNDEF:
 	    {
@@ -4096,12 +4065,15 @@ RoxorCompiler::compile_node(NODE *node)
 	    break;
 
 	case NODE_TRUE:
+	    can_interpret = true;
 	    return trueVal;
 
 	case NODE_FALSE:
+	    can_interpret = true;
 	    return falseVal;
 
 	case NODE_NIL:
+	    can_interpret = true;
 	    return nilVal;
 
 	case NODE_SELF:
@@ -4113,6 +4085,7 @@ RoxorCompiler::compile_node(NODE *node)
 		    ConstantInt::get(Int8Ty, (char)node->nd_nth), "", bb);
 
 	case NODE_BEGIN:
+	    can_interpret = true;
 	    return node->nd_body == NULL
 		? nilVal : compile_node(node->nd_body);
 
@@ -4592,14 +4565,49 @@ RoxorCompiler::compile_node(NODE *node)
     return NULL;
 }
 
+Value *
+RoxorCompiler::compile_node(NODE *node)
+{
+#if ROXOR_COMPILER_DEBUG
+    printf("%s:%ld ", fname, nd_line(node));
+    for (int i = 0; i < level; i++) {
+	printf("...");
+    }
+    printf("... %s\n", ruby_node_name(nd_type(node)));
+#endif
+    if (current_line != nd_line(node)) {
+	current_line = nd_line(node);
+	if (debug_mode) {
+	    compile_debug_trap();
+	}
+    }
+
+    bool old_can_interpret = can_interpret;
+    can_interpret = false;
+
+    Value *val = compile_node0(node);
+
+    if (!can_interpret) {
+#if ROXOR_COMPILER_DEBUG
+	printf("node %s can't be interpreted!\n",
+		ruby_node_name(nd_type(node)));
+#endif
+	should_interpret = false;
+    }
+    can_interpret = old_can_interpret;
+
+    return val;
+}
+
 #include <libgen.h>
 
 void
 RoxorCompiler::set_fname(const char *_fname)
 {
-    if (fname != _fname) {
+    if (fname != _fname
+	    && (fname == NULL || _fname == NULL
+		|| strcmp(fname, _fname) != 0)) {
 	fname = _fname;
-
 	if (fname != NULL) {
 	    // Compute complete path.
 	    char path[PATH_MAX];
@@ -4629,17 +4637,25 @@ RoxorCompiler::set_fname(const char *_fname)
 }
 
 Function *
-RoxorCompiler::compile_main_function(NODE *node)
+RoxorCompiler::compile_main_function(NODE *node, bool *can_interpret_p)
 {
     current_instance_method = true;
+    should_interpret = true;
+    can_interpret = false;
 
     Value *val = compile_node(node);
     assert(Function::classof(val));
-    return cast<Function>(val);
+    Function *func =  cast<Function>(val);
+
+    if (can_interpret_p != NULL) {
+	*can_interpret_p = should_interpret;
+    }
+
+    return func;
 }
 
 Function *
-RoxorAOTCompiler::compile_main_function(NODE *node)
+RoxorAOTCompiler::compile_main_function(NODE *node, bool *can_be_interpreted)
 {
     current_instance_method = true;
 
@@ -5009,7 +5025,7 @@ RoxorCompiler::compile_read_attr(ID name)
 
     bb = BasicBlock::Create(context, "EntryBlock", f);
 
-    ReturnInst::Create(context, compile_ivar_read(name), bb);
+    ReturnInst::Create(context, compile_ivar_get(name), bb);
 
     return f;
 }
@@ -6047,6 +6063,45 @@ RoxorCompiler::compile_lvar_slot(ID name)
     printf("get_dvar %s\n", rb_id2name(name));
 #endif
     return slot;
+}
+
+Value *
+RoxorCompiler::compile_dvar_assignment(ID vid, Value *val)
+{
+    if (running_block != NULL) {
+	// Dynamic variables assignments inside a block are a little bit
+	// complicated: if we are creating new objects we do need to defeat
+	// the thread-local collector by releasing ownership of the objects,
+	// otherwise the TLC might prematurely collect them. This is because
+	// the assignment is done into another thread's stack, which is not
+	// honored by the TLC.
+	Value *flag = new BitCastInst(running_block, Int32PtrTy, "", bb);
+	flag = new LoadInst(flag, "", bb);
+	Value *flagv = ConstantInt::get(Int32Ty, VM_BLOCK_THREAD);
+	flag = BinaryOperator::CreateAnd(flag, flagv, "", bb);
+	Value *is_thread = new ICmpInst(*bb, ICmpInst::ICMP_EQ, flag, flagv);
+
+	Function *f = bb->getParent();
+	BasicBlock *is_thread_bb = BasicBlock::Create(context, "", f);
+	BasicBlock *merge_bb = BasicBlock::Create(context, "", f);
+
+	BranchInst::Create(is_thread_bb, merge_bb, is_thread, bb);
+
+	bb = is_thread_bb;
+	CallInst::Create(releaseOwnershipFunc, val, "", bb);
+	BranchInst::Create(merge_bb, bb);
+
+	bb = merge_bb;
+    }
+
+    return compile_lvar_assignment(vid, val);
+}
+
+Value *
+RoxorCompiler::compile_lvar_assignment(ID vid, Value *val)
+{
+    new StoreInst(val, compile_lvar_slot(vid), bb);
+    return val;
 }
 
 #if __LP64__

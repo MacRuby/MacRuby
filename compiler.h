@@ -1,5 +1,5 @@
 /*
- * MacRuby compiler.
+ * MacRuby Compiler.
  *
  * This file is covered by the Ruby license. See COPYING for more details.
  * 
@@ -31,7 +31,11 @@
 
 #if defined(__cplusplus)
 
+class RoxorInterpreter;
+
 class RoxorCompiler {
+    friend class RoxorInterpreter;
+
     public:
 	static llvm::Module *module;
 	static RoxorCompiler *shared;
@@ -43,7 +47,8 @@ class RoxorCompiler {
 
 	Value *compile_node(NODE *node);
 
-	virtual Function *compile_main_function(NODE *node);
+	virtual Function *compile_main_function(NODE *node,
+		bool *can_be_interpreted);
 	Function *compile_read_attr(ID name);
 	Function *compile_write_attr(ID name);
 	Function *compile_stub(const char *types, bool variadic, int min_argc,
@@ -77,6 +82,8 @@ class RoxorCompiler {
 	bool debug_mode;
 	const char *fname;
 	bool inside_eval;
+	bool should_interpret;
+	bool can_interpret;
 
 	std::map<ID, Value *> lvars;
 	std::vector<ID> dvars;
@@ -307,6 +314,7 @@ class RoxorCompiler {
 
 	bool should_inline_function(Function *f);
 
+	Value *compile_node0(NODE *node);
 	Function *compile_scope(NODE *node);
 	Value *compile_call(NODE *node);
 	Value *compile_yield(NODE *node);
@@ -325,6 +333,7 @@ class RoxorCompiler {
 		BasicBlock *thenBB);
 	void compile_single_when_argument(NODE *arg, Value *comparedToVal,
 		BasicBlock *thenBB);
+	void compile_method_definition(NODE *node);
 	virtual void compile_prepare_method(Value *classVal, Value *sel,
 		bool singleton, Function *new_function, rb_vm_arity_t &arity,
 		NODE *body);
@@ -338,11 +347,15 @@ class RoxorCompiler {
 	Value *compile_binding(void);
 	Value *compile_optimized_dispatch_call(SEL sel, int argc,
 		std::vector<Value *> &params);
-	Value *compile_ivar_read(ID vid);
+	Value *compile_lvar_assignment(ID vid, Value *val);
+	Value *compile_dvar_assignment(ID vid, Value *val);
+	Value *compile_lvar_get(ID vid);
 	Value *compile_ivar_assignment(ID vid, Value *val);
+	Value *compile_ivar_get(ID vid);
 	Value *compile_cvar_assignment(ID vid, Value *val);
 	Value *compile_cvar_get(ID vid, bool check);
 	Value *compile_gvar_assignment(NODE *node, Value *val);
+	Value *compile_gvar_get(NODE *node);
 	Value *compile_constant_declaration(NODE *node, Value *val);
 	Value *compile_multiple_assignment(NODE *node, Value *val);
 	void compile_multiple_assignment_element(NODE *node, Value *val);
@@ -430,7 +443,7 @@ class RoxorAOTCompiler : public RoxorCompiler {
     public:
 	RoxorAOTCompiler(void);
 
-	Function *compile_main_function(NODE *node);
+	Function *compile_main_function(NODE *node, bool *can_be_interpreted);
 
     private:
 	std::map<ID, GlobalVariable *> ccaches;

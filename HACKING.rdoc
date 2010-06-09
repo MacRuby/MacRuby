@@ -118,6 +118,9 @@ The following environment variables might help you debug easy bugs.
 
 * VM_DISABLE_RBO: set it to any value to disable the load of .rbo files.
 
+* VM_DISABLE_INTERPRETER: set it to any value to disable the use of the
+  builtin interpreter (generally used on cold paths).
+
 * VM_DUMP_IR: set it to any value to dump the LLVM IR on $stderr before the
   interpreter quits.
 

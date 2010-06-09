@@ -20,7 +20,11 @@
 #include "class.h"
 #include "objc.h"
 
-inline VALUE
+#ifndef PRIMITIVE
+#define PRIMITIVE
+#endif
+
+PRIMITIVE VALUE
 vm_ivar_get(VALUE obj, ID name, void *cache_p)
 {
     struct icache *cache = (struct icache *)cache_p;
@@ -61,7 +65,7 @@ find_slot:
     return rb_ivar_get(obj, name);
 }
 
-inline void
+PRIMITIVE void
 vm_ivar_set(VALUE obj, ID name, VALUE val, void *cache_p)
 {
     struct icache *cache = (struct icache *)cache_p; 
@@ -101,7 +105,7 @@ find_slot:
     rb_ivar_set(obj, name, val);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_cvar_get(VALUE klass, ID id, unsigned char check,
 	unsigned char dynamic_class)
 {
@@ -114,7 +118,7 @@ vm_cvar_get(VALUE klass, ID id, unsigned char check,
     return rb_cvar_get2(klass, id, check);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_cvar_set(VALUE klass, ID id, VALUE val, unsigned char dynamic_class)
 {
     if (dynamic_class) {
@@ -127,7 +131,7 @@ vm_cvar_set(VALUE klass, ID id, VALUE val, unsigned char dynamic_class)
     return val;
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_get_const(VALUE outer, void *cache_p, ID path, int flags)
 {
     struct ccache *cache = (struct ccache *) cache_p;
@@ -154,7 +158,7 @@ vm_get_const(VALUE outer, void *cache_p, ID path, int flags)
     return val;
 }
 
-inline void 
+PRIMITIVE void 
 vm_set_const(VALUE outer, ID id, VALUE obj, unsigned char dynamic_class)
 {
     if (dynamic_class) {
@@ -225,7 +229,7 @@ vm_class_of(VALUE obj)
     return CLASS_OF(obj);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_dispatch(VALUE top, VALUE self, void *sel, void *block, unsigned char opt,
 	int argc, VALUE *argv)
 {
@@ -248,7 +252,7 @@ vm_dispatch(VALUE top, VALUE self, void *sel, void *block, unsigned char opt,
 	    argv = new_argv;
 	}
 	if (argc == 0) {
-	    const char *selname = sel_getName(sel);
+	    const char *selname = sel_getName((SEL)sel);
 	    const size_t selnamelen = strlen(selname);
 	    if (selname[selnamelen - 1] == ':') {
 		// Because
@@ -268,7 +272,7 @@ vm_dispatch(VALUE top, VALUE self, void *sel, void *block, unsigned char opt,
 	    (rb_vm_block_t *)block, opt, argc, argv);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_yield_args(int argc, unsigned char opt, VALUE *argv)
 {
     VALUE buf[100];
@@ -289,25 +293,25 @@ vm_yield_args(int argc, unsigned char opt, VALUE *argv)
     return rb_vm_yield_args(vm, argc, argv);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_get_broken_value(void)
 {
     return rb_vm_get_broken_value(rb_vm_current_vm());
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_returned_from_block(int id)
 {
     return rb_vm_returned_from_block(rb_vm_current_vm(), id);
 }
 
-inline void
+PRIMITIVE void
 vm_release_ownership(VALUE obj)
 {
     rb_vm_release_ownership(obj);
 }
 
-inline void *
+PRIMITIVE void *
 vm_get_block(VALUE obj)
 {
     if (obj == Qnil) {
@@ -328,7 +332,7 @@ vm_get_block(VALUE obj)
 
 #define IMM2DBL(x) (FIXFLOAT_P(x) ? FIXFLOAT2DBL(x) : FIX2LONG(x))
 
-inline VALUE
+PRIMITIVE VALUE
 vm_fast_plus(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0 && NUMERIC_IMM_P(left) && NUMERIC_IMM_P(right)) {
@@ -346,7 +350,7 @@ vm_fast_plus(VALUE left, VALUE right, unsigned char overriden)
     return vm_dispatch(0, left, selPLUS, NULL, 0, 1, &right);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_fast_minus(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0 && NUMERIC_IMM_P(left) && NUMERIC_IMM_P(right)) {
@@ -364,7 +368,7 @@ vm_fast_minus(VALUE left, VALUE right, unsigned char overriden)
     return vm_dispatch(0, left, selMINUS, NULL, 0, 1, &right);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_fast_mult(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0 && NUMERIC_IMM_P(left) && NUMERIC_IMM_P(right)) {
@@ -382,7 +386,7 @@ vm_fast_mult(VALUE left, VALUE right, unsigned char overriden)
     return vm_dispatch(0, left, selMULT, NULL, 0, 1, &right);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_fast_div(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0 && NUMERIC_IMM_P(left) && NUMERIC_IMM_P(right)) {
@@ -408,7 +412,7 @@ vm_fast_div(VALUE left, VALUE right, unsigned char overriden)
     return vm_dispatch(0, left, selDIV, NULL, 0, 1, &right);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_fast_lt(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0 && NUMERIC_IMM_P(left) && NUMERIC_IMM_P(right)) {
@@ -422,7 +426,7 @@ vm_fast_lt(VALUE left, VALUE right, unsigned char overriden)
     return vm_dispatch(0, left, selLT, NULL, 0, 1, &right);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_fast_le(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0 && NUMERIC_IMM_P(left) && NUMERIC_IMM_P(right)) {
@@ -436,7 +440,7 @@ vm_fast_le(VALUE left, VALUE right, unsigned char overriden)
     return vm_dispatch(0, left, selLE, NULL, 0, 1, &right);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_fast_gt(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0 && NUMERIC_IMM_P(left) && NUMERIC_IMM_P(right)) {
@@ -450,7 +454,7 @@ vm_fast_gt(VALUE left, VALUE right, unsigned char overriden)
     return vm_dispatch(0, left, selGT, NULL, 0, 1, &right);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_fast_ge(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0 && NUMERIC_IMM_P(left) && NUMERIC_IMM_P(right)) {
@@ -464,7 +468,7 @@ vm_fast_ge(VALUE left, VALUE right, unsigned char overriden)
     return vm_dispatch(0, left, selGE, NULL, 0, 1, &right);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_fast_eq(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0) {
@@ -484,7 +488,7 @@ vm_fast_eq(VALUE left, VALUE right, unsigned char overriden)
     return vm_dispatch(0, left, selEq, NULL, 0, 1, &right);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_fast_eqq(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0) {
@@ -504,7 +508,7 @@ vm_fast_eqq(VALUE left, VALUE right, unsigned char overriden)
     return vm_dispatch(0, left, selEqq, NULL, 0, 1, &right);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_fast_neq(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0) {
@@ -524,7 +528,7 @@ vm_fast_neq(VALUE left, VALUE right, unsigned char overriden)
     return vm_dispatch(0, left, selNeq, NULL, 0, 1, &right);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_fast_aref(VALUE obj, VALUE other, unsigned char overriden)
 {
     if (overriden == 0 && !SPECIAL_CONST_P(obj)) {
@@ -541,7 +545,7 @@ vm_fast_aref(VALUE obj, VALUE other, unsigned char overriden)
     return vm_dispatch(0, obj, selAREF, NULL, 0, 1, &other);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_fast_aset(VALUE obj, VALUE other1, VALUE other2, unsigned char overriden)
 {
     if (overriden == 0 && !SPECIAL_CONST_P(obj)) {
@@ -560,7 +564,7 @@ vm_fast_aset(VALUE obj, VALUE other1, VALUE other2, unsigned char overriden)
     return vm_dispatch(0, obj, selASET, NULL, 0, 2, args);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_fast_shift(VALUE obj, VALUE other, unsigned char overriden)
 {
     if (overriden == 0 && !SPECIAL_CONST_P(obj)) {
@@ -577,7 +581,7 @@ vm_fast_shift(VALUE obj, VALUE other, unsigned char overriden)
     return vm_dispatch(0, obj, selLTLT, NULL, 0, 1, &other);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_when_splat(unsigned char overriden, VALUE comparedTo, VALUE splat)
 {
     VALUE ary = rb_check_convert_type(splat, T_ARRAY, "Array", "to_a");
@@ -594,109 +598,109 @@ vm_when_splat(unsigned char overriden, VALUE comparedTo, VALUE splat)
     return Qfalse;
 }
 
-inline void
+PRIMITIVE void
 vm_set_current_scope(VALUE mod, int scope)
 {
-    rb_vm_set_current_scope(mod, scope);
+    rb_vm_set_current_scope(mod, (rb_vm_scope_t)scope);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_ocval_to_rval(void *ocval)
 {
     return OC2RB(ocval);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_char_to_rval(char c)
 {
     return INT2FIX(c);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_uchar_to_rval(unsigned char c)
 {
     return INT2FIX(c);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_short_to_rval(short c)
 {
     return INT2FIX(c);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_ushort_to_rval(unsigned short c)
 {
     return INT2FIX(c);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_int_to_rval(int c)
 {
     return INT2FIX(c);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_uint_to_rval(unsigned int c)
 {
     return INT2FIX(c);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_long_to_rval(long l)
 {
     return LONG2NUM(l);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_ulong_to_rval(unsigned long l)
 {
     return ULONG2NUM(l);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_long_long_to_rval(long long l)
 {
     return LL2NUM(l);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_ulong_long_to_rval(unsigned long long l)
 {
     return ULL2NUM(l);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_float_to_rval(float f)
 {
     return DOUBLE2NUM(f);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_double_to_rval(double d)
 {
     return DOUBLE2NUM(d);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_sel_to_rval(void *sel)
 {
     return sel == 0 ? Qnil : ID2SYM(rb_intern(sel_getName((SEL)sel)));
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_charptr_to_rval(const char *ptr)
 {
     return ptr == NULL ? Qnil : rb_str_new2(ptr);
 }
 
-inline void
+PRIMITIVE void
 vm_rval_to_ocval(VALUE rval, void **ocval)
 {
     *ocval = rval == Qnil ? NULL : RB2OC(rval);
 }
 
-inline void
+PRIMITIVE void
 vm_rval_to_bool(VALUE rval, BOOL *ocval)
 {
     if (rval == Qfalse || rval == Qnil) {
@@ -726,14 +730,14 @@ rval_to_c_str(VALUE rval)
     }
 }
 
-inline void
+PRIMITIVE void
 vm_rval_to_sel(VALUE rval, void **ocval)
 {
     const char *cstr = rval_to_c_str(rval);
     *(SEL *)ocval = cstr == NULL ? NULL : sel_registerName(cstr);
 }
 
-inline void
+PRIMITIVE void
 vm_rval_to_charptr(VALUE rval, const char **ocval)
 {
     *ocval = rval_to_c_str(rval);
@@ -769,7 +773,7 @@ rval_to_double(VALUE rval)
     return RFLOAT_VALUE(rb_Float(bool_to_fix(rval)));
 }
 
-inline void
+PRIMITIVE void
 vm_rval_to_char(VALUE rval, char *ocval)
 {
     if (TYPE(rval) == T_STRING && RSTRING_LEN(rval) == 1) {
@@ -780,7 +784,7 @@ vm_rval_to_char(VALUE rval, char *ocval)
     }
 }
 
-inline void
+PRIMITIVE void
 vm_rval_to_uchar(VALUE rval, unsigned char *ocval)
 {
     if (TYPE(rval) == T_STRING && RSTRING_LEN(rval) == 1) {
@@ -791,67 +795,67 @@ vm_rval_to_uchar(VALUE rval, unsigned char *ocval)
     }
 }
 
-inline void
+PRIMITIVE void
 vm_rval_to_short(VALUE rval, short *ocval)
 {
     *ocval = (short)rval_to_long(rval);
 }
 
-inline void
+PRIMITIVE void
 vm_rval_to_ushort(VALUE rval, unsigned short *ocval)
 {
     *ocval = (unsigned short)rval_to_long(rval);
 }
 
-inline void
+PRIMITIVE void
 vm_rval_to_int(VALUE rval, int *ocval)
 {
     *ocval = (int)rval_to_long(rval);
 }
 
-inline void
+PRIMITIVE void
 vm_rval_to_uint(VALUE rval, unsigned int *ocval)
 {
     *ocval = (unsigned int)rval_to_long(rval);
 }
 
-inline void
+PRIMITIVE void
 vm_rval_to_long(VALUE rval, long *ocval)
 {
     *ocval = (long)rval_to_long(rval);
 }
 
-inline void
+PRIMITIVE void
 vm_rval_to_ulong(VALUE rval, unsigned long *ocval)
 {
     *ocval = (unsigned long)rval_to_long(rval);
 }
 
-inline void
+PRIMITIVE void
 vm_rval_to_long_long(VALUE rval, long long *ocval)
 {
     *ocval = (long long)rval_to_long_long(rval);
 }
 
-inline void
+PRIMITIVE void
 vm_rval_to_ulong_long(VALUE rval, unsigned long long *ocval)
 {
     *ocval = (unsigned long long)rval_to_long_long(rval);
 }
 
-inline void
+PRIMITIVE void
 vm_rval_to_double(VALUE rval, double *ocval)
 {
     *ocval = (double)rval_to_double(rval);
 }
 
-inline void
+PRIMITIVE void
 vm_rval_to_float(VALUE rval, float *ocval)
 {
     *ocval = (float)rval_to_double(rval);
 }
 
-inline void *
+PRIMITIVE void *
 vm_rval_to_cptr(VALUE rval, const char *type, void **cptr)
 {
     if (NIL_P(rval)) {
@@ -869,7 +873,7 @@ vm_rval_to_cptr(VALUE rval, const char *type, void **cptr)
     return *cptr;
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_to_a(VALUE obj)
 {
     VALUE ary = rb_check_convert_type(obj, T_ARRAY, "Array", "to_a");
@@ -879,7 +883,7 @@ vm_to_a(VALUE obj)
     return ary;
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_to_ary(VALUE obj)
 {
     VALUE ary = rb_check_convert_type(obj, T_ARRAY, "Array", "to_ary");
@@ -889,7 +893,7 @@ vm_to_ary(VALUE obj)
     return ary;
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_ary_cat(VALUE ary, VALUE obj)
 {
     VALUE ary2 = rb_check_convert_type(obj, T_ARRAY, "Array", "to_a");
@@ -902,13 +906,13 @@ vm_ary_cat(VALUE ary, VALUE obj)
     return ary;
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_ary_dup(VALUE ary)
 {
     return rb_ary_dup(ary);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_rary_new(int len)
 {
     VALUE ary = rb_ary_new2(len);
@@ -916,25 +920,25 @@ vm_rary_new(int len)
     return ary;
 }
 
-inline void
+PRIMITIVE void
 vm_rary_aset(VALUE ary, int i, VALUE obj)
 {
     rary_elt_set(ary, i, obj);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_rhash_new(void)
 {
     return rb_hash_new();
 }
 
-inline void
+PRIMITIVE void
 vm_rhash_store(VALUE hash, VALUE key, VALUE obj)
 {
     rhash_store(hash, key, obj);
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_masgn_get_elem_before_splat(VALUE ary, int offset)
 {
     if (offset < RARRAY_LEN(ary)) {
@@ -943,7 +947,7 @@ vm_masgn_get_elem_before_splat(VALUE ary, int offset)
     return Qnil;
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_masgn_get_elem_after_splat(VALUE ary, int before_splat_count,
 	int after_splat_count, int offset)
 {
@@ -961,7 +965,7 @@ vm_masgn_get_elem_after_splat(VALUE ary, int before_splat_count,
     return Qnil;
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_masgn_get_splat(VALUE ary, int before_splat_count, int after_splat_count)
 {
     const int len = RARRAY_LEN(ary);
@@ -974,7 +978,7 @@ vm_masgn_get_splat(VALUE ary, int before_splat_count, int after_splat_count)
     }
 }
 
-inline VALUE
+PRIMITIVE VALUE
 vm_get_special(char code)
 {
     VALUE backref = rb_backref_get();

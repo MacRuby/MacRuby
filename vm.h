@@ -683,6 +683,7 @@ class RoxorCore {
 	pthread_mutex_t gl;
 
 	// State.
+	bool interpreter_enabled;
 	bool inlining_enabled;
 	bool optims_enabled;
 	bool running;
@@ -751,6 +752,7 @@ class RoxorCore {
 	ACCESSOR(running, bool);
 	ACCESSOR(abort_on_exception, bool);
 	ACCESSOR(default_random, VALUE);
+	READER(interpreter_enabled, bool);
 	READER(loaded_features, VALUE);
 	READER(load_path, VALUE);
 	READER(threads, VALUE);

@@ -48,6 +48,7 @@ using namespace llvm;
 #include "vm.h"
 #include "compiler.h"
 #include "debugger.h"
+#include "interpreter.h"
 #include "objc.h"
 #include "dtrace.h"
 #include "class.h"
@@ -325,6 +326,8 @@ RoxorCore::RoxorCore(void)
     jmm = new RoxorJITManager;
 
     InitializeNativeTarget();
+
+    interpreter_enabled = getenv("VM_DISABLE_INTERPRETER") == NULL;
 
     CodeGenOpt::Level opt = CodeGenOpt::Default;
     inlining_enabled = false;
@@ -3640,31 +3643,46 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
     bool old_inside_eval = compiler->is_inside_eval();
     compiler->set_inside_eval(inside_eval);
     compiler->set_fname(fname);
-    Function *function = compiler->compile_main_function(node);
-    compiler->set_fname(NULL);
+    bool can_interpret = false;
+    Function *func = compiler->compile_main_function(node, &can_interpret);
+    //compiler->set_fname(NULL);
     compiler->set_inside_eval(old_inside_eval);
     if (binding != NULL) {
 	vm->pop_current_binding();
     }
 
-    // Optimize & compile the function.
-    IMP imp = GET_CORE()->compile(function);
+    VALUE ret;
 
-    // Register it for symbolication.
-    rb_vm_method_node_t *mnode = GET_CORE()->method_node_get(imp, true);
-    mnode->klass = 0;
-    mnode->arity = rb_vm_arity(2);
-    mnode->sel = sel_registerName("<main>");
-    mnode->objc_imp = mnode->ruby_imp = imp;
-    mnode->flags = 0;
+    if (can_interpret && GET_CORE()->get_interpreter_enabled()) {
+//printf("interpret:\n");
+//func->dump();
+	// If the function can be interpreted, do it, then delete the IR.
+	ret = RoxorInterpreter::shared->interpret(func,
+		vm->get_current_top_object(), 0);
+ 	func->eraseFromParent();
+    }
+    else {
+//printf("jit:\n");
+//func->dump();
+	// Optimize & compile the function.
+	IMP imp = GET_CORE()->compile(func);
 
-    // Execute the function.
-    VALUE ret = ((VALUE(*)(VALUE, SEL))imp)(vm->get_current_top_object(), 0);
+	// Register it for symbolication.
+	rb_vm_method_node_t *mnode = GET_CORE()->method_node_get(imp, true);
+	mnode->klass = 0;
+	mnode->arity = rb_vm_arity(2);
+	mnode->sel = sel_registerName("<main>");
+	mnode->objc_imp = mnode->ruby_imp = imp;
+	mnode->flags = 0;
 
-    if (inside_eval) {
-	// XXX We only delete functions created by #eval. In theory it should
-	// also work for other functions, but it makes spec:ci crash.
-	GET_CORE()->delenda(function);
+	// Execute the function.
+	ret = ((VALUE(*)(VALUE, SEL))imp)(vm->get_current_top_object(), 0);
+
+	if (inside_eval) {
+	    // XXX We only delete functions created by #eval. In theory it
+	    // should also work for other functions, but it makes spec:ci crash.
+	    GET_CORE()->delenda(func);
+	}
     }
 
     rb_node_release(node);
@@ -3726,7 +3744,7 @@ rb_vm_aot_compile(NODE *node)
 
     // Compile the program as IR.
     RoxorCompiler::shared->set_fname(RSTRING_PTR(rb_progname));
-    Function *f = RoxorCompiler::shared->compile_main_function(node);
+    Function *f = RoxorCompiler::shared->compile_main_function(node, NULL);
     f->setName(RSTRING_PTR(ruby_aot_init_func));
 
     // Force a module verification.
@@ -4593,6 +4611,7 @@ Init_PreVM(void)
     assert(RoxorCompiler::module != NULL);
 
     RoxorCompiler::module->setTargetTriple(TARGET_TRIPLE);
+    RoxorInterpreter::shared = new RoxorInterpreter();
     RoxorCore::shared = new RoxorCore();
     RoxorVM::main = new RoxorVM();
 
