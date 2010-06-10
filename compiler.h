@@ -105,7 +105,6 @@ class RoxorCompiler {
 	BasicBlock *entry_bb;
 	ID current_mid;
 	rb_vm_arity_t current_arity;
-	bool current_instance_method;
 	ID self_id;
 	Value *current_self;
 	bool current_block;
@@ -125,7 +124,6 @@ class RoxorCompiler {
 	Function *current_non_block_func;
 	GlobalVariable *current_opened_class;
 	bool dynamic_class;
-	bool current_module;
 	BasicBlock *current_loop_begin_bb;
 	BasicBlock *current_loop_body_bb;
 	BasicBlock *current_loop_end_bb;

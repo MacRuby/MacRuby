@@ -54,7 +54,6 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     ensure_bb = NULL;
     current_mid = 0;
     current_arity = rb_vm_arity(-1);
-    current_instance_method = false;
     self_id = rb_intern("self");
     current_self = NULL;
     current_var_uses = NULL;
@@ -67,7 +66,6 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     current_non_block_func = NULL;
     current_opened_class = NULL;
     dynamic_class = false;
-    current_module = false;
     current_loop_begin_bb = NULL;
     current_loop_body_bb = NULL;
     current_loop_end_bb = NULL;
@@ -604,7 +602,6 @@ RoxorCompiler::compile_method_definition(NODE *node)
 
     const ID old_current_mid = current_mid;
     current_mid = mid;
-    current_instance_method = !singleton_method;
     const bool old_current_block_chain = current_block_chain;
     current_block_chain = false;
     const bool old_block_declaration = block_declaration;
@@ -621,7 +618,6 @@ RoxorCompiler::compile_method_definition(NODE *node)
     block_declaration = old_block_declaration;
     current_block_chain = old_current_block_chain;
     current_mid = old_current_mid;
-    current_instance_method = false;
 
     Value *classVal;
     if (singleton_method) {
@@ -3714,7 +3710,6 @@ RoxorCompiler::compile_node0(NODE *node)
 				*RoxorCompiler::module, RubyObjTy, false,
 				GlobalValue::InternalLinkage, nilVal, "");
 
-			bool old_current_module = current_module;
 			bool old_current_block_chain = current_block_chain;
 			bool old_dynamic_class = dynamic_class;
 
@@ -3722,8 +3717,6 @@ RoxorCompiler::compile_node0(NODE *node)
 			dynamic_class = false;
 
 			new StoreInst(classVal, current_opened_class, bb);
-
-			current_module = nd_type(node) == NODE_MODULE;
 
 			compile_set_current_scope(classVal, publicScope);
 
@@ -3755,7 +3748,6 @@ RoxorCompiler::compile_node0(NODE *node)
 
 			current_self = old_self;
 			current_opened_class = old_class;
-			current_module = old_current_module;
 			current_block_chain = old_current_block_chain;
 
 			return val;
@@ -4639,7 +4631,6 @@ RoxorCompiler::set_fname(const char *_fname)
 Function *
 RoxorCompiler::compile_main_function(NODE *node, bool *can_interpret_p)
 {
-    current_instance_method = true;
     should_interpret = true;
     can_interpret = false;
 
@@ -4657,8 +4648,6 @@ RoxorCompiler::compile_main_function(NODE *node, bool *can_interpret_p)
 Function *
 RoxorAOTCompiler::compile_main_function(NODE *node, bool *can_be_interpreted)
 {
-    current_instance_method = true;
-
     Value *val = compile_node(node);
     assert(Function::classof(val));
     Function *function = cast<Function>(val);
