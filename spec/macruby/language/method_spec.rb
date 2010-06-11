@@ -35,6 +35,13 @@ describe "A pure MacRuby method" do
     lambda { eval("def foo(x, with:y, z); end") }.should raise_error(SyntaxError)
   end
 
+  it "can be called with reserved words as keyword arguments" do
+    def @o.doSomething(x, in: y); x + y; end
+    @o.doSomething(40, in: 2).should == 42
+    @o.performSelector(:'doSomething:in:', withObject: 40, withObject: 2).should == 42
+    @o.send(:'doSomething:in:', 40, 2).should == 42
+  end
+
   it "can be called using argument-names + colon + variable syntax" do
     def @o.doSomething(x, withObject:y, withObject:z); x + y + z; end
     @o.doSomething(30, withObject:10, withObject:2).should == 42
