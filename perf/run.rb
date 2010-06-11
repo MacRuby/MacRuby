@@ -1,7 +1,7 @@
 #!/usr/bin/ruby
 
 def usage
-  puts "ruby #{$0} [--rubies=...] [--iterations=n] [perf_suite, [perf_suite...]]"
+  puts "ruby #{$0} [--rubies=...] [--iterations=n] [--displayTotal] [perf_suite, [perf_suite...]]"
   exit 0
 end
 
@@ -11,6 +11,7 @@ cwd = File.dirname(__FILE__)
 perf_files = []
 rubies = []
 n_iterations = 3
+totals = nil
 ARGV.each do |arg|
   if arg.match(/--help/)
     usage
@@ -22,6 +23,8 @@ ARGV.each do |arg|
       $stderr.puts "n_iterations must be greater than zero"
       exit 1
     end
+  elsif arg == '-t' or arg == '--displayTotal'
+    totals = {}
   else
     name, suite = arg.split(':', 2)
     perf_files << [File.join(cwd, "perf_#{name}.rb"), suite]
@@ -56,6 +59,10 @@ perf_files.each do |file, suite|
       best = times.split(/,/).min
       results[title] ||= []
       results[title] << {:ruby => ruby, :best => best}
+      if totals
+        totals[ruby] = 0.0 if totals[ruby].nil?
+        totals[ruby] += best.to_f unless best == 'ERROR'
+      end
     end
   end
   prefix = File.basename(file).scan(/perf_(\w+)\.rb/)[0][0]
@@ -79,4 +86,11 @@ perf_files.each do |file, suite|
     end
     puts ''
   end
+end
+
+if totals
+  puts '-' * header_string.length
+  footer_string = 'Total'.ljust(20)
+  rubies.each { |x| footer_string += totals[x].to_s.ljust(20) }
+  puts footer_string
 end
