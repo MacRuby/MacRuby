@@ -6,7 +6,7 @@
 # Copyright ÇORGANIZATIONNAMEÈ ÇYEARÈ. All rights reserved.
 #
 
-framework 'AppKit'
+framework 'Cocoa'
 
 class PrefPane < NSPreferencePane
 
