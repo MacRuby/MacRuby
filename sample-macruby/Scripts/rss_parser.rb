@@ -53,7 +53,7 @@ class RSSParser
   # Starts the parsing and send each parsed item through its block.
   #
   # Usage:
-  #   feed.block_while_parsing do |item|
+  #   feed.parse do |item|
   #     puts item.link
   #   end
   def parse(&block)
@@ -91,7 +91,7 @@ class RSSParser
   def parser(parser, foundCharacters:string)
     if @current_item && @current_item.respond_to?(@current_element)
       el = @current_item.send(@current_element) 
-      el << string
+      el << string if el.respond_to?(:<<)
     end
   end
   
