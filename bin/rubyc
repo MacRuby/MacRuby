@@ -65,6 +65,13 @@ class Compiler
     # Misc.
     @tmpdir = (ENV['TMPDIR'] or '/tmp')
     @tmpfiles = []
+
+    @llc_flags = '-relocation-model=pic '
+    if system("#{@llc} -help | grep jit-enable-eh >& /dev/null")
+      @llc_flags << '-jit-enable-eh'
+    else
+      @llc_flags << '-enable-eh'
+    end
   end
 
   def run
@@ -134,7 +141,7 @@ class Compiler
 
       # Compile the bitcode as assembly.
       asm = gen_tmpfile(base + arch, 's')
-      execute("#{@llc} -f \"#{bc}\" -o=\"#{asm}\" -march=#{llc_arch(arch)} -relocation-model=pic -enable-eh")
+      execute("#{@llc} \"#{bc}\" -o=\"#{asm}\" -march=#{llc_arch(arch)} #{@llc_flags}")
 
       # Compile the assembly.
       tmp_obj = gen_tmpfile(base + arch, 'o')

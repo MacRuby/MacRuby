@@ -14,7 +14,9 @@
 #include <llvm/Constants.h>
 #include <llvm/CallingConv.h>
 #include <llvm/Instructions.h>
-#include <llvm/ModuleProvider.h>
+#if !defined(LLVM_TOT)
+# include <llvm/ModuleProvider.h>
+#endif
 #include <llvm/PassManager.h>
 #include <llvm/Analysis/DebugInfo.h>
 #include <llvm/Analysis/Verifier.h>
@@ -207,16 +209,6 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 	    return mm->getGOTBase();
 	}
 
-#if defined(LLVM_TOT) || defined(LLVM_PRE_TOT)
-	void SetDlsymTable(void *ptr) {
-	    mm->SetDlsymTable(ptr);
-	}
-
-	void *getDlsymTable() const {
-	    return mm->getDlsymTable();
-	}
-#endif
-
 	uint8_t *startFunctionBody(const Function *F, 
 		uintptr_t &ActualSize) {
 	    return mm->startFunctionBody(F, ActualSize);
@@ -263,8 +255,7 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 
 	void NotifyFunctionEmitted(const Function &F,
 		void *Code, size_t Size,
-		const EmittedFunctionDetails &Details)
-	{
+		const EmittedFunctionDetails &Details) {
 	    RoxorFunction *function = current_function();
 
 	    std::string path;
@@ -312,19 +303,21 @@ RoxorCore::RoxorCore(void)
     default_random = Qnil;
 
     load_path = rb_ary_new();
-    rb_objc_retain((void *)load_path);
+    GC_RETAIN(load_path);
 
     loaded_features = rb_ary_new();
-    rb_objc_retain((void *)loaded_features);
+    GC_RETAIN(loaded_features);
 
     threads = rb_ary_new();
-    rb_objc_retain((void *)threads);
+    GC_RETAIN(threads);
 
     bs_parser = NULL;
 
     llvm_start_multithreaded();
 
+#if !defined(LLVM_TOT)
     emp = new ExistingModuleProvider(RoxorCompiler::module);
+#endif
     jmm = new RoxorJITManager;
 
     InitializeNativeTarget();
@@ -358,7 +351,12 @@ RoxorCore::RoxorCore(void)
     }
 
     std::string err;
+#if LLVM_TOT
+    ee = ExecutionEngine::createJIT(RoxorCompiler::module, &err, jmm, opt,
+	    false);
+#else
     ee = ExecutionEngine::createJIT(emp, &err, jmm, opt, false);
+#endif
     if (ee == NULL) {
 	fprintf(stderr, "error while creating JIT: %s\n", err.c_str());
 	abort();
@@ -366,7 +364,11 @@ RoxorCore::RoxorCore(void)
     ee->DisableLazyCompilation();
     ee->RegisterJITEventListener(jmm);
 
+#if LLVM_TOT
+    fpm = new FunctionPassManager(RoxorCompiler::module);
+#else
     fpm = new FunctionPassManager(emp);
+#endif
     fpm->add(new TargetData(*ee->getTargetData()));
 
     // Do simple "peephole" optimizations and bit-twiddling optzns.
@@ -452,7 +454,7 @@ RoxorVM::RoxorVM(const RoxorVM &vm)
 	    GC_WB(&b->locals, orig->locals);
 	    GC_WB(&b->parent_block, orig->parent_block);  // XXX not sure
 #endif
-	    rb_objc_retain(b);
+	    GC_RETAIN(b);
 	    blocks[block_cache_key(orig)] = b;
 	}
 	current_blocks.push_back(b);
@@ -467,7 +469,7 @@ RoxorVM::RoxorVM(const RoxorVM &vm)
     parse_in_eval = false;
     has_ensure = false;
     return_from_block = -1;
-    throw_exc = NULL;
+    special_exc = NULL;
     current_super_class = NULL;
     current_super_sel = 0;
 
@@ -3175,44 +3177,16 @@ void
 RoxorVM::push_current_exception(VALUE exc)
 {
     assert(!NIL_P(exc));
-    rb_objc_retain((void *)exc);
+    GC_RETAIN(exc);
     current_exceptions.push_back(exc);
 //printf("PUSH %p %s\n", (void *)exc, RSTRING_PTR(rb_inspect(exc)));
-}
-
-class RoxorThreadRaiseException {
-};
-
-static inline bool
-current_exception_is_return_from_block(void)
-{
-    const std::type_info *exc_type = __cxa_current_exception_type();
-    return exc_type != NULL
-	&& *exc_type == typeid(RoxorReturnFromBlockException *);
-}
-
-static inline bool
-current_exception_is_catch_throw(void)
-{
-    const std::type_info *exc_type = __cxa_current_exception_type();
-    return exc_type != NULL
-	&& *exc_type == typeid(RoxorCatchThrowException *);
-}
-
-static inline bool
-current_exception_is_thread_raise(void)
-{
-    const std::type_info *exc_type = __cxa_current_exception_type();
-    return exc_type != NULL
-	&& *exc_type == typeid(RoxorThreadRaiseException *);
 }
 
 void
 RoxorVM::pop_current_exception(int pos)
 {
-    if (current_exception_is_return_from_block()
-	|| current_exception_is_catch_throw()
-	|| current_exception_is_thread_raise()) {
+    RoxorSpecialException *sexc = get_special_exc();
+    if (sexc != NULL) {
 	return;
     }
 
@@ -3222,7 +3196,7 @@ RoxorVM::pop_current_exception(int pos)
     VALUE exc = *iter;
     current_exceptions.erase(iter);
 
-    rb_objc_release((void *)exc);
+    GC_RELEASE(exc);
 //printf("POP (%d) %p %s\n", pos, (void *)exc, RSTRING_PTR(rb_inspect(exc)));
 }
 
@@ -3257,7 +3231,7 @@ void
 rb_vm_raise(VALUE exception)
 {
     rb_iv_set(exception, "bt", rb_vm_backtrace(0));
-    rb_objc_retain((void *)exception);
+    GC_RETAIN(exception);
     GET_VM()->push_current_exception(exception);
     __vm_raise();
 }
@@ -3381,6 +3355,7 @@ rb_vm_return_from_block(VALUE val, int id, rb_vm_block_t *running_block)
     if (vm->get_has_ensure() || (running_block->flags & VM_BLOCK_PROC)) {
 	RoxorReturnFromBlockException *exc =
 	    new RoxorReturnFromBlockException();
+	vm->set_special_exc(exc);
 	exc->val = val;
 	exc->id = id;
 	throw exc;
@@ -3410,11 +3385,14 @@ extern "C"
 VALUE
 rb_vm_check_return_from_block_exc(RoxorReturnFromBlockException **pexc, int id)
 {
-    if (current_exception_is_return_from_block()) {
+    RoxorVM *vm = GET_VM();
+    RoxorSpecialException *sexc = vm->get_special_exc();
+    if (sexc != NULL && sexc->type == RETURN_FROM_BLOCK_EXCEPTION) {
 	RoxorReturnFromBlockException *exc = *pexc;
 	if (id == -1 || exc->id == id) {
 	    VALUE val = exc->val;
 	    delete exc;
+	    vm->set_special_exc(NULL);
 	    return val;
 	}
     }
@@ -3963,30 +3941,27 @@ RoxorVM::ruby_catch(VALUE tag)
 {
     VALUE retval = Qundef;
 
-    this->increase_nesting_for_tag(tag);
+    increase_nesting_for_tag(tag);
     try {
 	retval = rb_vm_yield(1, &tag);
     }
     catch (...) {
-	// Cannot catch "RoxorCatchThrowException *exc", otherwise the program
-	// will crash when trying to interpret ruby exceptions.
-	// So we catch ... instead, and retrieve the exception from the VM.
-	std::type_info *t = __cxa_current_exception_type();
-	if (t != NULL && *t == typeid(RoxorCatchThrowException *)) {
-	    RoxorCatchThrowException *exc = GET_VM()->get_throw_exc();
-	    if (exc != NULL && exc->throw_symbol == tag) {
+	RoxorSpecialException *sexc = get_special_exc();
+	if (sexc != NULL && sexc->type == CATCH_THROW_EXCEPTION) {
+	    RoxorCatchThrowException *exc = (RoxorCatchThrowException *)sexc;
+	    if (exc->throw_symbol == tag) {
 		retval = exc->throw_value;
 		GC_RELEASE(retval);
 		delete exc;
-		GET_VM()->set_throw_exc(NULL);
+		set_special_exc(NULL);
 	    }
 	}
 	if (retval == Qundef) {
-	    this->decrease_nesting_for_tag(tag);
+	    decrease_nesting_for_tag(tag);
 	    throw;
 	}
     }
-    this->decrease_nesting_for_tag(tag); 
+    decrease_nesting_for_tag(tag); 
 
     return retval;
 }
@@ -4016,11 +3991,9 @@ RoxorVM::ruby_throw(VALUE tag, VALUE value)
     }
 
     RoxorCatchThrowException *exc = new RoxorCatchThrowException;
+    set_special_exc(exc);
     exc->throw_symbol = tag;
     exc->throw_value = value;
-    // There is no way - yet - to retrieve the exception from the ABI
-    // So instead, we store the exception in the VM
-    set_throw_exc(exc);
     throw exc;
 
     return Qnil; // Never reached;
@@ -4251,14 +4224,17 @@ rb_vm_thread_run(VALUE thread)
 
     pthread_cleanup_push(rb_vm_thread_destructor, (void *)thread);
 
+    RoxorVM *vm = GET_VM();
     try {
 	VALUE val = rb_vm_block_eval(t->body, t->argc, t->argv);
 	GC_WB(&t->value, val);
     }
     catch (...) {
 	VALUE exc;
-	if (current_exception_is_return_from_block()) {
-	    // TODO: the exception is leaking!
+	RoxorSpecialException *sexc = vm->get_special_exc();
+	if (sexc != NULL && sexc->type == RETURN_FROM_BLOCK_EXCEPTION) {
+	    delete sexc;
+	    vm->set_special_exc(NULL);
 	    exc = rb_exc_new2(rb_eLocalJumpError,
 		    "unexpected return from Thread");
 	}
@@ -4580,7 +4556,11 @@ void
 Init_PreVM(void)
 {
     // To emit DWARF exception tables. 
+#if LLVM_TOT
+    llvm::JITExceptionHandling = true;
+#else
     llvm::DwarfExceptionHandling = true; 
+#endif
     // To emit DWARF debug metadata. 
     llvm::JITEmitDebugInfo = true; 
     // To not interfere with our signal handling mechanism.

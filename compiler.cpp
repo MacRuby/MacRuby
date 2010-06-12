@@ -700,7 +700,7 @@ RoxorCompiler::attach_current_line_metadata(Instruction *insn)
 	DILocation loc = debug_info->CreateLocation(current_line, 0,
 		debug_compile_unit, DILocation(NULL));
 #if LLVM_TOT
-	insn->setMetadata(dbg_mdkind, loc.getNode());
+	insn->setMetadata(dbg_mdkind, loc);
 	//insn->setDebugLoc(DebugLoc::getFromDILocation(loc.getNode()));
 #else
 	context.getMetadata().addMD(dbg_mdkind, loc.getNode(), insn);
@@ -1719,8 +1719,6 @@ RoxorCompiler::compile_return_from_block(Value *val, int id)
 void
 RoxorCompiler::compile_return_from_block_handler(int id)
 {
-    //const std::type_info &eh_type = typeid(RoxorReturnFromBlockException *);
-    //Value *exception = compile_landing_pad_header(eh_type);
     Value *exception = compile_landing_pad_header();
 
     if (checkReturnFromBlockFunc == NULL) {
@@ -1905,12 +1903,6 @@ RoxorCompiler::compile_class_path(NODE *node, int *flags)
 Value *
 RoxorCompiler::compile_landing_pad_header(void)
 {
-    return compile_landing_pad_header(typeid(void));
-}
-
-Value *
-RoxorCompiler::compile_landing_pad_header(const std::type_info &eh_type)
-{
     Function *eh_exception_f = Intrinsic::getDeclaration(module,
 	    Intrinsic::eh_exception);
     Value *eh_ptr = CallInst::Create(eh_exception_f, "", bb);
@@ -1928,41 +1920,10 @@ RoxorCompiler::compile_landing_pad_header(const std::type_info &eh_type)
     }
     params.push_back(ConstantExpr::getBitCast(__gxx_personality_v0_func, PtrTy));
 
-    if (eh_type == typeid(void)) {
-	// catch (...)
-	params.push_back(compile_const_pointer(NULL));
-    }
-    else {
-	// catch (eh_type &exc)
-	params.push_back(compile_const_pointer((void *)&eh_type));
-	params.push_back(compile_const_pointer(NULL));
-    }
+    // catch (...)
+    params.push_back(compile_const_pointer(NULL));
 
-    Value *eh_sel = CallInst::Create(eh_selector_f, params.begin(),
-	    params.end(), "", bb);
-
-    if (eh_type != typeid(void)) {
-	// TODO: this doesn't work yet, the type id must be a GlobalVariable...
-	Function *eh_typeid_for_f = Intrinsic::getDeclaration(module,
-		Intrinsic::eh_typeid_for);
-	std::vector<Value *> params;
-	params.push_back(compile_const_pointer((void *)&eh_type));
-
-	Value *eh_typeid = CallInst::Create(eh_typeid_for_f, params.begin(),
-		params.end(), "", bb);
-
-	Function *f = bb->getParent();
-	BasicBlock *typeok_bb = BasicBlock::Create(context, "typeok", f);
-	BasicBlock *nocatch_bb  = BasicBlock::Create(context, "nocatch", f);
-	Value *need_ret = new ICmpInst(*bb, ICmpInst::ICMP_EQ, eh_sel,
-		eh_typeid);
-	BranchInst::Create(typeok_bb, nocatch_bb, need_ret, bb);
-
-	bb = nocatch_bb;
-	compile_rethrow_exception();
-
-	bb = typeok_bb;
-    }
+    CallInst::Create(eh_selector_f, params.begin(), params.end(), "", bb);
 
     Function *beginCatchFunc = NULL;
     if (beginCatchFunc == NULL) {
@@ -2469,10 +2430,18 @@ RoxorCompiler::inline_function_calls(Function *f)
 	}
     }
 
+#if LLVM_TOT
+    InlineFunctionInfo IFI;
+    for (std::vector<CallInst *>::iterator i = insns.begin();
+	    i != insns.end(); ++i) {
+	InlineFunction(*i, IFI);
+    }
+#else
     for (std::vector<CallInst *>::iterator i = insns.begin();
 	    i != insns.end(); ++i) {
 	InlineFunction(*i);
     }
+#endif
 }
 
 Function *
@@ -2774,6 +2743,20 @@ RoxorCompiler::compile_scope(NODE *node)
 
 	    // Transform the InvokeInst in CallInst.
 	    std::vector<Value *> params;
+#if LLVM_TOT
+	    for (unsigned i = 0; i < invoke->getNumOperands() - 3; i++) {
+		params.push_back(invoke->getOperand(i));
+	    }
+	    CallInst *call_inst = CallInst::Create(
+		    invoke->getCalledValue(),
+		    params.begin(), params.end(),
+		    "",
+		    invoke);
+
+	    invoke->replaceAllUsesWith(call_inst);
+	    BasicBlock *normal_bb = dyn_cast<BasicBlock>
+		(invoke->getNormalDest());
+#else
 	    for (InvokeInst::op_iterator op_it = invoke->op_begin()+3;
 		    op_it != invoke->op_end(); ++op_it) {
 		params.push_back(op_it->get());
@@ -2786,6 +2769,7 @@ RoxorCompiler::compile_scope(NODE *node)
 
 	    invoke->replaceAllUsesWith(call_inst);
 	    BasicBlock *normal_bb = dyn_cast<BasicBlock>(invoke->getOperand(1));
+#endif
 	    assert(normal_bb != NULL);
 	    BranchInst::Create(normal_bb, invoke);
 	    invoke->eraseFromParent();

@@ -666,7 +666,9 @@ class RoxorCore {
 
     private:
 	// LLVM objects.
+#if !defined(LLVM_TOT)
 	ExistingModuleProvider *emp;
+#endif
 	RoxorJITManager *jmm;
 	ExecutionEngine *ee;
 	FunctionPassManager *fpm;
@@ -904,18 +906,43 @@ typedef enum {
     METHOD_MISSING_SUPER
 } rb_vm_method_missing_reason_t;
 
-// Custom C++ exception class for catch/throw blocks.
-class RoxorCatchThrowException {
+// MacRuby doesn't compile with rtti so we make our own.
+#define CATCH_THROW_EXCEPTION		1
+#define RETURN_FROM_BLOCK_EXCEPTION	2
+#define THREAD_RAISE_EXCEPTION		3
+
+class RoxorSpecialException {
+    public:
+	int type;
+
+	RoxorSpecialException(int _type) { type = _type; }
+};
+
+// Custom C++ exception class used to implement catch/throw.
+class RoxorCatchThrowException : public RoxorSpecialException {
     public:
 	VALUE throw_symbol;
 	VALUE throw_value;
+
+	RoxorCatchThrowException()
+	    : RoxorSpecialException(CATCH_THROW_EXCEPTION) {}
 };
 
 // Custom C++ exception class used to implement "return-from-block".
-class RoxorReturnFromBlockException {
+class RoxorReturnFromBlockException : public RoxorSpecialException {
     public:
 	VALUE val;
 	int id;
+
+	RoxorReturnFromBlockException()
+	    : RoxorSpecialException(RETURN_FROM_BLOCK_EXCEPTION) {}
+};
+
+// Custom C++ exception class used to implement thread cancelation.
+class RoxorThreadRaiseException : public RoxorSpecialException {
+    public:
+	RoxorThreadRaiseException()
+	    : RoxorSpecialException(THREAD_RAISE_EXCEPTION) {}
 };
 
 // The VM class is instantiated per thread. There is always at least one
@@ -972,7 +999,7 @@ class RoxorVM {
 	Class current_super_class;
 	SEL current_super_sel;	
 
-	RoxorCatchThrowException *throw_exc;
+	RoxorSpecialException *special_exc;
 
 	void increase_nesting_for_tag(VALUE tag);
 	void decrease_nesting_for_tag(VALUE tag);
@@ -994,7 +1021,7 @@ class RoxorVM {
 	ACCESSOR(parse_in_eval, bool);
 	ACCESSOR(has_ensure, bool);
 	ACCESSOR(return_from_block, int);
-	ACCESSOR(throw_exc, RoxorCatchThrowException *);
+	ACCESSOR(special_exc, RoxorSpecialException *);
 	ACCESSOR(current_super_class, Class);
 	ACCESSOR(current_super_sel, SEL);
 	READER(mcache, struct mcache *);

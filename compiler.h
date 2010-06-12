@@ -396,7 +396,6 @@ class RoxorCompiler {
 	Value *compile_set_current_class(Value *klass);
 
 	Value *compile_landing_pad_header(void);
-	Value *compile_landing_pad_header(const std::type_info &eh_type);
 	void compile_landing_pad_footer(bool pop_exception=true);
 	Value *compile_current_exception(void);
 	void compile_rethrow_exception(void);

@@ -9,7 +9,9 @@
 #include <llvm/Constants.h>
 #include <llvm/CallingConv.h>
 #include <llvm/Instructions.h>
-#include <llvm/ModuleProvider.h>
+#if !defined(LLVM_TOT)
+# include <llvm/ModuleProvider.h>
+#endif
 #include <llvm/Intrinsics.h>
 #include <llvm/Analysis/DebugInfo.h>
 #include <llvm/ExecutionEngine/JIT.h>

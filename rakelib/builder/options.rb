@@ -124,10 +124,11 @@ OPTZFLAG = "-O#{OPTZ_LEVEL}"
 CFLAGS = "-I. -I./include #{ARCHFLAGS} -fno-common -pipe -g -Wall -fexceptions #{OPTZFLAG}"
 CFLAGS << " -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
 OBJC_CFLAGS = CFLAGS + " -fobjc-gc-only"
-CXXFLAGS = `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.sub(/-DNDEBUG/, '').sub(/-fno-exceptions/, '').strip
+CXXFLAGS = `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.sub(/-DNDEBUG/, '').sub(/-fno-exceptions/, '').sub(/-Wcast-qual/, '').strip
 CXXFLAGS.sub!(/-O\d/, OPTZFLAG)
 CXXFLAGS << " -I. -I./include -g -Wall #{ARCHFLAGS}"
 CXXFLAGS << " -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
+CXXFLAGS << " -fno-rtti" unless CXXFLAGS.index("-fno-rtti")
 CXXFLAGS << " -DLLVM_TOT" if ENV['LLVM_TOT']
 CXXFLAGS << " -DLLVM_PRE_TOT" if ENV['LLVM_PRE_TOT']
 LDFLAGS = `#{LLVM_CONFIG} --ldflags --libs #{LLVM_MODULES}`.strip.gsub(/\n/, '')
