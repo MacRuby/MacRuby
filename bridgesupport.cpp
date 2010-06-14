@@ -1223,7 +1223,7 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 		: bs_informal_protocol_imethods;
 
 	    char *type;
-#if __LP64__
+#if __LP64__ && MAC_OS_X_VERSION_MAX_ALLOWED < 1070
 	    // XXX workaround <rdar://problem/7318177> 64-bit informal protocol annotations are missing
 	    // Manually converting some 32-bit types to 64-bit...
 	    const size_t typelen = strlen(bs_inf_prot_method->type) + 1;
