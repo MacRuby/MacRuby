@@ -281,9 +281,10 @@ EOS
     objs.unshift(main_o)
 
     # Link all objects into executable.
+    path = @internal ? "-L." : "-L#{RbConfig::CONFIG['libdir']}"
     linkf = @static ? 
-      "-L#{RbConfig::CONFIG['libdir']} #{RbConfig::CONFIG['LIBRUBYARG_STATIC_REALLY']}" :
-      "-L#{RbConfig::CONFIG['libdir']} -lmacruby -framework Foundation -lobjc -lauto"
+      "#{path} #{RbConfig::CONFIG['LIBRUBYARG_STATIC_REALLY']}" :
+      "#{path} -lmacruby -framework Foundation -lobjc -lauto"
     line = "#{@gcxx} -o \"#{output}\" #{arch_flags} #{linkf} "
     objs.each { |o| line << " \"#{o}\"" }
     execute(line)
