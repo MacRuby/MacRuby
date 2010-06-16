@@ -36,3 +36,5 @@ framework/Info.plist
 doc/
 rubyspec_temp
 kernel_data.c
+*.mode1v3
+*.pbxuser
