@@ -38,6 +38,21 @@ using namespace llvm;
 #include <execinfo.h>
 #include <dlfcn.h>
 
+static ID boxed_ivar_type = 0;
+static VALUE bs_const_magic_cookie = Qnil;
+
+VALUE rb_cBoxed;
+VALUE rb_cPointer;
+
+typedef struct rb_vm_pointer {
+    VALUE type;
+    size_t type_size;
+    VALUE (*convert_to_rval)(void *);
+    void (*convert_to_ocval)(VALUE rval, void *);
+    void *val;
+    size_t len; // if 0, we don't know...
+} rb_vm_pointer_t;
+
 static inline ID
 generate_const_name(char *name)
 {
@@ -52,11 +67,6 @@ generate_const_name(char *name)
 	return rb_intern(name);
     }
 }
-
-VALUE rb_cBoxed;
-
-static VALUE bs_const_magic_cookie = Qnil;
-
 extern "C"
 VALUE
 rb_vm_resolve_const_value(VALUE v, VALUE klass, ID id)
@@ -81,10 +91,8 @@ rb_vm_resolve_const_value(VALUE v, VALUE klass, ID id)
 	assert(iv_dict != NULL);
 	CFDictionarySetValue(iv_dict, (const void *)id, (const void *)v);
     }
-
     return v;
 }
-
 
 bs_element_constant_t *
 RoxorCore::find_bs_const(ID name)
@@ -191,6 +199,19 @@ RoxorCore::find_bs_function(std::string &name)
 	bs_funcs.find(name);
 
     return iter == bs_funcs.end() ? NULL : iter->second;
+}
+
+static rb_vm_bs_boxed_t *
+locate_bs_boxed(VALUE klass, const bool struct_only=false)
+{
+    VALUE type = rb_ivar_get(klass, boxed_ivar_type);
+    assert(type != Qnil);
+    rb_vm_bs_boxed_t *bs_boxed = GET_CORE()->find_bs_boxed(RSTRING_PTR(type));
+    assert(bs_boxed != NULL);
+    if (struct_only) {
+	assert(bs_boxed->is_struct());
+    }
+    return bs_boxed;
 }
 
 #if !defined(MACRUBY_STATIC)
@@ -371,21 +392,6 @@ RoxorCompiler::compile_bs_struct_new(rb_vm_bs_boxed_t *bs_boxed)
     ReturnInst::Create(context, compile_new_struct(klass, fields), bb);
 
     return f;
-}
-
-static ID boxed_ivar_type = 0;
-
-static inline rb_vm_bs_boxed_t *
-locate_bs_boxed(VALUE klass, const bool struct_only=false)
-{
-    VALUE type = rb_ivar_get(klass, boxed_ivar_type);
-    assert(type != Qnil);
-    rb_vm_bs_boxed_t *bs_boxed = GET_CORE()->find_bs_boxed(RSTRING_PTR(type));
-    assert(bs_boxed != NULL);
-    if (struct_only) {
-	assert(bs_boxed->is_struct());
-    }
-    return bs_boxed;
 }
 
 static VALUE
@@ -718,20 +724,14 @@ static inline long
 rebuild_new_struct_ary(const StructType *type, VALUE orig, VALUE new_ary)
 {
     long n = 0;
-
     for (StructType::element_iterator iter = type->element_begin();
-	 iter != type->element_end();
-	 ++iter) {
-
+	    iter != type->element_end();
+	    ++iter) {
 	const Type *ftype = *iter;
-	
 	if (ftype->getTypeID() == Type::StructTyID) {
-            long i, n2;
-            VALUE tmp;
-
-            n2 = rebuild_new_struct_ary(cast<StructType>(ftype), orig, new_ary);
-            tmp = rb_ary_new();
-            for (i = 0; i < n2; i++) {
+            const long n2 = rebuild_new_struct_ary(cast<StructType>(ftype), orig, new_ary);
+            VALUE tmp = rb_ary_new();
+            for (long i = 0; i < n2; i++) {
                 if (RARRAY_LEN(orig) == 0) {
                     return 0;
 		}
@@ -741,7 +741,6 @@ rebuild_new_struct_ary(const StructType *type, VALUE orig, VALUE new_ary)
         }
         n++;
     }
-
     return n;
 }
 
@@ -828,49 +827,6 @@ rb_vm_get_struct_fields(VALUE rval, VALUE *buf, rb_vm_bs_boxed_t *bs_boxed)
     }
 }
 
-static VALUE
-rb_boxed_objc_type(VALUE rcv, SEL sel)
-{
-    return rb_ivar_get(rcv, boxed_ivar_type);
-}
-
-extern "C"
-bool
-rb_boxed_is_type(VALUE klass, const char *type)
-{
-    VALUE rtype = rb_boxed_objc_type(klass, 0);
-    if (rtype == Qnil) {
-	return false;
-    }
-    if (strcmp(RSTRING_PTR(rtype), type) != 0) {
-	rb_raise(rb_eTypeError,
-		"expected instance of Boxed class of type `%s', "\
-		"got `%s' of type `%s'",
-		type,
-		rb_class2name(klass),
-		RSTRING_PTR(rtype));
-    }
-    return true;
-}
-
-static VALUE
-rb_boxed_is_opaque(VALUE rcv, SEL sel)
-{
-    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(rcv);
-    return bs_boxed->bs_type == BS_ELEMENT_OPAQUE ? Qtrue : Qfalse;
-}
-
-VALUE rb_cPointer;
-
-typedef struct {
-    VALUE type;
-    size_t type_size;
-    VALUE (*convert_to_rval)(void *);
-    void (*convert_to_ocval)(VALUE rval, void *);
-    void *val;
-    size_t len; // if 0, we don't know...
-} rb_vm_pointer_t;
-
 static const char *convert_ffi_type(VALUE type,
 	bool raise_exception_if_unknown);
 
@@ -911,36 +867,6 @@ rb_pointer_new(const char *type_str, void *val, size_t len)
     return Data_Wrap_Struct(rb_cPointer, NULL, NULL, ptr);
 }
 
-static VALUE rb_pointer_aset(VALUE rcv, SEL sel, VALUE idx, VALUE val);
-
-extern "C"
-VALUE
-rb_pointer_new2(const char *type_str, VALUE rval)
-{
-    VALUE p;
-
-    if (TYPE(rval) == T_ARRAY) {
-	const long len = RARRAY_LEN(rval);
-	if (len == 0) {
-	    rb_raise(rb_eArgError,
-		    "can't convert an empty array to a `%s' pointer",
-		    type_str);
-	}
-	p = rb_pointer_new(type_str,
-		xmalloc(GET_CORE()->get_sizeof(type_str) * len), len);
-	for (int i = 0; i < len; i++) {
-	    rb_pointer_aset(p, 0, INT2FIX(i), RARRAY_AT(rval, i));
-	}
-    }
-    else {
-	p = rb_pointer_new(type_str,
-		xmalloc(GET_CORE()->get_sizeof(type_str)), 1);
-	rb_pointer_aset(p, 0, INT2FIX(0), rval);
-    }
-
-    return p;
-}
-
 static VALUE
 rb_pointer_s_new(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
@@ -965,31 +891,6 @@ rb_pointer_s_new(VALUE rcv, SEL sel, int argc, VALUE *argv)
 
     return rb_pointer_new(type_str,
 	    xmalloc(GET_CORE()->get_sizeof(type_str) * rlen), rlen);
-}
-
-extern "C"
-void *
-rb_pointer_get_data(VALUE rcv, const char *type)
-{
-    if (!rb_obj_is_kind_of(rcv, rb_cPointer)) {
-	rb_raise(rb_eTypeError,
-		"expected instance of Pointer, got `%s' (%s)",
-		RSTRING_PTR(rb_inspect(rcv)),
-		rb_obj_classname(rcv));
-    }
-
-    rb_vm_pointer_t *ptr;
-    Data_Get_Struct(rcv, rb_vm_pointer_t, ptr);
-
-    assert(type[0] == _C_PTR);
-    if (type[1] != _C_VOID && strcmp(RSTRING_PTR(ptr->type), &type[1]) != 0) {
-	rb_raise(rb_eTypeError,
-		"expected instance of Pointer of type `%s', got `%s'",
-		type + 1,
-		RSTRING_PTR(ptr->type));
-    }
-
-    return ptr->val;
 }
 
 static inline void *
@@ -1582,11 +1483,23 @@ rb_ffi_attach_function(VALUE rcv, SEL sel, VALUE name, VALUE args, VALUE ret)
 
 #endif // !MACRUBY_STATIC
 
+static VALUE
+rb_boxed_objc_type(VALUE rcv, SEL sel)
+{
+    return rb_ivar_get(rcv, boxed_ivar_type);
+}
+
+static VALUE
+rb_boxed_is_opaque(VALUE rcv, SEL sel)
+{
+    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(rcv);
+    return bs_boxed->bs_type == BS_ELEMENT_OPAQUE ? Qtrue : Qfalse;
+}
+
 extern "C"
 void
 Init_BridgeSupport(void)
 {
-#if !defined(MACRUBY_STATIC)
     // Boxed
     rb_cBoxed = rb_define_class("Boxed", rb_cObject);
     rb_objc_define_method(*(VALUE *)rb_cBoxed, "type",
@@ -1597,6 +1510,7 @@ Init_BridgeSupport(void)
 
     // Pointer
     rb_cPointer = rb_define_class("Pointer", rb_cObject);
+#if !defined(MACRUBY_STATIC)
     rb_objc_define_method(*(VALUE *)rb_cPointer, "new",
 	    (void *)rb_pointer_s_new, -1);
     rb_objc_define_method(*(VALUE *)rb_cPointer, "new_with_type",
@@ -1626,6 +1540,84 @@ Init_FFI(void)
     VALUE mFFILib = rb_define_module_under(mFFI, "Library");
     rb_objc_define_method(mFFILib, "attach_function",
 	    (void *)rb_ffi_attach_function, 3);
+#endif
+}
+
+// Called by the kernel:
+
+extern "C"
+void *
+rb_pointer_get_data(VALUE rcv, const char *type)
+{
+    if (!rb_obj_is_kind_of(rcv, rb_cPointer)) {
+	rb_raise(rb_eTypeError,
+		"expected instance of Pointer, got `%s' (%s)",
+		RSTRING_PTR(rb_inspect(rcv)),
+		rb_obj_classname(rcv));
+    }
+
+    rb_vm_pointer_t *ptr;
+    Data_Get_Struct(rcv, rb_vm_pointer_t, ptr);
+
+    assert(type[0] == _C_PTR);
+    if (type[1] != _C_VOID && strcmp(RSTRING_PTR(ptr->type), &type[1]) != 0) {
+	rb_raise(rb_eTypeError,
+		"expected instance of Pointer of type `%s', got `%s'",
+		type + 1,
+		RSTRING_PTR(ptr->type));
+    }
+
+    return ptr->val;
+}
+
+extern "C"
+bool
+rb_boxed_is_type(VALUE klass, const char *type)
+{
+    VALUE rtype = rb_boxed_objc_type(klass, 0);
+    if (rtype == Qnil) {
+	return false;
+    }
+    if (strcmp(RSTRING_PTR(rtype), type) != 0) {
+	rb_raise(rb_eTypeError,
+		"expected instance of Boxed class of type `%s', "\
+		"got `%s' of type `%s'",
+		type,
+		rb_class2name(klass),
+		RSTRING_PTR(rtype));
+    }
+    return true;
+}
+
+extern "C"
+VALUE
+rb_pointer_new2(const char *type_str, VALUE rval)
+{
+#if MACRUBY_STATIC
+    abort(); // TODO
+#else
+    VALUE p;
+
+    if (TYPE(rval) == T_ARRAY) {
+	const long len = RARRAY_LEN(rval);
+	if (len == 0) {
+	    rb_raise(rb_eArgError,
+		    "can't convert an empty array to a `%s' pointer",
+		    type_str);
+	}
+	p = rb_pointer_new(type_str,
+		xmalloc(GET_CORE()->get_sizeof(type_str) * len), len);
+	for (int i = 0; i < len; i++) {
+	    rb_pointer_aset(p, 0, INT2FIX(i), RARRAY_AT(rval, i));
+	}
+    }
+    else {
+	p = rb_pointer_new(type_str,
+		xmalloc(GET_CORE()->get_sizeof(type_str)), 1);
+	rb_pointer_aset(p, 0, INT2FIX(0), rval);
+    }
+
+    return p;
 #endif
 }
 
