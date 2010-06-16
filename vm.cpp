@@ -9,37 +9,43 @@
 #define ROXOR_VM_DEBUG		0
 #define ROXOR_COMPILER_DEBUG 	0
 
-#include <llvm/Module.h>
-#include <llvm/DerivedTypes.h>
-#include <llvm/Constants.h>
-#include <llvm/CallingConv.h>
-#include <llvm/Instructions.h>
-#if !defined(LLVM_TOT)
-# include <llvm/ModuleProvider.h>
-#endif
-#include <llvm/PassManager.h>
-#include <llvm/Analysis/DebugInfo.h>
-#include <llvm/Analysis/Verifier.h>
-#include <llvm/Target/TargetData.h>
-#include <llvm/CodeGen/MachineFunction.h>
-#include <llvm/ExecutionEngine/JIT.h>
-#include <llvm/ExecutionEngine/JITMemoryManager.h>
-#include <llvm/ExecutionEngine/JITEventListener.h>
-#include <llvm/ExecutionEngine/GenericValue.h>
-#include <llvm/Target/TargetData.h>
-#include <llvm/Target/TargetMachine.h>
-#include <llvm/Target/TargetOptions.h>
-#include <llvm/Target/TargetSelect.h>
-#include <llvm/Transforms/Scalar.h>
-#include <llvm/Transforms/IPO.h>
-#include <llvm/Support/raw_ostream.h>
-#include <llvm/Support/PrettyStackTrace.h>
-#include <llvm/Support/MemoryBuffer.h>
-#include <llvm/Support/StandardPasses.h>
-#include <llvm/Intrinsics.h>
-#include <llvm/Bitcode/ReaderWriter.h>
-#include <llvm/LLVMContext.h>
+#if MACRUBY_STATIC
+# include <vector>
+# include <map>
+# include <string>
+#else
+# include <llvm/Module.h>
+# include <llvm/DerivedTypes.h>
+# include <llvm/Constants.h>
+# include <llvm/CallingConv.h>
+# include <llvm/Instructions.h>
+# if !defined(LLVM_TOT)
+#  include <llvm/ModuleProvider.h>
+# endif
+# include <llvm/PassManager.h>
+# include <llvm/Analysis/DebugInfo.h>
+# include <llvm/Analysis/Verifier.h>
+# include <llvm/Target/TargetData.h>
+# include <llvm/CodeGen/MachineFunction.h>
+# include <llvm/ExecutionEngine/JIT.h>
+# include <llvm/ExecutionEngine/JITMemoryManager.h>
+# include <llvm/ExecutionEngine/JITEventListener.h>
+# include <llvm/ExecutionEngine/GenericValue.h>
+# include <llvm/Target/TargetData.h>
+# include <llvm/Target/TargetMachine.h>
+# include <llvm/Target/TargetOptions.h>
+# include <llvm/Target/TargetSelect.h>
+# include <llvm/Transforms/Scalar.h>
+# include <llvm/Transforms/IPO.h>
+# include <llvm/Support/raw_ostream.h>
+# include <llvm/Support/PrettyStackTrace.h>
+# include <llvm/Support/MemoryBuffer.h>
+# include <llvm/Support/StandardPasses.h>
+# include <llvm/Intrinsics.h>
+# include <llvm/Bitcode/ReaderWriter.h>
+# include <llvm/LLVMContext.h>
 using namespace llvm;
+#endif // MACRUBY_STATIC
 
 #if ROXOR_COMPILER_DEBUG
 # include <mach/mach.h>
@@ -99,6 +105,7 @@ class RoxorCoreLock {
 	}
 };
 
+#if !defined(MACRUBY_STATIC)
 class RoxorFunction {
     public: 
 	// Information retrieved from JITManager.
@@ -286,6 +293,7 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 	    function->path = path;
 	}
 };
+#endif
 
 extern "C" void *__cxa_allocate_exception(size_t);
 extern "C" void __cxa_throw(void *, void *, void (*)(void *));
@@ -311,13 +319,14 @@ RoxorCore::RoxorCore(void)
     threads = rb_ary_new();
     GC_RETAIN(threads);
 
+#if !MACRUBY_STATIC
     bs_parser = NULL;
 
     llvm_start_multithreaded();
 
-#if !defined(LLVM_TOT)
+# if !defined(LLVM_TOT)
     emp = new ExistingModuleProvider(RoxorCompiler::module);
-#endif
+# endif
     jmm = new RoxorJITManager;
 
     InitializeNativeTarget();
@@ -351,12 +360,12 @@ RoxorCore::RoxorCore(void)
     }
 
     std::string err;
-#if LLVM_TOT
+# if LLVM_TOT
     ee = ExecutionEngine::createJIT(RoxorCompiler::module, &err, jmm, opt,
 	    false);
-#else
+# else
     ee = ExecutionEngine::createJIT(emp, &err, jmm, opt, false);
-#endif
+# endif
     if (ee == NULL) {
 	fprintf(stderr, "error while creating JIT: %s\n", err.c_str());
 	abort();
@@ -364,11 +373,11 @@ RoxorCore::RoxorCore(void)
     ee->DisableLazyCompilation();
     ee->RegisterJITEventListener(jmm);
 
-#if LLVM_TOT
+# if LLVM_TOT
     fpm = new FunctionPassManager(RoxorCompiler::module);
-#else
+# else
     fpm = new FunctionPassManager(emp);
-#endif
+# endif
     fpm->add(new TargetData(*ee->getTargetData()));
 
     // Do simple "peephole" optimizations and bit-twiddling optzns.
@@ -384,9 +393,10 @@ RoxorCore::RoxorCore(void)
     // Eliminate tail calls.
     fpm->add(createTailCallEliminationPass());
 
-#if ROXOR_VM_DEBUG
+# if ROXOR_VM_DEBUG
     functions_compiled = 0;
-#endif
+# endif
+#endif // !MACRUBY_STATIC
 }
 
 RoxorCore::~RoxorCore(void)
@@ -540,6 +550,7 @@ RoxorVM::debug_exceptions(void)
     return s;
 }
 
+#if !defined(MACRUBY_STATIC)
 void
 RoxorCore::optimize(Function *func)
 {
@@ -646,6 +657,7 @@ RoxorCore::delenda(Function *func)
     func->eraseFromParent();
 #endif
 }
+#endif
 
 // Dummy function to be used for debugging (in gdb).
 extern "C"
@@ -670,6 +682,9 @@ bool
 RoxorCore::symbolize_call_address(void *addr, void **startp, char *path,
 	size_t path_len, unsigned long *ln, char *name, size_t name_len)
 {
+#if MACRUBY_STATIC
+    return false;
+#else
     void *start = NULL;
 
     RoxorFunction *f = jmm->find_function((unsigned char *)addr);
@@ -728,6 +743,7 @@ RoxorCore::symbolize_call_address(void *addr, void **startp, char *path,
     }
 
     return true;
+#endif
 }
 
 void
@@ -820,6 +836,7 @@ rb_vm_is_ruby_method(Method m)
     return GET_CORE()->method_node_get(m) != NULL;
 }
 
+#if !defined(MACRUBY_STATIC)
 size_t
 RoxorCore::get_sizeof(const Type *type)
 {
@@ -868,6 +885,7 @@ RoxorCore::redefined_op_gvar(SEL sel, bool create)
     }
     return gvar;
 }
+#endif
 
 bool
 RoxorCore::should_invalidate_inline_op(SEL sel, Class klass)
@@ -1017,6 +1035,7 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
     invalidate_method_cache(sel);
 
     // Invalidate inline operations.
+#if !defined(MACRUBY_STATIC)
     if (running) {
 	GlobalVariable *gvar = redefined_op_gvar(sel, false);
 	if (gvar != NULL && should_invalidate_inline_op(sel, klass)) {
@@ -1030,6 +1049,7 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 	    *(unsigned char *)val = 1;
 	}
     }
+#endif
 
     // If alloc is redefined, mark the class as such.
     if (sel == selAlloc
@@ -1730,6 +1750,9 @@ rb_vm_method_node_t *
 RoxorCore::retype_method(Class klass, rb_vm_method_node_t *node,
 	const char *old_types, const char *new_types)
 {
+#if MACRUBY_STATIC
+    rb_raise(rb_eRuntimeError, "methods cannot be retyped in MacRuby static");
+#else
     if (strcmp(old_types, new_types) == 0) {
 	// No need to retype.
 	// XXX might be better to compare every type after filtering stack
@@ -1759,12 +1782,12 @@ RoxorCore::retype_method(Class klass, rb_vm_method_node_t *node,
     objc_to_ruby_stubs[node->ruby_imp] = node->objc_imp;
 
     // Re-add the method.
-    node = add_method(klass, node->sel, node->objc_imp, node->ruby_imp,
+    return add_method(klass, node->sel, node->objc_imp, node->ruby_imp,
 	    node->arity, node->flags, new_types);
-
-    return node;
+#endif
 }
 
+#if !defined(MACRUBY_STATIC)
 rb_vm_method_node_t *
 RoxorCore::resolve_method(Class klass, SEL sel, Function *func,
 	const rb_vm_arity_t &arity, int flags, IMP imp, Method m)
@@ -1915,8 +1938,11 @@ RoxorCore::prepare_method(Class klass, SEL sel, Function *func,
 
     invalidate_respond_to_cache();
 }
+#endif
 
+#if !defined(MACRUBY_STATIC)
 static bool class_has_custom_resolver(Class klass);
+#endif
 
 static void
 prepare_method(Class klass, bool dynamic_class, SEL sel, void *data,
@@ -1948,7 +1974,9 @@ prepare_method(Class klass, bool dynamic_class, SEL sel, void *data,
 
     const char *sel_name = sel_getName(sel);
     const bool genuine_selector = sel_name[strlen(sel_name) - 1] == ':';
+#if !defined(MACRUBY_STATIC)
     const bool custom_resolver = class_has_custom_resolver(klass);
+#endif
     bool redefined = false;
     bool added_modfunc = false;
     SEL orig_sel = sel;
@@ -1957,6 +1985,17 @@ prepare_method(Class klass, bool dynamic_class, SEL sel, void *data,
 
 prepare_method:
 
+#if MACRUBY_STATIC
+    m = class_getInstanceMethod(klass, sel);
+    assert(m != NULL);
+
+    assert(precompiled);
+
+    if (imp == NULL) {
+	imp = (IMP)data;
+    }
+    //XXX GET_CORE()->resolve_method(klass, sel, NULL, arity, flags, imp, m);
+#else
     m = class_getInstanceMethod(klass, sel);
     if (m == NULL && rb_vm_resolve_method(klass, sel)) {
 	m = class_getInstanceMethod(klass, sel);
@@ -1984,6 +2023,7 @@ prepare_method:
 	    GET_CORE()->prepare_method(klass, sel, func, arity, flags);
 	}
     }
+#endif
 
     if (!redefined) {
 	char buf[100];
@@ -2045,6 +2085,7 @@ prepare_method:
     }
 }
 
+#if !defined(MACRUBY_STATIC)
 extern "C"
 void
 rb_vm_prepare_method(Class klass, unsigned char dynamic_class, SEL sel,
@@ -2053,6 +2094,7 @@ rb_vm_prepare_method(Class klass, unsigned char dynamic_class, SEL sel,
     prepare_method(klass, dynamic_class, sel, (void *)func, arity,
 	    flags, false);
 }
+#endif
 
 extern "C"
 void
@@ -2101,6 +2143,7 @@ push_method(VALUE ary, SEL sel, int flags, int (*filter) (VALUE, ID, VALUE))
     }
 } 
 
+#if !defined(MACRUBY_STATIC)
 rb_vm_method_source_t *
 RoxorCore::method_source_get(Class klass, SEL sel)
 {
@@ -2116,6 +2159,7 @@ RoxorCore::method_source_get(Class klass, SEL sel)
     }
     return NULL;
 }
+#endif
 
 void
 RoxorCore::get_methods(VALUE ary, Class klass, bool include_objc_methods,
@@ -2138,6 +2182,7 @@ RoxorCore::get_methods(VALUE ary, Class klass, bool include_objc_methods,
 	free(methods);
     }
 
+#if !defined(MACRUBY_STATIC)
     Class k = klass;
     std::multimap<Class, SEL>::iterator iter =
 	method_source_sels.find(k);
@@ -2153,6 +2198,7 @@ RoxorCore::get_methods(VALUE ary, Class klass, bool include_objc_methods,
 	    push_method(ary, sel, src->flags, filter);
 	}
     }
+#endif
 }
 
 extern "C"
@@ -2223,6 +2269,7 @@ RoxorCore::copy_methods(Class from_class, Class to_class)
 		continue;
 	    }
 
+#if !defined(MACRUBY_STATIC)
 	    SEL sel = method_getName(m);
 	    std::map<Class, rb_vm_method_source_t *> *map =
 		method_sources_for_sel(sel, false);
@@ -2230,10 +2277,12 @@ RoxorCore::copy_methods(Class from_class, Class to_class)
 		// There might be some non-JIT'ed yet methods on subclasses.
 		resolve_methods(map, to_class, sel);
 	    }
+#endif
 	}
 	free(methods);
     }
 
+#if !defined(MACRUBY_STATIC)
     // Copy methods that have not been JIT'ed yet.
 
     // First, make a list of selectors.
@@ -2313,6 +2362,7 @@ RoxorCore::copy_methods(Class from_class, Class to_class)
 	    ++i) {
 	method_source_sels.insert(std::make_pair(to_class, *i));
     }
+#endif
 }
 
 extern "C"
@@ -2367,6 +2417,9 @@ rb_vm_define_attr(Class klass, const char *name, bool read, bool write)
     assert(klass != NULL);
     assert(read || write);
 
+#if MACRUBY_STATIC
+    rb_raise(rb_eRuntimeError, "attr_* is not supported in MacRuby static");
+#else
     char buf[100];
     snprintf(buf, sizeof buf, "@%s", name);
     ID iname = rb_intern(buf);
@@ -2385,6 +2438,7 @@ rb_vm_define_attr(Class klass, const char *name, bool read, bool write)
 	rb_vm_prepare_method(klass, false, sel, f, rb_vm_arity(1),
 		VM_METHOD_FBODY);
     }
+#endif
 }
 
 static rb_vm_method_node_t *
@@ -2466,6 +2520,7 @@ rb_vm_define_method2(Class klass, SEL sel, rb_vm_method_node_t *node,
 	    node->arity, flags, direct);
 }
 
+#if !defined(MACRUBY_STATIC)
 extern "C"
 void
 rb_vm_define_method3(Class klass, ID mid, rb_vm_block_t *block)
@@ -2504,6 +2559,7 @@ rb_vm_generate_mri_stub(void *imp, const int arity)
     }
     return (void *)GET_CORE()->compile(func, false); 
 }
+#endif
 
 void
 RoxorCore::undef_method(Class klass, SEL sel)
@@ -2693,10 +2749,15 @@ RoxorCore::gen_large_arity_stub(int argc, bool is_block)
     std::map<int, void *>::iterator iter = stubs.find(argc);
     void *stub;
     if (iter == stubs.end()) {
+#if MACRUBY_STATIC
+	printf("uncached large arity stub (%d)\n", argc);
+	abort();
+#else
 	Function *f = RoxorCompiler::shared->compile_long_arity_stub(argc,
 		is_block);
 	stub = (void *)compile(f, false);
 	stubs.insert(std::make_pair(argc, stub));
+#endif
     }
     else {
 	stub = iter->second;
@@ -2720,10 +2781,15 @@ RoxorCore::gen_stub(std::string types, bool variadic, int min_argc,
     std::map<std::string, void *>::iterator iter = stubs.find(types);
     void *stub;
     if (iter == stubs.end()) {
+#if MACRUBY_STATIC
+	printf("uncached stub %s\n", types.c_str());
+	abort();
+#else
 	Function *f = RoxorCompiler::shared->compile_stub(types.c_str(),
 		variadic, min_argc, is_objc);
 	stub = (void *)compile(f);
 	stubs.insert(std::make_pair(types, stub));
+#endif
     }
     else {
 	stub = iter->second;
@@ -2741,12 +2807,17 @@ RoxorCore::gen_to_rval_convertor(std::string type)
 	return iter->second;
     }
 
+#if MACRUBY_STATIC
+    printf("uncached to_rval convertor %s\n", type.c_str());
+    abort();
+#else
     Function *f = RoxorCompiler::shared->compile_to_rval_convertor(
 	    type.c_str());
     void *convertor = (void *)compile(f);
     to_rval_convertors.insert(std::make_pair(type, convertor));
     
     return convertor; 
+#endif
 }
 
 void *
@@ -2758,12 +2829,17 @@ RoxorCore::gen_to_ocval_convertor(std::string type)
 	return iter->second;
     }
 
+#if MACRUBY_STATIC
+    printf("uncached to_ocval convertor %s\n", type.c_str());
+    abort();
+#else
     Function *f = RoxorCompiler::shared->compile_to_ocval_convertor(
 	    type.c_str());
     void *convertor = (void *)compile(f);
     to_ocval_convertors.insert(std::make_pair(type, convertor));
     
     return convertor; 
+#endif
 }
 
 static const int VM_LVAR_USES_SIZE = 8;
@@ -3597,6 +3673,7 @@ extern "C"
 void
 rb_vm_init_compiler(void)
 {
+#if !defined(MACRUBY_STATIC)
     if (ruby_aot_compile && ruby_debug_socket_path) {
 	fprintf(stderr, "cannot run in both AOT and debug mode\n");
 	exit(1);
@@ -3604,6 +3681,7 @@ rb_vm_init_compiler(void)
     RoxorCompiler::shared = ruby_aot_compile
 	? new RoxorAOTCompiler()
 	: new RoxorCompiler(ruby_debug_socket_path);
+#endif
 }
 
 extern "C" void rb_node_release(NODE *node);
@@ -3613,6 +3691,9 @@ VALUE
 rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 	bool inside_eval)
 {
+#if MACRUBY_STATIC
+    rb_raise(rb_eRuntimeError, "codegen is not supported in MacRuby static");
+#else
     RoxorVM *vm = GET_VM();
     RoxorCompiler *compiler = RoxorCompiler::shared;
 
@@ -3668,6 +3749,7 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
     rb_node_release(node);
 
     return ret;
+#endif
 }
 
 extern "C"
@@ -3675,6 +3757,9 @@ VALUE
 rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 	rb_vm_binding_t *binding, bool inside_eval)
 {
+#if MACRUBY_STATIC
+    rb_raise(rb_eRuntimeError, "codegen is not supported in MacRuby static");
+#else
     RoxorVM *vm = GET_VM();
 
     VALUE old_top_object = vm->get_current_top_object();
@@ -3711,6 +3796,7 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
     } finalizer(vm, old_dynamic_class, old_class, old_top_object);
 
     return rb_vm_run(fname, node, binding, inside_eval);
+#endif
 }
 
 extern VALUE rb_progname;
@@ -3719,6 +3805,9 @@ extern "C"
 void
 rb_vm_aot_compile(NODE *node)
 {
+#if MACRUBY_STATIC
+    abort();
+#else
     assert(ruby_aot_compile);
     assert(ruby_aot_init_func);
 
@@ -3747,6 +3836,7 @@ rb_vm_aot_compile(NODE *node)
     }
     WriteBitcodeToFile(RoxorCompiler::module, out);
     out.close();
+#endif
 }
 
 extern "C"
@@ -4502,6 +4592,7 @@ setup_builtin_stubs(void)
     GET_CORE()->insert_stub("#@:", (void *)builtin_ostub1, true);
 }
 
+#if !defined(MACRUBY_STATIC)
 static IMP old_resolveClassMethod_imp = NULL;
 static IMP old_resolveInstanceMethod_imp = NULL;
 static SEL sel_resolveClassMethod = 0;
@@ -4541,6 +4632,7 @@ class_has_custom_resolver(Class klass)
     }
     return false;
 }
+#endif
 
 // We can't trust LLVM to pick the right target at runtime.
 #if __LP64__
@@ -4555,6 +4647,7 @@ extern "C"
 void 
 Init_PreVM(void)
 {
+#if !defined(MACRUBY_STATIC)
     // To emit DWARF exception tables. 
 #if LLVM_TOT
     llvm::JITExceptionHandling = true;
@@ -4597,6 +4690,8 @@ Init_PreVM(void)
 
     RoxorCompiler::module->setTargetTriple(TARGET_TRIPLE);
     RoxorInterpreter::shared = new RoxorInterpreter();
+#endif
+
     RoxorCore::shared = new RoxorCore();
     RoxorVM::main = new RoxorVM();
 
@@ -4606,6 +4701,7 @@ Init_PreVM(void)
 
     setup_builtin_stubs();
 
+#if !defined(MACRUBY_STATIC)
     Class ns_object = (Class)objc_getClass("NSObject");
     Method m;
     sel_resolveClassMethod = sel_registerName("resolveClassMethod:");
@@ -4619,6 +4715,7 @@ Init_PreVM(void)
     assert(m != NULL);
     old_resolveInstanceMethod_imp = method_getImplementation(m);
     method_setImplementation(m, (IMP)resolveInstanceMethod_imp);
+#endif
 
     // Early define some classes.
     rb_cNSString = (VALUE)objc_getClass("NSString");
@@ -4842,6 +4939,7 @@ extern "C"
 void
 rb_vm_finalize(void)
 {
+#if !defined(MACRUBY_STATIC)
     if (getenv("VM_DUMP_IR") != NULL) {
 	printf("IR dump ----------------------------------------------\n");
 	RoxorCompiler::module->dump();
@@ -4852,11 +4950,11 @@ rb_vm_finalize(void)
 	    GET_CORE()->get_functions_compiled());
 #endif
 
-
     if (getenv("VM_VERIFY_IR") != NULL) {
 	rb_verify_module();
 	printf("IR verified!\n");
     }
+#endif
 
     // XXX: deleting the core is not safe at this point because there might be
     // threads still running and trying to unregister.

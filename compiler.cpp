@@ -6,6 +6,8 @@
  * Copyright (C) 2008-2010, Apple Inc. All rights reserved.
  */
 
+#if !defined(MACRUBY_STATIC)
+
 #define ROXOR_COMPILER_DEBUG 	0
 
 #if !defined(DW_LANG_Ruby)
@@ -6633,3 +6635,5 @@ RoxorCompiler::compile_ff3(NODE *node)
 
     return pn;
 }
+
+#endif // !MACRUBY_STATIC

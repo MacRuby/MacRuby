@@ -121,21 +121,23 @@ LLVM_MODULES = "core jit nativecodegen bitwriter bitreader ipo"
 EXPORTED_SYMBOLS_LIST = "./exported_symbols_list"
 
 OPTZFLAG = "-O#{OPTZ_LEVEL}"
-CFLAGS = "-I. -I./include #{ARCHFLAGS} -fno-common -pipe -g -Wall -fexceptions #{OPTZFLAG}"
+STATIC_FLAGS = "-DMACRUBY_STATIC"
+CFLAGS = "-std=c99 -I. -I./include #{ARCHFLAGS} -fno-common -pipe -g -Wall -fexceptions #{OPTZFLAG}"
 CFLAGS << " -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
 OBJC_CFLAGS = CFLAGS + " -fobjc-gc-only"
-CXXFLAGS = `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.sub(/-DNDEBUG/, '').sub(/-fno-exceptions/, '').sub(/-Wcast-qual/, '').strip
+CFLAGS_STATIC = "#{CFLAGS} #{STATIC_FLAGS}"
+CXXFLAGS_STATIC = "-I. -I./include -g -Wall #{ARCHFLAGS}"
+CXXFLAGS_STATIC << " -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
+CXXFLAGS = CXXFLAGS_STATIC + ' ' + `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.sub(/-DNDEBUG/, '').sub(/-fno-exceptions/, '').sub(/-Wcast-qual/, '').strip
 CXXFLAGS.sub!(/-O\d/, OPTZFLAG)
-CXXFLAGS << " -I. -I./include -g -Wall #{ARCHFLAGS}"
-CXXFLAGS << " -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
 CXXFLAGS << " -fno-rtti" unless CXXFLAGS.index("-fno-rtti")
 CXXFLAGS << " -DLLVM_TOT" if ENV['LLVM_TOT']
 CXXFLAGS << " -DLLVM_PRE_TOT" if ENV['LLVM_PRE_TOT']
-LDFLAGS = `#{LLVM_CONFIG} --ldflags --libs #{LLVM_MODULES}`.strip.gsub(/\n/, '')
-LDFLAGS << " -lpthread -ldl -lxml2 -lobjc -lauto -licucore -framework Foundation"
+CXXFLAGS_STATIC << " #{OPTZFLAG} -fno-rtti #{STATIC_FLAGS}"
+LDFLAGS_STATIC = "-lpthread -ldl -lxml2 -lobjc -lauto -licucore -framework Foundation"
+LDFLAGS = LDFLAGS_STATIC + ' ' + `#{LLVM_CONFIG} --ldflags --libs #{LLVM_MODULES}`.strip.gsub(/\n/, '')
 DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION} -exported_symbols_list #{EXPORTED_SYMBOLS_LIST}"
-CFLAGS << " -std=c99" # we add this one later to not conflict with C++ flags
-OBJC_CFLAGS << " -std=c99"
+OBJC_CFLAGS_STATIC = "#{OBJC_CFLAGS} #{STATIC_FLAGS}"
 
 if `sw_vers -productVersion`.to_f <= 10.6
   CFLAGS << " -I./icu-1060"

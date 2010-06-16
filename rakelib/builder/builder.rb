@@ -15,6 +15,9 @@ EXTENSIONS = %w{
   nkf
 }.sort
 
+FULL_OBJS_DIR = '.objs'
+STATIC_OBJS_DIR = '.static-objs'
+
 class Builder
   # Runs the given array of +commands+ in parallel. The amount of spawned
   # simultaneous jobs is determined by the `jobs' env variable. The default
@@ -34,19 +37,49 @@ class Builder
     end.each { |t| t.join }
   end
 
-  attr_reader :objs, :cflags, :cxxflags
-  attr_accessor :objc_cflags, :ldflags, :dldflags
+  attr_reader :objs, :objsdir, :cflags, :cxxflags
+  attr_accessor :cflags, :cxxflags, :objc_cflags, :ldflags, :dldflags
 
   def initialize(objs)
-    @objs = objs.dup
-    @cflags = CFLAGS
-    @cxxflags = CXXFLAGS
-    @objc_cflags = OBJC_CFLAGS
-    @ldflags = LDFLAGS
-    @dldflags = DLDFLAGS
-    @objs_cflags = OBJS_CFLAGS
-    @obj_sources = {}
-    @header_paths = {}
+    @all_objs = objs.dup
+    self.mode = :full
+  end
+
+  def mode=(m)
+    if @mode != m
+      @mode = m
+      case @mode
+        when :full
+          @objs = @all_objs
+          @cflags = CFLAGS
+          @cxxflags = CXXFLAGS
+          @objc_cflags = OBJC_CFLAGS
+          @ldflags = LDFLAGS
+          @objsdir = FULL_OBJS_DIR
+        when :static
+          @objs = @all_objs - %w{bs compiler debugger interpreter}
+          @cflags = CFLAGS_STATIC
+          @cxxflags = CXXFLAGS_STATIC
+          @objc_cflags = OBJC_CFLAGS_STATIC
+          @ldflags = LDFLAGS_STATIC
+          @objsdir = STATIC_OBJS_DIR
+        else
+          raise
+      end
+      @objs_cflags = OBJS_CFLAGS
+      @dldflags = DLDFLAGS
+      @obj_sources = {}
+      @header_paths = {}
+      FileUtils.mkdir_p(@objsdir)
+    end
+  end
+
+  def objsdir=(d)
+    if @objsdir != d
+      @objsdir = d.dup
+      FileUtils.mkdir_p(@objsdir)
+      @obj_sources.clear
+    end
   end
 
   def build(objs=nil)
@@ -65,7 +98,7 @@ class Builder
         if f = @objs_cflags[obj]
           flags += " #{f}"
         end
-        commands << "#{cc} #{flags} -c #{s} -o #{obj}.o"
+        commands << "#{cc} #{flags} -c #{s} -o #{obj_path(obj)}"
       end
     end
     self.class.parallel_execute(commands)
@@ -83,29 +116,30 @@ class Builder
     objs ||= @objs
     if should_link?(name, objs)
       rm_f(name)
-      sh("/usr/bin/ar rcu #{name} #{objs.map { |x| x + '.o' }.join(' ') }")
+      sh("/usr/bin/ar rcu #{name} #{objs.map { |x| obj_path(x) }.join(' ') }")
       sh("/usr/bin/ranlib #{name}")
     end
   end
-
-  def clean
-    @objs.map { |o| o + '.o' }.select { |o| File.exist?(o) }.each { |o| rm_f(o) }
-  end
  
   private
+
+  def obj_path(o)
+    raise unless @objsdir
+    File.join(@objsdir, o + '.o')
+  end
 
   def link(objs, ldflags, args, name)
     objs ||= @objs
     ldflags ||= @ldflags
     if should_link?(name, objs)
-      sh("#{CXX} #{@cflags} #{objs.map { |x| x + '.o' }.join(' ') } #{ldflags} #{args}")
+      sh("#{CXX} #{@cflags} #{objs.map { |x| obj_path(x) }.join(' ') } #{ldflags} #{args}")
     end
   end
 
   def should_build?(obj)
-    if File.exist?(obj + '.o')
+    if File.exist?(obj_path(obj))
       src_time = File.mtime(obj_source(obj))
-      obj_time = File.mtime(obj + '.o')
+      obj_time = File.mtime(obj_path(obj))
       src_time > obj_time \
         or dependencies[obj].any? { |f| File.mtime(f) > obj_time }
     else
@@ -116,7 +150,7 @@ class Builder
   def should_link?(bin, objs)
     if File.exist?(bin)
       mtime = File.mtime(bin)
-      objs.any? { |o| File.mtime(o + '.o') > mtime }
+      objs.any? { |o| File.mtime(obj_path(o)) > mtime }
     else
       true
     end

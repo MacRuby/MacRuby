@@ -26,6 +26,8 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
+#if !defined(MACRUBY_STATIC)
+
 #include "bs.h"
 
 #include <libxml/xmlreader.h>
@@ -1410,3 +1412,5 @@ bs_element_free(bs_element_type_t type, void *value)
   }
   free(value);
 }
+
+#endif // !MACRUBY_STATIC

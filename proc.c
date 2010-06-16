@@ -949,6 +949,9 @@ rb_mod_public_instance_method(VALUE mod, SEL sel, VALUE vid)
 static VALUE
 rb_mod_define_method(VALUE mod, SEL sel, int argc, VALUE *argv)
 {
+#if MACRUBY_STATIC
+    not_implemented_in_static(sel);
+#else
     ID id;
     VALUE body;
 
@@ -997,6 +1000,7 @@ rb_mod_define_method(VALUE mod, SEL sel, int argc, VALUE *argv)
     }
 
     return body;
+#endif
 }
 
 static VALUE

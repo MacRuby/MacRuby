@@ -993,8 +993,12 @@ static void
 rb_add_mri_method(VALUE klass, const char *name, void *imp, const int arity,
 	const int noex)
 {
+#if MACRUBY_STATIC
+    rb_raise(rb_eRuntimeError, "MRI methods are not supported in MacRuby static");
+#else
     imp = rb_vm_generate_mri_stub(imp, arity);
     rb_objc_add_method(klass, name, imp, arity, noex, false);
+#endif
 }
 
 void

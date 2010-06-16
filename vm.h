@@ -630,11 +630,13 @@ rb_vm_yield(int argc, const VALUE *argv)
 #if defined(__cplusplus)
 }
 
+#if !defined(MACRUBY_STATIC)
 typedef struct {
     Function *func;
     rb_vm_arity_t arity;
     int flags;
 } rb_vm_method_source_t;
+#endif
 
 #define rb_vm_long_arity_stub_t rb_vm_objc_stub_t
 typedef VALUE rb_vm_long_arity_bstub_t(IMP imp, id self, SEL sel,
@@ -666,12 +668,14 @@ class RoxorCore {
 
     private:
 	// LLVM objects.
-#if !defined(LLVM_TOT)
+#if !defined(MACRUBY_STATIC)
+# if !defined(LLVM_TOT)
 	ExistingModuleProvider *emp;
-#endif
+# endif
 	RoxorJITManager *jmm;
 	ExecutionEngine *ee;
 	FunctionPassManager *fpm;
+#endif
 
 	// Running threads.
 	VALUE threads;
@@ -698,8 +702,10 @@ class RoxorCore {
 	std::map<int, VALUE> trap_cmd;
 	std::map<int, int> trap_level;
 
+#if !defined(MACRUBY_STATIC)
 	// Cache to avoid compiling the same Function twice.
 	std::map<Function *, IMP> JITcache;
+#endif
 
 	// Cache to identify pure Ruby implementations / methods.
 	std::map<IMP, rb_vm_method_node_t *> ruby_imps;
@@ -708,11 +714,18 @@ class RoxorCore {
 	// Constants cache.
 	std::map<ID, struct ccache *> ccache;
 
+	// Outers map (where a class is actually defined).
+	std::map<Class, struct rb_vm_outer *> outers;
+
+#if !defined(MACRUBY_STATIC)
 	// Optimized selectors redefinition cache.
 	std::map<SEL, GlobalVariable *> redefined_ops_gvars;
 
-	// Outers map (where a class is actually defined).
-	std::map<Class, struct rb_vm_outer *> outers;
+	// Caches for the lazy JIT.
+	std::map<SEL, std::map<Class, rb_vm_method_source_t *> *>
+	    method_sources;
+	std::multimap<Class, SEL> method_source_sels;
+#endif
 
 	// Maps to cache compiled stubs for a given Objective-C runtime type.
 	std::map<std::string, void *> c_stubs, objc_stubs,
@@ -720,11 +733,6 @@ class RoxorCore {
 	std::map<IMP, IMP> objc_to_ruby_stubs;
 	std::map<int, void *> rb_large_arity_rstubs; // Large arity Ruby calls
 	std::map<int, void *> rb_large_arity_bstubs; // Large arity block calls
-
-	// Caches for the lazy JIT.
-	std::map<SEL, std::map<Class, rb_vm_method_source_t *> *>
-	    method_sources;
-	std::multimap<Class, SEL> method_source_sels;
 
 	// BridgeSupport caches.
 	bs_parser_t *bs_parser;
@@ -778,12 +786,14 @@ class RoxorCore {
 	void register_thread(VALUE thread);
 	void unregister_thread(VALUE thread);
 
+#if !defined(MACRUBY_STATIC)
 	void optimize(Function *func);
 	IMP compile(Function *func, bool optimize=true);
 	void delenda(Function *func);
 
 	void load_bridge_support(const char *path, const char *framework_path,
 		int options);
+#endif
 
 	bs_element_constant_t *find_bs_const(ID name);
 	bs_element_method_t *find_bs_method(Class klass, SEL sel);
@@ -798,18 +808,19 @@ class RoxorCore {
 	// This callback is public for the only reason it's called by C.
 	void bs_parse_cb(bs_element_type_t type, void *value, void *ctx);
 
-	void *gen_large_arity_stub(int argc, bool is_block=false);
-	void *gen_stub(std::string types, bool variadic, int min_argc,
-		bool is_objc);
-	void *gen_to_rval_convertor(std::string type);
-	void *gen_to_ocval_convertor(std::string type);
-
 	void insert_stub(const char *types, void *stub, bool is_objc) {
 	    std::map<std::string, void *> &m =
 		is_objc ? objc_stubs : c_stubs;
 	    m.insert(std::make_pair(types, stub));
 	}
 
+	void *gen_large_arity_stub(int argc, bool is_block=false);
+	void *gen_stub(std::string types, bool variadic, int min_argc,
+		bool is_objc);
+	void *gen_to_rval_convertor(std::string type);
+	void *gen_to_ocval_convertor(std::string type);
+
+#if !defined(MACRUBY_STATIC)
 	std::map<Class, rb_vm_method_source_t *> *
 	method_sources_for_sel(SEL sel, bool create) {
 	    std::map<SEL, std::map<Class, rb_vm_method_source_t *> *>::iterator
@@ -828,6 +839,7 @@ class RoxorCore {
 	    }
 	    return map;
 	}
+#endif
 
 	bool symbolize_call_address(void *addr, void **startp,
 		char *path, size_t path_len, unsigned long *ln,
@@ -841,30 +853,34 @@ class RoxorCore {
 	rb_vm_method_node_t *method_node_get(IMP imp, bool create=false);
 	rb_vm_method_node_t *method_node_get(Method m, bool create=false);
 
+#if !defined(MACRUBY_STATIC)
 	rb_vm_method_source_t *method_source_get(Class klass, SEL sel);
 
 	void prepare_method(Class klass, SEL sel, Function *func,
 		const rb_vm_arity_t &arity, int flag);
-	rb_vm_method_node_t *add_method(Class klass, SEL sel, IMP imp,
-		IMP ruby_imp, const rb_vm_arity_t &arity, int flags,
-		const char *types);
 	rb_vm_method_node_t *resolve_method(Class klass, SEL sel,
 		Function *func, const rb_vm_arity_t &arity, int flags,
 		IMP imp, Method m);
+	bool resolve_methods(std::map<Class, rb_vm_method_source_t *> *map,
+		Class klass, SEL sel);
+#endif
+	rb_vm_method_node_t *add_method(Class klass, SEL sel, IMP imp,
+		IMP ruby_imp, const rb_vm_arity_t &arity, int flags,
+		const char *types);
 	rb_vm_method_node_t *retype_method(Class klass,
 		rb_vm_method_node_t *node, const char *old_types,
 		const char *new_types);
 	void undef_method(Class klass, SEL sel);
 	void remove_method(Class klass, SEL sel);
-	bool resolve_methods(std::map<Class, rb_vm_method_source_t *> *map,
-		Class klass, SEL sel);
 	bool copy_method(Class klass, Method m);
 	void copy_methods(Class from_class, Class to_class);
 	void get_methods(VALUE ary, Class klass, bool include_objc_methods,
 		int (*filter) (VALUE, ID, VALUE));
 	void method_added(Class klass, SEL sel);
 
+#if !defined(MACRUBY_STATIC)
 	GlobalVariable *redefined_op_gvar(SEL sel, bool create);
+#endif
 	bool should_invalidate_inline_op(SEL sel, Class klass);
 
 	struct ccache *constant_cache_get(ID path);
@@ -873,9 +889,11 @@ class RoxorCore {
 	struct rb_vm_outer *get_outer(Class klass);
 	void set_outer(Class klass, Class mod);
 
+#if !defined(MACRUBY_STATIC)
 	size_t get_sizeof(const Type *type);
 	size_t get_sizeof(const char *type);
 	bool is_large_struct_type(const Type *type);
+#endif
 
 	void register_finalizer(rb_vm_finalizer_t *finalizer);
 	void unregister_finalizer(rb_vm_finalizer_t *finalizer);
@@ -1129,5 +1147,8 @@ class RoxorVM {
 #define GET_THREAD() (GetThreadPtr(GET_VM()->get_thread()))
 
 #endif /* __cplusplus */
+
+#define not_implemented_in_static(s) \
+    rb_raise(rb_eRuntimeError, "%s is not supported in MacRuby static", sel_getName(s))
 
 #endif /* __VM_H_ */

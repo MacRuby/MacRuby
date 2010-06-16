@@ -6,6 +6,8 @@
  * Copyright (C) 2008-2010, Apple Inc. All rights reserved.
  */
 
+#if !defined(MACRUBY_STATIC)
+
 #include "llvm.h"
 #include "ruby/ruby.h"
 #include "ruby/node.h"
@@ -227,3 +229,5 @@ RoxorInterpreter::interpret(Function *func, VALUE self, SEL sel)
     BasicBlock &b = func->getEntryBlock();
     return interpret_basicblock(&b);
 }
+
+#endif // !MACRUBY_STATIC

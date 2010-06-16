@@ -56,7 +56,12 @@ extern int ruby_initialized;
 
 - (void)loadBridgeSupportFileAtPath:(NSString *)path
 {
+#if MACRUBY_STATIC
+    printf("loadBridgeSupportFileAtPath: not supported in MacRuby static\n");
+    abort();
+#else
     rb_vm_load_bridge_support([path fileSystemRepresentation], NULL, 0);
+#endif
 }
 
 - (void)loadBridgeSupportFileAtURL:(NSURL *)URL

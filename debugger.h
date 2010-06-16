@@ -11,6 +11,8 @@
 
 #if defined(__cplusplus)
 
+#if !defined(MACRUBY_STATIC)
+
 class RoxorBreakPoint {
     public:
 	static unsigned int IDs;
@@ -59,6 +61,8 @@ class RoxorDebugger {
 	void trap(const char *file, const int line, VALUE self,
 		rb_vm_block_t *block, int lvars_size, va_list lvars);
 };
+
+#endif // !MACRUBY_STATIC
 
 #endif /* __cplusplus */
 

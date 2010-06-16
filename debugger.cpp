@@ -6,6 +6,8 @@
  * Copyright (C) 2010, Apple Inc. All rights reserved.
  */
 
+#if !defined(MACRUBY_STATIC)
+
 #include <llvm/Module.h>
 #include <llvm/DerivedTypes.h>
 #include <llvm/Constants.h>
@@ -422,3 +424,5 @@ RoxorDebugger::delete_breakpoint(unsigned int bpid)
     }
     return false;
 }
+
+#endif // !MACRUBY_STATIC

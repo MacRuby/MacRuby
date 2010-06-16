@@ -1,6 +1,12 @@
 #ifndef __MR_LLVM_H_
 #define __MR_LLVM_H_
 
+#if MACRUBY_STATIC
+# include <string>
+# include <vector>
+# include <map>
+#else
+
 // This file must be included at the very beginning of every C++ file in the
 // project, due to type collisions between LLVM and the MRI C API.
 
@@ -18,5 +24,7 @@
 #include <llvm/PassManager.h>
 #include <llvm/Target/TargetData.h>
 using namespace llvm;
+
+#endif // !MACRUBY_STATIC
 
 #endif // __MR_LLVM_H_

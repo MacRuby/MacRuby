@@ -57,9 +57,15 @@ RUBY_EXTERN const char ruby_copyright[];
 #  endif
 #endif
 
-#define RUBY_DESCRIPTION	    \
-    "MacRuby " MACRUBY_VERSION	    \
-    " (ruby "RUBY_VERSION	    \
+#if MACRUBY_STATIC
+# define MACRUBY_NAME "MacRuby-static"
+#else
+# define MACRUBY_NAME "MacRuby"
+#endif
+
+#define RUBY_DESCRIPTION	    	\
+    MACRUBY_NAME " " MACRUBY_VERSION	\
+    " (ruby "RUBY_VERSION	    	\
     ") ["RUBY_PLATFORM", "RUBY_ARCH"]"
 
 #define RUBY_COPYRIGHT 	    \

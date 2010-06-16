@@ -122,9 +122,14 @@ __rb_vm_bcall(VALUE self, SEL sel, VALUE dvars, rb_vm_block_t *b,
 		    argv[3], argv[4], argv[5], argv[6], argv[7], argv[8]);
     }
 
+#if MACRUBY_STATIC
+    rb_raise(rb_eRuntimeError,
+	    "MacRuby static doesn't support passing more than 9 arguments");
+#else
     rb_vm_long_arity_bstub_t *stub = (rb_vm_long_arity_bstub_t *)
 	GET_CORE()->gen_large_arity_stub(argc, true);
     return (*stub)(pimp, (id)self, sel, dvars, b, argc, argv);
+#endif
 }
 
 static force_inline VALUE
@@ -184,9 +189,14 @@ __rb_vm_rcall(VALUE self, SEL sel, IMP pimp, const rb_vm_arity_t &arity,
 		    argv[10]);
     }
 
+#if MACRUBY_STATIC
+    rb_raise(rb_eRuntimeError,
+	    "MacRuby static doesn't support passing more than 9 arguments");
+#else
     rb_vm_long_arity_stub_t *stub = (rb_vm_long_arity_stub_t *)
 	GET_CORE()->gen_large_arity_stub(argc);
     return (*stub)(pimp, (id)self, sel, argc, argv);
+#endif
 }
 
 static void
@@ -619,11 +629,13 @@ recache2:
 	else {
 	    // Method is not found...
 
+#if !defined(MACRUBY_STATIC)
 	    // Force a method resolving, because the objc cache might be
 	    // wrong.
 	    if (rb_vm_resolve_method(klass, sel)) {
 		goto recache;
 	    }
+#endif
 
 	    // Does the receiver implements -forwardInvocation:?
 	    if ((opt & DISPATCH_SUPER) == 0
@@ -1308,9 +1320,13 @@ rb_vm_prepare_block(void *function, int flags, VALUE self, rb_vm_arity_t arity,
 		b->imp = (IMP)function;
 	    }
 	    else {
+#if MACRUBY_STATIC
+		abort();
+#else
 		GET_CORE()->lock();
 		b->imp = GET_CORE()->compile((Function *)function);
 		GET_CORE()->unlock();
+#endif
 	    }
 	    b->userdata = (VALUE)function;
 	}

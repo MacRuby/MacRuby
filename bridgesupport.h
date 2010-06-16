@@ -31,7 +31,9 @@ typedef struct rb_vm_bs_boxed {
 	bs_element_opaque_t *o;
 	void *v;
     } as;
+#if !defined(MACRUBY_STATIC)
     Type *type;
+#endif
     VALUE klass;
 } rb_vm_bs_boxed_t;
 

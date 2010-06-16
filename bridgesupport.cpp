@@ -6,20 +6,26 @@
  * Copyright (C) 2007-2010, Apple Inc. All rights reserved.
  */
 
-#include <llvm/Module.h>
-#include <llvm/DerivedTypes.h>
-#include <llvm/Constants.h>
-#include <llvm/CallingConv.h>
-#include <llvm/Instructions.h>
-#if !defined(LLVM_TOT)
-# include <llvm/ModuleProvider.h>
-#endif
-#include <llvm/Intrinsics.h>
-#include <llvm/Analysis/DebugInfo.h>
-#include <llvm/ExecutionEngine/JIT.h>
-#include <llvm/PassManager.h>
-#include <llvm/Target/TargetData.h>
+#if MACRUBY_STATIC
+# include <vector>
+# include <map>
+# include <string>
+#else
+# include <llvm/Module.h>
+# include <llvm/DerivedTypes.h>
+# include <llvm/Constants.h>
+# include <llvm/CallingConv.h>
+# include <llvm/Instructions.h>
+# if !defined(LLVM_TOT)
+#  include <llvm/ModuleProvider.h>
+# endif
+# include <llvm/Intrinsics.h>
+# include <llvm/Analysis/DebugInfo.h>
+# include <llvm/ExecutionEngine/JIT.h>
+# include <llvm/PassManager.h>
+# include <llvm/Target/TargetData.h>
 using namespace llvm;
+#endif
 
 #include "ruby/ruby.h"
 #include "ruby/node.h"
@@ -46,6 +52,8 @@ generate_const_name(char *name)
 	return rb_intern(name);
     }
 }
+
+VALUE rb_cBoxed;
 
 static VALUE bs_const_magic_cookie = Qnil;
 
@@ -77,8 +85,115 @@ rb_vm_resolve_const_value(VALUE v, VALUE klass, ID id)
     return v;
 }
 
-VALUE rb_cBoxed;
 
+bs_element_constant_t *
+RoxorCore::find_bs_const(ID name)
+{
+    std::map<ID, bs_element_constant_t *>::iterator iter =
+	bs_consts.find(name);
+
+    return iter == bs_consts.end() ? NULL : iter->second;
+}
+
+bs_element_method_t *
+RoxorCore::find_bs_method(Class klass, SEL sel)
+{
+    std::map<std::string, std::map<SEL, bs_element_method_t *> *> &map =
+	class_isMetaClass(klass) ? bs_classes_class_methods
+	: bs_classes_instance_methods;
+
+    do {
+	std::map<std::string,
+		 std::map<SEL, bs_element_method_t *> *>::iterator iter =
+		     map.find(class_getName(klass));
+
+	if (iter != map.end()) {
+	    std::map<SEL, bs_element_method_t *> *map2 = iter->second;
+	    std::map<SEL, bs_element_method_t *>::iterator iter2 =
+		map2->find(sel);
+
+	    if (iter2 != map2->end()) {
+		return iter2->second;
+	    }
+	}
+
+	klass = class_getSuperclass(klass);
+    }
+    while (klass != NULL);
+
+    return NULL;
+}
+
+rb_vm_bs_boxed_t *
+RoxorCore::find_bs_boxed(std::string type)
+{
+    std::map<std::string, rb_vm_bs_boxed_t *>::iterator iter =
+	bs_boxed.find(type);
+
+    if (iter == bs_boxed.end()) {
+	return NULL;
+    }
+
+    return iter->second;
+}
+
+rb_vm_bs_boxed_t *
+RoxorCore::find_bs_struct(std::string type)
+{
+    rb_vm_bs_boxed_t *boxed = find_bs_boxed(type);
+    if (boxed != NULL) {
+	if (boxed->is_struct()) {
+	    return boxed;
+	}
+	return NULL;
+    }
+
+#if MACRUBY_STATIC
+    return NULL;
+#else
+    // Given structure type does not exist... but it may be an anonymous
+    // type (like {?=qq}) which is sometimes present in BridgeSupport files...
+    return register_anonymous_bs_struct(type.c_str());
+#endif
+}
+
+rb_vm_bs_boxed_t *
+RoxorCore::find_bs_opaque(std::string type)
+{
+    rb_vm_bs_boxed_t *boxed = find_bs_boxed(type);
+    return boxed == NULL ? NULL : boxed->is_struct() ? NULL : boxed;
+}
+
+bs_element_cftype_t *
+RoxorCore::find_bs_cftype(std::string type)
+{
+    std::map<std::string, bs_element_cftype_t *>::iterator iter =
+	bs_cftypes.find(type);
+
+    return iter == bs_cftypes.end() ? NULL : iter->second;
+}
+
+std::string *
+RoxorCore::find_bs_informal_protocol_method(SEL sel, bool class_method)
+{
+    std::map<SEL, std::string *> &map = class_method
+	? bs_informal_protocol_cmethods : bs_informal_protocol_imethods;
+
+    std::map<SEL, std::string *>::iterator iter = map.find(sel);
+
+    return iter == map.end() ? NULL : iter->second;
+}
+
+bs_element_function_t *
+RoxorCore::find_bs_function(std::string &name)
+{
+    std::map<std::string, bs_element_function_t *>::iterator iter =
+	bs_funcs.find(name);
+
+    return iter == bs_funcs.end() ? NULL : iter->second;
+}
+
+#if !defined(MACRUBY_STATIC)
 extern "C"
 void
 rb_vm_check_arity(int given, int requested)
@@ -936,109 +1051,6 @@ rb_pointer_cast(VALUE rcv, SEL sel, VALUE type)
     return rcv;
 }
 
-bs_element_constant_t *
-RoxorCore::find_bs_const(ID name)
-{
-    std::map<ID, bs_element_constant_t *>::iterator iter =
-	bs_consts.find(name);
-
-    return iter == bs_consts.end() ? NULL : iter->second;
-}
-
-bs_element_method_t *
-RoxorCore::find_bs_method(Class klass, SEL sel)
-{
-    std::map<std::string, std::map<SEL, bs_element_method_t *> *> &map =
-	class_isMetaClass(klass) ? bs_classes_class_methods
-	: bs_classes_instance_methods;
-
-    do {
-	std::map<std::string,
-		 std::map<SEL, bs_element_method_t *> *>::iterator iter =
-		     map.find(class_getName(klass));
-
-	if (iter != map.end()) {
-	    std::map<SEL, bs_element_method_t *> *map2 = iter->second;
-	    std::map<SEL, bs_element_method_t *>::iterator iter2 =
-		map2->find(sel);
-
-	    if (iter2 != map2->end()) {
-		return iter2->second;
-	    }
-	}
-
-	klass = class_getSuperclass(klass);
-    }
-    while (klass != NULL);
-
-    return NULL;
-}
-
-rb_vm_bs_boxed_t *
-RoxorCore::find_bs_boxed(std::string type)
-{
-    std::map<std::string, rb_vm_bs_boxed_t *>::iterator iter =
-	bs_boxed.find(type);
-
-    if (iter == bs_boxed.end()) {
-	return NULL;
-    }
-
-    return iter->second;
-}
-
-rb_vm_bs_boxed_t *
-RoxorCore::find_bs_struct(std::string type)
-{
-    rb_vm_bs_boxed_t *boxed = find_bs_boxed(type);
-    if (boxed != NULL) {
-	if (boxed->is_struct()) {
-	    return boxed;
-	}
-	return NULL;
-    }
-
-    // Given structure type does not exist... but it may be an anonymous
-    // type (like {?=qq}) which is sometimes present in BridgeSupport files...
-    return register_anonymous_bs_struct(type.c_str());
-}
-
-rb_vm_bs_boxed_t *
-RoxorCore::find_bs_opaque(std::string type)
-{
-    rb_vm_bs_boxed_t *boxed = find_bs_boxed(type);
-    return boxed == NULL ? NULL : boxed->is_struct() ? NULL : boxed;
-}
-
-bs_element_cftype_t *
-RoxorCore::find_bs_cftype(std::string type)
-{
-    std::map<std::string, bs_element_cftype_t *>::iterator iter =
-	bs_cftypes.find(type);
-
-    return iter == bs_cftypes.end() ? NULL : iter->second;
-}
-
-std::string *
-RoxorCore::find_bs_informal_protocol_method(SEL sel, bool class_method)
-{
-    std::map<SEL, std::string *> &map = class_method
-	? bs_informal_protocol_cmethods : bs_informal_protocol_imethods;
-
-    std::map<SEL, std::string *>::iterator iter = map.find(sel);
-
-    return iter == map.end() ? NULL : iter->second;
-}
-
-bs_element_function_t *
-RoxorCore::find_bs_function(std::string &name)
-{
-    std::map<std::string, bs_element_function_t *>::iterator iter =
-	bs_funcs.find(name);
-
-    return iter == bs_funcs.end() ? NULL : iter->second;
-}
-
 static void
 index_bs_class_methods(const char *name,
 	std::map<std::string, std::map<SEL, bs_element_method_t *> *> &map,
@@ -1397,39 +1409,6 @@ RoxorCore::load_bridge_support(const char *path, const char *framework_path,
 #endif
 }
 
-extern "C"
-void
-Init_BridgeSupport(void)
-{
-    // Boxed
-    rb_cBoxed = rb_define_class("Boxed", rb_cObject);
-    rb_objc_define_method(*(VALUE *)rb_cBoxed, "type",
-	    (void *)rb_boxed_objc_type, 0);
-    rb_objc_define_method(*(VALUE *)rb_cBoxed, "opaque?",
-	    (void *)rb_boxed_is_opaque, 0);
-    boxed_ivar_type = rb_intern("__octype__");
-
-    // Pointer
-    rb_cPointer = rb_define_class("Pointer", rb_cObject);
-    rb_objc_define_method(*(VALUE *)rb_cPointer, "new",
-	    (void *)rb_pointer_s_new, -1);
-    rb_objc_define_method(*(VALUE *)rb_cPointer, "new_with_type",
-	    (void *)rb_pointer_s_new, -1);
-    rb_objc_define_method(rb_cPointer, "[]",
-	    (void *)rb_pointer_aref, 1);
-    rb_objc_define_method(rb_cPointer, "[]=",
-	    (void *)rb_pointer_aset, 2);
-    rb_objc_define_method(rb_cPointer, "assign",
-	    (void *)rb_pointer_assign, 1);
-    rb_objc_define_method(rb_cPointer, "type",
-	    (void *)rb_pointer_type, 0);
-    rb_objc_define_method(rb_cPointer, "cast!",
-	    (void *)rb_pointer_cast, 1);
-
-    bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie");
-    rb_objc_retain((void *)bs_const_magic_cookie);
-}
-
 // FFI
 
 static const char *
@@ -1601,12 +1580,52 @@ rb_ffi_attach_function(VALUE rcv, SEL sel, VALUE name, VALUE args, VALUE ret)
     return Qnil;
 }
 
+#endif // !MACRUBY_STATIC
+
+extern "C"
+void
+Init_BridgeSupport(void)
+{
+#if !defined(MACRUBY_STATIC)
+    // Boxed
+    rb_cBoxed = rb_define_class("Boxed", rb_cObject);
+    rb_objc_define_method(*(VALUE *)rb_cBoxed, "type",
+	    (void *)rb_boxed_objc_type, 0);
+    rb_objc_define_method(*(VALUE *)rb_cBoxed, "opaque?",
+	    (void *)rb_boxed_is_opaque, 0);
+    boxed_ivar_type = rb_intern("__octype__");
+
+    // Pointer
+    rb_cPointer = rb_define_class("Pointer", rb_cObject);
+    rb_objc_define_method(*(VALUE *)rb_cPointer, "new",
+	    (void *)rb_pointer_s_new, -1);
+    rb_objc_define_method(*(VALUE *)rb_cPointer, "new_with_type",
+	    (void *)rb_pointer_s_new, -1);
+    rb_objc_define_method(rb_cPointer, "[]",
+	    (void *)rb_pointer_aref, 1);
+    rb_objc_define_method(rb_cPointer, "[]=",
+	    (void *)rb_pointer_aset, 2);
+    rb_objc_define_method(rb_cPointer, "assign",
+	    (void *)rb_pointer_assign, 1);
+    rb_objc_define_method(rb_cPointer, "type",
+	    (void *)rb_pointer_type, 0);
+    rb_objc_define_method(rb_cPointer, "cast!",
+	    (void *)rb_pointer_cast, 1);
+#endif
+
+    bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie");
+    rb_objc_retain((void *)bs_const_magic_cookie);
+}
+
 extern "C"
 void
 Init_FFI(void)
 {
+#if !defined(MACRUBY_STATIC)
     VALUE mFFI = rb_define_module("FFI");
     VALUE mFFILib = rb_define_module_under(mFFI, "Library");
     rb_objc_define_method(mFFILib, "attach_function",
 	    (void *)rb_ffi_attach_function, 3);
+#endif
 }
+

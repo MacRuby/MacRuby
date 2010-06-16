@@ -31,6 +31,8 @@
 
 #if defined(__cplusplus)
 
+#if !defined(MACRUBY_STATIC)
+
 class RoxorInterpreter;
 
 class RoxorCompiler {
@@ -477,6 +479,8 @@ class RoxorAOTCompiler : public RoxorCompiler {
 	    abort();
 	}
 };
+
+#endif // !MACRUBY_STATIC
 
 #endif /* __cplusplus */
 

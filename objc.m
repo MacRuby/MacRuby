@@ -285,10 +285,15 @@ rb_file_absolute_path(VALUE fname, VALUE dname)
 static VALUE
 rb_objc_load_bs(VALUE recv, SEL sel, VALUE path)
 {
+#if MACRUBY_STATIC
+    not_implemented_in_static(sel);
+#else
     rb_vm_load_bridge_support(StringValuePtr(path), NULL, 0);
     return recv;
+#endif
 }
 
+#if !defined(MACRUBY_STATIC)
 static void
 rb_objc_search_and_load_bridge_support(const char *framework_path)
 {
@@ -299,6 +304,7 @@ rb_objc_search_and_load_bridge_support(const char *framework_path)
                                     BS_PARSE_OPTIONS_LOAD_DYLIBS);
     }
 }
+#endif
 
 static void
 reload_class_constants(void)
@@ -331,47 +337,14 @@ reload_class_constants(void)
     free(buf);
 }
 
-static void
-reload_protocols(void)
-{
-#if 0
-    Protocol **prots;
-    unsigned int i, prots_count;
-
-    prots = objc_copyProtocolList(&prots_count);
-    for (i = 0; i < prots_count; i++) {
-	Protocol *p;
-	struct objc_method_description *methods;
-	unsigned j, methods_count;
-
-	p = prots[i];
-
-#define REGISTER_MDESCS(t) // TODO
-
-	methods = protocol_copyMethodDescriptionList(p, true, true,
-		&methods_count);
-	REGISTER_MDESCS(bs_inf_prot_imethods);
-	methods = protocol_copyMethodDescriptionList(p, false, true,
-		&methods_count);
-	REGISTER_MDESCS(bs_inf_prot_imethods);
-	methods = protocol_copyMethodDescriptionList(p, true, false,
-		&methods_count);
-	REGISTER_MDESCS(bs_inf_prot_cmethods);
-	methods = protocol_copyMethodDescriptionList(p, false, false,
-		&methods_count);
-	REGISTER_MDESCS(bs_inf_prot_cmethods);
-
-#undef REGISTER_MDESCS
-    }
-    free(prots);
-#endif
-}
-
 bool rb_objc_enable_ivar_set_kvo_notifications = false;
 
 VALUE
 rb_require_framework(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
+#if MACRUBY_STATIC
+    not_implemented_in_static(sel);
+#else
     VALUE framework;
     VALUE search_network;
     const char *cstr;
@@ -479,11 +452,11 @@ success:
 
     rb_objc_search_and_load_bridge_support(cstr);
     reload_class_constants();
-    reload_protocols();
 
     rb_objc_enable_ivar_set_kvo_notifications = true;
 
     return loaded ? Qfalse : Qtrue;
+#endif
 }
 
 void rb_vm_init_compiler(void);

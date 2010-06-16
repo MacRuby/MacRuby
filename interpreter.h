@@ -11,6 +11,8 @@
 
 #if defined(__cplusplus)
 
+#if !defined(MACRUBY_STATIC)
+
 class RoxorInterpreter {
     public:
 	static RoxorInterpreter *shared;
@@ -33,6 +35,8 @@ class RoxorInterpreter {
 	VALUE interpret_value(Value *val);
 	VALUE interpret_call(CallInst *call);
 };
+
+#endif // !MACRUBY_STATIC
 
 #endif // __cplusplus
 

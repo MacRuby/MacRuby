@@ -7,14 +7,16 @@ task :mark_gc do
   end
 end
 
-desc "Build known objects"
-task :objects => [:config_h, :dtrace_h, :revision_h, :mark_gc] do
+task :files => [:config_h, :dtrace_h, :revision_h, :mark_gc] do
+end
+
+def build_objects
   if !File.exist?('parse.c') or File.mtime('parse.y') > File.mtime('parse.c')
     sh("/usr/bin/bison -o y.tab.c parse.y")
     sh("/usr/bin/sed -f ./tool/ytab.sed -e \"/^#/s!y\.tab\.c!parse.c!\" y.tab.c > parse.c.new")
     if !File.exist?('parse.c') or File.read('parse.c.new') != File.read('parse.c')
       mv('parse.c.new', 'parse.c')
-      rm_f('parse.o')
+      rm_f(File.join($builder.objsdir, 'parse.o'))
     else
       rm('parse.c.new')
     end
@@ -52,18 +54,21 @@ task :objects => [:config_h, :dtrace_h, :revision_h, :mark_gc] do
       sh "/bin/rm #{output}"
     end
   end
-  t = File.exist?('dispatcher.o') ? File.mtime('dispatcher.o') : nil
+  dispatcher_o = File.join($builder.objsdir, 'dispatcher.o')
+  t = File.exist?(dispatcher_o) ? File.mtime(dispatcher_o) : nil
   $builder.build
-  if t == nil or File.mtime('dispatcher.o') > t
+  if t == nil or File.mtime(dispatcher_o) > t
     # dispatcher.o must be marked as GC compliant to avoid a linker problem.
     # We do not build it using -fobjc-gc because gcc generates unnecessary (and slow)
     # write barriers.
-    sh "./markgc ./dispatcher.o"
+    sh "./markgc #{dispatcher_o}"
   end
 end
 
 desc "Create miniruby"
-task :miniruby => :objects do
+task :miniruby => :files do
+  $builder.mode = :full
+  build_objects
   $builder.link_executable('miniruby', OBJS)
 end
 
@@ -74,8 +79,10 @@ task :rbconfig => :miniruby do
 end
 
 namespace :macruby do
-  desc "Build dynamic libraries for MacRuby"
-  task :dylib => [:rbconfig, :miniruby] do
+  desc "Build dynamic library"
+  task :dylib => [:rbconfig, :files] do
+    $builder.mode = :full
+    build_objects
     dylib = "lib#{RUBY_SO_NAME}.#{NEW_RUBY_VERSION}.dylib"
     $builder.link_dylib(dylib, $builder.objs - ['main', 'gc-stub'])
     major, minor, teeny = NEW_RUBY_VERSION.scan(/\d+/)
@@ -87,13 +94,16 @@ namespace :macruby do
     end
   end
 
-  desc "Build static libraries for MacRuby"
-  task :static => :dylib do
+  desc "Build static library"
+  task :static => :files do
+    $builder.mode = :static
+    build_objects
     $builder.link_archive("lib#{RUBY_SO_NAME}-static.a", $builder.objs - ['main', 'gc-stub'])
   end
 
   desc "Build MacRuby"
-  task :build => :dylib do
+  task :build => [:dylib, :static] do
+    $builder.mode = :full
     $builder.link_executable(RUBY_INSTALL_NAME, ['main', 'gc-stub'], "-L. -l#{RUBY_SO_NAME} -lobjc")
   end
 end
@@ -181,7 +191,8 @@ end
 namespace :clean do
   desc "Clean local build files"
   task :local do
-    $builder.clean
+    rm_rf(FULL_OBJS_DIR)
+    rm_rf(STATIC_OBJS_DIR)
     list = ['parse.c', 'lex.c', INSTALLED_LIST, 'Makefile', RUBY_INSTALL_NAME, 'miniruby', 'kernel_data.c']
     list.concat(Dir['*.inc'])
     list.concat(Dir['lib*.{dylib,a}'])
