@@ -141,8 +141,11 @@ OBJC_CFLAGS_STATIC = "#{OBJC_CFLAGS} #{STATIC_FLAGS}"
 
 if `sw_vers -productVersion`.to_f <= 10.6
   CFLAGS << " -I./icu-1060"
+  CFLAGS_STATIC << " -I./icu-1060"
   CXXFLAGS << " -I./icu-1060"
+  CXXFLAGS_STATIC << " -I./icu-1060"
   OBJC_CFLAGS << " -I./icu-1060"
+  OBJC_CFLAGS_STATIC << " -I./icu-1060"
 else
   if !File.exist?('/usr/local/include/unicode')
     $stderr.puts "Cannot locate ICU headers for this version of Mac OS X."
