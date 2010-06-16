@@ -131,11 +131,15 @@ def install?(*types, &block)
 end
 
 def install(src, dest, options = {})
+  strip = options.delete(:strip)
   options[:preserve] = true
   super(src, with_destdir(dest), options)
+  dest = File.join(dest, File.basename(src)) if $made_dirs[dest]
   if $installed_list
-    dest = File.join(dest, File.basename(src)) if $made_dirs[dest]
     $installed_list.puts dest
+  end
+  if strip
+    system("/usr/bin/strip -x \"#{dest}\"")
   end
 end
 
@@ -235,7 +239,7 @@ install?(:local, :arch, :bin, :'bin-arch') do
 
   makedirs [bindir, libdir, archlibdir]
 
-  install ruby_install_name+exeext, bindir, :mode => $prog_mode
+  install ruby_install_name+exeext, bindir, :mode => $prog_mode, :strip => true
   if rubyw_install_name and !rubyw_install_name.empty?
     install rubyw_install_name+exeext, bindir, :mode => $prog_mode
   end
@@ -245,8 +249,8 @@ install?(:local, :arch, :bin, :'bin-arch') do
   if enable_shared and dll != lib
     install dll, bindir, :mode => $prog_mode
   end
-  install lib, libdir, :mode => $prog_mode unless lib == arc
-  install arc, libdir, :mode => $data_mode #if enable_static
+  install lib, libdir, :mode => $prog_mode, :strip => true
+  install arc, libdir, :mode => $data_mode, :strip => true
   install "rbconfig.rb", archlibdir, :mode => $data_mode
   install "rbconfig.rbo", archlibdir, :mode => $data_mode
   if CONFIG["ARCHFILE"]
