@@ -61,6 +61,7 @@ class Compiler
     @gcxx = locate('g++')
     @nm = locate('nm')
     @lipo = locate('lipo')
+    @strip = locate('strip')
 
     # Misc.
     @tmpdir = (ENV['TMPDIR'] or '/tmp')
@@ -181,6 +182,7 @@ EOS
     File.open(main, 'w') { |io| io.write(main_txt) }
     linkf = @internal ? "-L. -lmacruby" : "-L#{RbConfig::CONFIG['libdir']} -lmacruby"
     execute("#{@gcxx} \"#{main}\" -dynamic -bundle -undefined suppress -flat_namespace #{arch_flags} #{linkf} \"#{obj}\" -o \"#{output}\"")
+    strip(output)
   end
 
   def compile_dylib(objs_data, output)
@@ -207,6 +209,7 @@ EOS
     linkf = @internal ? "-L. -lmacruby" : "-L#{RbConfig::CONFIG['libdir']} -lmacruby"
     objs = objs_data.map { |obj, f| "\"#{obj}\"" }.join(' ') 
     execute("#{@gcxx} \"#{main}\" -dynamiclib -dynamic -undefined suppress -flat_namespace #{arch_flags} #{linkf} #{objs} -o \"#{output}\"")
+    strip(output)
   end
 
   def compile_executable(objs_data, output)
@@ -284,6 +287,7 @@ EOS
     line = "#{@gcxx} -o \"#{output}\" #{arch_flags} #{linkf} "
     objs.each { |o| line << " \"#{o}\"" }
     execute(line)
+    strip(output)
   end
 
   def execute(line)
@@ -295,6 +299,10 @@ EOS
       die die_str
     end
     ret
+  end
+
+  def strip(bin)
+    execute("#{@strip} -x \"#{bin}\"")
   end
 
   def locate(progname, must_be_in_bindir=false)
