@@ -39,5 +39,5 @@ end
 
 [succeeded, failed].each { |a| a << 'None' if a.empty? }
 
-puts "Successful to build: #{succeeded.join(', ')}"
+puts "Successfully built: #{succeeded.join(', ')}"
 puts "Failed to build: #{failed.join(', ')}"
