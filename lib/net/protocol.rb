@@ -79,7 +79,7 @@ module Net # :nodoc:
     def read(len, dest = '', ignore_eof = false)
       LOG "reading #{len} bytes..."
       read_bytes = 0
-      dest.force_encoding("BINARY")
+      dest.force_encoding("BINARY") if dest.respond_to?(:force_encoding)
       begin
         while read_bytes + @rbuf.bytesize < len
           dest << (s = rbuf_consume(@rbuf.bytesize))
