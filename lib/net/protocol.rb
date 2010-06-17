@@ -80,13 +80,13 @@ module Net # :nodoc:
       LOG "reading #{len} bytes..."
       read_bytes = 0
       begin
-        while read_bytes + @rbuf.size < len
-          dest << (s = rbuf_consume(@rbuf.size))
-          read_bytes += s.size
+        while read_bytes + @rbuf.bytesize < len
+          dest << (s = rbuf_consume(@rbuf.bytesize))
+          read_bytes += s.bytesize
           rbuf_fill
         end
         dest << (s = rbuf_consume(len - read_bytes))
-        read_bytes += s.size
+        read_bytes += s.bytesize
       rescue EOFError
         raise unless ignore_eof
       end
@@ -99,8 +99,8 @@ module Net # :nodoc:
       read_bytes = 0
       begin
         while true
-          dest << (s = rbuf_consume(@rbuf.size))
-          read_bytes += s.size
+          dest << (s = rbuf_consume(@rbuf.bytesize))
+          read_bytes += s.bytesize
           rbuf_fill
         end
       rescue EOFError
@@ -115,10 +115,10 @@ module Net # :nodoc:
         until idx = @rbuf.index(terminator)
           rbuf_fill
         end
-        return rbuf_consume(idx + terminator.size)
+        return rbuf_consume(idx + terminator.bytesize)
       rescue EOFError
         raise unless ignore_eof
-        return rbuf_consume(@rbuf.size)
+        return rbuf_consume(@rbuf.bytesize)
       end
     end
 
@@ -131,9 +131,10 @@ module Net # :nodoc:
     BUFSIZE = 1024 * 16
 
     def rbuf_fill
-      timeout(@read_timeout) {
+      # XXX MacRuby timeout doesn't really work right now actually
+      # timeout(@read_timeout) {
         @rbuf << @io.sysread(BUFSIZE)
-      }
+      #}
       # XXX MacRuby : Until we implement read_nonblock, write_nonbloick,
       # IO::WaitReadable and IO::WaitWritable, let's use the old method using timeout
       # begin
@@ -235,7 +236,7 @@ module Net # :nodoc:
       LOG_off()
       read_bytes = 0
       while (line = readuntil("\r\n")) != ".\r\n"
-        read_bytes += line.size
+        read_bytes += line.bytesize
         yield line.sub(/\A\./, '')
       end
       LOG_on()
@@ -316,7 +317,7 @@ module Net # :nodoc:
     def buffer_filling(buf, src)
       case src
       when String    # for speeding up.
-        0.step(src.size - 1, 1024) do |i|
+        0.step(src.bytesize - 1, 1024) do |i|
           buf << src[i, 1024]
           yield
         end
@@ -328,7 +329,7 @@ module Net # :nodoc:
       else    # generic reader
         src.each do |str|
           buf << str
-          yield if buf.size > 1024
+          yield if buf.bytesize > 1024
         end
         yield unless buf.empty?
       end

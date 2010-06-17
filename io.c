@@ -1114,9 +1114,13 @@ rb_io_sysread(VALUE self, SEL sel, int argc, VALUE *argv)
     
     uint8_t *bytes = rb_bstr_bytes(buffer);
     
-    if (read(io->read_fd, bytes, (size_t)to_read) == -1) {
+    long r;
+    r = read(io->read_fd, bytes, (size_t)to_read);
+    if (r == -1) {
 	rb_sys_fail("read(2) failed.");
     }
+    // Resize the buffer to whatever was read
+    rb_bstr_resize(buffer, r);
     
     return buffer;
 }
