@@ -51,7 +51,7 @@ module Net # :nodoc:
       @io = io
       @read_timeout = 60
       @debug_output = nil
-      @rbuf = ''
+      @rbuf = ''.force_encoding('BINARY')
     end
 
     attr_reader :io
@@ -79,6 +79,7 @@ module Net # :nodoc:
     def read(len, dest = '', ignore_eof = false)
       LOG "reading #{len} bytes..."
       read_bytes = 0
+      dest.force_encoding("BINARY")
       begin
         while read_bytes + @rbuf.bytesize < len
           dest << (s = rbuf_consume(@rbuf.bytesize))
