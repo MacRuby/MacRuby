@@ -1314,7 +1314,7 @@ class Resolv
 
       class MessageEncoder # :nodoc:
         def initialize
-          @data = ''
+          @data = ''.force_encoding("BINARY")
           @names = {}
           yield self
         end
