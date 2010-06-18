@@ -119,6 +119,7 @@ INSTALL_NAME = File.join(FRAMEWORK_USR_LIB, 'lib' + RUBY_SO_NAME + '.dylib')
 ARCHFLAGS = ARCHS.map { |a| '-arch ' + a }.join(' ')
 LLVM_MODULES = "core jit nativecodegen bitwriter bitreader ipo"
 EXPORTED_SYMBOLS_LIST = "./exported_symbols_list"
+ARCHS_STATIC = ARCHS
 
 OPTZFLAG = "-O#{OPTZ_LEVEL}"
 STATIC_FLAGS = "-DMACRUBY_STATIC"
