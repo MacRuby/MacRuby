@@ -37,7 +37,7 @@ class Builder
     end.each { |t| t.join }
   end
 
-  attr_reader :objs, :objsdir, :cflags, :cxxflags
+  attr_reader :objs, :archs, :objsdir, :cflags, :cxxflags
   attr_accessor :cflags, :cxxflags, :objc_cflags, :ldflags, :dldflags
 
   def initialize(objs)
@@ -51,6 +51,7 @@ class Builder
       case @mode
         when :full
           @objs = @all_objs
+          @archs = ARCHS
           @cflags = CFLAGS
           @cxxflags = CXXFLAGS
           @objc_cflags = OBJC_CFLAGS
@@ -58,6 +59,7 @@ class Builder
           @objsdir = FULL_OBJS_DIR
         when :static
           @objs = @all_objs - %w{bs compiler debugger interpreter MacRubyDebuggerConnector}
+          @archs = ARCHS_STATIC
           @cflags = CFLAGS_STATIC
           @cxxflags = CXXFLAGS_STATIC
           @objc_cflags = OBJC_CFLAGS_STATIC

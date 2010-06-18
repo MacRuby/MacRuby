@@ -27,7 +27,8 @@ def build_objects
   if !File.exist?('node_name.inc') or File.mtime('include/ruby/node.h') > File.mtime('node_name.inc')
     sh("/usr/bin/ruby -n tool/node_name.rb include/ruby/node.h > node_name.inc")
   end
-  if !File.exist?('kernel_data.c') or File.mtime('kernel.c') > File.mtime('kernel_data.c')
+  kernel_data_c = File.join($builder.objsdir, 'kernel_data.c')
+  if !File.exist?(kernel_data_c) or File.mtime('kernel.c') > File.mtime(kernel_data_c)
     # Locate llvm-gcc...
     path = ENV['PATH'].split(':')
     path.unshift('/Developer/usr/bin')
@@ -40,18 +41,21 @@ def build_objects
     unless File.exist?(opt)
       $stderr.puts "Cannot locate opt in given LLVM path: #{LLVM_PATH}"
     end
-    sh "echo '' > kernel_data.c"
-    includes = CFLAGS.scan(/-I[^\s]+/).join(' ')
-    ARCHS.each do |x| 
-      output = "kernel-#{x}.bc"
+    sh "echo '' > #{kernel_data_c}"
+    cflags = $builder.cflags.scan(/-I[^\s]+/).join(' ')
+    cflags << ' ' << $builder.cflags.scan(/-D[^\s]+/).join(' ')
+    $builder.archs.each do |x| 
+      output = File.join($builder.objsdir, "kernel-#{x}.bc")
       # Compile the IR for the kernel.c source file & optimize it.
-      sh "#{llvm_gcc} -arch #{x} -fexceptions -fno-stack-protector #{includes} --emit-llvm -c kernel.c -o #{output}"
+      sh "#{llvm_gcc} -arch #{x} -fexceptions -fno-stack-protector #{cflags} --emit-llvm -c kernel.c -o #{output}"
       sh "#{opt} -O3 #{output} -o=#{output}"
-      # Convert the bitcode into a C static array. We append a null byte to the bitcode file because
-      # xxd doesn't, and it's needed by the bitcode reader later at runtime.
+      # Convert the bitcode into a C static array. We append a null byte to the
+      # bitcode file because xxd doesn't, and it's needed by the bitcode
+      # reader later at runtime.
+      cp output, "#{output}.old"
       sh "/bin/dd if=/dev/zero count=1 bs=1 conv=notrunc >> #{output} 2>/dev/null"
-      sh "/usr/bin/xxd -i #{output} >> kernel_data.c"
-      sh "/bin/rm #{output}"
+      sh "/usr/bin/xxd -i #{output} >> #{kernel_data_c}"
+      mv "#{output}.old", output
     end
   end
   dispatcher_o = File.join($builder.objsdir, 'dispatcher.o')
