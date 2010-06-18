@@ -680,10 +680,6 @@ RoxorAOTCompiler::compile_prepare_method(Value *classVal, Value *sel,
 			Int32Ty, NULL));
     }
 
-    // Make sure the function is compiled before use, this way LLVM won't use
-    // a stub.
-    GET_CORE()->compile(new_function);
-
     Value *args[] = {
 	classVal,
 	ConstantInt::get(Int8Ty, !singleton && dynamic_class ? 1 : 0),
@@ -942,8 +938,6 @@ Value *
 RoxorAOTCompiler::compile_prepare_block_args(Function *func, int *flags)
 {
     *flags |= VM_BLOCK_AOT;
-    // Force compilation (no stub).
-    GET_CORE()->compile(func);
     return new BitCastInst(func, PtrTy, "", bb);
 }
 
