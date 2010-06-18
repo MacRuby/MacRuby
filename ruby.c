@@ -837,6 +837,8 @@ VALUE rb_argv0;
 
 static rb_encoding *src_encoding;
 
+void rb_vm_init_jit(void);
+
 static VALUE
 process_options(VALUE arg)
 {
@@ -898,6 +900,10 @@ process_options(VALUE arg)
 	    opt->src.enc.name = src_enc_name;
 	if (ext_enc_name)
 	    opt->ext.enc.name = ext_enc_name;
+    }
+
+    if (!ruby_aot_compile) {
+	rb_vm_init_jit();
     }
 
     if (opt->version) {

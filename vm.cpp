@@ -321,17 +321,33 @@ RoxorCore::RoxorCore(void)
 
 #if !MACRUBY_STATIC
     bs_parser = NULL;
-
     llvm_start_multithreaded();
+    interpreter_enabled = getenv("VM_DISABLE_INTERPRETER") == NULL;
 
+    // The JIT is created later, if necessary.
+    InitializeNativeTarget();
+# if !defined(LLVM_TOT)
+    emp = NULL;
+# endif
+    jmm = NULL; 
+    ee = NULL;
+    fpm = NULL;
+
+# if ROXOR_VM_DEBUG
+    functions_compiled = 0;
+# endif
+#endif // !MACRUBY_STATIC
+}
+
+void
+RoxorCore::prepare_jit(void)
+{
+#if !defined(MACRUBY_STATIC)
+    assert(ee == NULL);
 # if !defined(LLVM_TOT)
     emp = new ExistingModuleProvider(RoxorCompiler::module);
 # endif
     jmm = new RoxorJITManager;
-
-    InitializeNativeTarget();
-
-    interpreter_enabled = getenv("VM_DISABLE_INTERPRETER") == NULL;
 
     CodeGenOpt::Level opt = CodeGenOpt::Default;
     inlining_enabled = false;
@@ -392,11 +408,7 @@ RoxorCore::RoxorCore(void)
     fpm->add(createCFGSimplificationPass());
     // Eliminate tail calls.
     fpm->add(createTailCallEliminationPass());
-
-# if ROXOR_VM_DEBUG
-    functions_compiled = 0;
-# endif
-#endif // !MACRUBY_STATIC
+#endif
 }
 
 RoxorCore::~RoxorCore(void)
@@ -557,7 +569,7 @@ RoxorCore::optimize(Function *func)
     if (inlining_enabled) {
 	RoxorCompiler::shared->inline_function_calls(func);
     }
-    if (optims_enabled) {
+    if (optims_enabled && fpm != NULL) {
 	fpm->run(*func);
     }
 }
@@ -3671,6 +3683,13 @@ rb_dvar_defined(ID id)
 
 extern "C"
 void
+rb_vm_init_jit(void)
+{
+    GET_CORE()->prepare_jit();
+}
+
+extern "C"
+void
 rb_vm_init_compiler(void)
 {
 #if !defined(MACRUBY_STATIC)
@@ -4634,14 +4653,9 @@ class_has_custom_resolver(Class klass)
 }
 #endif
 
-// We can't trust LLVM to pick the right target at runtime.
-#if __LP64__
-# define TARGET_TRIPLE "x86_64-apple-darwin"
-#else
-# define TARGET_TRIPLE "i386-apple-darwin"
+#if !defined(MACRUBY_STATIC)
+# include "./.objs/kernel_data.c"
 #endif
-
-#include "kernel_data.c"
 
 extern "C"
 void 
@@ -4661,25 +4675,38 @@ Init_PreVM(void)
     // To not corrupt stack pointer (essential for backtracing).
     llvm::NoFramePointerElim = true;
 
-    // Retrieve the kernel bitcode for the right architecture. We substract
-    // 1 to the length because it's NULL terminated.
-    const char *kernel_beg;
-    const char *kernel_end;
+    MemoryBuffer *mbuf;
+    const char *kernel_file = getenv("VM_KERNEL_PATH");
+    if (kernel_file != NULL) {
+	std::string err;
+	mbuf = MemoryBuffer::getFile(kernel_file, &err);
+	if (mbuf == NULL) {
+	    printf("can't open given kernel file `%s': %s\n", kernel_file,
+		    err.c_str());
+	    abort();
+	}
+    }
+    else {
+	// Retrieve the kernel bitcode for the right architecture. We substract
+	// 1 to the length because it's NULL terminated.
+	const char *kernel_beg;
+	const char *kernel_end;
 #if __LP64__
-    kernel_beg = (const char *)kernel_x86_64_bc;
-    kernel_end = kernel_beg + kernel_x86_64_bc_len - 1;
+	kernel_beg = (const char *)_objs_kernel_x86_64_bc;
+	kernel_end = kernel_beg + _objs_kernel_x86_64_bc_len - 1;
 #else
-    kernel_beg = (const char *)kernel_i386_bc;
-    kernel_end = kernel_beg + kernel_i386_bc_len - 1;
+	kernel_beg = (const char *)_objs_kernel_i386_bc;
+	kernel_end = kernel_beg + _objs_kernel_i386_bc_len - 1;
 #endif
 
 #if LLVM_TOT
-    MemoryBuffer *mbuf = MemoryBuffer::getMemBuffer(StringRef(kernel_beg,
-		kernel_end - kernel_beg));
+	mbuf = MemoryBuffer::getMemBuffer(StringRef(kernel_beg,
+		    kernel_end - kernel_beg));
 #else
-    MemoryBuffer *mbuf = MemoryBuffer::getMemBuffer(kernel_beg, kernel_end);
+	mbuf = MemoryBuffer::getMemBuffer(kernel_beg, kernel_end);
+	assert(mbuf != NULL);
 #endif
-    assert(mbuf != NULL);
+    }
     std::string err;
     RoxorCompiler::module = ParseBitcodeFile(mbuf, getGlobalContext(), &err);
     delete mbuf;
@@ -4688,9 +4715,8 @@ Init_PreVM(void)
     }
     assert(RoxorCompiler::module != NULL);
 
-    RoxorCompiler::module->setTargetTriple(TARGET_TRIPLE);
     RoxorInterpreter::shared = new RoxorInterpreter();
-#endif
+#endif // !MACRUBY_STATIC
 
     RoxorCore::shared = new RoxorCore();
     RoxorVM::main = new RoxorVM();
@@ -4715,7 +4741,7 @@ Init_PreVM(void)
     assert(m != NULL);
     old_resolveInstanceMethod_imp = method_getImplementation(m);
     method_setImplementation(m, (IMP)resolveInstanceMethod_imp);
-#endif
+#endif // !MACRUBY_STATIC
 
     // Early define some classes.
     rb_cNSString = (VALUE)objc_getClass("NSString");

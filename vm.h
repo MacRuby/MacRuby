@@ -759,6 +759,8 @@ class RoxorCore {
 	RoxorCore(void);
 	~RoxorCore(void);
 
+	void prepare_jit(void);
+
 	ACCESSOR(running, bool);
 	ACCESSOR(abort_on_exception, bool);
 	ACCESSOR(default_random, VALUE);
