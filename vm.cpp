@@ -697,8 +697,11 @@ RoxorCore::symbolize_call_address(void *addr, void **startp, char *path,
 #if MACRUBY_STATIC
     return false;
 #else
-    void *start = NULL;
+    if (jmm == NULL) {
+	return false;
+    }
 
+    void *start = NULL;
     RoxorFunction *f = jmm->find_function((unsigned char *)addr);
     if (f != NULL) {
 	if (f->imp == NULL) {
