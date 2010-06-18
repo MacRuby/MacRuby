@@ -882,5 +882,5 @@ Init_eval(void)
 
     exception_error = rb_exc_new2(rb_eFatal, "exception reentered");
     //rb_ivar_set(exception_error, idThrowState, INT2FIX(TAG_FATAL));
-    rb_objc_retain((void *)exception_error);
+    GC_RETAIN(exception_error);
 }

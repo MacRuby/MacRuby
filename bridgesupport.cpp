@@ -1528,7 +1528,7 @@ Init_BridgeSupport(void)
 #endif
 
     bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie");
-    rb_objc_retain((void *)bs_const_magic_cookie);
+    GC_RETAIN(bs_const_magic_cookie);
 }
 
 extern "C"

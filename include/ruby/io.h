@@ -22,6 +22,7 @@ extern "C" {
 #include <stdio.h>
 #include <errno.h>
 #include <spawn.h>
+#include <fcntl.h>
 #include "ruby/encoding.h"
 
 typedef struct rb_io_t {

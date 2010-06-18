@@ -30,7 +30,8 @@
 #include <sys/param.h>
 #include <sys/syscall.h>
 #include <spawn.h>
-#include <crt_externs.h>
+
+char ***_NSGetEnviron();
 
 extern void Init_File(void);
 
@@ -1114,8 +1115,7 @@ rb_io_sysread(VALUE self, SEL sel, int argc, VALUE *argv)
     
     uint8_t *bytes = rb_bstr_bytes(buffer);
     
-    long r;
-    r = read(io->read_fd, bytes, (size_t)to_read);
+    const long r = read(io->read_fd, bytes, (size_t)to_read);
     if (r == -1) {
 	rb_sys_fail("read(2) failed.");
     }

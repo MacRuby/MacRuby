@@ -15,7 +15,7 @@
 #include "ruby/node.h"
 #include "vm.h"
 
-#include <crt_externs.h>
+char ***_NSGetEnviron();
 
 static VALUE envtbl;
 

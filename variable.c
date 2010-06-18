@@ -65,9 +65,9 @@ void
 Init_var_tables(void)
 {
     rb_global_tbl = st_init_numtable();
-    rb_objc_retain(rb_global_tbl);
+    GC_RETAIN(rb_global_tbl);
     rb_class_tbl = st_init_numtable();
-    rb_objc_retain(rb_class_tbl);
+    GC_RETAIN(rb_class_tbl);
     autoload = rb_intern("__autoload__");
     classpath = rb_intern("__classpath__");
     tmp_classpath = rb_intern("__tmp_classpath__");

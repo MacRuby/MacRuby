@@ -130,41 +130,6 @@ rb_objc_supports_forwarding(VALUE recv, SEL sel)
     return false;
 }
 
-static id _symbolicator = nil;
-#define SYMBOLICATION_FRAMEWORK @"/System/Library/PrivateFrameworks/Symbolication.framework"
-
-typedef struct _VMURange {
-    uint64_t location;
-    uint64_t length;
-} VMURange;
-
-@interface NSObject (SymbolicatorAPIs) 
-- (id)symbolicatorForTask:(mach_port_t)task;
-- (id)symbolForAddress:(uint64_t)address;
-- (void)forceFullSymbolExtraction;
-- (VMURange)addressRange;
-@end
-
-static inline id
-rb_objc_symbolicator(void) 
-{
-    if (_symbolicator == nil) {
-	NSError *error;
-
-	if (![[NSBundle bundleWithPath:SYMBOLICATION_FRAMEWORK]
-		loadAndReturnError:&error]) {
-	    NSLog(@"Cannot load Symbolication.framework: %@", error);
-	    abort();    
-	}
-
-	Class VMUSymbolicator = NSClassFromString(@"VMUSymbolicator");
-	_symbolicator = [VMUSymbolicator symbolicatorForTask:mach_task_self()];
-	assert(_symbolicator != nil);
-    }
-
-    return _symbolicator;
-}
-
 bool
 rb_objc_symbolize_address(void *addr, void **start, char *name,
 			  size_t name_len) 
@@ -182,23 +147,7 @@ rb_objc_symbolize_address(void *addr, void **start, char *name,
 	}
     }
 
-#if 1
     return false;
-#else
-    id symbolicator = rb_objc_symbolicator();
-    id symbol = [symbolicator symbolForAddress:(NSUInteger)addr];
-    if (symbol == nil) {
-	return false;
-    }
-    VMURange range = [symbol addressRange];
-    if (start != NULL) {
-	*start = (void *)(NSUInteger)range.location;
-    }
-    if (name != NULL) {
-	strncpy(name, [[symbol name] UTF8String], name_len);
-    }
-    return true;
-#endif
 }
 
 VALUE
@@ -241,7 +190,7 @@ file_expand_path(VALUE fname, VALUE dname, int absolute)
     if (is_absolute_path(res, !absolute)) {
 	NSString *tmp = [res stringByResolvingSymlinksInPath];
 	// Make sure we don't have an invalid user path.
-	if ([res hasPrefix:@"~"] && [tmp isEqualTo:res]) {
+	if ([res hasPrefix:@"~"] && [tmp isEqualToString:res]) {
 	    NSString *user = [[[res pathComponents] objectAtIndex:0]
 		substringFromIndex:1];
 	    rb_raise(rb_eArgError, "user %s doesn't exist", [user UTF8String]);
@@ -258,7 +207,7 @@ file_expand_path(VALUE fname, VALUE dname, int absolute)
 	}
 
 	// stringByStandardizingPath does not expand "/." to "/".
-	if ([res isEqualTo:@"."] && [dir isEqualTo:@"/"]) {
+	if ([res isEqualToString:@"."] && [dir isEqualToString:@"/"]) {
 	    res = @"/";
 	}
 	else {
