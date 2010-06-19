@@ -43,10 +43,7 @@ void Init_PreClass(void);
 void Init_PreGCD(void);
 void Init_PreEncoding(void);
 
-bool ruby_dlog_enabled = false;
-FILE *ruby_dlog_file = NULL;
-
-int ruby_initialized = 0;
+bool ruby_initialized = false;
 
 void
 ruby_init(void)
@@ -54,26 +51,9 @@ ruby_init(void)
     if (ruby_initialized) {
 	return;
     }
-    ruby_initialized = 1;
+    ruby_initialized = true;
 
     rb_origenviron = environ;
-
-    char *s;
-   
-    s = getenv("MACRUBY_DEBUG");
-    ruby_dlog_enabled = !(s == NULL || *s == '0');
-    s = getenv("MACRUBY_DEBUG_FILE");
-    if (s == NULL) {
-	ruby_dlog_file = stderr;
-    }
-    else {
-	ruby_dlog_file = fopen(s, "w");
-	if (ruby_dlog_file == NULL) {
-	    fprintf(stderr, "cannot open macruby debug file `%s'",
-		    strerror(errno));
-	    ruby_dlog_file = stderr;
-	}
-    }
 
     Init_PreClass();	// requires nothing
     Init_PreGC(); 	// requires nothing

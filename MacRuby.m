@@ -16,14 +16,14 @@
 
 @implementation MacRuby
 
-extern int ruby_initialized;
+extern bool ruby_initialized;
 
 + (MacRuby *)sharedRuntime
 {
     static MacRuby *runtime = nil;
     if (runtime == nil) {
 	runtime = [[MacRuby alloc] init];
-	if (ruby_initialized == 0) {
+	if (!ruby_initialized) {
 	    int argc = 0;
 	    char **argv = NULL;
 	    ruby_sysinit(&argc, &argv);
