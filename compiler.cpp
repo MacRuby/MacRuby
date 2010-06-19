@@ -2479,17 +2479,8 @@ RoxorCompiler::compile_scope(NODE *node)
     }
     FunctionType *ft = FunctionType::get(RubyObjTy, types, false);
 
-    std::string function_name;
-    if (ruby_aot_compile) {
-	function_name.append(RSTRING_PTR(ruby_aot_init_func));
-	function_name.append("_ruby_scope");
-    }
-    else {
-	function_name.append("__ruby_scope");
-    }
-
-    Function *f = Function::Create(ft, GlobalValue::ExternalLinkage,
-	    function_name, module);
+    Function *f = Function::Create(ft, GlobalValue::InternalLinkage,
+	    "ruby_scope", module);
 
     AllocaInst *old_dispatch_argv = dispatch_argv;
     BasicBlock *old_rescue_invoke_bb = rescue_invoke_bb;
