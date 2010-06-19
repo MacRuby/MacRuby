@@ -306,6 +306,10 @@ VALUE
 rb_vm_eval_string(VALUE self, VALUE klass, VALUE src, rb_vm_binding_t *binding,
 	const char *file, const int line)
 {
+#if MACRUBY_STATIC
+    rb_raise(rb_eRuntimeError,
+	    "evaluating strings is not supported in MacRuby static");
+#else
     bool old_parse_in_eval = rb_vm_parse_in_eval();
     rb_vm_set_parse_in_eval(true);
     if (binding != NULL) {
@@ -333,6 +337,7 @@ rb_vm_eval_string(VALUE self, VALUE klass, VALUE src, rb_vm_binding_t *binding,
     }
 
     return rb_vm_run_under(klass, self, file, node, binding, true);
+#endif
 }
 
 static VALUE

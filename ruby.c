@@ -36,6 +36,24 @@ VALUE ruby_verbose = Qfalse;
 VALUE ruby_debug_socket_path = Qfalse;
 VALUE ruby_aot_compile = Qfalse;
 VALUE ruby_aot_init_func = Qfalse;
+VALUE rb_progname = Qnil;
+
+static int uid, euid, gid, egid;
+
+static void
+init_ids(void)
+{
+    uid = (int)getuid();
+    euid = (int)geteuid();
+    gid = (int)getgid();
+    egid = (int)getegid();
+    if (uid && (euid != uid || egid != gid)) {
+	rb_set_safe_level(1);
+    }
+}
+
+#if !defined(MACRUBY_STATIC)
+
 VALUE rb_parser_get_yydebug(VALUE);
 VALUE rb_parser_set_yydebug(VALUE, VALUE);
 
@@ -199,71 +217,6 @@ void
 ruby_incpush_expand(const char *path)
 {
     ruby_push_include(path, expand_include_path);
-}
-
-void
-ruby_init_loadpath(void)
-{
-    VALUE load_path;
-#if defined LOAD_RELATIVE
-    char libpath[MAXPATHLEN + 1];
-    char *p;
-    int rest;
-
-    libpath[sizeof(libpath) - 1] = '\0';
-    p = strrchr(libpath, '/');
-    if (p) {
-	*p = 0;
-	if (p - libpath > 3 && !STRCASECMP(p - 4, "/bin")) {
-	    p -= 4;
-	    *p = 0;
-	}
-    }
-    else {
-	strcpy(libpath, ".");
-	p = libpath + 1;
-    }
-
-    rest = sizeof(libpath) - 1 - (p - libpath);
-
-#define RUBY_RELATIVE(path) (strncpy(p, (path), rest), libpath)
-#else
-#define RUBY_RELATIVE(path) (path)
-#endif
-#define incpush(path) rb_ary_push(load_path, rubylib_mangled_path2(path))
-    load_path = rb_vm_load_path();
-
-    if (rb_safe_level() == 0) {
-	ruby_incpush(getenv("RUBYLIB"));
-    }
-
-#ifdef RUBY_SEARCH_PATH
-    incpush(RUBY_RELATIVE(RUBY_SEARCH_PATH));
-#endif
-
-    incpush(RUBY_RELATIVE(RUBY_SITE_LIB2));
-#ifdef RUBY_SITE_THIN_ARCHLIB
-    incpush(RUBY_RELATIVE(RUBY_SITE_THIN_ARCHLIB));
-#endif
-    incpush(RUBY_RELATIVE(RUBY_SITE_ARCHLIB));
-    incpush(RUBY_RELATIVE(RUBY_SITE_LIB));
-
-    incpush(RUBY_RELATIVE(RUBY_VENDOR_LIB2));
-#ifdef RUBY_VENDOR_THIN_ARCHLIB
-    incpush(RUBY_RELATIVE(RUBY_VENDOR_THIN_ARCHLIB));
-#endif
-    incpush(RUBY_RELATIVE(RUBY_VENDOR_ARCHLIB));
-    incpush(RUBY_RELATIVE(RUBY_VENDOR_LIB));
-
-    incpush(RUBY_RELATIVE(RUBY_LIB));
-#ifdef RUBY_THIN_ARCHLIB
-    incpush(RUBY_RELATIVE(RUBY_THIN_ARCHLIB));
-#endif
-    incpush(RUBY_RELATIVE(RUBY_ARCHLIB));
-
-    if (rb_safe_level() == 0) {
-	incpush(".");
-    }
 }
 
 static CFMutableArrayRef req_list = NULL;
@@ -813,12 +766,7 @@ void Init_prelude(void);
 static void
 ruby_init_gems(int enable)
 {
-#if 0 // TODO
-    if (enable) {
-	rb_define_module("Gem");
-    }
-    Init_prelude();
-#endif
+    // TODO
 }
 
 static rb_encoding *
@@ -832,7 +780,6 @@ opt_enc_find(VALUE enc_name)
     return enc;
 }
 
-VALUE rb_progname = Qnil;
 VALUE rb_argv0;
 
 static rb_encoding *src_encoding;
@@ -1017,22 +964,7 @@ process_options(VALUE arg)
 	tree = rb_parser_while_loop(parser, tree, opt->do_line, opt->do_split);
     }
 
-#if 1
     return (VALUE)tree;
-#else
-    VALUE iseq;
-
-    iseq = rb_iseq_new(tree, opt->script_name);
-
-    if (opt->dump & DUMP_BIT(insns)) {
-	// TODO 
-	//rb_io_write(rb_stdout, ruby_iseq_disasm(iseq));
-	rb_io_flush(rb_stdout);
-	return Qtrue;
-    }
-
-    return iseq;
-#endif
 }
 
 static NODE *
@@ -1237,81 +1169,6 @@ get_arglen(int argc, char **argv)
 #endif
 
 static void
-set_arg0(VALUE val, ID id)
-{
-    const char *s;
-    long i;
-
-    if (origarg.argv == 0)
-	rb_raise(rb_eRuntimeError, "$0 not initialized");
-    StringValue(val);
-    s = RSTRING_PTR(val);
-    i = RSTRING_LEN(val);
-#if defined(PSTAT_SETCMD)
-    if (i > PST_CLEN) {
-	union pstun un;
-	char buf[PST_CLEN + 1];	/* PST_CLEN is 64 (HP-UX 11.23) */
-	strncpy(buf, s, PST_CLEN);
-	buf[PST_CLEN] = '\0';
-	un.pst_command = buf;
-	pstat(PSTAT_SETCMD, un, PST_CLEN, 0, 0);
-    }
-    else {
-	union pstun un;
-	un.pst_command = s;
-	pstat(PSTAT_SETCMD, un, i, 0, 0);
-    }
-#elif defined(HAVE_SETPROCTITLE)
-    setproctitle("%.*s", (int)i, s);
-#else
-
-    if (i >= origarg.len) {
-	i = origarg.len;
-    }
-
-    memcpy(origarg.argv[0], s, i);
-
-    {
-	int j;
-	char *t = origarg.argv[0] + i;
-	*t = '\0';
-
-	if (i + 1 < origarg.len) memset(t + 1, ' ', origarg.len - i - 1);
-	for (j = 1; j < origarg.argc; j++) {
-	    origarg.argv[j] = t;
-	}
-    }
-#endif
-    GC_RELEASE(rb_progname);
-    rb_progname = rb_tainted_str_new(s, i);
-    GC_RETAIN(rb_progname);
-}
-
-void
-ruby_script(const char *name)
-{
-    if (name != NULL) {
-	GC_RELEASE(rb_progname);
-	rb_progname = rb_tainted_str_new2(name);
-	GC_RETAIN(rb_progname);
-    }
-}
-
-static int uid, euid, gid, egid;
-
-static void
-init_ids(void)
-{
-    uid = (int)getuid();
-    euid = (int)geteuid();
-    gid = (int)getgid();
-    egid = (int)getegid();
-    if (uid && (euid != uid || egid != gid)) {
-	rb_set_safe_level(1);
-    }
-}
-
-static void
 forbid_setid(const char *s)
 {
     if (euid != uid) {
@@ -1322,68 +1179,6 @@ forbid_setid(const char *s)
     }
     if (rb_safe_level() > 0) {
 	rb_raise(rb_eSecurityError, "no %s allowed in tainted mode", s);
-    }
-}
-
-static void
-verbose_setter(VALUE val, ID id, VALUE *variable)
-{
-    ruby_verbose = RTEST(val) ? Qtrue : val;
-}
-
-static VALUE
-opt_W_getter(VALUE val, ID id)
-{
-    if (ruby_verbose == Qnil) {
-	return INT2FIX(0);
-    }
-    if (ruby_verbose == Qfalse) {
-	return INT2FIX(1);
-    }
-    if (ruby_verbose == Qtrue) {
-	return INT2FIX(2);
-    }
-    return Qnil;		/* not reached */
-}
-
-void
-ruby_prog_init(void)
-{
-    init_ids();
-
-    rb_define_hooked_variable("$VERBOSE", &ruby_verbose, 0, verbose_setter);
-    rb_define_hooked_variable("$-v", &ruby_verbose, 0, verbose_setter);
-    rb_define_hooked_variable("$-w", &ruby_verbose, 0, verbose_setter);
-    rb_define_virtual_variable("$-W", opt_W_getter, 0);
-    rb_define_variable("$DEBUG", &ruby_debug);
-    rb_define_variable("$-d", &ruby_debug);
-
-    rb_define_hooked_variable("$0", &rb_progname, 0, set_arg0);
-    rb_define_hooked_variable("$PROGRAM_NAME", &rb_progname, 0, set_arg0);
-
-    rb_define_global_const("ARGV", rb_argv);
-
-    rb_vm_set_running(true);
-}
-
-void
-ruby_set_argv(int argc, char **argv)
-{
-    int i;
-    VALUE av = rb_argv;
-
-#if defined(USE_DLN_A_OUT)
-    if (origarg.argv)
-	dln_argv0 = origarg.argv[0];
-    else
-	dln_argv0 = argv[0];
-#endif
-    rb_ary_clear(av);
-    for (i = 0; i < argc; i++) {
-	VALUE arg = rb_tainted_str_new2(argv[i]);
-
-	OBJ_FREEZE(arg);
-	rb_ary_push(av, arg);
     }
 }
 
@@ -1433,6 +1228,8 @@ ruby_process_options(int argc, char **argv)
     return tree;
 }
 
+#endif // !MACRUBY_STATIC
+
 void
 ruby_sysinit(int *argc, char ***argv)
 {
@@ -1453,13 +1250,203 @@ ruby_sysinit(int *argc, char ***argv)
     v2[n] = 0;
     *argv = v2;
 
+#if !defined(MACRUBY_STATIC)
     origarg.argc = *argc;
     origarg.argv = *argv;
 
-#if !defined(PSTAT_SETCMD) && !defined(HAVE_SETPROCTITLE)
+# if !defined(PSTAT_SETCMD) && !defined(HAVE_SETPROCTITLE)
     origarg.len = get_arglen(origarg.argc, origarg.argv);
-#endif
-#if defined(USE_DLN_A_OUT)
-    dln_argv0 = origarg.argv[0];
+# endif
 #endif
 }
+
+void
+ruby_init_loadpath(void)
+{
+#if !defined(MACRUBY_STATIC)
+    VALUE load_path;
+#if defined LOAD_RELATIVE
+    char libpath[MAXPATHLEN + 1];
+    char *p;
+    int rest;
+
+    libpath[sizeof(libpath) - 1] = '\0';
+    p = strrchr(libpath, '/');
+    if (p) {
+	*p = 0;
+	if (p - libpath > 3 && !STRCASECMP(p - 4, "/bin")) {
+	    p -= 4;
+	    *p = 0;
+	}
+    }
+    else {
+	strcpy(libpath, ".");
+	p = libpath + 1;
+    }
+
+    rest = sizeof(libpath) - 1 - (p - libpath);
+
+#define RUBY_RELATIVE(path) (strncpy(p, (path), rest), libpath)
+#else
+#define RUBY_RELATIVE(path) (path)
+#endif
+#define incpush(path) rb_ary_push(load_path, rubylib_mangled_path2(path))
+    load_path = rb_vm_load_path();
+
+    if (rb_safe_level() == 0) {
+	ruby_incpush(getenv("RUBYLIB"));
+    }
+
+#ifdef RUBY_SEARCH_PATH
+    incpush(RUBY_RELATIVE(RUBY_SEARCH_PATH));
+#endif
+
+    incpush(RUBY_RELATIVE(RUBY_SITE_LIB2));
+#ifdef RUBY_SITE_THIN_ARCHLIB
+    incpush(RUBY_RELATIVE(RUBY_SITE_THIN_ARCHLIB));
+#endif
+    incpush(RUBY_RELATIVE(RUBY_SITE_ARCHLIB));
+    incpush(RUBY_RELATIVE(RUBY_SITE_LIB));
+
+    incpush(RUBY_RELATIVE(RUBY_VENDOR_LIB2));
+#ifdef RUBY_VENDOR_THIN_ARCHLIB
+    incpush(RUBY_RELATIVE(RUBY_VENDOR_THIN_ARCHLIB));
+#endif
+    incpush(RUBY_RELATIVE(RUBY_VENDOR_ARCHLIB));
+    incpush(RUBY_RELATIVE(RUBY_VENDOR_LIB));
+
+    incpush(RUBY_RELATIVE(RUBY_LIB));
+#ifdef RUBY_THIN_ARCHLIB
+    incpush(RUBY_RELATIVE(RUBY_THIN_ARCHLIB));
+#endif
+    incpush(RUBY_RELATIVE(RUBY_ARCHLIB));
+
+    if (rb_safe_level() == 0) {
+	incpush(".");
+    }
+#endif // !MACRUBY_STATIC
+}
+
+void
+ruby_set_argv(int argc, char **argv)
+{
+    int i;
+    VALUE av = rb_argv;
+
+    rb_ary_clear(av);
+    for (i = 0; i < argc; i++) {
+	VALUE arg = rb_tainted_str_new2(argv[i]);
+
+	OBJ_FREEZE(arg);
+	rb_ary_push(av, arg);
+    }
+}
+
+void
+ruby_script(const char *name)
+{
+    if (name != NULL) {
+	GC_RELEASE(rb_progname);
+	rb_progname = rb_tainted_str_new2(name);
+	GC_RETAIN(rb_progname);
+    }
+}
+
+static void
+verbose_setter(VALUE val, ID id, VALUE *variable)
+{
+    ruby_verbose = RTEST(val) ? Qtrue : val;
+}
+
+static VALUE
+opt_W_getter(VALUE val, ID id)
+{
+    if (ruby_verbose == Qnil) {
+	return INT2FIX(0);
+    }
+    if (ruby_verbose == Qfalse) {
+	return INT2FIX(1);
+    }
+    if (ruby_verbose == Qtrue) {
+	return INT2FIX(2);
+    }
+    return Qnil; // not reached
+}
+
+static void
+set_arg0(VALUE val, ID id)
+{
+#if MACRUBY_STATIC
+    rb_raise(rb_eRuntimeError,
+	    "changing program name is not supported in MacRuby static");
+#else
+    const char *s;
+    long i;
+
+    if (origarg.argv == 0) {
+	rb_raise(rb_eRuntimeError, "$0 not initialized");
+    }
+    StringValue(val);
+    s = RSTRING_PTR(val);
+    i = RSTRING_LEN(val);
+#if defined(PSTAT_SETCMD)
+    if (i > PST_CLEN) {
+	union pstun un;
+	char buf[PST_CLEN + 1];	/* PST_CLEN is 64 (HP-UX 11.23) */
+	strncpy(buf, s, PST_CLEN);
+	buf[PST_CLEN] = '\0';
+	un.pst_command = buf;
+	pstat(PSTAT_SETCMD, un, PST_CLEN, 0, 0);
+    }
+    else {
+	union pstun un;
+	un.pst_command = s;
+	pstat(PSTAT_SETCMD, un, i, 0, 0);
+    }
+#elif defined(HAVE_SETPROCTITLE)
+    setproctitle("%.*s", (int)i, s);
+#else
+
+    if (i >= origarg.len) {
+	i = origarg.len;
+    }
+
+    memcpy(origarg.argv[0], s, i);
+
+    {
+	int j;
+	char *t = origarg.argv[0] + i;
+	*t = '\0';
+
+	if (i + 1 < origarg.len) memset(t + 1, ' ', origarg.len - i - 1);
+	for (j = 1; j < origarg.argc; j++) {
+	    origarg.argv[j] = t;
+	}
+    }
+#endif
+    GC_RELEASE(rb_progname);
+    rb_progname = rb_tainted_str_new(s, i);
+    GC_RETAIN(rb_progname);
+#endif // !MACRUBY_STATIC
+}
+
+void
+ruby_prog_init(void)
+{
+    init_ids();
+
+    rb_define_hooked_variable("$VERBOSE", &ruby_verbose, 0, verbose_setter);
+    rb_define_hooked_variable("$-v", &ruby_verbose, 0, verbose_setter);
+    rb_define_hooked_variable("$-w", &ruby_verbose, 0, verbose_setter);
+    rb_define_virtual_variable("$-W", opt_W_getter, 0);
+    rb_define_variable("$DEBUG", &ruby_debug);
+    rb_define_variable("$-d", &ruby_debug);
+
+    rb_define_hooked_variable("$0", &rb_progname, 0, set_arg0);
+    rb_define_hooked_variable("$PROGRAM_NAME", &rb_progname, 0, set_arg0);
+
+    rb_define_global_const("ARGV", rb_argv);
+
+    rb_vm_set_running(true);
+}
+

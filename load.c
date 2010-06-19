@@ -52,11 +52,14 @@ rb_provide_feature(VALUE feature)
     rb_ary_push(get_loaded_features(), feature);
 }
 
+#if !defined(MACRUBY_STATIC)
 static void
-rb_remove_feature(VALUE feature)
+load_failed(VALUE fname)
 {
-    rb_ary_delete(get_loaded_features(), feature);
+    rb_raise(rb_eLoadError, "no such file to load -- %s",
+	    RSTRING_PTR(fname));
 }
+#endif
 
 void
 rb_provide(const char *feature)
@@ -64,16 +67,12 @@ rb_provide(const char *feature)
     rb_provide_feature(rb_str_new2(feature));
 }
 
-static void
-load_failed(VALUE fname)
-{
-    rb_raise(rb_eLoadError, "no such file to load -- %s",
-	    RSTRING_PTR(fname));
-}
-
 void
 rb_load(VALUE fname, int wrap)
 {
+#if MACRUBY_STATIC
+    rb_raise(rb_eRuntimeError, "#load is not supported in MacRuby static");
+#else
     // TODO honor wrap
 
     // Locate file.
@@ -95,6 +94,7 @@ rb_load(VALUE fname, int wrap)
     Class old_klass = rb_vm_set_current_class(NULL);
     rb_vm_run(fname_str, node, NULL, false);
     rb_vm_set_current_class(old_klass);
+#endif
 }
 
 /*
@@ -155,6 +155,7 @@ rb_f_require_imp(VALUE obj, SEL sel, VALUE fname)
     return rb_f_require(obj, fname);
 }
 
+#if !defined(MACRUBY_STATIC)
 #define TYPE_RB		0x1
 #define TYPE_RBO	0x2
 #define TYPE_BUNDLE	0x3
@@ -251,6 +252,12 @@ load_try(VALUE path)
     return Qnil;
 }
 
+static void
+rb_remove_feature(VALUE feature)
+{
+    rb_ary_delete(get_loaded_features(), feature);
+}
+
 static VALUE
 load_rescue(VALUE path, VALUE exc)
 {
@@ -258,6 +265,7 @@ load_rescue(VALUE path, VALUE exc)
     rb_exc_raise(exc);
     return Qnil;
 }
+#endif
 
 VALUE
 rb_require_safe(VALUE fname, int safe)
@@ -270,6 +278,9 @@ rb_require_safe(VALUE fname, int safe)
 	return Qtrue;
     }
 
+#if MACRUBY_STATIC
+    rb_raise(rb_eRuntimeError, "#require is not supported in MacRuby static");
+#else
     VALUE result = Qnil;
     VALUE path;
     int type = 0;
@@ -307,6 +318,7 @@ rb_require_safe(VALUE fname, int safe)
     }
 
     return result;
+#endif
 }
 
 VALUE

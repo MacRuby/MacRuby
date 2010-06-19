@@ -68,7 +68,12 @@ ruby_init(void)
 void *
 ruby_options(int argc, char **argv)
 {
+#if MACRUBY_STATIC
+    printf("command-line options are not supported in MacRuby static\n");
+    abort();
+#else
     return ruby_process_options(argc, argv);
+#endif
 }
 
 static void
@@ -193,6 +198,7 @@ ruby_executable_node(void *n, int *status)
     return FALSE;
 }
 
+#if !defined(MACRUBY_STATIC)
 int
 ruby_run_node(void *n)
 {
@@ -205,6 +211,7 @@ ruby_run_node(void *n)
     rb_vm_run(RSTRING_PTR(rb_progname), (NODE *)n, NULL, false);
     return ruby_cleanup(0);
 }
+#endif
 
 /*
  *  call-seq:

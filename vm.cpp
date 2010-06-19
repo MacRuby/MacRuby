@@ -4766,6 +4766,7 @@ rb_toplevel_to_s(VALUE rcv, SEL sel)
     return rb_str_new2("main");
 }
 
+#if !defined(MACRUBY_STATIC)
 static const char *
 resources_path(char *path, size_t len)
 {
@@ -4833,6 +4834,7 @@ macruby_main(const char *path, int argc, char **argv)
 	exit(1);	
     }
 }
+#endif
 
 extern "C"
 void

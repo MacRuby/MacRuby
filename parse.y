@@ -9304,50 +9304,6 @@ ruby_node_name(int node)
 	    return 0;
     }
 }
-
-int
-rb_is_const_id(ID id)
-{
-    if (is_const_id(id)) return Qtrue;
-    return Qfalse;
-}
-
-int
-rb_is_class_id(ID id)
-{
-    if (is_class_id(id)) return Qtrue;
-    return Qfalse;
-}
-
-int
-rb_is_instance_id(ID id)
-{
-    if (is_instance_id(id)) return Qtrue;
-    return Qfalse;
-}
-
-int
-rb_is_local_id(ID id)
-{
-    if (is_local_id(id)) return Qtrue;
-    return Qfalse;
-}
-
-int
-rb_is_junk_id(ID id)
-{
-    if (is_junk_id(id)) return Qtrue;
-    return Qfalse;
-}
-
-ID
-rb_id_attrset(ID id)
-{
-    id &= ~ID_SCOPE_MASK;
-    id |= ID_ATTRSET;
-    return id;
-}
-
 #endif /* !RIPPER */
 
 static void
