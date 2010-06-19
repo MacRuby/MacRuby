@@ -58,7 +58,7 @@ class Builder
           @ldflags = LDFLAGS
           @objsdir = FULL_OBJS_DIR
         when :static
-          @objs = @all_objs - %w{bs compiler debugger interpreter MacRubyDebuggerConnector}
+          @objs = @all_objs - %w{bs compiler debugger interpreter MacRubyDebuggerConnector parse}
           @archs = ARCHS_STATIC
           @cflags = CFLAGS_STATIC
           @cxxflags = CXXFLAGS_STATIC
