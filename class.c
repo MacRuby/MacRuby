@@ -71,9 +71,18 @@ rb_obj_imp_init(void *rcv, SEL sel)
     return rcv;
 }
 
+VALUE rb_any_to_string(VALUE obj, SEL sel);
+
 static void *
 rb_obj_imp_description(void *rcv, SEL sel)
 {
+    // If #description and #to_s are the same method (ex. when aliased)
+    Class rcv_class = (Class)CLASS_OF(rcv);
+    IMP desc_imp = class_getMethodImplementation(rcv_class, selDescription);
+    IMP to_s_imp = class_getMethodImplementation(rcv_class, selToS);
+    if (desc_imp == to_s_imp) {
+	return (void *)rb_any_to_string((VALUE)rcv, sel);
+    }
     return (void *)rb_vm_call(OC2RB(rcv), selToS, 0, NULL);
 }
 

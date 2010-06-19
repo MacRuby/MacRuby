@@ -370,7 +370,7 @@ rb_nsobj_dup(VALUE obj, VALUE sel)
  *  initial execution context of Ruby programs returns ``main.''
  */
 
-static VALUE
+VALUE
 rb_any_to_string(VALUE obj, SEL sel)
 {
     const char *cname = rb_obj_classname(obj);
