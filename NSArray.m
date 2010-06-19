@@ -584,7 +584,8 @@ nsary_reverse_bang(id rcv, SEL sel)
 static id
 nsary_reverse(id rcv, SEL sel)
 {
-    return nsary_reverse_bang([rcv mutableCopy], 0);
+    NSMutableArray *result = [NSMutableArray arrayWithArray:rcv];
+    return nsary_reverse_bang(result, 0);
 }
 
 static NSInteger
@@ -614,7 +615,8 @@ nsary_sort_bang(id rcv, SEL sel)
 static id
 nsary_sort(id rcv, SEL sel)
 {
-    return nsary_sort_bang([rcv mutableCopy], 0);
+    NSMutableArray *result = [NSMutableArray arrayWithArray:rcv];
+    return nsary_sort_bang(result, 0);
 }
 
 static VALUE
@@ -641,7 +643,8 @@ static VALUE
 nsary_collect(id rcv, SEL sel)
 {
     RETURN_ENUMERATOR(rcv, 0, 0);
-    return collect([rcv mutableCopy]);
+    NSMutableArray *result = [NSMutableArray arrayWithArray:rcv];
+    return collect(result);
 }
 
 static VALUE
@@ -763,7 +766,8 @@ static VALUE
 nsary_reject(id rcv, SEL sel)
 {
     RETURN_ENUMERATOR(rcv, 0, 0);
-    reject([rcv mutableCopy]);
+    NSMutableArray *result = [NSMutableArray arrayWithArray:rcv];
+    reject(result);
     return (VALUE)rcv;
 }
 
@@ -891,7 +895,7 @@ nsary_uniq_bang(id rcv, SEL sel)
 static id 
 nsary_uniq(id rcv, SEL sel)
 {
-    id result = [rcv mutableCopy];
+    id result = [NSMutableArray arrayWithArray:rcv];
     nsary_uniq_bang(result, 0);
     return result;
 }
@@ -905,7 +909,7 @@ nsary_compact_bang(id rcv, SEL sel)
 static id
 nsary_compact(id rcv, SEL sel)
 {
-    id result = [rcv mutableCopy];
+    id result = [NSMutableArray arrayWithArray:rcv];
     nsary_compact_bang(result, 0);
     return result;
 }
@@ -975,7 +979,7 @@ nsary_shuffle_bang(id rcv, SEL sel)
 static id
 nsary_shuffle(id rcv, SEL sel)
 {
-    id result = [rcv mutableCopy];
+    id result = [NSMutableArray arrayWithArray:rcv];
     nsary_shuffle_bang(result, 0);
     return result;
 }

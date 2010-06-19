@@ -67,3 +67,17 @@ describe "An NSArray object" do
     NSArray.arrayWithArray([1, 2, 42]).to_yaml.should == "--- \n- 1\n- 2\n- 42\n"
   end
 end
+
+# This test exists because the previous implementation of NSArray #map etc.
+# was using -mutableCopy to define the array to modify, which didn't work with
+# `SBElementArray`s. Let's make sure this keeps working
+describe "An SBElementArray (subclass of NSMutableArray)" do
+  it "responds to #map, #shuffle, etc." do
+    framework 'ScriptingBridge'
+    finder = SBApplication.applicationWithBundleIdentifier('com.apple.finder')
+    homeFolderItems = finder.home.items
+    lambda { homeFolderItems.map { |i| i.name } }.should_not raise_error(RuntimeError)
+    lambda { homeFolderItems.shuffle }.should_not raise_error(RuntimeError)
+  end
+end
+
