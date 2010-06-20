@@ -1802,33 +1802,69 @@ RoxorCore::retype_method(Class klass, rb_vm_method_node_t *node,
 #endif
 }
 
-#if !defined(MACRUBY_STATIC)
+struct vm_objc_imp_type {
+    const char *types;
+    IMP imp;
+
+    vm_objc_imp_type(const char *_types, IMP _imp) {
+	types = _types;
+	imp = _imp;
+    }
+};
+
 rb_vm_method_node_t *
-RoxorCore::resolve_method(Class klass, SEL sel, Function *func,
-	const rb_vm_arity_t &arity, int flags, IMP imp, Method m)
+RoxorCore::resolve_method(Class klass, SEL sel, void *func,
+	const rb_vm_arity_t &arity, int flags, IMP imp, Method m,
+	void *objc_imp_types)
 {
+#if MACRUBY_STATIC
+    assert(imp != NULL);
+#else
     if (imp == NULL) {
 	// Compile if necessary.
 	assert(func != NULL);
-	imp = compile(func);
+	imp = compile((Function *)func);
     }
+#endif
 
     // Resolve Objective-C signature.
     const int types_count = arity.real + 3; // retval, self and sel
     char types[100];
     resolve_method_type(types, sizeof types, klass, m, sel, types_count);
 
-    // Generate Objective-C stub if needed.
-    std::map<IMP, IMP>::iterator iter = objc_to_ruby_stubs.find(imp);
-    IMP objc_imp;
-    if (iter == objc_to_ruby_stubs.end()) {
-	Function *objc_func = RoxorCompiler::shared->compile_objc_stub(func,
-		imp, arity, types);
-	objc_imp = compile(objc_func);
-	objc_to_ruby_stubs[imp] = objc_imp;
+    // Retrieve previous-generated Objective-C stub if possible.
+    IMP objc_imp = NULL;
+    if (objc_imp_types != NULL) {
+	std::vector<vm_objc_imp_type> *v =
+	    (std::vector<vm_objc_imp_type> *)objc_imp_types;
+
+	for (std::vector<vm_objc_imp_type>::iterator i = v->begin();
+		i != v->end(); ++i) {
+	    if (strcmp(types, i->types) == 0) {
+		objc_imp = i->imp;
+		break;
+	    }
+	}
     }
-    else {
-	objc_imp = iter->second;
+
+#if MACRUBY_STATIC
+    if (objc_imp == NULL) {
+	printf("can't define method `%s' because no Objective-C stub was pre-compiled", sel_getName(sel));
+	abort();
+    }
+#else
+    // Generate Objective-C stub if needed.
+    if (objc_imp == NULL) {
+	std::map<IMP, IMP>::iterator iter = objc_to_ruby_stubs.find(imp);
+	if (iter == objc_to_ruby_stubs.end()) {
+	    Function *objc_func = RoxorCompiler::shared->compile_objc_stub(
+		    (Function *)func, imp, arity, types);
+	    objc_imp = compile(objc_func);
+	    objc_to_ruby_stubs[imp] = objc_imp;
+	}
+	else {
+	    objc_imp = iter->second;
+	}
     }
 
     // Delete the selector from the not-yet-JIT'ed cache if needed.
@@ -1844,11 +1880,13 @@ RoxorCore::resolve_method(Class klass, SEL sel, Function *func,
 	    ++iter2;
 	}
     }
+#endif
 
     // Finally, add the method.
     return add_method(klass, sel, objc_imp, imp, arity, flags, types);
 }
 
+#if !defined(MACRUBY_STATIC)
 bool
 RoxorCore::resolve_methods(std::map<Class, rb_vm_method_source_t *> *map,
 	Class klass, SEL sel)
@@ -1864,7 +1902,7 @@ RoxorCore::resolve_methods(std::map<Class, rb_vm_method_source_t *> *map,
 	if (k != NULL) {
 	    rb_vm_method_source_t *m = iter->second;
 	    resolve_method(iter->first, sel, m->func, m->arity, m->flags,
-		    NULL, NULL);
+		    NULL, NULL, NULL);
 	    map->erase(iter++);
 	    free(m);
 	    did_something = true;
@@ -1961,7 +1999,8 @@ static bool class_has_custom_resolver(Class klass);
 
 static void
 prepare_method(Class klass, bool dynamic_class, SEL sel, void *data,
-	const rb_vm_arity_t &arity, int flags, bool precompiled)
+	const rb_vm_arity_t &arity, int flags, bool precompiled,
+	void *objc_imp_types)
 {
     if (dynamic_class) {
 	Class k = GET_VM()->get_current_class();
@@ -2000,30 +2039,26 @@ prepare_method(Class klass, bool dynamic_class, SEL sel, void *data,
 
 prepare_method:
 
-#if MACRUBY_STATIC
     m = class_getInstanceMethod(klass, sel);
-    assert(m != NULL);
-
-    assert(precompiled);
-
-    if (imp == NULL) {
-	imp = (IMP)data;
-    }
-    //XXX GET_CORE()->resolve_method(klass, sel, NULL, arity, flags, imp, m);
-#else
-    m = class_getInstanceMethod(klass, sel);
+#if !defined(MACRUBY_STATIC)
     if (m == NULL && rb_vm_resolve_method(klass, sel)) {
 	m = class_getInstanceMethod(klass, sel);
 	assert(m != NULL);
     }
+#endif
 
     if (precompiled) {
 	if (imp == NULL) {
 	    imp = (IMP)data;
 	}
-	GET_CORE()->resolve_method(klass, sel, NULL, arity, flags, imp, m);
+	assert(objc_imp_types != NULL);
+	GET_CORE()->resolve_method(klass, sel, NULL, arity, flags, imp, m,
+		objc_imp_types);
     }
     else {
+#if MACRUBY_STATIC
+	abort();
+#else
 	Function *func = (Function *)data;
 	if (m != NULL || custom_resolver) {
 	    // The method already exists _or_ the class implemented a custom
@@ -2031,14 +2066,15 @@ prepare_method:
 	    if (imp == NULL) {
 		imp = GET_CORE()->compile(func);
 	    }
-	    GET_CORE()->resolve_method(klass, sel, func, arity, flags, imp, m);
+	    GET_CORE()->resolve_method(klass, sel, func, arity, flags, imp, m,
+		    objc_imp_types);
 	}
 	else {
 	    // Let's keep the method and JIT it later on demand.
 	    GET_CORE()->prepare_method(klass, sel, func, arity, flags);
 	}
-    }
 #endif
+    }
 
     if (!redefined) {
 	char buf[100];
@@ -2083,7 +2119,7 @@ prepare_method:
 		VALUE mod = RARRAY_AT(included_in_classes, i);
 		rb_vm_set_current_scope(mod, SCOPE_PUBLIC);
 		prepare_method((Class)mod, false, orig_sel, data, arity,
-			flags, precompiled);
+			flags, precompiled, objc_imp_types);
 		rb_vm_set_current_scope(mod, SCOPE_DEFAULT);
 	    }
 	}
@@ -2107,17 +2143,32 @@ rb_vm_prepare_method(Class klass, unsigned char dynamic_class, SEL sel,
 	Function *func, const rb_vm_arity_t arity, int flags)
 {
     prepare_method(klass, dynamic_class, sel, (void *)func, arity,
-	    flags, false);
+	    flags, false, NULL);
 }
 #endif
 
 extern "C"
 void
 rb_vm_prepare_method2(Class klass, unsigned char dynamic_class, SEL sel,
-	IMP ruby_imp, const rb_vm_arity_t arity, int flags)
+	IMP ruby_imp, const rb_vm_arity_t arity, int flags, ...)
 {
+    std::vector<vm_objc_imp_type> v;
+    va_list ar;
+    va_start(ar, flags);
+    do {
+	const char *types = va_arg(ar, const char *);
+	if (types == NULL) {
+	    break;
+	}
+	IMP imp = va_arg(ar, IMP);
+	assert(imp != NULL);
+	v.push_back(vm_objc_imp_type(types, imp));
+    }
+    while (true);
+    va_end(ar);
+
     prepare_method(klass, dynamic_class, sel, (void *)ruby_imp, arity,
-	    flags, true);
+	    flags, true, (void *)&v);
 }
 
 #define VISI(x) ((x)&NOEX_MASK)
@@ -2350,7 +2401,7 @@ RoxorCore::copy_methods(Class from_class, Class to_class)
 	    // JIT it.
 	    IMP imp = GET_CORE()->compile(m_src->func);
 	    resolve_method(to_class, sel, m_src->func, m_src->arity,
-		    m_src->flags, imp, m);
+		    m_src->flags, imp, m, NULL);
 	}
 	else {
 #if ROXOR_VM_DEBUG

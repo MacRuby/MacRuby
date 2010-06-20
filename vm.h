@@ -730,7 +730,9 @@ class RoxorCore {
 	// Maps to cache compiled stubs for a given Objective-C runtime type.
 	std::map<std::string, void *> c_stubs, objc_stubs,
 	    to_rval_convertors, to_ocval_convertors;
+#if !defined(MACRUBY_STATIC)
 	std::map<IMP, IMP> objc_to_ruby_stubs;
+#endif
 	std::map<int, void *> rb_large_arity_rstubs; // Large arity Ruby calls
 	std::map<int, void *> rb_large_arity_bstubs; // Large arity block calls
 
@@ -860,12 +862,12 @@ class RoxorCore {
 
 	void prepare_method(Class klass, SEL sel, Function *func,
 		const rb_vm_arity_t &arity, int flag);
-	rb_vm_method_node_t *resolve_method(Class klass, SEL sel,
-		Function *func, const rb_vm_arity_t &arity, int flags,
-		IMP imp, Method m);
 	bool resolve_methods(std::map<Class, rb_vm_method_source_t *> *map,
 		Class klass, SEL sel);
 #endif
+	rb_vm_method_node_t *resolve_method(Class klass, SEL sel,
+		void *func, const rb_vm_arity_t &arity, int flags,
+		IMP imp, Method m, void *objc_imp_types);
 	rb_vm_method_node_t *add_method(Class klass, SEL sel, IMP imp,
 		IMP ruby_imp, const rb_vm_arity_t &arity, int flags,
 		const char *types);

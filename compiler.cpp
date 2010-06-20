@@ -37,6 +37,110 @@ extern "C" const char *ruby_node_name(int node);
 llvm::Module *RoxorCompiler::module = NULL;
 RoxorCompiler *RoxorCompiler::shared = NULL;
 
+#define __save_state(type, var) \
+    type __old__##var = var
+
+#define __restore_state(var) \
+    var = __old__##var
+
+#define save_compiler_state() \
+    __save_state(unsigned int, current_line);\
+    __save_state(BasicBlock *, bb);\
+    __save_state(BasicBlock *, entry_bb);\
+    __save_state(ID, current_mid);\
+    __save_state(rb_vm_arity_t, current_arity);\
+    __save_state(ID, self_id);\
+    __save_state(Value *, current_self);\
+    __save_state(bool, current_block);\
+    __save_state(bool, current_block_chain);\
+    __save_state(Value *, current_var_uses);\
+    __save_state(Value *, running_block);\
+    __save_state(Value *, current_block_arg);\
+    __save_state(BasicBlock *, begin_bb);\
+    __save_state(BasicBlock *, rescue_invoke_bb);\
+    __save_state(BasicBlock *, rescue_rethrow_bb);\
+    __save_state(BasicBlock *, ensure_bb);\
+    __save_state(bool, current_rescue);\
+    __save_state(NODE *, current_block_node);\
+    __save_state(Function *, current_block_func);\
+    __save_state(Function *, current_non_block_func);\
+    __save_state(GlobalVariable *, current_opened_class);\
+    __save_state(bool, dynamic_class);\
+    __save_state(BasicBlock *, current_loop_begin_bb);\
+    __save_state(BasicBlock *, current_loop_body_bb);\
+    __save_state(BasicBlock *, current_loop_end_bb);\
+    __save_state(PHINode *, current_loop_exit_val);\
+    __save_state(int, return_from_block);\
+    __save_state(int, return_from_block_ids);\
+    __save_state(PHINode *, ensure_pn);\
+    __save_state(bool, block_declaration);\
+    __save_state(AllocaInst *, dispatch_argv);
+
+#define restore_compiler_state() \
+    __restore_state(current_line);\
+    __restore_state(bb);\
+    __restore_state(entry_bb);\
+    __restore_state(current_mid);\
+    __restore_state(current_arity);\
+    __restore_state(self_id);\
+    __restore_state(current_self);\
+    __restore_state(current_block);\
+    __restore_state(current_block_chain);\
+    __restore_state(current_var_uses);\
+    __restore_state(running_block);\
+    __restore_state(current_block_arg);\
+    __restore_state(begin_bb);\
+    __restore_state(rescue_invoke_bb);\
+    __restore_state(rescue_rethrow_bb);\
+    __restore_state(ensure_bb);\
+    __restore_state(current_rescue);\
+    __restore_state(current_block_node);\
+    __restore_state(current_block_func);\
+    __restore_state(current_non_block_func);\
+    __restore_state(current_opened_class);\
+    __restore_state(dynamic_class);\
+    __restore_state(current_loop_begin_bb);\
+    __restore_state(current_loop_body_bb);\
+    __restore_state(current_loop_end_bb);\
+    __restore_state(current_loop_exit_val);\
+    __restore_state(return_from_block);\
+    __restore_state(return_from_block_ids);\
+    __restore_state(ensure_pn);\
+    __restore_state(block_declaration);\
+    __restore_state(dispatch_argv);
+
+#define reset_compiler_state() \
+    bb = NULL;\
+    entry_bb = NULL;\
+    begin_bb = NULL;\
+    rescue_invoke_bb = NULL;\
+    rescue_rethrow_bb = NULL;\
+    ensure_bb = NULL;\
+    current_mid = 0;\
+    current_arity = rb_vm_arity(-1);\
+    self_id = rb_intern("self");\
+    current_self = NULL;\
+    current_var_uses = NULL;\
+    running_block = NULL;\
+    current_block_arg = NULL;\
+    current_block = false;\
+    current_block_chain = false;\
+    current_block_node = NULL;\
+    current_block_func = NULL;\
+    current_non_block_func = NULL;\
+    current_opened_class = NULL;\
+    dynamic_class = false;\
+    current_loop_begin_bb = NULL;\
+    current_loop_body_bb = NULL;\
+    current_loop_end_bb = NULL;\
+    current_loop_exit_val = NULL;\
+    current_rescue = false;\
+    return_from_block = -1;\
+    return_from_block_ids = 0;\
+    ensure_pn = NULL;\
+    block_declaration = false;\
+    dispatch_argv = NULL;
+
 RoxorCompiler::RoxorCompiler(bool _debug_mode)
 {
     assert(RoxorCompiler::module != NULL);
@@ -48,36 +152,7 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     inside_eval = false;
     current_line = 0;
 
-    bb = NULL;
-    entry_bb = NULL;
-    begin_bb = NULL;
-    rescue_invoke_bb = NULL;
-    rescue_rethrow_bb = NULL;
-    ensure_bb = NULL;
-    current_mid = 0;
-    current_arity = rb_vm_arity(-1);
-    self_id = rb_intern("self");
-    current_self = NULL;
-    current_var_uses = NULL;
-    running_block = NULL;
-    current_block_arg = NULL;
-    current_block = false;
-    current_block_chain = false;
-    current_block_node = NULL;
-    current_block_func = NULL;
-    current_non_block_func = NULL;
-    current_opened_class = NULL;
-    dynamic_class = false;
-    current_loop_begin_bb = NULL;
-    current_loop_body_bb = NULL;
-    current_loop_end_bb = NULL;
-    current_loop_exit_val = NULL;
-    current_rescue = false;
-    return_from_block = -1;
-    return_from_block_ids = 0;
-    ensure_pn = NULL;
-    block_declaration = false;
-    dispatch_argv = NULL;
+    reset_compiler_state();
 
     dispatchFunc = get_function("vm_dispatch");
     fastPlusFunc = get_function("vm_fast_plus");
@@ -667,28 +742,55 @@ RoxorCompiler::compile_prepare_method(Value *classVal, Value *sel,
 
 void
 RoxorAOTCompiler::compile_prepare_method(Value *classVal, Value *sel,
-	bool singleton, Function *new_function, rb_vm_arity_t &arity,
-	NODE *body)
+	bool singleton, Function *func, rb_vm_arity_t &arity, NODE *body)
 {
     if (prepareMethodFunc == NULL) {
 	// void rb_vm_prepare_method2(Class klass, unsigned char dynamic_class,
-	//	SEL sel, IMP ruby_imp, rb_vm_arity_t arity, int flags)
-	prepareMethodFunc = 
-	    cast<Function>(module->getOrInsertFunction(
-			"rb_vm_prepare_method2",
-			VoidTy, RubyObjTy, Int8Ty, PtrTy, PtrTy, Int64Ty,
-			Int32Ty, NULL));
+	//	SEL sel, IMP ruby_imp, rb_vm_arity_t arity, int flags, ...)
+	std::vector<const Type *> types;
+	types.push_back(RubyObjTy);
+	types.push_back(Int8Ty);
+	types.push_back(PtrTy);
+	types.push_back(PtrTy);
+	types.push_back(Int64Ty);
+	types.push_back(Int32Ty);
+	FunctionType *ft = FunctionType::get(VoidTy, types, true);
+	prepareMethodFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_vm_prepare_method2", ft));
     }
 
-    Value *args[] = {
-	classVal,
-	ConstantInt::get(Int8Ty, !singleton && dynamic_class ? 1 : 0),
-	sel,
-	new BitCastInst(new_function, PtrTy, "", bb),
-	compile_arity(arity),
-	ConstantInt::get(Int32Ty, rb_vm_node_flags(body))	
+    const unsigned char dyn_class = !singleton && dynamic_class ? 1 : 0;
+
+    std::vector<Value *> params;
+    params.push_back(classVal);
+    params.push_back(ConstantInt::get(Int8Ty, dyn_class));
+    params.push_back(sel);
+    params.push_back(new BitCastInst(func, PtrTy, "", bb));
+    params.push_back(compile_arity(arity));
+    params.push_back(ConstantInt::get(Int32Ty, rb_vm_node_flags(body)));
+
+    // Pre-compile a generic Objective-C stub, where all arguments and return
+    // value are Ruby types.
+    char types[100];
+    types[0] = '@';
+    types[1] = '@';
+    types[2] = ':';
+    assert(arity.real < (int)sizeof(types) - 3);
+    for (int i = 0; i < arity.real; i++) {
+	types[3 + i] = '@';
+    }
+    types[arity.real + 3] = '\0';
+    GlobalVariable *gvar = compile_const_global_string(types);
+    Value *idxs[] = {
+	ConstantInt::get(Int32Ty, 0),
+	ConstantInt::get(Int32Ty, 0)
     };
-    CallInst::Create(prepareMethodFunc, args, args + 6, "", bb);
+    params.push_back(GetElementPtrInst::Create(gvar, idxs, idxs + 2, "", bb));
+    Function *stub = compile_objc_stub(func, NULL, arity, types);
+    params.push_back(new BitCastInst(stub, PtrTy, "", bb));
+    params.push_back(compile_const_pointer(NULL));
+
+    CallInst::Create(prepareMethodFunc, params.begin(), params.end(), "", bb);
 }
 
 void
@@ -6106,6 +6208,9 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
 {
     assert(ruby_func != NULL || ruby_imp != NULL);
 
+    save_compiler_state();
+    reset_compiler_state();
+
     const size_t buf_len = strlen(types) + 1;
     assert(buf_len > 1);
     char *buf = (char *)malloc(buf_len);
@@ -6275,6 +6380,8 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
 
     rescue_invoke_bb = old_rescue_invoke_bb;
 #endif
+
+    restore_compiler_state();
 
     return f;
 }
