@@ -226,6 +226,7 @@ extern "C" {
     void ruby_script(const char *);
     void ruby_set_argv(int, char **);
     void rb_vm_init_compiler(void);
+    void rb_vm_init_jit(void);
     void rb_vm_aot_feature_provide(const char *, void *);
     void *rb_vm_top_self(void);
     void rb_vm_print_current_exception(void);
@@ -250,6 +251,7 @@ int main(int argc, char **argv)
     ruby_init_loadpath();
     ruby_set_argv(argc, argv);
     rb_vm_init_compiler();
+    rb_vm_init_jit();
     ruby_script(progname);
     try {
 EOS
