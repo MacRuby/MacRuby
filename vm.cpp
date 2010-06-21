@@ -142,7 +142,7 @@ class RoxorFunction {
 class RoxorJITManager : public JITMemoryManager, public JITEventListener {
     private:
         JITMemoryManager *mm;
-	std::vector<struct RoxorFunction *> functions;
+	std::vector<RoxorFunction *> functions;
 
 	RoxorFunction *current_function(void) {
 	    assert(!functions.empty());
@@ -164,7 +164,7 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 	     if (addr < front->start || addr > back->end) {
 		return NULL;
 	     }
-	     std::vector<struct RoxorFunction *>::iterator iter = 
+	     std::vector<RoxorFunction *>::iterator iter = 
 		 functions.begin();
 	     while (iter != functions.end()) {
 		RoxorFunction *f = *iter;
@@ -177,7 +177,7 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 	}
 
 	RoxorFunction *delete_function(Function *func) {
-	    std::vector<struct RoxorFunction *>::iterator iter = 
+	    std::vector<RoxorFunction *>::iterator iter = 
 		functions.begin();
 	    while (iter != functions.end()) {
 		RoxorFunction *f = *iter;

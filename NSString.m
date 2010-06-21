@@ -312,11 +312,21 @@ Init_NSString(void)
     rb_objc_define_method(rb_cString, "include?", nsstr_include, 1);
 
 #define pick_forwarder(arity, bang) \
-    (arity == -1 ? (bang ? nsstr_forward_bang_m1 : nsstr_forward_m1)  \
-     : (arity == 0) ? (bang ? nsstr_forward_bang_0 : nsstr_forward_0) \
-     : (arity == 1) ? (bang ? nsstr_forward_bang_1 : nsstr_forward_1) \
-     : (arity == 2) ? (bang ? nsstr_forward_bang_2 : nsstr_forward_2) \
-     : (arity == 3) ? (bang ? nsstr_forward_bang_3 : nsstr_forward_3) \
+    (arity == -1 \
+	? (bang \
+	    ? (void *)nsstr_forward_bang_m1 : (void *)nsstr_forward_m1)  \
+     : (arity == 0) \
+	? (bang \
+	    ? (void *)nsstr_forward_bang_0 : (void *)nsstr_forward_0) \
+     : (arity == 1) \
+	? (bang \
+	    ? (void *)nsstr_forward_bang_1 : (void *)nsstr_forward_1) \
+     : (arity == 2) \
+	? (bang \
+	    ? (void *)nsstr_forward_bang_2 : (void *)nsstr_forward_2) \
+     : (arity == 3) \
+	? (bang \
+	    ? (void *)nsstr_forward_bang_3 : (void *)nsstr_forward_3) \
      : (abort(),NULL))
 
 #define forward(msg, arity) \
