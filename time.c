@@ -1,13 +1,11 @@
-/**********************************************************************
-
-  time.c -
-
-  $Author: nobu $
-  created at: Tue Dec 28 14:31:59 JST 1993
-
-  Copyright (C) 1993-2007 Yukihiro Matsumoto
-
-**********************************************************************/
+/* 
+ * MacRuby implementation of Ruby 1.9's time.c
+ *
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2007-2010, Apple Inc. All rights reserved.
+ * Copyright (C) 1993-2007 Yukihiro Matsumoto
+ */
 
 #include <sys/types.h>
 #include <time.h>
@@ -18,6 +16,7 @@
 #include "ruby/ruby.h"
 #include "ruby/encoding.h"
 #include "encoding.h"
+#include "objc.h"
 
 VALUE rb_cTime;
 static VALUE time_utc_offset _((VALUE, SEL));
@@ -25,33 +24,25 @@ static VALUE time_utc_offset _((VALUE, SEL));
 static ID id_divmod, id_mul, id_submicro;
 
 struct time_object {
+    struct RBasic basic;
     struct timespec ts;
     struct tm tm;
     int gmt;
     int tm_got;
 };
 
-#define GetTimeval(obj, tobj) \
-    Data_Get_Struct(obj, struct time_object, tobj)
-
-static void
-time_free(void *tobj)
-{
-    if (tobj) xfree(tobj);
-}
+#define GetTimeval(obj, tobj) (tobj = (struct time_object *)obj)
 
 static VALUE
 time_s_alloc(VALUE klass, SEL sel)
 {
-    VALUE obj;
-    struct time_object *tobj;
-
-    obj = Data_Make_Struct(klass, struct time_object, 0, time_free, tobj);
+    NEWOBJ(tobj, struct time_object);
+    tobj->basic.klass = klass;
+    tobj->basic.flags = 0;
     tobj->tm_got=0;
     tobj->ts.tv_sec = 0;
     tobj->ts.tv_nsec = 0;
-
-    return obj;
+    return (VALUE)tobj;
 }
 
 static void
@@ -263,7 +254,7 @@ rb_time_timeval(VALUE time)
     struct time_object *tobj;
     struct timeval t;
 
-    if (TYPE(time) == T_DATA && RDATA(time)->dfree == time_free) {
+    if (CLASS_OF(time) == rb_cTime) {
 	GetTimeval(time, tobj);
         t.tv_sec = tobj->ts.tv_sec;
         t.tv_usec = tobj->ts.tv_nsec / 1000;
@@ -278,7 +269,7 @@ rb_time_timespec(VALUE time)
     struct time_object *tobj;
     struct timespec t;
 
-    if (TYPE(time) == T_DATA && RDATA(time)->dfree == time_free) {
+    if (CLASS_OF(time) == rb_cTime) {
 	GetTimeval(time, tobj);
         t = tobj->ts;
 	return t;
@@ -321,7 +312,7 @@ time_s_at(VALUE klass, SEL sel, int argc, VALUE *argv)
 	ts = rb_time_timespec(time);
     }
     t = time_new_internal(klass, ts.tv_sec, ts.tv_nsec);
-    if (TYPE(time) == T_DATA && RDATA(time)->dfree == time_free) {
+    if (CLASS_OF(time) == rb_cTime) {
 	struct time_object *tobj, *tobj2;
 
 	GetTimeval(time, tobj);
@@ -989,13 +980,18 @@ time_to_i(VALUE time, SEL sel)
  *  nanoseconds from the Epoch.
  */
 
+static double
+time_since_epoch(VALUE time)
+{
+    struct time_object *tobj;
+    GetTimeval(time, tobj);
+    return (double)tobj->ts.tv_sec + (double)tobj->ts.tv_nsec/1e9;
+}
+
 static VALUE
 time_to_f(VALUE time, SEL sel)
 {
-    struct time_object *tobj;
-
-    GetTimeval(time, tobj);
-    return DOUBLE2NUM((double)tobj->ts.tv_sec+(double)tobj->ts.tv_nsec/1e9);
+    return DOUBLE2NUM(time_since_epoch(time));
 }
 
 /*
@@ -1071,7 +1067,7 @@ time_cmp(VALUE time1, SEL sel, VALUE time2)
     struct time_object *tobj1, *tobj2;
 
     GetTimeval(time1, tobj1);
-    if (TYPE(time2) == T_DATA && RDATA(time2)->dfree == time_free) {
+    if (CLASS_OF(time2) == rb_cTime) {
 	GetTimeval(time2, tobj2);
 	if (tobj1->ts.tv_sec == tobj2->ts.tv_sec) {
 	    if (tobj1->ts.tv_nsec == tobj2->ts.tv_nsec) return INT2FIX(0);
@@ -1100,7 +1096,7 @@ time_eql(VALUE time1, SEL sel, VALUE time2)
     struct time_object *tobj1, *tobj2;
 
     GetTimeval(time1, tobj1);
-    if (TYPE(time2) == T_DATA && RDATA(time2)->dfree == time_free) {
+    if (CLASS_OF(time2) == rb_cTime) {
 	GetTimeval(time2, tobj2);
 	if (tobj1->ts.tv_sec == tobj2->ts.tv_sec) {
 	    if (tobj1->ts.tv_nsec == tobj2->ts.tv_nsec) return Qtrue;
@@ -1164,7 +1160,7 @@ time_init_copy(VALUE copy, SEL sel, VALUE time)
 
     if (copy == time) return copy;
     time_modify(copy);
-    if (TYPE(time) != T_DATA || RDATA(time)->dfree != time_free) {
+    if (CLASS_OF(time) != rb_cTime) {
 	rb_raise(rb_eTypeError, "wrong argument type");
     }
     GetTimeval(time, tobj);
@@ -1445,7 +1441,7 @@ time_plus(VALUE time1, SEL sel, VALUE time2)
     struct time_object *tobj;
     GetTimeval(time1, tobj);
 
-    if (TYPE(time2) == T_DATA && RDATA(time2)->dfree == time_free) {
+    if (CLASS_OF(time2) == rb_cTime) {
 	rb_raise(rb_eTypeError, "time + time?");
     }
     return time_add(tobj, time2, 1);
@@ -1472,7 +1468,7 @@ time_minus(VALUE time1, SEL sel, VALUE time2)
     struct time_object *tobj;
 
     GetTimeval(time1, tobj);
-    if (TYPE(time2) == T_DATA && RDATA(time2)->dfree == time_free) {
+    if (CLASS_OF(time2) == rb_cTime) {
 	struct time_object *tobj2;
 	double f;
 
@@ -2338,6 +2334,24 @@ time_load(VALUE klass, SEL sel, VALUE str)
  *  apparently equal when displayed may be different when compared.
  */
 
+#define SINCE_EPOCH 978307200.0
+
+static double
+imp_timeIntervalSinceReferenceDate(void *rcv, SEL sel)
+{
+    return time_since_epoch((VALUE)rcv) - SINCE_EPOCH; 
+}
+
+static void *
+imp_initWithTimeIntervalSinceReferenceDate(void *rcv, SEL sel, double interval)
+{
+    struct timespec ts = rb_time_timespec(DOUBLE2NUM(interval + SINCE_EPOCH));
+    struct time_object *tobj;
+    GetTimeval(rcv, tobj);
+    tobj->ts = ts;
+    return rcv;
+}
+
 void
 Init_Time(void)
 {
@@ -2345,17 +2359,24 @@ Init_Time(void)
     id_mul = rb_intern("*");
     id_submicro = rb_intern("submicro");
 
-    rb_cTime = rb_define_class("Time", rb_cObject);
+    VALUE rb_cNSDate = (VALUE)objc_getClass("NSDate");
+    assert(rb_cNSDate != 0);
+
+    rb_cTime = rb_define_class("Time", rb_cNSDate);
     rb_include_module(rb_cTime, rb_mComparable);
 
     rb_objc_define_method(*(VALUE *)rb_cTime, "alloc", time_s_alloc, 0);
-    rb_objc_define_method(*(VALUE *)rb_cTime, "now", rb_class_new_instance_imp, -1);
+    rb_objc_define_method(*(VALUE *)rb_cTime, "new", rb_class_new_instance_imp,
+	    -1);
+    rb_objc_define_method(*(VALUE *)rb_cTime, "now", rb_class_new_instance_imp,
+	    -1);
     rb_objc_define_method(*(VALUE *)rb_cTime, "at", time_s_at, -1);
     rb_objc_define_method(*(VALUE *)rb_cTime, "utc", time_s_mkutc, -1);
     rb_objc_define_method(*(VALUE *)rb_cTime, "gm", time_s_mkutc, -1);
     rb_objc_define_method(*(VALUE *)rb_cTime, "local", time_s_mktime, -1);
     rb_objc_define_method(*(VALUE *)rb_cTime, "mktime", time_s_mktime, -1);
 
+    rb_objc_define_method(rb_cTime, "dup", rb_obj_dup, 0);
     rb_objc_define_method(rb_cTime, "to_i", time_to_i, 0);
     rb_objc_define_method(rb_cTime, "to_f", time_to_f, 0);
     rb_objc_define_method(rb_cTime, "<=>", time_cmp, 1);
@@ -2425,4 +2446,10 @@ Init_Time(void)
     rb_define_method(rb_cTime, "marshal_dump", time_mdump, 0);
     rb_define_method(rb_cTime, "marshal_load", time_mload, 1);
 #endif
+
+    Class k = (Class)rb_cTime;
+    rb_objc_install_method2(k, "timeIntervalSinceReferenceDate",
+	    (IMP)imp_timeIntervalSinceReferenceDate);
+    rb_objc_install_method2(k, "initWithTimeIntervalSinceReferenceDate:",
+	    (IMP)imp_initWithTimeIntervalSinceReferenceDate);
 }
