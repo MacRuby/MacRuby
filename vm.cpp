@@ -1923,6 +1923,9 @@ rb_vm_resolve_method(Class klass, SEL sel)
 	return false;
     }
 
+    // Make sure the VM is created & registered to avoid a deadlock.
+    GET_VM();
+
     RoxorCoreLock lock;
 
     bool status = false;
