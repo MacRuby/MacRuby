@@ -732,11 +732,47 @@ rb_objc_didChangeValueForKey(id obj, NSString *key)
     [obj didChangeValueForKey:key];
 }
 
+static VALUE
+rb_objc_load_plist(VALUE recv, SEL sel, VALUE str)
+{
+    StringValue(str);
+    VALUE bstr = rb_str_bstr(str);
+    NSData *data = [NSData dataWithBytes:rb_bstr_bytes(bstr) length:rb_bstr_length(bstr)];
+    NSError *err = nil;
+    id plist = [NSPropertyListSerialization propertyListWithData:data options:0 format:NULL error:&err];
+    if (plist == nil) {
+        rb_raise(rb_eArgError, "error loading property list: '%s'", [[err localizedDescription] UTF8String]);
+    }
+    return OC2RB(plist);
+}
+
+static VALUE
+rb_objc_to_plist(VALUE recv, SEL sel)
+{
+    const int type = TYPE(recv);
+    if ((type == T_STRING) || (type == T_FIXNUM) || (type == T_FLOAT) || (type == T_BIGNUM) ||
+        (type == T_HASH) || (type == T_ARRAY) || (type == T_TRUE) || (type == T_FALSE)) {
+        id objc_obj = RB2OC(recv);
+        NSError *err = nil;
+        NSData *data = [NSPropertyListSerialization dataWithPropertyList:objc_obj format:NSPropertyListXMLFormat_v1_0 options:0 error:&err];
+        if (data == nil) {
+            rb_raise(rb_eArgError, "error serializing property list: '%s'", [[err localizedDescription] UTF8String]);
+        }
+        const uint8_t* bytes = [data bytes];
+        const size_t len = [data length];
+        return rb_bstr_new_with_data(bytes, len);
+    }
+    
+    rb_raise(rb_eArgError, "class '%s' cannot be serialized to property-list format", rb_obj_classname(recv));
+}
+
 void
 Init_ObjC(void)
 {
-    rb_objc_define_method(rb_mKernel, "load_bridge_support_file",
-	    rb_objc_load_bs, 1);
+    rb_objc_define_module_function(rb_mKernel, "load_bridge_support_file", rb_objc_load_bs, 1);
+    rb_objc_define_module_function(rb_mKernel, "load_plist", rb_objc_load_plist, 1);
+    
+    rb_objc_define_method(rb_cObject, "to_plist", rb_objc_to_plist, 0);
 
     Class k = objc_getClass("NSKeyValueUnnestedProperty");
     assert(k != NULL);
