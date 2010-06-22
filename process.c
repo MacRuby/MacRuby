@@ -1247,28 +1247,38 @@ enum {
 static VALUE
 check_exec_redirect_fd(VALUE v)
 {
-#if 0 // TODO
     VALUE tmp;
     int fd;
     if (FIXNUM_P(v)) {
         fd = FIX2INT(v);
     }
+    else if (SYMBOL_P(v)) {
+        ID id = SYM2ID(v);
+        if (id == rb_intern("in"))
+            fd = 0;
+        else if (id == rb_intern("out"))
+            fd = 1;
+        else if (id == rb_intern("err"))
+            fd = 2;
+        else
+            goto wrong;
+    }
     else if (!NIL_P(tmp = rb_check_convert_type(v, T_FILE, "IO", "to_io"))) {
-        rb_io_t *fptr;
-        GetOpenFile(tmp, fptr);
+        rb_io_t *fptr = ExtractIOStruct(tmp);
+#if 0
         if (fptr->tied_io_for_writing)
             rb_raise(rb_eArgError, "duplex IO redirection");
+#endif
         fd = fptr->fd;
     }
     else {
         rb_raise(rb_eArgError, "wrong exec redirect");
     }
     if (fd < 0) {
+      wrong:
         rb_raise(rb_eArgError, "negative file descriptor");
     }
     return INT2FIX(fd);
-#endif
-	rb_notimplement();
 }
 
 static void
