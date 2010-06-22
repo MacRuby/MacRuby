@@ -30,6 +30,11 @@ describe "Kernel#load_plist" do
     load_plist(true.to_plist).should == true
     load_plist(false.to_plist).should == false
   end
+
+  it "should work with dates" do
+    time = Time.now
+    load_plist(time.to_plist).description.should == time.description
+  end
   
   it "should raise an TypeError when given something not a String" do
     lambda { load_plist(nil) }.should raise_error(TypeError)

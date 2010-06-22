@@ -19,6 +19,7 @@
 #include "objc.h"
 
 VALUE rb_cTime;
+VALUE rb_cNSDate;
 static VALUE time_utc_offset _((VALUE, SEL));
 
 static ID id_divmod, id_mul, id_submicro;
@@ -2359,7 +2360,7 @@ Init_Time(void)
     id_mul = rb_intern("*");
     id_submicro = rb_intern("submicro");
 
-    VALUE rb_cNSDate = (VALUE)objc_getClass("NSDate");
+    rb_cNSDate = (VALUE)objc_getClass("NSDate");
     assert(rb_cNSDate != 0);
 
     rb_cTime = rb_define_class("Time", rb_cNSDate);
