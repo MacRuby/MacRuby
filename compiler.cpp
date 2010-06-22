@@ -4444,7 +4444,6 @@ RoxorCompiler::compile_node0(NODE *node)
 	case NODE_WHILE:
 	case NODE_UNTIL:
 	    {
-		assert(node->nd_body != NULL);
 		assert(node->nd_cond != NULL);
 
 		Function *f = bb->getParent();
@@ -4483,7 +4482,9 @@ RoxorCompiler::compile_node0(NODE *node)
 		current_loop_exit_val->addIncoming(nilVal, exitBB);
 
 		bb = bodyBB;
-		compile_node(node->nd_body);	
+		if (node->nd_body != NULL) {
+		    compile_node(node->nd_body);
+		}
 		bodyBB = bb;
 
 		BranchInst::Create(loopBB, bb);
@@ -4763,6 +4764,7 @@ RoxorAOTCompiler::compile_main_function(NODE *node, bool *can_be_interpreted)
     }
 
     // Compile selectors.
+
     Function *registerSelFunc = get_function("sel_registerName");
 
     for (std::map<SEL, GlobalVariable *>::iterator i = sels.begin();
