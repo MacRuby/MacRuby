@@ -139,7 +139,7 @@ def install(src, dest, options = {})
     $installed_list.puts dest
   end
   if strip
-    system("/usr/bin/strip -x \"#{dest}\"")
+    system("/usr/bin/strip -x \"#{with_destdir(dest)}\"")
   end
 end
 
