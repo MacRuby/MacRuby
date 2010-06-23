@@ -154,6 +154,7 @@ AOT_STDLIB = [
   'lib/xmlrpc/**/*.rb',
   'lib/yaml.rb',
   'lib/yaml/rubytypes.rb',
+  'ext/**/lib/**/*.rb'
 ]
 namespace :stdlib do
   desc "AOT compile the stdlib"
@@ -184,6 +185,14 @@ namespace :framework do
   desc "Install the extensions"
   task :install_ext do
     Builder::Ext.install
+    # Install the extensions rbo.
+    Dir.glob('ext/**/lib/**/*.rbo').each do |path|
+      ext_name, sub_path = path.scan(/^ext\/(.+)\/lib\/(.+)$/)[0]
+      next unless EXTENSIONS.include?(ext_name)
+      sub_dir = File.dirname(sub_path)
+      sh "/usr/bin/install -c -m 0755 #{path} #{File.join(RUBY_SITE_LIB2, sub_dir)}"
+      sh "/usr/bin/strip -x #{File.join(RUBY_SITE_LIB2, sub_path)}"
+    end
   end
 
   desc "Install the framework"
