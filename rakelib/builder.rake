@@ -71,7 +71,7 @@ end
 
 desc "Create miniruby"
 task :miniruby => :files do
-  $builder.mode = :full
+  $builder.config = FULL_CONFIG
   build_objects
   $builder.link_executable('miniruby', OBJS)
 end
@@ -85,7 +85,7 @@ end
 namespace :macruby do
   desc "Build dynamic library"
   task :dylib => [:rbconfig, :files] do
-    $builder.mode = :full
+    $builder.config = FULL_CONFIG
     build_objects
     dylib = "lib#{RUBY_SO_NAME}.#{NEW_RUBY_VERSION}.dylib"
     $builder.link_dylib(dylib, $builder.objs - ['main', 'gc-stub'])
@@ -100,14 +100,14 @@ namespace :macruby do
 
   desc "Build static library"
   task :static => :files do
-    $builder.mode = :static
+    $builder.config = STATIC_CONFIG
     build_objects
     $builder.link_archive("lib#{RUBY_SO_NAME}-static.a", $builder.objs - ['main', 'gc-stub'])
   end
 
   desc "Build MacRuby"
   task :build => [:dylib, :static] do
-    $builder.mode = :full
+    $builder.config = FULL_CONFIG
     $builder.link_executable(RUBY_INSTALL_NAME, ['main', 'gc-stub'], "-L. -l#{RUBY_SO_NAME} -lobjc")
   end
 end
@@ -192,7 +192,6 @@ namespace :framework do
       next unless EXTENSIONS.include?(ext_name)
       sub_dir = File.dirname(sub_path)
       sh "/usr/bin/install -c -m 0755 #{path} #{File.join(dest_site, sub_dir)}"
-      sh "/usr/bin/strip -x #{File.join(dest_site, sub_path)}"
     end
   end
 
@@ -205,8 +204,7 @@ end
 namespace :clean do
   desc "Clean local build files"
   task :local do
-    rm_rf(FULL_OBJS_DIR)
-    rm_rf(STATIC_OBJS_DIR)
+    CONFIGS.each { |x| rm_rf(x.objsdir) }
     list = ['parse.c', 'lex.c', INSTALLED_LIST, 'Makefile', RUBY_INSTALL_NAME, 'miniruby', 'kernel_data.c']
     list.concat(Dir['*.inc'])
     list.concat(Dir['lib*.{dylib,a}'])

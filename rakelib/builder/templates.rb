@@ -36,6 +36,7 @@ EOS
   end
 
   def self.create_rbconfig
+    archflags = ARCHS.map { |x| "-arch #{x}" }.join(' ')
     rbconfig = <<EOS
 # This file was created when MacRuby was built.  Any changes made to this file 
 # will be lost the next time MacRuby is built.
@@ -52,7 +53,7 @@ module RbConfig
     elsif e = ENV['RC_ARCHS']
       e.split.map { |a| "-arch \#{a}" }.join(' ')
     else
-      "#{ARCHFLAGS}"
+      "#{archflags}"
     end
   CONFIG = {}
   CONFIG["DESTDIR"] = DESTDIR

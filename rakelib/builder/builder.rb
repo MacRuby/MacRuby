@@ -1,22 +1,9 @@
 require File.expand_path('../options', __FILE__)
 
-OBJS = %w{
-  array bignum class compar complex enum enumerator error eval file load proc 
-  gc hash env inits io math numeric object pack parse prec dir process
-  random range rational re ruby signal sprintf st string struct time
-  util variable version thread id objc bs ucnv encoding main dln dmyext marshal
-  gcd vm_eval gc-stub bridgesupport compiler dispatcher vm symbol debugger
-  interpreter MacRuby MacRubyDebuggerConnector NSArray NSDictionary NSString
-  transcode 
-}
-
 EXTENSIONS = %w{
   ripper digest etc readline libyaml fcntl socket zlib bigdecimal openssl json
   nkf
 }.sort
-
-FULL_OBJS_DIR = '.objs'
-STATIC_OBJS_DIR = '.static-objs'
 
 class Builder
   # Runs the given array of +commands+ in parallel. The amount of spawned
@@ -37,67 +24,38 @@ class Builder
     end.each { |t| t.join }
   end
 
-  attr_reader :objs, :archs, :objsdir, :cflags, :cxxflags
-  attr_accessor :cflags, :cxxflags, :objc_cflags, :ldflags, :dldflags
+  [:objs, :archs, :cflags, :cxxflags, :objc_cflags, :ldflags, :objsdir,
+   :objs_cflags, :dldflags].each do |sym|
+    define_method(sym) { @config.send(sym) }
+  end 
 
-  def initialize(objs)
-    @all_objs = objs.dup
-    self.mode = :full
+  def initialize(config)
+    self.config = config
   end
 
-  def mode=(m)
-    if @mode != m
-      @mode = m
-      case @mode
-        when :full
-          @objs = @all_objs
-          @archs = ARCHS
-          @cflags = CFLAGS
-          @cxxflags = CXXFLAGS
-          @objc_cflags = OBJC_CFLAGS
-          @ldflags = LDFLAGS
-          @objsdir = FULL_OBJS_DIR
-        when :static
-          @objs = @all_objs - %w{bs compiler debugger interpreter MacRubyDebuggerConnector parse}
-          @archs = ARCHS_STATIC
-          @cflags = CFLAGS_STATIC
-          @cxxflags = CXXFLAGS_STATIC
-          @objc_cflags = OBJC_CFLAGS_STATIC
-          @ldflags = LDFLAGS_STATIC
-          @objsdir = STATIC_OBJS_DIR
-        else
-          raise
-      end
-      @objs_cflags = OBJS_CFLAGS
-      @dldflags = DLDFLAGS
+  def config=(c)
+    if @config != c
+      @config = c
       @obj_sources = {}
       @header_paths = {}
-      FileUtils.mkdir_p(@objsdir)
-    end
-  end
-
-  def objsdir=(d)
-    if @objsdir != d
-      @objsdir = d.dup
-      FileUtils.mkdir_p(@objsdir)
-      @obj_sources.clear
+      FileUtils.mkdir_p(@config.objsdir)
     end
   end
 
   def build(objs=nil)
-    objs ||= @objs
+    objs ||= @config.objs
     commands = []
     objs.each do |obj| 
       if should_build?(obj) 
         s = obj_source(obj)
         cc, flags = 
           case File.extname(s)
-            when '.c' then [CC, @cflags]
-            when '.cpp' then [CXX, @cxxflags]
-            when '.m' then [CC, @objc_cflags]
-            when '.mm' then [CXX, @cxxflags + ' ' + @objc_cflags]
+            when '.c' then [CC, @config.cflags]
+            when '.cpp' then [CXX, @config.cxxflags]
+            when '.m' then [CC, @config.objc_cflags]
+            when '.mm' then [CXX, @config.cxxflags + ' ' + @config.objc_cflags]
           end
-        if f = @objs_cflags[obj]
+        if f = @config.objs_cflags[obj]
           flags += " #{f}"
         end
         commands << "#{cc} #{flags} -c #{s} -o #{obj_path(obj)}"
@@ -111,11 +69,11 @@ class Builder
   end
 
   def link_dylib(name, objs=nil, ldflags=nil)
-    link(objs, ldflags, "#{@dldflags} -o #{name}", name)
+    link(objs, ldflags, "#{@config.dldflags} -o #{name}", name)
   end
 
   def link_archive(name, objs=nil)
-    objs ||= @objs
+    objs ||= @config.objs
     if should_link?(name, objs)
       rm_f(name)
       sh("/usr/bin/ar rcu #{name} #{objs.map { |x| obj_path(x) }.join(' ') }")
@@ -126,15 +84,15 @@ class Builder
   private
 
   def obj_path(o)
-    raise unless @objsdir
-    File.join(@objsdir, o + '.o')
+    raise unless @config.objsdir
+    File.join(@config.objsdir, o + '.o')
   end
 
   def link(objs, ldflags, args, name)
-    objs ||= @objs
-    ldflags ||= @ldflags
+    objs ||= @config.objs
+    ldflags ||= @config.ldflags
     if should_link?(name, objs)
-      sh("#{CXX} #{@cflags} #{objs.map { |x| obj_path(x) }.join(' ') } #{ldflags} #{args}")
+      sh("#{CXX} #{@config.cflags} #{objs.map { |x| obj_path(x) }.join(' ') } #{ldflags} #{args}")
     end
   end
 
@@ -197,7 +155,7 @@ class Builder
   def dependencies
     unless @obj_dependencies
       @obj_dependencies = {}
-      @objs.each do |obj| 
+      @config.objs.each do |obj| 
         ary = []
         locate_headers(ary, obj_source(obj))
         @obj_dependencies[obj] = ary.uniq
@@ -281,4 +239,4 @@ class Builder
   end
 end
 
-$builder = Builder.new(OBJS)
+$builder = Builder.new(FULL_CONFIG)

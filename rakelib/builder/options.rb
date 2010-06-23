@@ -33,7 +33,6 @@ if `sw_vers -productVersion`.strip.to_f >= 10.7 and File.exist?('/AppleInternal'
   $stderr.puts "Welcome bleeding-edge adventurer!"
   llvm_default_path = '/Developer/usr/local'
   ENV['LLVM_TOT'] = '1'
-  #ENV['LLVM_PRE_TOT'] = '1'
 end
 
 RUBY_INSTALL_NAME = b.option('ruby_install_name', 'macruby')
@@ -42,12 +41,12 @@ LLVM_PATH = b.option('llvm_path', llvm_default_path)
 FRAMEWORK_NAME = b.option('framework_name', 'MacRuby')
 FRAMEWORK_INSTDIR = b.option('framework_instdir', '/Library/Frameworks')
 SYM_INSTDIR = b.option('sym_instdir', '/usr/local')
-NO_WARN_BUILD = !b.option('allow_build_warnings', false)
 ENABLE_STATIC_LIBRARY = b.option('enable_static_library', 'no') { 'yes' }
 ENABLE_DEBUG_LOGGING = b.option('enable_debug_logging', true) { |x| x == 'true' }
 SIMULTANEOUS_JOBS = b.option('jobs', 1) { |x| x.to_i }
 COMPILE_STDLIB = b.option('compile_stdlib', true) { |x| x == 'true' }
 OPTZ_LEVEL = b.option('optz_level', 3) { |x| x.to_i }
+IPHONEOS_SDK = b.option('iphoneos_sdk', nil)
 
 default_CC = '/usr/bin/gcc-4.2'
 unless File.exist?(default_CC)
@@ -116,48 +115,66 @@ RUBY_VENDOR_LIB2 = File.join(RUBY_VENDOR_LIB, NEW_RUBY_VERSION)
 RUBY_VENDOR_ARCHLIB = File.join(RUBY_VENDOR_LIB2, NEW_RUBY_PLATFORM)
 
 INSTALL_NAME = File.join(FRAMEWORK_USR_LIB, 'lib' + RUBY_SO_NAME + '.dylib')
-ARCHFLAGS = ARCHS.map { |a| '-arch ' + a }.join(' ')
 LLVM_MODULES = "core jit nativecodegen bitwriter bitreader ipo"
 EXPORTED_SYMBOLS_LIST = "./exported_symbols_list"
-ARCHS_STATIC = ARCHS
 
-OPTZFLAG = "-O#{OPTZ_LEVEL}"
-STATIC_FLAGS = "-DMACRUBY_STATIC"
-CFLAGS = "-std=c99 -I. -I./include #{ARCHFLAGS} -fno-common -pipe -g -Wall -fexceptions #{OPTZFLAG}"
-CFLAGS << " -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
-OBJC_CFLAGS = CFLAGS + " -fobjc-gc-only"
-CFLAGS_STATIC = "#{CFLAGS} #{STATIC_FLAGS}"
-CXXFLAGS_STATIC = "-I. -I./include -g -Wall #{ARCHFLAGS}"
-CXXFLAGS_STATIC << " -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
-CXXFLAGS = CXXFLAGS_STATIC + ' ' + `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.sub(/-DNDEBUG/, '').sub(/-fno-exceptions/, '').sub(/-Wcast-qual/, '').strip
-CXXFLAGS.sub!(/-O\d/, OPTZFLAG)
-CXXFLAGS << " -fno-rtti" unless CXXFLAGS.index("-fno-rtti")
-CXXFLAGS << " -DLLVM_TOT" if ENV['LLVM_TOT']
-CXXFLAGS << " -DLLVM_PRE_TOT" if ENV['LLVM_PRE_TOT']
-CXXFLAGS_STATIC << " #{OPTZFLAG} -fno-rtti #{STATIC_FLAGS}"
-LDFLAGS_STATIC = "-lpthread -ldl -lxml2 -lobjc -lauto -licucore -framework Foundation"
-LDFLAGS = LDFLAGS_STATIC + ' ' + `#{LLVM_CONFIG} --ldflags --libs #{LLVM_MODULES}`.strip.gsub(/\n/, '')
-DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION} -exported_symbols_list #{EXPORTED_SYMBOLS_LIST}"
-OBJC_CFLAGS_STATIC = "#{OBJC_CFLAGS} #{STATIC_FLAGS}"
+# Full list of objects to build.
+OBJS = %w{
+  array bignum class compar complex enum enumerator error eval file load proc 
+  gc hash env inits io math numeric object pack parse prec dir process
+  random range rational re ruby signal sprintf st string struct time
+  util variable version thread id objc bs ucnv encoding main dln dmyext marshal
+  gcd vm_eval gc-stub bridgesupport compiler dispatcher vm symbol debugger
+  interpreter MacRuby MacRubyDebuggerConnector NSArray NSDictionary NSString
+  transcode 
+}
 
-if `sw_vers -productVersion`.to_f <= 10.6
-  CFLAGS << " -I./icu-1060"
-  CFLAGS_STATIC << " -I./icu-1060"
-  CXXFLAGS << " -I./icu-1060"
-  CXXFLAGS_STATIC << " -I./icu-1060"
-  OBJC_CFLAGS << " -I./icu-1060"
-  OBJC_CFLAGS_STATIC << " -I./icu-1060"
-else
-  if !File.exist?('/usr/local/include/unicode')
-    $stderr.puts "Cannot locate ICU headers for this version of Mac OS X."
-    exit 1
-  end
-end
+# Static MacRuby builds less objects.
+STATIC_OBJS = OBJS - %w{
+  bs compiler debugger interpreter MacRubyDebuggerConnector parse 
+}
 
+# Additional compilation flags for certain objects.
 OBJS_CFLAGS = {
   'dispatcher' => '-x objective-c++', # compile as Objective-C++.
   'bs' => '-I/usr/include/libxml2'    # need to access libxml2
 }
+
+class BuilderConfig
+  attr_reader :objs, :archs, :cflags, :cxxflags, :objc_cflags, :ldflags,
+    :objsdir, :objs_cflags, :dldflags
+
+  def initialize(opt)
+    @objs = (opt.delete(:objs) || OBJS)
+    @archs = (opt.delete(:archs) || ARCHS)
+    archflags = archs.map { |x| "-arch #{x}" }.join(' ')
+    @cflags = "-std=c99 -I. -I./include -fno-common -pipe -g -Wall -fexceptions -O#{OPTZ_LEVEL} -Wno-deprecated-declarations -Werror #{archflags}"
+    @cxxflags = "-I. -I./include -g -Wall -Wno-deprecated-declarations -Werror #{archflags}"
+    @ldflags = '-lpthread -ldl -lxml2 -lobjc -lauto -licucore -framework Foundation'
+    if opt.delete(:static)
+      @cflags << ' -DMACRUBY_STATIC'
+      @cxxflags << ' -DMACRUBY_STATIC'
+      @cxxflags << " -O#{OPTZ_LEVEL} "
+    else
+      @cxxflags << ' ' << `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.sub(/-DNDEBUG/, '').sub(/-fno-exceptions/, '').sub(/-Wcast-qual/, '').sub!(/-O\d/, "-O#{OPTZ_LEVEL}").strip.gsub(/\n/, '')
+      @cxxflags << ' -DLLVM_TOT' if ENV['LLVM_TOT']
+      @ldflags << ' ' << `#{LLVM_CONFIG} --ldflags --libs #{LLVM_MODULES}`.strip.gsub(/\n/, '')
+    end
+    @cxxflags << " -fno-rtti" unless @cxxflags.index("-fno-rtti")
+    @dldflags = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION} -exported_symbols_list #{EXPORTED_SYMBOLS_LIST}"
+    if `sw_vers -productVersion`.to_f <= 10.6
+      @cflags << ' -I./icu-1060'
+      @cxxflags << ' -I./icu-1060'
+    end
+    @objc_cflags = cflags + ' -fobjc-gc-only'
+    @objs_cflags = OBJS_CFLAGS
+    @objsdir = opt.delete(:objsdir)
+  end
+end
+
+FULL_CONFIG = BuilderConfig.new(:objsdir => '.objs')
+STATIC_CONFIG = BuilderConfig.new(:objsdir => '.static-objs', :static => true, :objs => STATIC_OBJS)
+CONFIGS = [FULL_CONFIG, STATIC_CONFIG]
 
 # We monkey-patch the method that Rake uses to display the tasks so we can add
 # the build options.
