@@ -669,9 +669,6 @@ class RoxorCore {
     private:
 	// LLVM objects.
 #if !defined(MACRUBY_STATIC)
-# if !defined(LLVM_TOT)
-	ExistingModuleProvider *emp;
-# endif
 	RoxorJITManager *jmm;
 	ExecutionEngine *ee;
 	FunctionPassManager *fpm;

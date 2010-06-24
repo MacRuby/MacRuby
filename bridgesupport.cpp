@@ -16,9 +16,6 @@
 # include <llvm/Constants.h>
 # include <llvm/CallingConv.h>
 # include <llvm/Instructions.h>
-# if !defined(LLVM_TOT)
-#  include <llvm/ModuleProvider.h>
-# endif
 # include <llvm/Intrinsics.h>
 # include <llvm/Analysis/DebugInfo.h>
 # include <llvm/ExecutionEngine/JIT.h>
@@ -331,7 +328,6 @@ RoxorCompiler::compile_bs_struct_new(rb_vm_bs_boxed_t *bs_boxed)
 
 	const size_t type_size = GET_CORE()->get_sizeof(llvm_type);
 
-#if LLVM_TOT
 	Value *args[] = {
 	    new BitCastInst(fval, PtrTy, "", bb),  	// start
 	    ConstantInt::get(Int8Ty, 0),		// value
@@ -344,19 +340,6 @@ RoxorCompiler::compile_bs_struct_new(rb_vm_bs_boxed_t *bs_boxed)
 		Intrinsic::memset, Tys, 2);
 	assert(memset_func != NULL);
 	CallInst::Create(memset_func, args, args + 5, "", bb);
-#else
-	const Type *Tys[] = { IntTy };
-	Function *memset_func = Intrinsic::getDeclaration(module,
-		Intrinsic::memset, Tys, 1);
-	assert(memset_func != NULL);
-	Value *args[] = {
-	    new BitCastInst(fval, PtrTy, "", bb),
-	    ConstantInt::get(Int8Ty, 0),
-	    ConstantInt::get(IntTy, type_size),
-	    ConstantInt::get(Int32Ty, 0)
-	};
-	CallInst::Create(memset_func, args, args + 4, "", bb);
-#endif
 
 	fval = new LoadInst(fval, "", bb);
 	fval = compile_conversion_to_ruby(ftype, llvm_type, fval);

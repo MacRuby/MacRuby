@@ -307,14 +307,7 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     level = 0;
 #endif
 
-#if LLVM_TOT
     dbg_mdkind = context.getMDKindID("dbg");
-#else
-    dbg_mdkind = context.getMetadata().getMDKind("dbg");
-    if (dbg_mdkind == 0) {
-	dbg_mdkind = context.getMetadata().registerMDKind("dbg");
-    }
-#endif
     assert(dbg_mdkind != 0);
 }
 
@@ -799,12 +792,7 @@ RoxorCompiler::attach_current_line_metadata(Instruction *insn)
     if (fname != NULL) {
 	DILocation loc = debug_info->CreateLocation(current_line, 0,
 		debug_compile_unit, DILocation(NULL));
-#if LLVM_TOT
 	insn->setMetadata(dbg_mdkind, loc);
-	//insn->setDebugLoc(DebugLoc::getFromDILocation(loc.getNode()));
-#else
-	context.getMetadata().addMD(dbg_mdkind, loc.getNode(), insn);
-#endif
     }
 }
 
@@ -2528,18 +2516,11 @@ RoxorCompiler::inline_function_calls(Function *f)
 	}
     }
 
-#if LLVM_TOT
     InlineFunctionInfo IFI;
     for (std::vector<CallInst *>::iterator i = insns.begin();
 	    i != insns.end(); ++i) {
 	InlineFunction(*i, IFI);
     }
-#else
-    for (std::vector<CallInst *>::iterator i = insns.begin();
-	    i != insns.end(); ++i) {
-	InlineFunction(*i);
-    }
-#endif
 }
 
 Function *
@@ -2832,7 +2813,6 @@ RoxorCompiler::compile_scope(NODE *node)
 
 	    // Transform the InvokeInst in CallInst.
 	    std::vector<Value *> params;
-#if LLVM_TOT
 	    for (unsigned i = 0; i < invoke->getNumOperands() - 3; i++) {
 		params.push_back(invoke->getOperand(i));
 	    }
@@ -2843,22 +2823,7 @@ RoxorCompiler::compile_scope(NODE *node)
 		    invoke);
 
 	    invoke->replaceAllUsesWith(call_inst);
-	    BasicBlock *normal_bb = dyn_cast<BasicBlock>
-		(invoke->getNormalDest());
-#else
-	    for (InvokeInst::op_iterator op_it = invoke->op_begin()+3;
-		    op_it != invoke->op_end(); ++op_it) {
-		params.push_back(op_it->get());
-	    }
-	    CallInst *call_inst = CallInst::Create(
-		    invoke->getOperand(0),
-		    params.begin(), params.end(),
-		    invoke->getNameStr(),
-		    invoke);
-
-	    invoke->replaceAllUsesWith(call_inst);
-	    BasicBlock *normal_bb = dyn_cast<BasicBlock>(invoke->getOperand(1));
-#endif
+	    BasicBlock *normal_bb = dyn_cast<BasicBlock>(invoke->getNormalDest());
 	    assert(normal_bb != NULL);
 	    BranchInst::Create(normal_bb, invoke);
 	    invoke->eraseFromParent();

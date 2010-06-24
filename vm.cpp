@@ -19,9 +19,6 @@
 # include <llvm/Constants.h>
 # include <llvm/CallingConv.h>
 # include <llvm/Instructions.h>
-# if !defined(LLVM_TOT)
-#  include <llvm/ModuleProvider.h>
-# endif
 # include <llvm/PassManager.h>
 # include <llvm/Analysis/DebugInfo.h>
 # include <llvm/Analysis/Verifier.h>
@@ -267,7 +264,6 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 
 	    std::string path;
 	    for (std::vector<EmittedFunctionDetails::LineStart>::const_iterator iter = Details.LineStarts.begin(); iter != Details.LineStarts.end(); ++iter) {
-#if LLVM_TOT
 		MDNode *scope = iter->Loc.getAsMDNode(F.getContext());
 		DILocation dil = DILocation(scope);
 		if (path.size() == 0) {
@@ -277,16 +273,6 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 		    path.append(scope.getFilename());
 		}
 		RoxorFunction::Line line(iter->Address, dil.getLineNumber());
-#else
-		DebugLocTuple dlt = Details.MF->getDebugLocTuple(iter->Loc);
-		if (path.size() == 0) {
-		    DICompileUnit unit(dlt.Scope);
-		    path.append(unit.getDirectory());
-		    path.append("/");
-		    path.append(unit.getFilename());
-		}
-		RoxorFunction::Line line(iter->Address, dlt.Line);
-#endif
 		function->lines.push_back(line);
 	    }
 
@@ -326,9 +312,6 @@ RoxorCore::RoxorCore(void)
 
     // The JIT is created later, if necessary.
     InitializeNativeTarget();
-# if !defined(LLVM_TOT)
-    emp = NULL;
-# endif
     jmm = NULL; 
     ee = NULL;
     fpm = NULL;
@@ -344,9 +327,6 @@ RoxorCore::prepare_jit(void)
 {
 #if !defined(MACRUBY_STATIC)
     assert(ee == NULL);
-# if !defined(LLVM_TOT)
-    emp = new ExistingModuleProvider(RoxorCompiler::module);
-# endif
     jmm = new RoxorJITManager;
 
     CodeGenOpt::Level opt = CodeGenOpt::Default;
@@ -376,12 +356,8 @@ RoxorCore::prepare_jit(void)
     }
 
     std::string err;
-# if LLVM_TOT
     ee = ExecutionEngine::createJIT(RoxorCompiler::module, &err, jmm, opt,
 	    false);
-# else
-    ee = ExecutionEngine::createJIT(emp, &err, jmm, opt, false);
-# endif
     if (ee == NULL) {
 	fprintf(stderr, "error while creating JIT: %s\n", err.c_str());
 	abort();
@@ -389,11 +365,7 @@ RoxorCore::prepare_jit(void)
     ee->DisableLazyCompilation();
     ee->RegisterJITEventListener(jmm);
 
-# if LLVM_TOT
     fpm = new FunctionPassManager(RoxorCompiler::module);
-# else
-    fpm = new FunctionPassManager(emp);
-# endif
     fpm->add(new TargetData(*ee->getTargetData()));
 
     // Do simple "peephole" optimizations and bit-twiddling optzns.
@@ -4720,11 +4692,7 @@ Init_PreVM(void)
 {
 #if !defined(MACRUBY_STATIC)
     // To emit DWARF exception tables. 
-#if LLVM_TOT
     llvm::JITExceptionHandling = true;
-#else
-    llvm::DwarfExceptionHandling = true; 
-#endif
     // To emit DWARF debug metadata. 
     llvm::JITEmitDebugInfo = true; 
     // To not interfere with our signal handling mechanism.
@@ -4756,13 +4724,7 @@ Init_PreVM(void)
 	kernel_end = kernel_beg + _objs_kernel_i386_bc_len - 1;
 #endif
 
-#if LLVM_TOT
-	mbuf = MemoryBuffer::getMemBuffer(StringRef(kernel_beg,
-		    kernel_end - kernel_beg));
-#else
-	mbuf = MemoryBuffer::getMemBuffer(kernel_beg, kernel_end);
-	assert(mbuf != NULL);
-#endif
+	mbuf = MemoryBuffer::getMemBuffer(StringRef(kernel_beg, kernel_end - kernel_beg));
     }
     std::string err;
     RoxorCompiler::module = ParseBitcodeFile(mbuf, getGlobalContext(), &err);
