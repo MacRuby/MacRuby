@@ -819,15 +819,17 @@ Init_ObjC(void)
 static NSString *
 get_type(NSXMLElement *elem)
 {
-   NSXMLNode *node = nil;
+    NSXMLNode *node = nil;
 #if __LP64__
-   node = [elem attributeForName:@"type64"];
+    node = [elem attributeForName:@"type64"];
 #endif
-   if (node == nil) {
-       node = [elem attributeForName:@"type"];
-       assert(node != nil);
-   }
-   return [node stringValue];
+    if (node == nil) {
+	node = [elem attributeForName:@"type"];
+	if (node == nil) {
+	    return nil;
+	}
+    }
+    return [node stringValue];
 }
 
 static void
@@ -838,17 +840,30 @@ add_stub_types(NSXMLElement *elem,
 {
     NSXMLNode *name = [elem attributeForName:is_objc
 	? @"selector" : @"name"];
+    if (name == nil) {
+	return;
+    }
     NSArray *ary = [elem elementsForName:@"retval"];
-    assert([ary count] == 1);
+    if ([ary count] != 1) {
+	return;
+    }
     NSXMLElement *retval = [ary objectAtIndex:0];
     NSMutableString *types = [NSMutableString new];
-    [types appendString:get_type(retval)];
+    NSString *type = get_type(retval);
+    if (type == nil) {
+	return;
+    }
+    [types appendString:type];
     if (is_objc) {
 	[types appendString:@"@:"]; // self, sel
     }
     ary = [elem elementsForName:@"arg"];
     for (NSXMLElement *a in ary) {
-	[types appendString:get_type(a)];
+	type = get_type(a);
+	if (type == nil) {
+	    return;
+	}
+	[types appendString:type];
     }
     NSString *sel_str = [name stringValue];
     if (!is_objc && [ary count] > 0) {
