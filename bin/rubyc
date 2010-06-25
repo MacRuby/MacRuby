@@ -13,17 +13,17 @@ class Compiler
   VALID_ARCHS = ['i386', 'x86_64']
 
   def initialize(argv)
-    @mode = :normal
     @archs = []
     @internal = argv.delete('--internal')
+    @frameworks = %w{Foundation}
 
     # Parse arguments.
     OptionParser.new do |opts|
       opts.banner = "Usage: #{NAME} [options] file..."
       opts.on('-c', 'Compile and assemble, but do not link') { @dont_link = true }
       opts.on('-o <file>', 'Place the output into <file>') { |output| @output = output }
-      #opts.on('--mode [MODE]', "Select compilation mode (normal or full)") { |mode| @mode = mode.intern }
       opts.on('--static', "Create a standalone static executable") { @static = true }
+      opts.on('--framework <name>', "Link standalone static executable with given framework") { |p| @frameworks << p }
       opts.on('--dylib', "Create a dynamic library") { @dylib = true }
       opts.on('-C', 'Compile, assemble and link a loadable object file') { @bundle = true }
       opts.on('-a', '--arch <ARCH>', 'Compile for specified CPU architecture') { |arch| @archs << arch }
@@ -37,9 +37,6 @@ class Compiler
       end
       die opts if argv.empty?
       @files = argv
-      if @mode != :normal and @mode != :full
-        die "Invalid mode `#{@mode}'. Possible choices are: normal, full"
-      end
       @archs.uniq!
       @archs << RUBY_ARCH if @archs.empty?
       @archs.each do |arch|
@@ -47,6 +44,7 @@ class Compiler
           die "Invalid CPU architecture `#{arch}'. Possible values are: " + VALID_ARCHS.join(", ")
         end
       end
+      @frameworks.uniq!
     end
 
     # Locate necessary programs.
@@ -76,8 +74,19 @@ class Compiler
   end
 
   def run
-    if @mode == :full
-      die "Full compilation mode is not implemented yet!"
+    @uses_bs_flags = ''
+    @frameworks.each do |f|
+      p =
+        if File.exist?(f)
+	  "#{f}/Resources/BridgeSupport/#{File.basename(f)}Full.bridgesupport"
+        else
+          "/System/Library/Frameworks/#{f}.framework/Resources/BridgeSupport/#{f}Full.bridgesupport"
+        end
+      if File.exist?(p)
+        @uses_bs_flags << "--uses-bs #{p} "
+      else
+        die "Couldn't locate the Full BridgeSupport file for framework: `%{f}'"
+      end
     end
     if @dont_link or @bundle
       die "Cannot specify --static when not building an executable" if @static
@@ -138,7 +147,7 @@ class Compiler
     @archs.each do |arch|
       # Compile the file into LLVM bitcode.
       bc = gen_tmpfile(base + arch, 'bc')
-      execute("arch -#{arch} #{@macruby} --emit-llvm \"#{bc}\" #{init_func} \"#{path}\"")
+      execute("arch -#{arch} #{@macruby} #{@uses_bs_flags} --emit-llvm \"#{bc}\" #{init_func} \"#{path}\"")
 
       # Compile the bitcode as assembly.
       asm = gen_tmpfile(base + arch, 's')
@@ -239,7 +248,8 @@ EOS
     main_txt << <<EOS
 }
 
-int main(int argc, char **argv)
+int
+main(int argc, char **argv)
 {
     const char *progname = argv[0];
     ruby_sysinit(&argc, &argv);
@@ -284,9 +294,11 @@ EOS
 
     # Link all objects into executable.
     path = @internal ? "-L." : "-L#{RbConfig::CONFIG['libdir']}"
-    linkf = @static ? 
+    linkf = "-lobjc -licucore -lauto "
+    @frameworks.each { |f| linkf << "-framework #{f} " }
+    linkf << (@static ?
       "#{path} #{RbConfig::CONFIG['LIBRUBYARG_STATIC_REALLY']}" :
-      "#{path} -lmacruby -framework Foundation -lobjc -lauto"
+      "#{path} -lmacruby")
     line = "#{@gcxx} -o \"#{output}\" #{arch_flags} #{linkf} "
     objs.each { |o| line << " \"#{o}\"" }
     execute(line)

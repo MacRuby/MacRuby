@@ -377,17 +377,17 @@ class RoxorCompiler {
 	    return compile_const_pointer(sel, PtrTy);
 	}
 	virtual Value *compile_id(ID id);
-	GlobalVariable *compile_const_global_string(const char *str,
+	Instruction *compile_const_global_string(const char *str,
 		const size_t str_len);
-	GlobalVariable *compile_const_global_string(const char *str) {
+	Instruction *compile_const_global_string(const char *str) {
 	    return compile_const_global_string(str, strlen(str));
 	}
-	GlobalVariable *compile_const_global_ustring(const UniChar *str,
+	Instruction *compile_const_global_ustring(const UniChar *str,
 		const size_t str_len);
 
 	Value *compile_arity(rb_vm_arity_t &arity);
 	Instruction *compile_range(Value *beg, Value *end, bool exclude_end,
-		bool retain=false, bool add_to_bb=true);
+		bool retain=false);
 	Value *compile_literal(VALUE val);
 	virtual Value *compile_immutable_literal(VALUE val);
 	virtual Value *compile_global_entry(NODE *node);
@@ -442,6 +442,12 @@ class RoxorAOTCompiler : public RoxorCompiler {
 
 	Function *compile_main_function(NODE *node, bool *can_be_interpreted);
 
+	// BridgeSupport metadata needed for AOT compilation.
+	std::map<SEL, std::vector<std::string> *> bs_c_stubs_types,
+	    bs_objc_stubs_types;
+
+	void load_bs_full_file(const char *path);
+
     private:
 	std::map<ID, GlobalVariable *> ccaches;
 	std::map<SEL, GlobalVariable *> sels;
@@ -449,11 +455,13 @@ class RoxorAOTCompiler : public RoxorCompiler {
 	std::map<ID, GlobalVariable *> global_entries;
 	std::vector<GlobalVariable *> ivar_slots;
 	std::map<VALUE, GlobalVariable *> literals;
+	std::vector<std::string> c_stubs, objc_stubs;
 
 	GlobalVariable *cObject_gvar;
 	GlobalVariable *cStandardError_gvar;
 	std::vector<GlobalVariable *> class_gvars;
 
+	Function *compile_init_function(void);
 	Value *compile_ccache(ID id);
 	Value *compile_sel(SEL sel, bool add_to_bb=true);
 	void compile_prepare_method(Value *classVal, Value *sel,

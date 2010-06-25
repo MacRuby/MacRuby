@@ -2823,7 +2823,8 @@ RoxorCore::gen_stub(std::string types, bool variadic, int min_argc,
     void *stub;
     if (iter == stubs.end()) {
 #if MACRUBY_STATIC
-	printf("uncached stub %s\n", types.c_str());
+	printf("uncached %s stub `%s'\n", is_objc ? "ObjC" : "C",
+		types.c_str());
 	abort();
 #else
 	Function *f = RoxorCompiler::shared->compile_stub(types.c_str(),
@@ -3848,6 +3849,7 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 }
 
 extern VALUE rb_progname;
+extern "C" void rb_vm_aot_load_bs_files(VALUE);
 
 extern "C"
 void
@@ -3858,6 +3860,15 @@ rb_vm_aot_compile(NODE *node)
 #else
     assert(ruby_aot_compile);
     assert(ruby_aot_init_func);
+
+    // Load the BridgeSupport files.
+    if (ruby_aot_bs_files != Qnil) {
+	for (int i = 0, count = RARRAY_LEN(ruby_aot_bs_files); i < count;
+		i++) {
+	    ((RoxorAOTCompiler *)RoxorCompiler::shared)->load_bs_full_file(
+		RSTRING_PTR(RARRAY_AT(ruby_aot_bs_files, i)));
+	}
+    }
 
     // Compile the program as IR.
     RoxorCompiler::shared->set_fname(RSTRING_PTR(rb_progname));
@@ -4638,6 +4649,13 @@ setup_builtin_stubs(void)
 {
     GET_CORE()->insert_stub("@@:", (void *)builtin_ostub1, true);
     GET_CORE()->insert_stub("#@:", (void *)builtin_ostub1, true);
+}
+
+extern "C"
+void
+rb_vm_add_stub(const char *types, void *func, unsigned char is_objc)
+{
+    GET_CORE()->insert_stub(types, func, is_objc);
 }
 
 #if !defined(MACRUBY_STATIC)

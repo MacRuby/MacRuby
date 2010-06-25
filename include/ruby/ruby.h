@@ -814,7 +814,7 @@ VALUE rb_equal(VALUE,VALUE);
 RUBY_EXTERN VALUE ruby_verbose, ruby_debug;
 
 // AOT compiler.
-RUBY_EXTERN VALUE ruby_aot_compile, ruby_aot_init_func;
+RUBY_EXTERN VALUE ruby_aot_compile, ruby_aot_init_func, ruby_aot_bs_files;
 
 // Debugger.
 RUBY_EXTERN VALUE ruby_debug_socket_path;

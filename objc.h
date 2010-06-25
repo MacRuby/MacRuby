@@ -223,6 +223,12 @@ void rb_objc_fix_relocatable_load_path(void);
 
 extern bool rb_objc_enable_ivar_set_kvo_notifications;
 
+#if !defined(MACRUBY_STATIC)
+void rb_vm_parse_bs_full_file(const char *path,
+	void (*add_stub_types_cb)(SEL, const char *, bool, void *),
+	void *ctx);
+#endif
+
 #if defined(__cplusplus)
 }
 #endif

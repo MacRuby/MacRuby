@@ -36,6 +36,7 @@ VALUE ruby_verbose = Qfalse;
 VALUE ruby_debug_socket_path = Qfalse;
 VALUE ruby_aot_compile = Qfalse;
 VALUE ruby_aot_init_func = Qfalse;
+VALUE ruby_aot_bs_files = Qnil;
 VALUE rb_progname = Qnil;
 
 static int uid, euid, gid, egid;
@@ -713,6 +714,21 @@ proc_options(int argc, char **argv, struct cmdline_options *opt)
 		GC_RETAIN(ruby_aot_compile);
 		GC_RETAIN(ruby_aot_init_func);
 		argc--; argv++;
+		argc--; argv++;
+	    }
+	    else if (strcmp("uses-bs", s) == 0) {
+		// This option is not documented and only used by macrubyc.
+		// Users should use macrubyc and never call this option
+		// directly.
+		if (argc < 2) {
+		    rb_raise(rb_eRuntimeError,
+			    "expected 1 argument (complete BridgeSupport file ) for --uses-bs");
+		}
+		if (ruby_aot_bs_files == Qnil) {
+		    ruby_aot_bs_files = rb_ary_new();
+		    GC_RETAIN(ruby_aot_bs_files);
+		}
+		rb_ary_push(ruby_aot_bs_files, rb_str_new2(argv[1]));
 		argc--; argv++;
 	    }
 	    else if (strcmp("debug-mode", s) == 0) {

@@ -814,3 +814,73 @@ Init_ObjC(void)
     return (id)objc_getProtocol([name UTF8String]);
 } 
 @end
+
+#if !defined(MACRUBY_STATIC)
+static NSString *
+get_type(NSXMLElement *elem)
+{
+   NSXMLNode *node = nil;
+#if __LP64__
+   node = [elem attributeForName:@"type64"];
+#endif
+   if (node == nil) {
+       node = [elem attributeForName:@"type"];
+       assert(node != nil);
+   }
+   return [node stringValue];
+}
+
+static void
+add_stub_types(NSXMLElement *elem,
+	void (*add_stub_types_cb)(SEL, const char *, bool, void *),
+	void *ctx,
+	bool is_objc)
+{
+    NSXMLNode *name = [elem attributeForName:is_objc
+	? @"selector" : @"name"];
+    NSArray *ary = [elem elementsForName:@"retval"];
+    assert([ary count] == 1);
+    NSXMLElement *retval = [ary objectAtIndex:0];
+    NSMutableString *types = [NSMutableString new];
+    [types appendString:get_type(retval)];
+    if (is_objc) {
+	[types appendString:@"@:"]; // self, sel
+    }
+    ary = [elem elementsForName:@"arg"];
+    for (NSXMLElement *a in ary) {
+	[types appendString:get_type(a)];
+    }
+    NSString *sel_str = [name stringValue];
+    if (!is_objc && [ary count] > 0) {
+	sel_str = [sel_str stringByAppendingString:@":"];
+    }
+    SEL sel = sel_registerName([sel_str UTF8String]);
+    add_stub_types_cb(sel, [types UTF8String], is_objc, ctx);
+}
+
+void
+rb_vm_parse_bs_full_file(const char *path,
+	void (*add_stub_types_cb)(SEL, const char *, bool, void *),
+	void *ctx)
+{
+    NSURL *url = [NSURL fileURLWithPath:[NSString stringWithUTF8String:path]];
+    NSError *err = nil;
+    NSXMLDocument *doc = [[NSXMLDocument alloc] initWithContentsOfURL: url
+	options: 0 error: &err];
+    if (doc == nil) {
+	NSLog(@"can't open BridgeSupport full file at path `%s': %@",
+		path, err);
+	exit(1);
+    }
+    NSXMLElement *root = [doc rootElement];
+
+    for (NSXMLElement *k in [root elementsForName:@"class"]) {
+	for (NSXMLElement *m in [k elementsForName:@"method"]) {
+	    add_stub_types(m, add_stub_types_cb, ctx, true);
+	}
+    }
+    for (NSXMLElement *f in [root elementsForName:@"function"]) {
+	add_stub_types(f, add_stub_types_cb, ctx, false);
+    }
+}
+#endif

@@ -538,7 +538,7 @@ RoxorCompiler::compile_when_splat(Value *comparedToVal, Value *splatVal)
     return compile_protected_call(whenSplatFunc, args, args + 3);
 }
 
-GlobalVariable *
+Instruction *
 RoxorCompiler::compile_const_global_ustring(const UniChar *str,
 	const size_t len)
 {
@@ -568,10 +568,14 @@ RoxorCompiler::compile_const_global_ustring(const UniChar *str,
 	gvar = iter->second;
     }
 
-    return gvar;
+    Value *idxs[] = {
+	ConstantInt::get(Int32Ty, 0),
+	ConstantInt::get(Int32Ty, 0)
+    };
+    return GetElementPtrInst::Create(gvar, idxs, idxs + 2, "", bb);
 }
 
-GlobalVariable *
+Instruction *
 RoxorCompiler::compile_const_global_string(const char *str,
 	const size_t len)
 {
@@ -601,7 +605,11 @@ RoxorCompiler::compile_const_global_string(const char *str,
 	gvar = iter->second;
     }
 
-    return gvar;
+    Value *idxs[] = {
+	ConstantInt::get(Int32Ty, 0),
+	ConstantInt::get(Int32Ty, 0)
+    };
+    return GetElementPtrInst::Create(gvar, idxs, idxs + 2, "", bb);
 }
 
 Value *
@@ -630,6 +638,24 @@ RoxorAOTCompiler::compile_ccache(ID name)
     return new LoadInst(gvar, "", bb);
 }
 
+static void
+discover_stubs(std::map<SEL, std::vector<std::string> *> &map,
+	std::vector<std::string> &dest, SEL sel)
+{
+    std::map<SEL, std::vector<std::string> *>::iterator iter;
+    iter = map.find(sel);
+    if (iter != map.end()) {
+	std::vector<std::string> *v = iter->second;
+	for (std::vector<std::string>::iterator i = v->begin();
+		i != v->end(); ++i) {
+	    std::string s = *i;
+	    if (std::find(dest.begin(), dest.end(), s) == dest.end()) {
+		dest.push_back(s);
+	    }		
+	}
+    }
+}
+
 Value *
 RoxorAOTCompiler::compile_sel(SEL sel, bool add_to_bb)
 {
@@ -641,6 +667,9 @@ RoxorAOTCompiler::compile_sel(SEL sel, bool add_to_bb)
 		"");
 	assert(gvar != NULL);
 	sels[sel] = gvar;
+
+	discover_stubs(bs_c_stubs_types, c_stubs, sel);
+	discover_stubs(bs_objc_stubs_types, objc_stubs, sel);
     }
     else {
 	gvar = iter->second;
@@ -773,12 +802,7 @@ RoxorAOTCompiler::compile_prepare_method(Value *classVal, Value *sel,
 	types[3 + i] = '@';
     }
     types[arity.real + 3] = '\0';
-    GlobalVariable *gvar = compile_const_global_string(types);
-    Value *idxs[] = {
-	ConstantInt::get(Int32Ty, 0),
-	ConstantInt::get(Int32Ty, 0)
-    };
-    params.push_back(GetElementPtrInst::Create(gvar, idxs, idxs + 2, "", bb));
+    params.push_back(compile_const_global_string(types));
     Function *stub = compile_objc_stub(func, NULL, arity, types);
     params.push_back(new BitCastInst(stub, PtrTy, "", bb));
     params.push_back(compile_const_pointer(NULL));
@@ -2278,7 +2302,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 
 Instruction *
 RoxorCompiler::compile_range(Value *beg, Value *end, bool exclude_end,
-	bool retain, bool add_to_bb)
+	bool retain)
 {
     if (newRangeFunc == NULL) {
 	// VALUE rb_range_new2(VALUE beg, VALUE end, int exclude_end,
@@ -2295,10 +2319,7 @@ RoxorCompiler::compile_range(Value *beg, Value *end, bool exclude_end,
 	ConstantInt::get(Int32Ty, exclude_end ? 1 : 0),
 	ConstantInt::get(Int32Ty, retain ? 1 : 0)
     };
-    if (add_to_bb) {
-	return compile_protected_call(newRangeFunc, args, args + 4);
-    }
-    return CallInst::Create(newRangeFunc, args, args + 4, "");
+    return compile_protected_call(newRangeFunc, args, args + 4);
 }
 
 Value *
@@ -2325,16 +2346,6 @@ RoxorCompiler::compile_literal(VALUE val)
 
 	    assert(cstr_len > 0);
 
-	    GlobalVariable *str_gvar = compile_const_global_string(cstr,
-		    cstr_len);
-
-	    Value *idxs[] = {
-		ConstantInt::get(Int32Ty, 0),
-		ConstantInt::get(Int32Ty, 0)
-	    };
-	    Instruction *load = GetElementPtrInst::Create(str_gvar,
-		    idxs, idxs + 2, "", bb);
-
 	    if (newString2Func == NULL) {	
 		newString2Func = cast<Function>(
 			module->getOrInsertFunction(
@@ -2343,7 +2354,7 @@ RoxorCompiler::compile_literal(VALUE val)
 	    }
 
 	    Value *args[] = {
-		load,
+		compile_const_global_string(cstr, cstr_len),
 		ConstantInt::get(Int32Ty, cstr_len)
 	    };
 	    return CallInst::Create(newString2Func, args, args + 2, "", bb);
@@ -4689,12 +4700,26 @@ RoxorAOTCompiler::compile_main_function(NODE *node, bool *can_be_interpreted)
 {
     Value *val = compile_node(node);
     assert(Function::classof(val));
-    Function *function = cast<Function>(val);
-    function->setLinkage(GlobalValue::ExternalLinkage);
+    Function *func = cast<Function>(val);
+    func->setLinkage(GlobalValue::ExternalLinkage);
 
-    BasicBlock::InstListType &list = 
-	function->getEntryBlock().getInstList();
-    bb = &function->getEntryBlock();
+    Function *init_func = compile_init_function(); 
+    BasicBlock::InstListType &list = func->getEntryBlock().getInstList();
+    list.insert(list.begin(), CallInst::Create(init_func, ""));
+
+    return func;
+}
+
+Function *
+RoxorAOTCompiler::compile_init_function(void)
+{
+    reset_compiler_state();
+
+    FunctionType *ft = FunctionType::get(VoidTy, false);
+    Function *f = Function::Create(ft, GlobalValue::InternalLinkage,
+	    "init_func", module);
+
+    bb = BasicBlock::Create(context, "MainBlock", f);
 
     // Compile constant caches.
 
@@ -4703,29 +4728,15 @@ RoxorAOTCompiler::compile_main_function(NODE *node, bool *can_be_interpreted)
 		PtrTy, PtrTy, NULL));
 
     for (std::map<ID, GlobalVariable *>::iterator i = ccaches.begin();
-	 i != ccaches.end();
-	 ++i) {
+	    i != ccaches.end();
+	    ++i) {
 
 	ID name = i->first;
 	GlobalVariable *gvar = i->second;
 
-	GlobalVariable *const_gvar =
-	    compile_const_global_string(rb_id2name(name));
-
-	Value *idxs[] = {
-	    ConstantInt::get(Int32Ty, 0),
-	    ConstantInt::get(Int32Ty, 0)
-	};
-	Instruction *load = GetElementPtrInst::Create(const_gvar, idxs,
-		idxs + 2, "");
-
-	Instruction *call = CallInst::Create(getConstCacheFunc, load, "");
-
-	Instruction *assign = new StoreInst(call, gvar, "");
- 
-	list.insert(list.begin(), assign);
-	list.insert(list.begin(), call);
-	list.insert(list.begin(), load);
+	Value *val = CallInst::Create(getConstCacheFunc,
+		compile_const_global_string(rb_id2name(name)), "", bb);
+	new StoreInst(val, gvar, "", bb);
     }
 
     // Compile selectors.
@@ -4733,32 +4744,16 @@ RoxorAOTCompiler::compile_main_function(NODE *node, bool *can_be_interpreted)
     Function *registerSelFunc = get_function("sel_registerName");
 
     for (std::map<SEL, GlobalVariable *>::iterator i = sels.begin();
-	 i != sels.end();
-	 ++i) {
+	    i != sels.end();
+	    ++i) {
 
 	SEL sel = i->first;
 	GlobalVariable *gvar = i->second;
 
-	GlobalVariable *sel_gvar =
-	    compile_const_global_string(sel_getName(sel));
-
-	Value *idxs[] = {
-	    ConstantInt::get(Int32Ty, 0),
-	    ConstantInt::get(Int32Ty, 0)
-	};
-	Instruction *load = GetElementPtrInst::Create(sel_gvar, idxs, idxs + 2,
-		"");
-
-	Instruction *call = CallInst::Create(registerSelFunc, load, "");
-
-	Instruction *cast = new BitCastInst(call, PtrTy, "");
-
-	Instruction *assign = new StoreInst(cast, gvar, "");
- 
-	list.insert(list.begin(), assign);
-	list.insert(list.begin(), cast);
-	list.insert(list.begin(), call);
-	list.insert(list.begin(), load);
+	Value *val = CallInst::Create(registerSelFunc,
+		compile_const_global_string(sel_getName(sel)), "", bb);
+	val = new BitCastInst(val, PtrTy, "", bb);
+	new StoreInst(val, gvar, "", bb);
     }
 
     // Compile literals.
@@ -4787,30 +4782,16 @@ RoxorAOTCompiler::compile_main_function(NODE *node, bool *can_be_interpreted)
 
 	VALUE val = i->first;
 	GlobalVariable *gvar = i->second;
+	Value *lit_val = NULL;
 
 	switch (TYPE(val)) {
 	    case T_CLASS:
 		{
 		    // This strange literal seems to be only emitted for 
 		    // `for' loops.
-		    GlobalVariable *kname_gvar =
-			compile_const_global_string(class_getName((Class)val));
-
-		    Value *idxs[] = {
-			ConstantInt::get(Int32Ty, 0),
-			ConstantInt::get(Int32Ty, 0)
-		    };
-		    Instruction *load = GetElementPtrInst::Create(kname_gvar,
-			    idxs, idxs + 2, "");
-
-		    Instruction *call = CallInst::Create(getClassFunc,
-			    load, "");
-
-		    Instruction *assign = new StoreInst(call, gvar, "");
-
-		    list.insert(list.begin(), assign);
-		    list.insert(list.begin(), call);
-		    list.insert(list.begin(), load);
+		    const char *cname = class_getName((Class)val);
+		    lit_val = CallInst::Create(getClassFunc,
+			    compile_const_global_string(cname), "", bb);
 		}
 		break;
 
@@ -4827,15 +4808,8 @@ RoxorAOTCompiler::compile_main_function(NODE *node, bool *can_be_interpreted)
 				PointerType::getUnqual(Int16Ty));
 		    }
 		    else {
-			GlobalVariable *re_name_gvar =
-			    compile_const_global_ustring(chars, chars_len);
-
-			Value *idxs[] = {
-			    ConstantInt::get(Int32Ty, 0),
-			    ConstantInt::get(Int32Ty, 0)
-			};
-			re_str = GetElementPtrInst::Create(re_name_gvar,
-				idxs, idxs + 2, "");
+			re_str = compile_const_global_ustring(chars,
+				chars_len);
 		    }
 
 		    Value *args[] = {
@@ -4843,67 +4817,24 @@ RoxorAOTCompiler::compile_main_function(NODE *node, bool *can_be_interpreted)
 			ConstantInt::get(Int32Ty, chars_len),
 			ConstantInt::get(Int32Ty, rb_reg_options(val))
 		    };
-		    Instruction *call = CallInst::Create(newRegexp2Func,
-			    args, args + 3, "");
-
-		    Instruction *assign = new StoreInst(call, gvar, "");
-
-		    list.insert(list.begin(), assign);
-		    list.insert(list.begin(), call);
-		    Instruction *re_str_insn = dyn_cast<Instruction>(re_str);
-		    if (re_str_insn != NULL) {
-			list.insert(list.begin(), re_str_insn);
-		    }
+		    lit_val = CallInst::Create(newRegexp2Func, args, args + 3,
+			    "", bb);
 		}
 		break;
 
 	    case T_SYMBOL:
 		{
 		    const char *symname = rb_id2name(SYM2ID(val));
-
-		    GlobalVariable *symname_gvar =
-			compile_const_global_string(symname);
-
-		    Value *idxs[] = {
-			ConstantInt::get(Int32Ty, 0),
-			ConstantInt::get(Int32Ty, 0)
-		    };
-		    Instruction *load = GetElementPtrInst::Create(symname_gvar,
-			    idxs, idxs + 2, "");
-
-		    Instruction *call = CallInst::Create(name2symFunc,
-			    load, "");
-
-		    Instruction *assign = new StoreInst(call, gvar, "");
-
-		    list.insert(list.begin(), assign);
-		    list.insert(list.begin(), call);
-		    list.insert(list.begin(), load);
+		    lit_val = CallInst::Create(name2symFunc,
+			    compile_const_global_string(symname), "", bb);
 		}
 		break;
 
 	    case T_BIGNUM:
 		{
 		    const char *bigstr = RSTRING_PTR(rb_big2str(val, 10));
-
-		    GlobalVariable *bigstr_gvar =
-			compile_const_global_string(bigstr);
-
-		    Value *idxs[] = {
-			ConstantInt::get(Int32Ty, 0),
-			ConstantInt::get(Int32Ty, 0)
-		    };
-		    Instruction *load = GetElementPtrInst::Create(bigstr_gvar,
-			    idxs, idxs + 2, "");
-
-		    Instruction *call = CallInst::Create(newBignumFunc,
-			    load, "");
-
-		    Instruction *assign = new StoreInst(call, gvar, "");
-
-		    list.insert(list.begin(), assign);
-		    list.insert(list.begin(), call);
-		    list.insert(list.begin(), load);
+		    lit_val = CallInst::Create(newBignumFunc,
+			    compile_const_global_string(bigstr), "", bb);
 		}
 		break;
 
@@ -4913,15 +4844,9 @@ RoxorAOTCompiler::compile_main_function(NODE *node, bool *can_be_interpreted)
 		    bool exclude_end = false;
 		    rb_range_extract(val, &beg, &end, &exclude_end);
 
-		    Instruction *call = compile_range(
-			    ConstantInt::get(RubyObjTy, beg),
+		    lit_val = compile_range(ConstantInt::get(RubyObjTy, beg),
 			    ConstantInt::get(RubyObjTy, end),
-			    exclude_end, true, false);	
-
-		    Instruction *assign = new StoreInst(call, gvar, "");
-
-		    list.insert(list.begin(), assign);
-		    list.insert(list.begin(), call);
+			    exclude_end, true);	
 		}
 		else {
 		    printf("unrecognized literal `%s' (class `%s' type %d)\n",
@@ -4932,33 +4857,9 @@ RoxorAOTCompiler::compile_main_function(NODE *node, bool *can_be_interpreted)
 		}
 		break;
 	}
-    }
 
-    // Compile global entries.
-
-    Function *globalEntryFunc = cast<Function>(module->getOrInsertFunction(
-		"rb_global_entry",
-		PtrTy, IntTy, NULL));
-
-    for (std::map<ID, GlobalVariable *>::iterator i = global_entries.begin();
-	 i != global_entries.end();
-	 ++i) {
-
-	ID name_id = i->first;
-	GlobalVariable *gvar = i->second;
-
-	Value *name_val = compile_id(name_id);
-	assert(Instruction::classof(name_val));
-	Instruction *name = cast<Instruction>(name_val);
-	name->removeFromParent();	
-
-	Instruction *call = CallInst::Create(globalEntryFunc, name, "");
-
-	Instruction *assign = new StoreInst(call, gvar, "");
-	
-	list.insert(list.begin(), assign);
-	list.insert(list.begin(), call);
-	list.insert(list.begin(), name);
+	assert(lit_val != NULL);
+	new StoreInst(lit_val, gvar, "", bb);
     }
 
     // Compile IDs.
@@ -4968,55 +4869,47 @@ RoxorAOTCompiler::compile_main_function(NODE *node, bool *can_be_interpreted)
 		IntTy, PtrTy, NULL));
 
     for (std::map<ID, GlobalVariable *>::iterator i = ids.begin();
-	 i != ids.end();
-	 ++i) {
+	    i != ids.end();
+	    ++i) {
 
 	ID name = i->first;
 	GlobalVariable *gvar = i->second;
 
-	GlobalVariable *name_gvar =
-	    compile_const_global_string(rb_id2name(name));
+	Value *val = CallInst::Create(rbInternFunc,
+		compile_const_global_string(rb_id2name(name)), "", bb);
+	new StoreInst(val, gvar, "", bb);
+    }
 
-	Value *idxs[] = {
-	    ConstantInt::get(Int32Ty, 0),
-	    ConstantInt::get(Int32Ty, 0)
-	};
-	Instruction *load = GetElementPtrInst::Create(name_gvar, idxs,
-		idxs + 2, "");
+    // Compile global entries.
 
-	Instruction *call = CallInst::Create(rbInternFunc, load, "");
+    Function *globalEntryFunc = cast<Function>(module->getOrInsertFunction(
+		"rb_global_entry",
+		PtrTy, IntTy, NULL));
 
-	Instruction *assign = new StoreInst(call, gvar, "");
- 
-	list.insert(list.begin(), assign);
-	list.insert(list.begin(), call);
-	list.insert(list.begin(), load);
+    for (std::map<ID, GlobalVariable *>::iterator i = global_entries.begin();
+	    i != global_entries.end();
+	    ++i) {
+
+	ID name = i->first;
+	GlobalVariable *gvar = i->second;
+
+	Value *val = CallInst::Create(rbInternFunc,
+		compile_const_global_string(rb_id2name(name)), "", bb);
+	val = CallInst::Create(globalEntryFunc, val, "", bb);
+	new StoreInst(val, gvar, "", bb);
     }
 
     // Compile constant class references.
 
     for (std::vector<GlobalVariable *>::iterator i = class_gvars.begin();
-	 i != class_gvars.end();
-	 ++i) {
+	    i != class_gvars.end();
+	    ++i) {
 
 	GlobalVariable *gvar = *i;
-
-	GlobalVariable *str = compile_const_global_string(
-		gvar->getName().str().c_str());
-
-	Value *idxs[] = {
-	    ConstantInt::get(Int32Ty, 0),
-	    ConstantInt::get(Int32Ty, 0)
-	};
-	Instruction *load = GetElementPtrInst::Create(str, idxs, idxs + 2, "");
-
-	Instruction *call = CallInst::Create(getClassFunc, load, "");
-
-	Instruction *assign = new StoreInst(call, gvar, "");
-
-	list.insert(list.begin(), assign);
-	list.insert(list.begin(), call);
-	list.insert(list.begin(), load);
+	Value *val = CallInst::Create(getClassFunc,
+		compile_const_global_string(gvar->getName().str().c_str()),
+		"",bb);
+	new StoreInst(val, gvar, "", bb);
     }
 
     // Instance variable slots.
@@ -5026,21 +4919,56 @@ RoxorAOTCompiler::compile_main_function(NODE *node, bool *can_be_interpreted)
 		PtrTy, NULL));
 
     for (std::vector<GlobalVariable *>::iterator i = ivar_slots.begin();
-	 i != ivar_slots.end();
-	 ++i) {
+	    i != ivar_slots.end();
+	    ++i) {
 
 	GlobalVariable *gvar = *i;
-
-	Instruction *call = CallInst::Create(ivarSlotAlloc, "");
-	Instruction *assign = new StoreInst(call, gvar, "");
-
-	list.insert(list.begin(), assign);
-	list.insert(list.begin(), call);
+	Value *val = CallInst::Create(ivarSlotAlloc, "", bb);
+	new StoreInst(val, gvar, "", bb);
     }
 
-    bb = NULL;
+    // Stubs.
 
-    return function;
+    Function *addStub = cast<Function>(module->getOrInsertFunction(
+		"rb_vm_add_stub", VoidTy, PtrTy, PtrTy, Int8Ty, NULL));
+
+    for (std::vector<std::string>::iterator i = c_stubs.begin();
+	    i != c_stubs.end();
+	    ++i) {
+
+	const char *types = i->c_str();
+	try {
+	    Value *args[] = {
+		compile_const_global_string(types),
+		new BitCastInst(compile_stub(types, false, TypeArity(types),
+			    false), PtrTy, "", bb),
+		ConstantInt::get(Int8Ty, 0)
+	    };
+	    CallInst::Create(addStub, args, args + 3, "", bb);
+	}
+	catch (...) {}
+    }
+
+    for (std::vector<std::string>::iterator i = objc_stubs.begin();
+	    i != objc_stubs.end();
+	    ++i) {
+
+	const char *types = i->c_str();
+	try {
+	    Value *args[] = {
+		compile_const_global_string(types),
+		new BitCastInst(compile_stub(types, false,
+			    TypeArity(types) - 2, true), PtrTy, "", bb),
+		ConstantInt::get(Int8Ty, 1)
+	    };
+	    CallInst::Create(addStub, args, args + 3, "", bb);
+	}
+	catch (...) {}
+    }
+
+    ReturnInst::Create(context, bb);
+
+    return f;
 }
 
 Function *
@@ -5520,16 +5448,8 @@ RoxorCompiler::compile_new_pointer(const char *type, Value *val)
 		    "rb_vm_new_pointer", RubyObjTy, PtrTy, PtrTy, NULL));
     }
 
-    GlobalVariable *gvar = compile_const_global_string(type);
-    Value *idxs[] = {
-	ConstantInt::get(Int32Ty, 0),
-	ConstantInt::get(Int32Ty, 0)
-    };
-    Instruction *load = GetElementPtrInst::Create(gvar, idxs, idxs + 2,
-	    "", bb);
-
     Value *args[] = {
-	load,
+	compile_const_global_string(type),
 	val
     };
     return CallInst::Create(newPointerFunc, args, args + 2, "", bb);
@@ -5804,7 +5724,11 @@ Function *
 RoxorCompiler::compile_stub(const char *types, bool variadic, int min_argc,
 	bool is_objc)
 {
-    Function *f;
+    save_compiler_state();
+    reset_compiler_state();
+
+    Function *f = NULL;
+    try {
 
     if (is_objc) {
 	// VALUE stub(IMP imp, VALUE self, SEL sel, int argc, VALUE *argv)
@@ -5947,6 +5871,16 @@ RoxorCompiler::compile_stub(const char *types, bool variadic, int min_argc,
 
     free(buf);
 
+    } // try
+    catch (...) {
+	if (f != NULL) {
+	    f->eraseFromParent();
+	}
+	restore_compiler_state();
+	throw;
+    }
+
+    restore_compiler_state();
     return f;
 }
 
@@ -6693,6 +6627,38 @@ RoxorCompiler::compile_ff3(NODE *node)
     pn->addIncoming(stateVal, returnStateBB);
 
     return pn;
+}
+
+static void
+add_stub_types_cb(SEL sel, const char *types, bool is_objc, void *ctx)
+{
+    RoxorAOTCompiler *compiler = (RoxorAOTCompiler *)ctx;
+
+    std::map<SEL, std::vector<std::string> *> &map =
+	is_objc ? compiler->bs_objc_stubs_types : compiler->bs_c_stubs_types;
+
+    std::map<SEL, std::vector<std::string> *>::iterator iter = map.find(sel);
+    std::vector<std::string> *v;
+    if (iter == map.end()) {
+	v = new std::vector<std::string>();
+	map[sel] = v;
+    }
+    else {
+	v = iter->second;
+    }
+    v->push_back(types);
+}
+
+extern "C"
+void
+rb_vm_parse_bs_full_file(const char *path,
+	void (*add_stub_types_cb)(SEL, const char *, bool, void *),
+	void *ctx);
+
+void
+RoxorAOTCompiler::load_bs_full_file(const char *path)
+{
+    rb_vm_parse_bs_full_file(path, add_stub_types_cb, (void *)this);
 }
 
 #endif // !MACRUBY_STATIC
