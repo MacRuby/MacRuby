@@ -800,8 +800,6 @@ VALUE rb_argv0;
 
 static rb_encoding *src_encoding;
 
-void rb_vm_init_jit(void);
-
 static VALUE
 process_options(VALUE arg)
 {

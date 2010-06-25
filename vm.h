@@ -277,6 +277,8 @@ VALUE rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 void rb_vm_aot_compile(NODE *node);
 
 void rb_vm_init_compiler(void);
+void rb_vm_init_jit(void);
+
 bool rb_vm_running(void);
 void rb_vm_set_running(bool flag);
 VALUE rb_vm_default_random(void);

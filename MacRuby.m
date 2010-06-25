@@ -29,6 +29,7 @@ extern bool ruby_initialized;
 	    ruby_sysinit(&argc, &argv);
 	    ruby_init();
 	    rb_vm_init_compiler();
+	    rb_vm_init_jit();
 	}
     }
     return runtime;
