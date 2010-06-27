@@ -167,3 +167,13 @@ assert "B, [:CONST_C, :CONST_A], []", %{
   B = C.dup
   puts B.to_s + ", " + B.constants.to_s + ", " + B.instance_methods(false).to_s
 }
+
+# should obviously be a real file path when run from a file...
+assert %{["-:7:in `<main>'"]}, %{
+  class X
+    def self.inherited(klass)
+      p caller
+    end
+  end
+  class Y < X; end
+}
