@@ -1528,7 +1528,7 @@ static VALUE
 match_array(VALUE match, int start)
 {
     const int len = RMATCH(match)->results_count;
-    assert(start >= 0 && start < len);
+    assert(start >= 0);
     const bool tainted = OBJ_TAINTED(match);
 
     VALUE ary = rb_ary_new2(len);
