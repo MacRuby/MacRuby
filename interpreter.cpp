@@ -48,12 +48,6 @@ get_const_int(Value *val)
     return cast<ConstantInt>(val)->getZExtValue();
 }
 
-static inline void *
-get_const_ptr(Value *val)
-{
-    return (void *)get_const_int(cast<ConstantExpr>(val)->getOperand(0));
-}
-
 // A macro to avoid stupid compiler warnings.
 #define oops(msg, val) \
 	printf("interpreter: %s (ID: %d)\n", msg, val->getValueID()); \
@@ -70,7 +64,7 @@ RoxorInterpreter::interpret_call(CallInst *call)
 	uint8_t dynamic_class = value_as(call_arg(call, 1), uint8_t);
 	SEL sel = value_as(call_arg(call, 2), SEL);
 	Function *func = value_as(call_arg(call, 3), Function *);
-	uint64_t arity_data = value_as(call_arg(call, 4), uint64_t);
+	uint64_t arity_data = get_const_int(call_arg(call, 4));
 	rb_vm_arity_t arity;
 	memcpy(&arity, &arity_data, sizeof(rb_vm_arity_t));
 	int flags = value_as(call_arg(call, 5), int);
@@ -183,7 +177,20 @@ RoxorInterpreter::interpret_value(Value *val)
 	    val = static_cast<ConstantExpr *>(val)->getOperand(0);
 	    // fall through
 	case Value::ConstantIntVal:
-	    return static_cast<ConstantInt *>(val)->getZExtValue();
+	    {
+		ConstantInt *ci = static_cast<ConstantInt *>(val);
+		const unsigned w = ci->getBitWidth();
+#if __LP64__
+		if (w > 64) {
+		    break;
+		}
+#else
+		if (w > 32) {
+		    break;
+		}
+#endif
+		return ci->getZExtValue();
+	    }
 
 	case Value::ArgumentVal:
 	    switch (static_cast<Argument *>(val)->getArgNo()) {
