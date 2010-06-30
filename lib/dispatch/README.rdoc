@@ -371,7 +371,7 @@ Alternatively, you can pass in array of names (symbols or strings) for the mask,
 	@events = []
 	mask2 = [:exit, :fork, :exec, signal]
 	proc_src2 = Dispatch::Source.process($$, mask2) do |s|
-	   |s| @events << Dispatch::Source.data2events(s.data)
+		|s| @events << Dispatch::Source.data2events(s.data)
 	end
 
 ==== Source.process Example
@@ -445,14 +445,14 @@ As before, the underlying API expects and returns integers, e.g.:
 
 	@fevent = 0
 	@msg = "#{$$}-#{Time.now.to_s.gsub(' ','_')}"
-    filename = "/tmp/dispatch-#{@msg}"
+	filename = "/tmp/dispatch-#{@msg}"
 	file = File.open(filename, "w")
 	fmask = Dispatch::Source::VNODE_DELETE | Dispatch::Source::Source.VNODE_WRITE
 	file_src = Dispatch::Source.file(file.fileno, fmask) do |s|
 		@fevent |= s.data
 	end
-    file.puts @msg
-    file.flush
+	file.puts @msg
+	file.flush
 	file.close
 	puts @fevent & fmask # => Dispatch::Source::Source.VNODE_WRITE
 	File.delete(filename)
@@ -467,8 +467,8 @@ And of course can also use symbols:
 	file_src2 = Dispatch::Source.file(file, fmask2) do |s|
 		@fevent2 << Dispatch::Source.data2events(s.data)
 	end
-    file.puts @msg
-    file.flush
+	file.puts @msg
+	file.flush
 	puts @fevent2 & fmask2 # => [:write]
 	file_src2.cancel!
 	
@@ -478,13 +478,13 @@ As a bonus, if you pass in an actual IO object (not just a file descriptor) the 
 
 In contrast to the previous sources, these next two refer to internal state rather than external events. Specifically, this +add+-style source avoids blocking on a +read+ by only calling the handler when it estimates there are +s.data+ unread bytes available in the buffer:  
 
-    file = File.open(filename, "r")
-    @result = ""
-    reader = Dispatch::Source.read(file) do |s|
+	file = File.open(filename, "r")
+	@result = ""
+	reader = Dispatch::Source.read(file) do |s|
  		@result << @file.read(s.data)
 	end
-    while (@result.size < @msg.size) do; end
-    puts @result # => e.g., 489-Wed_Mar_24_15:59:00_-0700_2010
+	while (@result.size < @msg.size) do; end
+	puts @result # => e.g., 489-Wed_Mar_24_15:59:00_-0700_2010
 	reader.cancel!
 
 Strictly speaking, the count returned by +s.data+ is only an estimate. It would be safer to instead call +@file.read(1)+ to avoid any risk of blocking, but that would lead to many more block invocations, which might not be a net win.
@@ -493,18 +493,18 @@ Strictly speaking, the count returned by +s.data+ is only an estimate. It would 
 
 This +add+-style event is similar to the above, but waits until a +write+ buffer is available:
 
-    file = File.open(filename, "w")
-    @message = @msg
-    writer = Dispatch::Source.write(file) do |s|
-      if @message.size > 0 then
-        char = @message[0..0]
-        @file.write(char)
-        @message = @message[1..-1]
-      end
-    end
-    while (@message.size > 0) do; end
-    result = File.read(filename)
-    puts result # => e.g., 489-Wed_Mar_24_15:59:00_-0700_2010
+	file = File.open(filename, "w")
+	@message = @msg
+	writer = Dispatch::Source.write(file) do |s|
+	  if @message.size > 0 then
+		char = @message[0..0]
+		@file.write(char)
+		@message = @message[1..-1]
+	  end
+	end
+	while (@message.size > 0) do; end
+	result = File.read(filename)
+	puts result # => e.g., 489-Wed_Mar_24_15:59:00_-0700_2010
 
 In this case we play it safe by only writing out a single character at a time, to avoid risk of blocking (and simplify our algorithm).
 
