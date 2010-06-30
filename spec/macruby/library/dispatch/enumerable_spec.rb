@@ -57,12 +57,14 @@ if MACOSX_VERSION >= 10.6
 
     describe "Enumerable" do
       before :each do
-        @ary = (1..3).to_a
+        @rng = (1..3)
+        @ary = @rng.to_a
       end
 
       describe :p_each do
         it "exists on objects that support Enumerable" do
           @ary.respond_to?(:p_each).should == true
+          @rng.respond_to?(:p_each).should == true
         end
 
         it "should behave like each" do
@@ -71,6 +73,15 @@ if MACOSX_VERSION >= 10.6
           @ary2 = 0
           @q = Dispatch::Queue.for(@ary2)
           @ary.p_each {|v| temp = v*v; @q.sync {@ary2 << temp} }
+          @ary2.should == @ary1
+        end
+
+        it "should work with ranges" do
+          @ary1 = 0
+          @ary.each {|v| @ary1 << v*v}
+          @ary2 = 0
+          @q = Dispatch::Queue.for(@ary2)
+          @rng.p_each {|v| temp = v*v; @q.sync {@ary2 << temp} }
           @ary2.should == @ary1
         end
 

@@ -70,8 +70,8 @@ module Dispatch
       # Takes events: :exit, :fork, :exec, :signal
       # Returns Dispatch::Source of type VNODE
       def file(file, events, queue = Dispatch::Queue.concurrent, &block)
-        mask = events2mask(events)
-        Dispatch::Source.new(Dispatch::Source::VNODE, file, mask, queue, &block)
+        events = events2mask(events) if not events.respond_to? :to_int
+        Dispatch::Source.new(Dispatch::Source::VNODE, file, events, queue, &block)
       end
 
       def periodic(seconds, queue = Dispatch::Queue.concurrent, &block)

@@ -84,7 +84,7 @@ Note that values may be received out of order, since they may take differing amo
 Additionally, you can call +values+ to obtain all the values:
 
 	@values = job.values 
-	puts @values # => [1.0E50, 4294967296.0]
+	puts @values.inspect # => [1.0E50, 4294967296.0]
 
 Note that unlike +value+ this will not +wait+ or +join+, and thus does not have an asynchronous equivalent.
 
@@ -100,11 +100,11 @@ In MacRuby, every thread has its own Virtual Machine, which means all of them ca
 
 The easiest way to create a Proxy is to first create an empty Job:
 
-	job = Dispatch::Job.new
+	job = Dispatch::Job.new {}
 
 then ask it to wrap the object you want to modify from multiple threads:
 
-	@hash = job.synchronize {}
+	@hash = job.synchronize Hash.new
 	puts @hash.class # => Dispatch::Proxy
 	
 This is actually the same type of object used to manage the list of +values+:
@@ -121,7 +121,7 @@ The Proxy object can be called just as it if were the delegate object:
 Except that you can use it safely inside Dispatch blocks from multiple threads: 
 	
 	[64, 100].each do |n|
-		job << { @hash[n] = Math.sqrt(10**n) }
+		job.add { @hash[n] = Math.sqrt(10**n) }
 	end
 	puts @hash.inspect # => {64 => 1.0E32, 100 => 1.0E50}
 
@@ -200,9 +200,9 @@ Passes each object, like +each+:
 
 Passes each object and its index, like +each_with_index+:
 
-	%w(Mon Tue Wed Thu Fri).p_each { |day, i | puts "#{i}:#{day}"} # => 0:Mon 2:Wed 3:Thu 1:Tue 4:Fri
+	%w(Mon Tue Wed Thu Fri).p_each_with_index { |day, i | puts "#{i}:#{day}"} # => 0:Mon 2:Wed 3:Thu 1:Tue 4:Fri
 
-	%w(Mon Tue Wed Thu Fri).p_each(3) { |day, i | puts "#{i}:#{day}"} # => 3:Thu 4:Fri 0:Mon 1:Tue 2:Wed 
+	%w(Mon Tue Wed Thu Fri).p_each_with_index(3) { |day, i | puts "#{i}:#{day}"} # => 3:Thu 4:Fri 0:Mon 1:Tue 2:Wed 
 
 === Enumerable#p_map
 
@@ -218,7 +218,7 @@ Unlike the others, this method does not have a serial equivalent, but you may re
 
 	(0..4).p_mapreduce(0) { |i| 10**i } # => 11111
 
-This uses a parallel +inject+ (formerly known as +reduce+) to return a single value by combining the result of +map+. 	Unlike +inject+, you must specify an explicit initial value as the first parameter. The default accumulator is ":+", but you can specify a different symbol to +send+:
+This uses a parallel +inject+ (formerly known as +reduce+) to return a single value by combining the result of +map+. Unlike +inject+, you must specify an explicit initial value as the first parameter. The default accumulator is ":+", but you can specify a different symbol to +send+:
 
 	(0..4).p_mapreduce([], :concat) { |i| [10**i] } # => [1, 1000, 10, 100, 10000]
 	
@@ -226,23 +226,23 @@ Because of those parameters, the optional +stride+ is now the third:
 
 	(0..4).p_mapreduce([], :concat, 3) { |i| [10**i] } # => [1000, 10000, 1, 10, 100]
 
-=== Enumerable#p_findall
+=== Enumerable#p_find_all
 
 Passes each object and collects those for which the block is true, like +findall+:
 
-	(0..4).p_findall { |i| i.odd?} # => {3, 1}
+	(0..4).p_find_all { |i| i.odd?} # => {3, 1}
 
-	(0..4).p_findall(3) { |i| i.odd?} # => {3, 1}
+	(0..4).p_find_all(3) { |i| i.odd?} # => {3, 1}
 	
 === Enumerable#p_find
 
 Passes each object and returns nil if none match. Similar to +find+, it returns the first object it _finds_ for which the block is true, but unlike +find+ that may not be the _actual_ first object since blocks -- say it with me -- "may complete out of order":
 
-	(0..4).p_findall { |i| i == 5 } # => nil
+	(0..4).p_find_all { |i| i == 5 } # => nil
 
-	(0..4).p_findall { |i| i.odd?} # => 1
+	(0..4).p_find_all { |i| i.odd?} # => 1
 
-	(0..4).p_findall(3) { |i| i.odd?} # => 3
+	(0..4).p_find_all(3) { |i| i.odd?} # => 3
 
 == Sources: Asynchronous Events
 
@@ -260,7 +260,7 @@ When the source “fires,” GCD will schedule the _handler_ block on the specif
 
 We'll start with a simple example: a +periodic+ timer that runs every 0.9 seconds and prints out the number of pending events:
 
-	timer = Source.periodic(0.9) { |src| puts src.data }
+	timer = Dispatch::Source.periodic(0.9) { |src| puts src.data }
 	sleep 2 # => 1 1 ...
 	
 If you're familiar with the C API for GCD, be aware that a +Dispatch::Source+ is fully configured at the time of instantiation, and does not need to be +resume+d. Also, times are in seconds, not nanoseconds.
@@ -369,9 +369,9 @@ In this case, we are watching the current process ('$$') for +:signal+ and (less
 Alternatively, you can pass in array of names (symbols or strings) for the mask, and optionally use +data2events+ to convert the returned data into an array of symbols
 
 	@events = []
-	mask2 = [:exit, :fork, :exec, signal]
+	mask2 = [:exit, :fork, :exec, :signal]
 	proc_src2 = Dispatch::Source.process($$, mask2) do |s|
-		|s| @events << Dispatch::Source.data2events(s.data)
+		@events << Dispatch::Source.data2events(s.data)
 	end
 
 ==== Source.process Example
@@ -405,7 +405,7 @@ You can convert from symbol to int via +event2num+:
 
 Similarly, use +num2event+ to turn an int into a symbol:
 
-	put result2[0] == Dispatch::Source#num2event(result) # => true
+	puts result2[0] == Dispatch::Source#num2event(result) # => true
 
 ==== Source.signal
 
@@ -447,14 +447,14 @@ As before, the underlying API expects and returns integers, e.g.:
 	@msg = "#{$$}-#{Time.now.to_s.gsub(' ','_')}"
 	filename = "/tmp/dispatch-#{@msg}"
 	file = File.open(filename, "w")
-	fmask = Dispatch::Source::VNODE_DELETE | Dispatch::Source::Source.VNODE_WRITE
+	fmask = Dispatch::Source::VNODE_DELETE | Dispatch::Source::VNODE_WRITE
 	file_src = Dispatch::Source.file(file.fileno, fmask) do |s|
 		@fevent |= s.data
 	end
 	file.puts @msg
 	file.flush
 	file.close
-	puts @fevent & fmask # => Dispatch::Source::Source.VNODE_WRITE
+	puts @fevent & fmask # => Dispatch::Source::VNODE_WRITE
 	File.delete(filename)
 	puts @fevent == fmask # => true
 	file_src.cancel!
@@ -481,7 +481,7 @@ In contrast to the previous sources, these next two refer to internal state rath
 	file = File.open(filename, "r")
 	@result = ""
 	reader = Dispatch::Source.read(file) do |s|
- 		@result << @file.read(s.data)
+		@result << @file.read(s.data)
 	end
 	while (@result.size < @msg.size) do; end
 	puts @result # => e.g., 489-Wed_Mar_24_15:59:00_-0700_2010
@@ -496,11 +496,11 @@ This +add+-style event is similar to the above, but waits until a +write+ buffer
 	file = File.open(filename, "w")
 	@message = @msg
 	writer = Dispatch::Source.write(file) do |s|
-	  if @message.size > 0 then
-		char = @message[0..0]
-		@file.write(char)
-		@message = @message[1..-1]
-	  end
+		if @message.size > 0 then
+			char = @message[0..0]
+			@file.write(char)
+			@message = @message[1..-1]
+		end
 	end
 	while (@message.size > 0) do; end
 	result = File.read(filename)

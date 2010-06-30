@@ -42,13 +42,13 @@ module Enumerable
   # Parallel +each+
   def p_each(stride=1, priority=nil,  &block)
     ary = self.to_a
-    size.p_times(stride, priority) { |i| block.call(ary[i]) }
+    ary.count.p_times(stride, priority) { |i| block.call(ary[i]) }
   end
 
   # Parallel +each+
   def p_each_with_index(stride=1, priority=nil,  &block)
     ary = self.to_a
-    size.p_times(stride, priority) { |i| block.call(ary[i], i) }
+    ary.count.p_times(stride, priority) { |i| block.call(ary[i], i) }
   end
 
   # Parallel +collect+
