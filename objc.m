@@ -739,12 +739,22 @@ rb_objc_load_plist(VALUE recv, SEL sel, VALUE str)
     VALUE bstr = rb_str_bstr(str);
     NSData *data = [NSData dataWithBytes:rb_bstr_bytes(bstr)
 	length:rb_bstr_length(bstr)];
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
+    NSString *errorString = nil;
+    id plist = [NSPropertyListSerialization propertyListFromData:data mutabilityOption:0
+	format:NULL errorDescription:&errorString];
+#else
     NSError *err = nil;
     id plist = [NSPropertyListSerialization propertyListWithData:data options:0
 	format:NULL error:&err];
+#endif
     if (plist == nil) {
 	rb_raise(rb_eArgError, "error loading property list: '%s'",
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
+		[errorString UTF8String]);
+#else
 		[[err localizedDescription] UTF8String]);
+#endif
     }
     return OC2RB(plist);
 }
@@ -775,12 +785,22 @@ rb_objc_to_plist(VALUE recv, SEL sel)
     }
 
     id objc_obj = RB2OC(recv);
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
+    NSString *errorString = nil;
+    NSData *data = [NSPropertyListSerialization dataFromPropertyList:objc_obj
+	format:NSPropertyListXMLFormat_v1_0 errorDescription:&errorString];
+#else
     NSError *err = nil;
     NSData *data = [NSPropertyListSerialization dataWithPropertyList:objc_obj
 	format:NSPropertyListXMLFormat_v1_0 options:0 error:&err];
+#endif
     if (data == nil) {
 	rb_raise(rb_eArgError, "error serializing property list: '%s'",
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
+		[errorString UTF8String]);
+#else
 		[[err localizedDescription] UTF8String]);
+#endif
     }
     const uint8_t* bytes = [data bytes];
     const size_t len = [data length];
