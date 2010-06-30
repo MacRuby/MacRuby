@@ -24,6 +24,7 @@ class Compiler
       opts.on('-o <file>', 'Place the output into <file>') { |output| @output = output }
       opts.on('--static', "Create a standalone static executable") { @static = true }
       opts.on('--framework <name>', "Link standalone static executable with given framework") { |p| @frameworks << p }
+      opts.on('--sdk <path>', "Use SDK when compiling standalone static executable") { |x| @sdk = x }
       opts.on('--dylib', "Create a dynamic library") { @dylib = true }
       opts.on('-C', 'Compile, assemble and link a loadable object file') { @bundle = true }
       opts.on('-a', '--arch <ARCH>', 'Compile for specified CPU architecture') { |arch| @archs << arch }
@@ -43,6 +44,9 @@ class Compiler
         if not VALID_ARCHS.include?(arch)
           die "Invalid CPU architecture `#{arch}'. Possible values are: " + VALID_ARCHS.join(", ")
         end
+      end
+      if @sdk and !File.exist?(@sdk)
+        die "Given SDK path `#{@sdk}' doesn't exist."
       end
       @frameworks.uniq!
     end
@@ -80,12 +84,13 @@ class Compiler
         if File.exist?(f)
 	  "#{f}/Resources/BridgeSupport/#{File.basename(f)}Full.bridgesupport"
         else
-          "/System/Library/Frameworks/#{f}.framework/Resources/BridgeSupport/#{f}Full.bridgesupport"
+          base = (@sdk || '')
+          File.join(base, "/System/Library/Frameworks/#{f}.framework/Resources/BridgeSupport/#{f}Full.bridgesupport")
         end
       if File.exist?(p)
         @uses_bs_flags << "--uses-bs #{p} "
       else
-        die "Couldn't locate the Full BridgeSupport file for framework: `%{f}'"
+        $stderr.puts "Couldn't locate the Full BridgeSupport file for framework `#{f}' at path `#{p}', compilation might generate a unusable binary!"
       end
     end
     if @dont_link or @bundle
@@ -294,7 +299,12 @@ EOS
 
     # Link all objects into executable.
     path = @internal ? "-L." : "-L#{RbConfig::CONFIG['libdir']}"
-    linkf = "-lobjc -licucore -lauto "
+    linkf = ""
+    if @sdk
+      path = ''
+      linkf << "-F#{@sdk}/System/Library/Frameworks -L#{@sdk}/usr/lib "
+    end
+    linkf << "-lobjc -licucore -lauto "
     @frameworks.each { |f| linkf << "-framework #{f} " }
     linkf << (@static ?
       "#{path} #{RbConfig::CONFIG['LIBRUBYARG_STATIC_REALLY']}" :
