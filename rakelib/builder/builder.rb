@@ -50,10 +50,10 @@ class Builder
         s = obj_source(obj)
         cc, flags = 
           case File.extname(s)
-            when '.c' then [CC, @config.cflags]
-            when '.cpp' then [CXX, @config.cxxflags]
-            when '.m' then [CC, @config.objc_cflags]
-            when '.mm' then [CXX, @config.cxxflags + ' ' + @config.objc_cflags]
+            when '.c' then [@config.CC, @config.cflags]
+            when '.cpp' then [@config.CXX, @config.cxxflags]
+            when '.m' then [@config.CC, @config.objc_cflags]
+            when '.mm' then [@config.CXX, @config.cxxflags + ' ' + @config.objc_cflags]
           end
         if f = @config.objs_cflags[obj]
           flags += " #{f}"

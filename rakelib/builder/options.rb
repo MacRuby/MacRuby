@@ -142,15 +142,20 @@ OBJS_CFLAGS = {
 
 class BuilderConfig
   attr_reader :objs, :archs, :cflags, :cxxflags, :objc_cflags, :ldflags,
-    :objsdir, :objs_cflags, :dldflags
+    :objsdir, :objs_cflags, :dldflags, :CC, :CXX
 
   def initialize(opt)
+    @CC = (opt.delete(:CC) || CC)
+    @CXX = (opt.delete(:CXX) || CXX)
     @objs = (opt.delete(:objs) || OBJS)
     @archs = (opt.delete(:archs) || ARCHS)
+    sdk = opt.delete(:sdk)
+    has_libauto = sdk ? File.exist?("#{sdk}/usr/lib/libauto.dylib") : true
     archflags = archs.map { |x| "-arch #{x}" }.join(' ')
     @cflags = "-std=c99 -I. -I./include -fno-common -pipe -g -Wall -fexceptions -O#{OPTZ_LEVEL} -Wno-deprecated-declarations -Werror #{archflags}"
     @cxxflags = "-I. -I./include -g -Wall -Wno-deprecated-declarations -Werror #{archflags}"
-    @ldflags = '-lpthread -ldl -lxml2 -lobjc -lauto -licucore -framework Foundation'
+    @ldflags = '-lpthread -ldl -lxml2 -lobjc -licucore -framework Foundation'
+    @ldflags << " -lauto" if has_libauto
     if opt.delete(:static)
       @cflags << ' -DMACRUBY_STATIC'
       @cxxflags << ' -DMACRUBY_STATIC'
@@ -160,13 +165,23 @@ class BuilderConfig
       @cxxflags << ' -DLLVM_TOT' if ENV['LLVM_TOT']
       @ldflags << ' ' << `#{LLVM_CONFIG} --ldflags --libs #{LLVM_MODULES}`.strip.gsub(/\n/, '')
     end
+    unless has_libauto
+      @cflags << ' -DNO_LIBAUTO'
+      @cxxflags << ' -DNO_LIBAUTO'
+    end
     @cxxflags << " -fno-rtti" unless @cxxflags.index("-fno-rtti")
     @dldflags = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION} -exported_symbols_list #{EXPORTED_SYMBOLS_LIST}"
     if `sw_vers -productVersion`.to_f <= 10.6
       @cflags << ' -I./icu-1060'
       @cxxflags << ' -I./icu-1060'
     end
-    @objc_cflags = cflags + ' -fobjc-gc-only'
+    if sdk
+      sdk_flags = "--sysroot=#{sdk}"
+      @cflags << " #{sdk_flags}"
+      @cxxflags << " #{sdk_flags}"
+    end
+    @objc_cflags = cflags.dup
+    @objc_cflags << ' -fobjc-gc-only' if has_libauto
     @objs_cflags = OBJS_CFLAGS
     @objsdir = opt.delete(:objsdir)
   end
