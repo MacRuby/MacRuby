@@ -65,7 +65,7 @@ will try to determine a default output file name based on the object file type t
 .It Fl -static
 Create a standalone, static executable. By default, executables created by
 .Nm macrubyc
-are dynamically linked against the MacRuby runtime. This option will generate executables that are statically linked against the MacRuby runtime, significantly increasing the binary size but allowing its distribution on environments where MacRuby is not installed. This option can only be used when creating executables. Some features of the Ruby languages are disabled when using this option.
+are dynamically linked against the MacRuby runtime. This option will generate executables that are statically linked against the MacRuby runtime, significantly increasing the binary size but allowing its distribution on environments where MacRuby is not installed. This option can only be used when creating executables. Some features of the Ruby language are disabled when using this option.
 .Pp
 .It Fl -framework Ar name
 Use a given framework during compilation and link. This also activates pre-compilation of the BridgeSupport metadata in the generated binary. This option is only used with --static. The Foundation framework is pre-included.
