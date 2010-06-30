@@ -15,6 +15,9 @@ is a command-line interface to the MacRuby Ahead-of-Time (AOT) compiler. It stat
 rather than being called directly.
 .Pp
 The Ahead-of-Time compilation process has two major advantages. The Ruby code does not need to be parsed and compiled at runtime, which improves the startup time of the program, and the original Ruby source code is no longer available, as it has been compiled down to machine code.
+.Pp
+.Nm macrubyc
+allows the compilation of Ruby programs that will use the MacRuby dynamic runtime, supporting the entire Ruby specifications set. It also permits static compilation of Ruby code into a standalone executable that embeds a static version of the MacRuby runtime. These executables can be deployed on environments where MacRuby is not installed, but some features of the Ruby language are not supported.
 .Sh OPTIONS
 The
 .Nm macrubyc
@@ -62,7 +65,13 @@ will try to determine a default output file name based on the object file type t
 .It Fl -static
 Create a standalone, static executable. By default, executables created by
 .Nm macrubyc
-are dynamically linked against the MacRuby runtime. This option will generate executables that are statically linked against the MacRuby runtime, significantly increasing the binary size but allowing its distribution on environments where MacRuby is not installed. This option can only be used when creating executables.
+are dynamically linked against the MacRuby runtime. This option will generate executables that are statically linked against the MacRuby runtime, significantly increasing the binary size but allowing its distribution on environments where MacRuby is not installed. This option can only be used when creating executables. Some features of the Ruby languages are disabled when using this option.
+.Pp
+.It Fl -framework Ar name
+Use a given framework during compilation and link. This also activates pre-compilation of the BridgeSupport metadata in the generated binary. This option is only used with --static. The Foundation framework is pre-included.
+.Pp
+.It Fl -sdk Ar path
+Use a given SDK during compilation and link. This option is useful when cross-compiling MacRuby programs for different platform versions. This option is only used with --static.
 .Pp
 .It Fl v, Fl -version
 Display the version.
@@ -101,7 +110,13 @@ when forming an executable, allowing the compilation of multiple executables sha
 .Dl $ macrubyc t1.rb t2.rb -o code.dylib --dylib
 .Dl $ macrubyc test.rb code.dylib -o test
 .Dl $ ./test
-.Pp 
+.Pp
+It is possible to statically compile MacRuby code into a standalone executable. The resulted binary includes the MacRuby static runtime and therefore can be executed on environments where MacRuby is not installed. Please note that the static runtime disables some features of the Ruby language.
+.Pp
+.Dl $ macrubyc test.rb -o test --static
+.Pp
+Static compilation may require --framework and --sdk flags depending of your project.
+.Pp
 .Sh USAGE
 Generally, you should use
 .Nm macruby
