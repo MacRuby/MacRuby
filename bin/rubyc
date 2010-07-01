@@ -79,18 +79,21 @@ class Compiler
 
   def run
     @uses_bs_flags = ''
-    @frameworks.each do |f|
-      p =
-        if File.exist?(f)
-	  "#{f}/Resources/BridgeSupport/#{File.basename(f)}Full.bridgesupport"
+    if @static
+      # BridgeSupport compilation is only enabled during static compilation.
+      @frameworks.each do |f|
+        p =
+          if File.exist?(f)
+  	  "#{f}/Resources/BridgeSupport/#{File.basename(f)}Full.bridgesupport"
+          else
+            base = (@sdk || '')
+            File.join(base, "/System/Library/Frameworks/#{f}.framework/Resources/BridgeSupport/#{f}Full.bridgesupport")
+          end
+        if File.exist?(p)
+          @uses_bs_flags << "--uses-bs #{p} "
         else
-          base = (@sdk || '')
-          File.join(base, "/System/Library/Frameworks/#{f}.framework/Resources/BridgeSupport/#{f}Full.bridgesupport")
+          $stderr.puts "Couldn't locate the Full BridgeSupport file for framework `#{f}' at path `#{p}', compilation might generate a unusable binary!"
         end
-      if File.exist?(p)
-        @uses_bs_flags << "--uses-bs #{p} "
-      else
-        $stderr.puts "Couldn't locate the Full BridgeSupport file for framework `#{f}' at path `#{p}', compilation might generate a unusable binary!"
       end
     end
     if @dont_link or @bundle
