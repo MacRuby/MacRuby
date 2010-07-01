@@ -96,7 +96,7 @@ end
 @events = []
 mask2 = [:exit, :fork, :exec, :signal]
 proc_src2 = Dispatch::Source.process($$, mask2) do |s|
-   @events << Dispatch::Source.data2events(s.data)
+  @events << Dispatch::Source.data2events(s.data)
 end
 sig_usr1 = Signal.list["USR1"]
 Signal.trap(sig_usr1, "IGNORE")
@@ -146,7 +146,7 @@ file_src2.cancel!
 file = File.open(filename, "r")
 @result = ""
 reader = Dispatch::Source.read(file) do |s|
-	@result << @file.read(s.data)
+  @result << @file.read(s.data)
 end
 while (@result.size < @msg.size) do; end
 puts @result # => e.g., 489-Wed_Mar_24_15:59:00_-0700_2010

@@ -27,8 +27,8 @@ In addition, MacRuby 0.6 provides additional, higher-level abstractions and conv
 === What You Need
 
 Note that MacRuby 0.6 is currently (as of March 2010) only available as source[http://www.macruby.org/source.html] or via the {nightly builds}[http://www.icoretech.org/2009/09/macruby-nightlies/]. The examples all assume you run the latest macirb and require the +dispatch+ library:
-
 	$ macirb
+	#!/usr/local/bin/macruby
 	require 'dispatch'	
 
 We also assume that you are already familiar with Ruby, though not necessarily MacRuby. No prior knowledge of C or GCD is assumed or required, but the {dispatch(3) man page}[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch.3.html] may be helpful if you wish to better understand the underlying semantics.
@@ -48,13 +48,13 @@ Concurrent queues schedule as many simultaneous blocks as they can on a first-in
 The downside of asynchrony is that you don't know exactly when your job will execute.  Fortunately, +Dispatch::Job+ attempts to duck-type +Thread[http://ruby-doc.org/core/classes/Thread.html]+, so you can call +value[http://ruby-doc.org/core/classes/Thread.html#M000460]+ to obtain the result of executing that block:
 
 	@result = job.value
-	puts @result.to_int.to_s.size # => 51
+	puts @result.to_int.to_s.size # => 50
 	
 This will wait until the value has been calculated, allowing it to be used as an {explicit Future}[http://en.wikipedia.org/wiki/Futures_and_promises]. However, this may stall the main thread indefinitely, which reduces the benefits of concurrency.  
 
 Wherever possible, you should instead attempt to figure out exactly _when_  and _why_ you need to know the result of asynchronous work. Then, call +value+ with a block to also perform _that_ work asynchronously once the value has been calculated -- all without blocking the main thread:
 
-	job.value {|v| p v.to_int.to_s.size } # => 51 (eventually)
+	job.value {|v| p v.to_int.to_s.size } # => 50 (eventually)
 
 === Job#join: Job Completion
 
@@ -238,11 +238,11 @@ Passes each object and collects those for which the block is true, like +findall
 
 Passes each object and returns nil if none match. Similar to +find+, it returns the first object it _finds_ for which the block is true, but unlike +find+ that may not be the _actual_ first object since blocks -- say it with me -- "may complete out of order":
 
-	(0..4).p_find_all { |i| i == 5 } # => nil
+	(0..4).p_find { |i| i == 5 } # => nil
 
-	(0..4).p_find_all { |i| i.odd?} # => 1
+	(0..4).p_find { |i| i.odd?} # => 1
 
-	(0..4).p_find_all(3) { |i| i.odd?} # => 3
+	(0..4).p_find(3) { |i| i.odd?} # => 3
 
 == Sources: Asynchronous Events
 
