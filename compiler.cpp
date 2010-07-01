@@ -5111,7 +5111,7 @@ RoxorCompiler::compile_get_cptr(Value *val, const char *type, Value *slot)
 {
     Value *args[] = {
 	val,
-	compile_const_pointer(sel_registerName(type)),
+	compile_const_global_string(type),
 	new BitCastInst(slot, PtrPtrTy, "", bb)
     };
     return compile_protected_call(getPointerPtrFunc, args, args + 3);
