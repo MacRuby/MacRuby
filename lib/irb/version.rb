@@ -6,11 +6,16 @@
 
 module IRB
   module VERSION #:nodoc:
+    NAME  = 'DietRB'
     MAJOR = 0
     MINOR = 4
-    TINY  = 5
+    TINY  = 7
     
     STRING = [MAJOR, MINOR, TINY].join('.')
-    DESCRIPTION = "#{STRING} (DietRB)"
+    DESCRIPTION = "#{NAME} (#{STRING})"
+  end
+  
+  def self.version
+    IRB::VERSION::DESCRIPTION
   end
 end

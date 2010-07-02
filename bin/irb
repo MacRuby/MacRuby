@@ -14,6 +14,7 @@ unless ARGV.empty?
     opt.on("-r load-lib",     "Loads the given library (same as `ruby -r')") { |lib| require lib }
     opt.on("-d",              "Set $DEBUG to true (same as `ruby -d')") { $DEBUG = true }
     opt.on("-I path",         "Add path to $LOAD_PATH") { |path| $LOAD_PATH.unshift(path) }
+    opt.on("--noinspect",     "Don't use inspect for output") { IRB.formatter.inspect = false }
     opt.on("--simple-prompt", "Simple prompt mode") { IRB.formatter.prompt = :simple }
     opt.on("--noprompt",      "No prompt mode") { IRB.formatter.prompt = nil }
     opt.on("-v", "--version", "Print the version of #{bin}") do

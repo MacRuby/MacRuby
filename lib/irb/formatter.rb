@@ -17,11 +17,13 @@ module IRB
     SYNTAX_ERROR   = "SyntaxError: compile error\n(irb):%d: %s"
     SOURCE_ROOT    = /^#{File.expand_path('../../../', __FILE__)}/
     
-    attr_writer :prompt
-    attr_reader :filter_from_backtrace
+    attr_writer   :prompt
+    attr_accessor :inspect
+    attr_reader   :filter_from_backtrace
     
     def initialize
-      @prompt = :default
+      @prompt  = :default
+      @inspect = true
       @filter_from_backtrace = [SOURCE_ROOT]
     end
     
@@ -35,7 +37,13 @@ module IRB
     end
     
     def inspect_object(object)
-      object.respond_to?(:pretty_inspect) ? object.pretty_inspect : object.inspect
+      if @inspect
+        object.respond_to?(:pretty_inspect) ? object.pretty_inspect : object.inspect
+      else
+        address = object.__id__ * 2
+        address += 0x100000000 if address < 0
+        "#<#{object.class}:0x%x>" % address
+      end
     end
     
     def result(object)
