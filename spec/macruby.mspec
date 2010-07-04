@@ -68,9 +68,11 @@ class MSpecScript
     ENV['DYLD_LIBRARY_PATH'] = source_root
     # Setup the proper load paths for lib and extensions
     load_paths = %w{ -I. -I./lib -I./ext }
+    load_paths << '-I./ext/ripper/lib' # ripper specific load path fix
     load_paths.concat Dir.glob('./ext/**/*.bundle').map { |filename| "-I#{File.dirname(filename)}" }.uniq
     load_paths.concat(get(:flags)) if get(:flags)
     set :flags, load_paths
+    
     # The default implementation to run the specs.
     set :target, File.join(source_root, 'macruby')
   end

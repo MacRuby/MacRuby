@@ -38,7 +38,9 @@ module IRB
     
     def inspect_object(object)
       if @inspect
-        object.respond_to?(:pretty_inspect) ? object.pretty_inspect : object.inspect
+        result = object.respond_to?(:pretty_inspect) ? object.pretty_inspect : object.inspect
+        result.strip!
+        result
       else
         address = object.__id__ * 2
         address += 0x100000000 if address < 0
