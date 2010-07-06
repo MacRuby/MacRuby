@@ -1214,13 +1214,12 @@ rb_check_frozen(VALUE obj)
     if (OBJ_FROZEN(obj)) rb_error_frozen(rb_obj_classname(obj));
 }
 
-VALUE
-rb_format_exception_message(VALUE exc)
+static VALUE
+format_message(VALUE exc)
 {
+    CFMutableStringRef result = CFStringCreateMutable(NULL, 0);
     VALUE message = rb_vm_call(exc, sel_registerName("message"), 0, NULL);
     VALUE bt = rb_vm_call(exc, sel_registerName("backtrace"), 0, NULL);
-
-    CFMutableStringRef result = CFStringCreateMutable(NULL, 0);
 
     const long count = (bt != Qnil ? RARRAY_LEN(bt) : 0);
     if (count > 0) {
@@ -1239,9 +1238,24 @@ rb_format_exception_message(VALUE exc)
 	CFStringAppendFormat(result, NULL, CFSTR("%s (%s)\n"),
 	    RSTRING_PTR(message), rb_class2name(*(VALUE *)exc));
     }
-
     CFMakeCollectable(result);
     return (VALUE)result;
+}
+
+static VALUE
+restore_level(VALUE lvl)
+{
+    rb_set_safe_level_force((int)lvl);
+    return Qnil;
+}
+
+VALUE
+rb_format_exception_message(VALUE exc)
+{
+    const int old_level = rb_safe_level();
+    rb_set_safe_level_force(0);
+
+    return rb_ensure(format_message, exc, restore_level, (VALUE)old_level);
 }
 
 void
