@@ -21,7 +21,8 @@ module Dispatch
     class << self
           
       def event2num(e)
-        value = e.to_int rescue  @@events[e.to_sym]
+        return 0 if e.nil?
+        value = e.to_int rescue @@events[e.to_sym]
         raise ArgumentError, "No event type #{e.inspect}" if value.nil?
         value
       end

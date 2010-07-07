@@ -486,11 +486,11 @@ This +Source+ overlaps slightly with the previous one, but uses +add+ to track t
 		puts "Dispatch::Source.signal: #{s.data} (#{@signals += s.data})"
 	end
 
+	puts "signals: #{@signals} => 0"
 	signal.suspend!
 	Signal.trap(sig_usr2, "IGNORE")
 	3.times { Process.kill(sig_usr2, $$) }
 	Signal.trap(sig_usr2, "DEFAULT")
-	puts "signals: #{@signals} => 0"
 	signal.resume!
 	q.sync {}
 	puts "signals: #{@signals} => 3"

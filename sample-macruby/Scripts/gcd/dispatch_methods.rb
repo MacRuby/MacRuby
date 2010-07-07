@@ -166,11 +166,11 @@ sig_usr2 = Signal.list["USR2"]
 signal = Dispatch::Source.signal(sig_usr2, q) do |s|
 	puts "Dispatch::Source.signal: #{s.data} (#{@signals += s.data})"
 end
+puts "signals: #{@signals} => 0"
 signal.suspend!
 Signal.trap(sig_usr2, "IGNORE")
 3.times { Process.kill(sig_usr2, $$) }
 Signal.trap(sig_usr2, "DEFAULT")
-puts "signals: #{@signals} => 0"
 signal.resume!
 q.sync {}
 puts "signals: #{@signals} => 3"
