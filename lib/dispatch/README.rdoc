@@ -84,7 +84,7 @@ Note that values may be received out of order, since they may take differing amo
 
 Additionally, you can call +values+ to obtain all the values:
 
-	@values = job.values 
+	@values = job.values
 	puts "#{@values.inspect} => [1.0E50]"
 	job.join
 	puts "#{@values.inspect} => [1.0E50, 4294967296.0]"
@@ -108,7 +108,7 @@ The easiest way to create a Proxy is to first create an empty Job:
 then ask it to wrap the object you want to modify from multiple threads:
 
 	@hash = job.synchronize Hash.new
-	puts "#{@hash.class} => Dispatch::Proxy" # 
+	puts "#{@hash.class} => Dispatch::Proxy" #
 	
 This is actually the same type of object used to manage the list of +values+:
 
@@ -122,7 +122,7 @@ The Proxy object can be called just as it if were the delegate object:
 	puts "#{@hash} => {:foo=>:bar}"
 	@hash.delete :foo
 	
-Except that you can use it safely inside Dispatch blocks from multiple threads: 
+Except that you can use it safely inside Dispatch blocks from multiple threads:
 	
 	[64, 100].each do |n|
 		job.add { @hash[n] = Math.sqrt(10**n) }
@@ -141,7 +141,7 @@ As with Dispatch::Job, you can make any invocation asynchronous by passing a blo
 If for any reason you need to retrieve the original (unproxied) object, simply call +__value__+:
 
 	delegate = @hash.__value__
-	puts "\n#{delegate.class} => Hash" 
+	puts "\n#{delegate.class} => Hash"
 	
 This differs from +SimpleDelegate#__getobj__+ (which Dispatch::Proxy inherits) in that it will first wait until any pending asynchronous blocks have executed.
 
@@ -249,7 +249,7 @@ Unlike the others, this method does not have a serial equivalent, but you may re
 
 This uses a parallel +inject+ (formerly known as +reduce+) to return a single value by combining the result of +map+. Unlike +inject+, you must specify an explicit initial value as the first parameter. The default accumulator is ":+", but you can specify a different symbol to +send+:
 
-	mr = (0..4).p_mapreduce([], :concat) { |i| [10**i] } 
+	mr = (0..4).p_mapreduce([], :concat) { |i| [10**i] }
 	puts "#{mr} => [1, 1000, 10, 100, 10000]"
 	
 Because of those parameters, the optional +stride+ is now the third:
@@ -391,7 +391,7 @@ _[WARNING: +Thread#fork+ is not supported by MacRuby]_
 The underlying API expects and returns integers, e.g.:
 
 	@event = 0
-	mask = Dispatch::Source::PROC_EXIT | Dispatch::Source::PROC_SIGNAL 
+	mask = Dispatch::Source::PROC_EXIT | Dispatch::Source::PROC_SIGNAL
 	proc_src = Dispatch::Source.process($$, mask) do |s|
 		@event |= s.data
 	end
