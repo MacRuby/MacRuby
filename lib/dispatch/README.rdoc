@@ -27,6 +27,7 @@ In addition, MacRuby 0.6 provides additional, higher-level abstractions and conv
 === What You Need
 
 Note that MacRuby 0.6 is currently (as of March 2010) only available as source[http://www.macruby.org/source.html] or via the {nightly builds}[http://www.icoretech.org/2009/09/macruby-nightlies/]. The examples all assume you run the latest macirb and require the +dispatch+ library:
+
 	$ macirb
 	#!/usr/local/bin/macruby
 	require 'dispatch'	
@@ -48,24 +49,24 @@ Concurrent queues schedule as many simultaneous blocks as they can on a first-in
 The downside of asynchrony is that you don't know exactly when your job will execute.  Fortunately, +Dispatch::Job+ attempts to duck-type +Thread[http://ruby-doc.org/core/classes/Thread.html]+, so you can call +value[http://ruby-doc.org/core/classes/Thread.html#M000460]+ to obtain the result of executing that block:
 
 	@result = job.value
-	puts @result.to_int.to_s.size # => 50
+	puts "#{@result.to_int.to_s.size} => 50"
 	
 This will wait until the value has been calculated, allowing it to be used as an {explicit Future}[http://en.wikipedia.org/wiki/Futures_and_promises]. However, this may stall the main thread indefinitely, which reduces the benefits of concurrency.  
 
 Wherever possible, you should instead attempt to figure out exactly _when_  and _why_ you need to know the result of asynchronous work. Then, call +value+ with a block to also perform _that_ work asynchronously once the value has been calculated -- all without blocking the main thread:
 
-	job.value {|v| p v.to_int.to_s.size } # => 50 (eventually)
+	job.value {|v| puts "#{v.to_int.to_s.size} => 50" } # (eventually)
 
 === Job#join: Job Completion
 
 If you just want to track completion, you can call +join[http://ruby-doc.org/core/classes/Thread.html#M000462]+, which waits without returning the result:
 
 	job.join
-	puts "All Done"
+	puts "join done (sync)"
 	
 Similarly, call +join+ with a block to run asynchronously once the work has been completed
 
-	job.join { puts "All Done" }
+	job.join { puts "join done (async)" }
 
 === Job#add: Coordinating Work
 
@@ -75,7 +76,7 @@ More commonly, you will have multiple units of work you'd like to perform in par
 
 If there are multiple blocks in a job, +value+ will wait until they all finish then return the last value received:
 
-job.value {|b| p b } # => 4294967296.0
+	job.value {|b| puts "#{b} => 4294967296.0" }
 
 === Job#values: Returning All Values
 
@@ -84,9 +85,11 @@ Note that values may be received out of order, since they may take differing amo
 Additionally, you can call +values+ to obtain all the values:
 
 	@values = job.values 
-	puts @values.inspect # => [1.0E50, 4294967296.0]
+	puts "#{@values.inspect} => [1.0E50]"
+	job.join
+	puts "#{@values.inspect} => [1.0E50, 4294967296.0]"
 
-Note that unlike +value+ this will not +wait+ or +join+, and thus does not have an asynchronous equivalent.
+Note that unlike +value+ this will not by itself first +join+ the job, and thus does not have an asynchronous equivalent.
 
 == Dispatch::Proxy: Protecting Shared Data
 
@@ -105,40 +108,42 @@ The easiest way to create a Proxy is to first create an empty Job:
 then ask it to wrap the object you want to modify from multiple threads:
 
 	@hash = job.synchronize Hash.new
-	puts @hash.class # => Dispatch::Proxy
+	puts "#{@hash.class} => Dispatch::Proxy" # 
 	
 This is actually the same type of object used to manage the list of +values+:
 
-	puts job.values.class # => Dispatch::Proxy
+	puts "#{job.values.class} => Dispatch::Proxy"
 	
 === Proxy#method_missing: Using Proxies
 
 The Proxy object can be called just as it if were the delegate object:
 
 	@hash[:foo] = :bar
-	puts @hash.to_s  # => "{:foo=>:bar}"
+	puts "#{@hash} => {:foo=>:bar}"
+	@hash.delete :foo
 	
 Except that you can use it safely inside Dispatch blocks from multiple threads: 
 	
 	[64, 100].each do |n|
 		job.add { @hash[n] = Math.sqrt(10**n) }
 	end
-	puts @hash.inspect # => {64 => 1.0E32, 100 => 1.0E50}
+	job.join
+	puts "#{@hash} => {64 => 1.0E32, 100 => 1.0E50}"
 
 In this case, each block will perform the +sqrt+ asynchronously on the concurrent queue, potentially on multiple threads
 	
 As with Dispatch::Job, you can make any invocation asynchronous by passing a block:
 
-	@hash.inspect { |s| p s } # => {64 => 1.0E32, 100 => 1.0E50}
+	@hash.inspect { |s| puts "#{s} => {64 => 1.0E32, 100 => 1.0E50}" }
 
 === Proxy#\_\_value\_\_: Returning Delegate
 
-If for any reason you need to retrieve the delegate object, simply call +__value__+:
+If for any reason you need to retrieve the original (unproxied) object, simply call +__value__+:
 
 	delegate = @hash.__value__
-	puts delegate.class # => Hash
+	puts "\n#{delegate.class} => Hash" 
 	
-This differs from +SimpleDelegate#__getobj__+ in it will first wait until any pending asynchronous blocks have executed.
+This differs from +SimpleDelegate#__getobj__+ (which Dispatch::Proxy inherits) in that it will first wait until any pending asynchronous blocks have executed.
 
 As elsewhere in Ruby, the "__" namespace implies "internal" methods, in this case meaning they are called directly on the proxy rather than passed to the delegate. 
 
@@ -149,22 +154,22 @@ Because Dispatch blocks may execute after the local context has gone away, you s
 Note that we can as usual _access_ local variables from inside the block; GCD automatically copies them, which is why this works as expected:
 
 	n = 42
-	job = Dispatch::Job.new { p n }
-	job.join # => 42
+	job = Dispatch::Job.new { puts "#{n} => 42" }
+	job.join
 	
 but this doesn't:
 
 	n = 0
 	job = Dispatch::Job.new { n = 42 }
 	job.join
-	p n # => 0 
+	puts "#{n} => 0 != 42"
 
-The general rule is to "do *not* assign to external variables inside a Dispatch block."  Assigning local variables will have no effect (outside that block), and assigning other variables may replace your Proxy object with a non-Proxy version.  Remember also that Ruby treats the accumulation operations ("+=", "||=", etc.) as syntactic sugar over assignment, and thus those operations only affect the copy of the variable:
+The general rule is "do *not* assign to external variables inside a Dispatch block."  Assigning local variables will have no effect (outside that block), and assigning other variables may replace your Proxy object with a non-Proxy version.  Remember also that Ruby treats the accumulation operations ("+=", "||=", etc.) as syntactic sugar over assignment, and thus those operations only affect the copy of the variable:
 
 	n = 0
 	job = Dispatch::Job.new { n += 42 }
 	job.join
-	p n # => 0 
+	puts "#{n} => 0 != 42"
 
 == Dispatch Enumerable: Parallel Iterations
 
@@ -176,13 +181,20 @@ In addition, for simplicity they all are _synchronous_, meaning they won't retur
 
 The simplest iteration is defined on the +Integer+ class, and passes the index that many +times+:
 
-	5.p_times { |i| puts 10**i } # => 1  100 1000 10 10000 
+	5.times { |i| print "#{10**i}\t" }
+	puts "done times"
+	
+becomes
+
+	5.p_times { |i| print "#{10**i}\t" }
+	puts "done p_times"
 	
 Note that even though the iterator as a whole is synchronous, and blocks are scheduled in the order received, each block runs independently and therefore may complete out of order.
 
 This does add some overhead compared to the non-parallel version, so if you have a large number of relatively cheap iterations you can batch them together by specifying a +stride+:
 
-	5.p_times(3) { |i| puts 10**i } # =>1000 10000 1 10 100 
+	5.p_times(3) { |i| print "#{10**i}\t" }
+	puts "done p_times(3)"
 
 It doesn't change the result, but schedules fewer blocks thus amortizing the overhead over more work. Note that items _within_ a stride are executed completely in the original order, but no order is guaranteed _between_ strides.
 
@@ -191,58 +203,78 @@ The +p_times+ method is used to implement several convenience methods on +Enumer
 === Enumerable#p_each
 
 Passes each object, like +each+:
+	DAYS=%w(Mon Tue Wed Thu Fri)
 
-	%w(Mon Tue Wed Thu Fri).p_each { |day| puts day} # => Mon Wed Thu Tue Fri
+	DAYS.each { |day| print "#{day}\t"}
+	puts "done each"
 
-	%w(Mon Tue Wed Thu Fri).p_each(3) { |day| puts day} # =>  Thu Fri Mon Tue Wed
+	DAYS.p_each { |day| print "#{day}\t"}
+	puts "done p_each"
+
+	DAYS.p_each(3) { |day| print "#{day}\t"}
+	puts "done p_each(3)"
 
 === Enumerable#p_each_with_index
 
 Passes each object and its index, like +each_with_index+:
 
-	%w(Mon Tue Wed Thu Fri).p_each_with_index { |day, i | puts "#{i}:#{day}"} # => 0:Mon 2:Wed 3:Thu 1:Tue 4:Fri
+	DAYS.each_with_index { |day, i | print "#{i}:#{day}\t"}
+	puts "done each_with_index"
 
-	%w(Mon Tue Wed Thu Fri).p_each_with_index(3) { |day, i | puts "#{i}:#{day}"} # => 3:Thu 4:Fri 0:Mon 1:Tue 2:Wed 
+	DAYS.p_each_with_index { |day, i | print "#{i}:#{day}\t"}
+	puts "done p_each_with_index"
+
+	DAYS.p_each_with_index(3) { |day, i | print "#{i}:#{day}\t"}
+	puts "done p_each_with_index(3)"
 
 === Enumerable#p_map
 
 Passes each object and collects the transformed values, like +map+:
 
-	(0..4).p_map { |i| 10**i } # => [1, 1000, 10, 100, 10000]
+	print (0..4).map { |i| "#{10**i}\t" }.join
+	puts "done map"
+	
+	print (0..4).p_map { |i| "#{10**i}\t" }.join
+	puts "done p_map"
 
-	(0..4).p_map(3) { |i| 10**i } # => [1000, 10000, 1, 10, 100]
+	print (0..4).p_map(3) { |i| "#{10**i}\t" }.join
+	puts "done p_map(3) [sometimes fails!?!]"
 
 === Enumerable#p_mapreduce
 
 Unlike the others, this method does not have a serial equivalent, but you may recognize it from the world of {distributed computing}[http://en.wikipedia.org/wiki/MapReduce]:
 
-	(0..4).p_mapreduce(0) { |i| 10**i } # => 11111
+	mr = (0..4).p_mapreduce(0) { |i| 10**i }
+	puts "#{mr} => 11111"
 
 This uses a parallel +inject+ (formerly known as +reduce+) to return a single value by combining the result of +map+. Unlike +inject+, you must specify an explicit initial value as the first parameter. The default accumulator is ":+", but you can specify a different symbol to +send+:
 
-	(0..4).p_mapreduce([], :concat) { |i| [10**i] } # => [1, 1000, 10, 100, 10000]
+	mr = (0..4).p_mapreduce([], :concat) { |i| [10**i] } 
+	puts "#{mr} => [1, 1000, 10, 100, 10000]"
 	
 Because of those parameters, the optional +stride+ is now the third:
 
-	(0..4).p_mapreduce([], :concat, 3) { |i| [10**i] } # => [1000, 10000, 1, 10, 100]
+	mr = (0..4).p_mapreduce([], :concat, 3) { |i| [10**i] }
+	puts "#{mr} => [1000, 10000, 1, 10, 100]"
 
 === Enumerable#p_find_all
 
-Passes each object and collects those for which the block is true, like +findall+:
+Passes each object and collects those for which the block is true, like +find_all+:
 
-	(0..4).p_find_all { |i| i.odd?} # => {3, 1}
-
-	(0..4).p_find_all(3) { |i| i.odd?} # => {3, 1}
+	puts (0..4).find_all { |i| i.odd? }.inspect
+	puts (0..4).p_find_all { |i| i.odd? }.inspect
+	puts (0..4).p_find_all(3) { |i| i.odd? }.inspect
 	
 === Enumerable#p_find
 
 Passes each object and returns nil if none match. Similar to +find+, it returns the first object it _finds_ for which the block is true, but unlike +find+ that may not be the _actual_ first object since blocks -- say it with me -- "may complete out of order":
 
-	(0..4).p_find { |i| i == 5 } # => nil
+	puts (0..4).find { |i| i == 5 } # => nil
+	puts (0..4).p_find { |i| i == 5 } # => nil
 
-	(0..4).p_find { |i| i.odd?} # => 1
-
-	(0..4).p_find(3) { |i| i.odd?} # => 3
+	puts "#{(0..4).find { |i| i.odd? }} => 1"
+	puts "#{(0..4).p_find { |i| i.odd? }} => 1?"
+	puts "#{(0..4).p_find(3) { |i| i.odd? }} => 3?"
 
 == Sources: Asynchronous Events
 
@@ -258,10 +290,10 @@ When the source “fires,” GCD will schedule the _handler_ block on the specif
 
 === Source.periodic
 
-We'll start with a simple example: a +periodic+ timer that runs every 0.9 seconds and prints out the number of pending events:
+We'll start with a simple example: a +periodic+ timer that runs every 0.4 seconds and prints out the number of pending events:
 
-	timer = Dispatch::Source.periodic(0.9) { |src| puts src.data }
-	sleep 2 # => 1 1 ...
+	timer = Dispatch::Source.periodic(0.4) { |src| puts "periodic: #{src.data}" }
+	sleep 1 # => 1 1 ...
 	
 If you're familiar with the C API for GCD, be aware that a +Dispatch::Source+ is fully configured at the time of instantiation, and does not need to be +resume+d. Also, times are in seconds, not nanoseconds.
 
@@ -274,7 +306,8 @@ As you can see above, the handle  gets called with the source itself as a parame
 This monotony rapidly gets annoying; to pause, just +suspend!+ the source:
 
 	timer.suspend!
-	sleep 2
+	puts "suspend!"
+	sleep 1
 
 You can suspend a source at any time to prevent it from running another block, though this will not affect a block that is already being processed.
 
@@ -283,7 +316,8 @@ You can suspend a source at any time to prevent it from running another block, t
 If you change your mind, you can always +resume!+ the source:
 
 	timer.resume!
-	sleep 2 # => 2 1 ...
+	puts "resume!"
+	sleep 1 # => 2 1 ...
 
 If the +Source+ has fired one or more times, it will schedule a block containing the coalesced events. In this case, we were suspended for over 2 intervals, so the pending block will fire with +data+ being at least 2.  
 
@@ -292,8 +326,9 @@ If the +Source+ has fired one or more times, it will schedule a block containing
 Finally, you can stop the source entirely by calling +cancel!+:
 
 	timer.cancel!
+	puts "cancel!"
 
-Cancellation is particularly significant in MacRuby's implementation of GCD, since (due to the use of garbage collection) there is no other way to explicitly stop using a source.  
+Cancellation is particularly significant in MacRuby's implementation of GCD, since (due to the reliance garbage collection) there is no other way to explicitly stop using a source.  
 
 === Custom Sources
 
@@ -304,7 +339,7 @@ Next up are _custom_ or _application-specific_ sources, which are fired explicit
 The +add+ source accumulates the sum of the event data (e.g., for numbers) in a thread-safe manner:
 
 	@sum = 0
-	adder = Dispatch::Source.add { |s| @sum += s.data;  }
+	adder = Dispatch::Source.add { |s| puts "add #{s.data} => #{@sum += s.data}" }
 
 Note that we use an instance variable (since it is re-assigned), but we don't have to +synchronize+ it -- and can safely re-assign it -- since the event handler does not need to be reentrant.
 
@@ -312,14 +347,14 @@ Note that we use an instance variable (since it is re-assigned), but we don't ha
 
 To fire a custom source, we invoke what GCD calls a _merge_ using the shovel operator ('+<<+'):
 
-	adder << 1 # => "add 1 -> 1"
+	adder << 1
 
 The name "merge" makes more sense when you see it coalesce multiple firings into a single handler:
 
 	adder.suspend!
 	adder << 3
 	adder << 5
-	adder.resume! # => "add 8 -> 9"
+	adder.resume!
 	adder.cancel!
 
 Since the source is suspended -- mimicking what would happen if your event handler was busy at the time -- GCD automatically _merges_ the results together using addition.  This is useful for tracking cumulative results across multiple threads, e.g. for a progress meter.  Notice this is the event coalescing behavior used by +periodic+.
@@ -329,12 +364,11 @@ Since the source is suspended -- mimicking what would happen if your event handl
 Similarly, the +or+ source combines events using a logical OR (e.g, for booleans or bitmasks):
 
 	@mask = 0
-	masker = Dispatch::Source.or { |s| @mask |= s.data }
+	masker = Dispatch::Source.or { |s| puts "or #{s.data.to_s(2)} => #{(@mask |= s.data).to_s(2)}"}
 	masker.suspend!
 	masker << 0b0011
 	masker << 0b1010
 	masker.resume!
-	puts  "%b" % @mask # => 1011
 	masker.cancel!
 
 This is primarily useful for flagging what _kinds_ of events have taken place since the last time the handler fired.

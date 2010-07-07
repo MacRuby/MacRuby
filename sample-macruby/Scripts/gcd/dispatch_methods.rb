@@ -1,4 +1,3 @@
-
 #!/usr/local/bin/macruby
 require 'dispatch'	
 job = Dispatch::Job.new { Math.sqrt(10**100) }

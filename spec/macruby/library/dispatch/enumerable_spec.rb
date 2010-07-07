@@ -119,6 +119,12 @@ if MACOSX_VERSION >= 10.6
           map2 = @ary.p_map {|v| v*v}
           map2.should == map1
         end
+
+        it "should stride safely" do
+          map1 = @ary.map {|v| v*v}
+          map2 = @ary.p_map(2) {|v| v*v}
+          map2.should == map1
+        end
       end
 
       describe :p_mapreduce do

@@ -54,9 +54,12 @@ module Enumerable
   # Parallel +collect+
   # Results match the order of the original array
   def p_map(stride=1, priority=nil,  &block)
-    result = Dispatch::Proxy.new([])
-    self.p_each_with_index(stride, priority) { |obj, i| result[i] = block.call(obj) }
-    result.__value__
+    @p_map_result = Dispatch::Proxy.new([])
+    @p_map_result_q ||= Dispatch::Queue.for(@p_map_result)
+    @p_map_result_q.sync do
+      self.p_each_with_index(stride, priority) { |obj, i| @p_map_result[i] = block.call(obj) }
+    end
+    @p_map_result.__value__
   end
 
   # Parallel +collect+ plus +inject+
@@ -65,7 +68,6 @@ module Enumerable
   def p_mapreduce(initial, op=:+, stride=1, priority=nil, &block)
     # Check first, since exceptions from a Dispatch block can act funky 
     raise ArgumentError if not initial.respond_to? op
-    # TODO: assign from within a Dispatch.once to avoid race condition
     @mapreduce_q ||= Dispatch::Queue.for(self)
     @mapreduce_q.sync do # in case called more than once at a time
       @mapreduce_result = initial
