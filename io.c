@@ -390,6 +390,35 @@ prep_io(int fd, int mode, VALUE klass)
  *     f.syswrite("ABCDEF")   #=> 6
  */
 
+
+static VALUE
+rb_io_syswrite(VALUE io, SEL sel, VALUE data)
+{
+    rb_secure(4);
+    rb_io_t *io_struct = ExtractIOStruct(io);
+    rb_io_assert_writable(io_struct);
+
+    data = rb_str_bstr(rb_obj_as_string(data));
+    
+    if (CFDataGetLength(io_struct->buf) > 0) {
+	rb_warn("Calling #syswrite on buffered I/O may lead to unexpected results");
+    }
+    
+    const uint8_t *buffer = rb_bstr_bytes(data);
+    const long length = rb_bstr_length(data);
+    
+    if (length == 0) {
+        return INT2FIX(0);
+    }
+    
+    ssize_t result = write(io_struct->write_fd, buffer, length);
+    if (result == -1) {
+	rb_sys_fail("write(2) failed.");
+    }
+    
+    return LONG2FIX(result);
+}
+
 /*
  *  call-seq:
  *     ios.write(string)    => integer
@@ -4636,7 +4665,7 @@ Init_IO(void)
     rb_objc_define_method(rb_cIO, "bytes",  rb_io_bytes, 0);
     rb_objc_define_method(rb_cIO, "chars",  rb_io_chars, 0);
 
-    rb_objc_define_method(rb_cIO, "syswrite", io_write, 1);
+    rb_objc_define_method(rb_cIO, "syswrite", rb_io_syswrite, 1);
     rb_objc_define_method(rb_cIO, "sysread",  rb_io_sysread, -1);
 
     rb_objc_define_method(rb_cIO, "fileno", rb_io_fileno, 0);
