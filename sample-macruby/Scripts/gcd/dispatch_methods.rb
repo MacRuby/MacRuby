@@ -2,90 +2,122 @@
 require 'dispatch'	
 job = Dispatch::Job.new { Math.sqrt(10**100) }
 @result = job.value
-puts @result.to_int.to_s.size # => 50
+puts "#{@result.to_int.to_s.size} => 50"
 
-job.value {|v| p v.to_int.to_s.size } # => 50 (eventually)
+job.value {|v| puts "#{v.to_int.to_s.size} => 50" } # (eventually)
 job.join
-puts "All Done"
+puts "join done (sync)"
 
-job.join { puts "All Done" }
+job.join { puts "join done (async)" }
 job.add { Math.sqrt(2**64) }
+job.value {|b| puts "#{b} => 4294967296.0" }
 @values = job.values 
-puts @values.inspect # => [1.0E50, 4294967296.0]
+puts "#{@values.inspect} => [1.0E50]"
+job.join
+puts "#{@values.inspect} => [1.0E50, 4294967296.0]"
 job = Dispatch::Job.new {}
 @hash = job.synchronize Hash.new
-puts @hash.class # => Dispatch::Proxy
+puts "#{@hash.class} => Dispatch::Proxy" # 
 
-puts job.values.class # => Dispatch::Proxy
+puts "#{job.values.class} => Dispatch::Proxy"
 
 @hash[:foo] = :bar
-puts @hash.to_s  # => "{:foo=>:bar}"
+puts "#{@hash} => {:foo=>:bar}"
+@hash.delete :foo
 
 
 [64, 100].each do |n|
 	job.add { @hash[n] = Math.sqrt(10**n) }
 end
-puts @hash.inspect # => {64 => 1.0E32, 100 => 1.0E50}
+job.join
+puts "#{@hash} => {64 => 1.0E32, 100 => 1.0E50}"
 
-@hash.inspect { |s| p s } # => {64 => 1.0E32, 100 => 1.0E50}
+@hash.inspect { |s| puts "#{s} => {64 => 1.0E32, 100 => 1.0E50}" }
 delegate = @hash.__value__
-puts delegate.class # => Hash
+puts "\n#{delegate.class} => Hash" 
 
 n = 42
-job = Dispatch::Job.new { p n }
-job.join # => 42
+job = Dispatch::Job.new { puts "#{n} => 42" }
+job.join
 
 n = 0
 job = Dispatch::Job.new { n = 42 }
 job.join
-p n # => 0 
+puts "#{n} => 0 != 42"
 n = 0
 job = Dispatch::Job.new { n += 42 }
 job.join
-p n # => 0 
-5.p_times { |i| puts 10**i } # => 1  100 1000 10 10000 
+puts "#{n} => 0 != 42"
+5.times { |i| print "#{10**i}\t" }
+puts "done times"
 
-5.p_times(3) { |i| puts 10**i } # =>1000 10000 1 10 100 
-%w(Mon Tue Wed Thu Fri).p_each { |day| puts day} # => Mon Wed Thu Tue Fri
-%w(Mon Tue Wed Thu Fri).p_each(3) { |day| puts day} # =>  Thu Fri Mon Tue Wed
-%w(Mon Tue Wed Thu Fri).p_each_with_index { |day, i | puts "#{i}:#{day}"} # => 0:Mon 2:Wed 3:Thu 1:Tue 4:Fri
-%w(Mon Tue Wed Thu Fri).p_each_with_index(3) { |day, i | puts "#{i}:#{day}"} # => 3:Thu 4:Fri 0:Mon 1:Tue 2:Wed 
-(0..4).p_map { |i| 10**i } # => [1, 1000, 10, 100, 10000]
-(0..4).p_map(3) { |i| 10**i } # => [1000, 10000, 1, 10, 100]
-(0..4).p_mapreduce(0) { |i| 10**i } # => 11111
-(0..4).p_mapreduce([], :concat) { |i| [10**i] } # => [1, 1000, 10, 100, 10000]
+5.p_times { |i| print "#{10**i}\t" }
+puts "done p_times"
 
-(0..4).p_mapreduce([], :concat, 3) { |i| [10**i] } # => [1000, 10000, 1, 10, 100]
-(0..4).p_find_all { |i| i.odd?} # => {3, 1}
-(0..4).p_find_all(3) { |i| i.odd?} # => {3, 1}
+5.p_times(3) { |i| print "#{10**i}\t" }
+puts "done p_times(3)"
+DAYS=%w(Mon Tue Wed Thu Fri)
+DAYS.each { |day| print "#{day}\t"}
+puts "done each"
+DAYS.p_each { |day| print "#{day}\t"}
+puts "done p_each"
+DAYS.p_each(3) { |day| print "#{day}\t"}
+puts "done p_each(3)"
+DAYS.each_with_index { |day, i | print "#{i}:#{day}\t"}
+puts "done each_with_index"
+DAYS.p_each_with_index { |day, i | print "#{i}:#{day}\t"}
+puts "done p_each_with_index"
+DAYS.p_each_with_index(3) { |day, i | print "#{i}:#{day}\t"}
+puts "done p_each_with_index(3)"
+print (0..4).map { |i| "#{10**i}\t" }.join
+puts "done map"
 
-(0..4).p_find { |i| i == 5 } # => nil
-(0..4).p_find { |i| i.odd?} # => 1
-(0..4).p_find(3) { |i| i.odd?} # => 3
+print (0..4).p_map { |i| "#{10**i}\t" }.join
+puts "done p_map"
+print (0..4).p_map(3) { |i| "#{10**i}\t" }.join
+puts "done p_map(3) [sometimes fails!?!]"
+mr = (0..4).p_mapreduce(0) { |i| 10**i }
+puts "#{mr} => 11111"
+mr = (0..4).p_mapreduce([], :concat) { |i| [10**i] } 
+puts "#{mr} => [1, 1000, 10, 100, 10000]"
 
-timer = Dispatch::Source.periodic(0.9) { |src| puts src.data }
-sleep 2 # => 1 1 ...
+mr = (0..4).p_mapreduce([], :concat, 3) { |i| [10**i] }
+puts "#{mr} => [1000, 10000, 1, 10, 100]"
+puts (0..4).find_all { |i| i.odd? }.inspect
+puts (0..4).p_find_all { |i| i.odd? }.inspect
+puts (0..4).p_find_all(3) { |i| i.odd? }.inspect
+
+puts (0..4).find { |i| i == 5 } # => nil
+puts (0..4).p_find { |i| i == 5 } # => nil
+puts "#{(0..4).find { |i| i.odd? }} => 1"
+puts "#{(0..4).p_find { |i| i.odd? }} => 1?"
+puts "#{(0..4).p_find(3) { |i| i.odd? }} => 3?"
+
+timer = Dispatch::Source.periodic(0.4) { |src| puts "periodic: #{src.data}" }
+sleep 1 # => 1 1 ...
 
 timer.suspend!
-sleep 2
+puts "suspend!"
+sleep 1
 timer.resume!
-sleep 2 # => 2 1 ...
+puts "resume!"
+sleep 1 # => 2 1 ...
 timer.cancel!
+puts "cancel!"
 @sum = 0
-adder = Dispatch::Source.add { |s| @sum += s.data;  }
-adder << 1 # => "add 1 -> 1"
+adder = Dispatch::Source.add { |s| puts "add #{s.data} => #{@sum += s.data}" }
+adder << 1
 adder.suspend!
 adder << 3
 adder << 5
-adder.resume! # => "add 8 -> 9"
+adder.resume!
 adder.cancel!
 @mask = 0
-masker = Dispatch::Source.or { |s| @mask |= s.data }
+masker = Dispatch::Source.or { |s| puts "or #{s.data.to_s(2)} => #{(@mask |= s.data).to_s(2)}"}
 masker.suspend!
 masker << 0b0011
 masker << 0b1010
 masker.resume!
-puts  "%b" % @mask # => 1011
 masker.cancel!
 @event = 0
 mask = Dispatch::Source::PROC_EXIT | Dispatch::Source::PROC_SIGNAL 
