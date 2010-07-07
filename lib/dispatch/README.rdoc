@@ -48,13 +48,13 @@ Concurrent queues schedule as many simultaneous blocks as they can on a first-in
 The downside of asynchrony is that you don't know exactly when your job will execute.  Fortunately, +Dispatch::Job+ attempts to duck-type +Thread[http://ruby-doc.org/core/classes/Thread.html]+, so you can call +value[http://ruby-doc.org/core/classes/Thread.html#M000460]+ to obtain the result of executing that block:
 
 	@result = job.value
-	puts "#{@result.to_int.to_s.size} => 50"
+	puts "value (sync): #{@result} => 1.0e+50"
 	
 This will wait until the value has been calculated, allowing it to be used as an {explicit Future}[http://en.wikipedia.org/wiki/Futures_and_promises]. However, this may stall the main thread indefinitely, which reduces the benefits of concurrency.  
 
 Wherever possible, you should instead attempt to figure out exactly _when_  and _why_ you need to know the result of asynchronous work. Then, call +value+ with a block to also perform _that_ work asynchronously once the value has been calculated -- all without blocking the main thread:
 
-	job.value {|v| puts "#{v.to_int.to_s.size} => 50" } # (eventually)
+	job.value {|v| puts "value (async): #{v.to_int.to_s.size} => 1.0e+50" } # (eventually)
 
 === Job#join: Job Completion
 
@@ -75,7 +75,7 @@ More commonly, you will have multiple units of work you'd like to perform in par
 
 If there are multiple blocks in a job, +value+ will wait until they all finish then return the last value received:
 
-	job.value {|b| puts "#{b} => 4294967296.0" }
+	job.value {|b| puts "value (async): #{b} => 4294967296.0" }
 
 === Job#values: Returning All Values
 
@@ -84,9 +84,9 @@ Note that values may be received out of order, since they may take differing amo
 Additionally, you can call +values+ to obtain all the values:
 
 	@values = job.values
-	puts "#{@values.inspect} => [1.0E50]"
+	puts "values: #{@values.inspect} => [1.0E50]"
 	job.join
-	puts "#{@values.inspect} => [1.0E50, 4294967296.0]"
+	puts "values: #{@values.inspect} => [1.0E50, 4294967296.0]"
 
 Note that unlike +value+ this will not by itself first +join+ the job, and thus does not have an asynchronous equivalent.
 
@@ -107,18 +107,18 @@ The easiest way to create a Proxy is to first create an empty Job:
 then ask it to wrap the object you want to modify from multiple threads:
 
 	@hash = job.synchronize Hash.new
-	puts "#{@hash.class} => Dispatch::Proxy"
+	puts "synchronize: #{@hash.class} => Dispatch::Proxy"
 	
 This is actually the same type of object used to manage the list of +values+:
 
-	puts "#{job.values.class} => Dispatch::Proxy"
+	puts "values: #{job.values.class} => Dispatch::Proxy"
 	
 === Proxy#method_missing: Using Proxies
 
 The Proxy object can be called just as it if were the delegate object:
 
 	@hash[:foo] = :bar
-	puts "#{@hash} => {:foo=>:bar}"
+	puts "proxy: #{@hash} => {:foo=>:bar}"
 	@hash.delete :foo
 	
 Except that you can use it safely inside Dispatch blocks from multiple threads:
@@ -127,20 +127,20 @@ Except that you can use it safely inside Dispatch blocks from multiple threads:
 		job.add { @hash[n] = Math.sqrt(10**n) }
 	end
 	job.join
-	puts "#{@hash} => {64 => 1.0E32, 100 => 1.0E50}"
+	puts "proxy: #{@hash} => {64 => 1.0E32, 100 => 1.0E50}"
 
 In this case, each block will perform the +sqrt+ asynchronously on the concurrent queue, potentially on multiple threads
 	
 As with Dispatch::Job, you can make any invocation asynchronous by passing a block:
 
-	@hash.inspect { |s| puts "#{s} => {64 => 1.0E32, 100 => 1.0E50}" }
+	@hash.inspect { |s| puts "inspect: #{s} => {64 => 1.0E32, 100 => 1.0E50}" }
 
 === Proxy#\_\_value\_\_: Returning Delegate
 
 If for any reason you need to retrieve the original (unproxied) object, simply call +__value__+:
 
 	delegate = @hash.__value__
-	puts "\n#{delegate.class} => Hash"
+	puts "\n__value__: #{delegate.class} => Hash"
 	
 This differs from +SimpleDelegate#__getobj__+ (which Dispatch::Proxy inherits) in that it will first wait until any pending asynchronous blocks have executed.
 
@@ -153,22 +153,22 @@ Because Dispatch blocks may execute after the local context has gone away, you s
 Note that we can as usual _access_ local variables from inside the block; GCD automatically copies them, which is why this works as expected:
 
 	n = 42
-	job = Dispatch::Job.new { puts "#{n} => 42" }
+	job = Dispatch::Job.new { puts "n (during): #{n} => 42" }
 	job.join
 	
 but this doesn't:
 
 	n = 0
-	job = Dispatch::Job.new { n = 42 }
+	job = Dispatch::Job.new { n = 21 }
 	job.join
-	puts "#{n} => 0 != 42"
+	puts "n (after): #{n} => 0?!?"
 
 The general rule is "do *not* assign to external variables inside a Dispatch block."  Assigning local variables will have no effect (outside that block), and assigning other variables may replace your Proxy object with a non-Proxy version.  Remember also that Ruby treats the accumulation operations ("+=", "||=", etc.) as syntactic sugar over assignment, and thus those operations only affect the copy of the variable:
 
 	n = 0
-	job = Dispatch::Job.new { n += 42 }
+	job = Dispatch::Job.new { n += 84 }
 	job.join
-	puts "#{n} => 0 != 42"
+	puts "n (+=): #{n} => 0?!?"
 
 == Dispatch Enumerable: Parallel Iterations
 
@@ -181,19 +181,19 @@ In addition, for simplicity they all are _synchronous_, meaning they won't retur
 The simplest iteration is defined on the +Integer+ class, and passes the index that many +times+:
 
 	5.times { |i| print "#{10**i}\t" }
-	puts "done times"
+	puts "times"
 	
 becomes
 
 	5.p_times { |i| print "#{10**i}\t" }
-	puts "done p_times"
+	puts "p_times"
 	
 Note that even though the iterator as a whole is synchronous, and blocks are scheduled in the order received, each block runs independently and therefore may complete out of order.
 
 This does add some overhead compared to the non-parallel version, so if you have a large number of relatively cheap iterations you can batch them together by specifying a +stride+:
 
 	5.p_times(3) { |i| print "#{10**i}\t" }
-	puts "done p_times(3)"
+	puts "p_times(3)"
 
 It doesn't change the result, but schedules fewer blocks thus amortizing the overhead over more work. Note that items _within_ a stride are executed completely in the original order, but no order is guaranteed _between_ strides.
 
@@ -205,61 +205,62 @@ Passes each object, like +each+:
 	DAYS=%w(Mon Tue Wed Thu Fri)
 
 	DAYS.each { |day| print "#{day}\t"}
-	puts "done each"
+	puts "each"
 
 	DAYS.p_each { |day| print "#{day}\t"}
-	puts "done p_each"
+	puts "p_each"
 
 	DAYS.p_each(3) { |day| print "#{day}\t"}
-	puts "done p_each(3)"
+	puts "p_each(3)"
 
 === Enumerable#p_each_with_index
 
 Passes each object and its index, like +each_with_index+:
 
 	DAYS.each_with_index { |day, i | print "#{i}:#{day}\t"}
-	puts "done each_with_index"
+	puts "each_with_index"
 
 	DAYS.p_each_with_index { |day, i | print "#{i}:#{day}\t"}
-	puts "done p_each_with_index"
+	puts "p_each_with_index"
 
 	DAYS.p_each_with_index(3) { |day, i | print "#{i}:#{day}\t"}
-	puts "done p_each_with_index(3)"
+	puts "p_each_with_index(3)"
 
 === Enumerable#p_map
 
 Passes each object and collects the transformed values, like +map+:
 
 	print (0..4).map { |i| "#{10**i}\t" }.join
-	puts "done map"
+	puts "map"
 	
 	print (0..4).p_map { |i| "#{10**i}\t" }.join
-	puts "done p_map"
+	puts "p_map"
 
 	print (0..4).p_map(3) { |i| "#{10**i}\t" }.join
-	puts "done p_map(3) [sometimes fails!?!]"
+	puts "p_map(3) [sometimes fails!?!]"
 
 === Enumerable#p_mapreduce
 
 Unlike the others, this method does not have a serial equivalent, but you may recognize it from the world of {distributed computing}[http://en.wikipedia.org/wiki/MapReduce]:
 
 	mr = (0..4).p_mapreduce(0) { |i| 10**i }
-	puts "#{mr} => 11111"
+	puts "p_mapreduce: #{mr} => 11111"
 
 This uses a parallel +inject+ (formerly known as +reduce+) to return a single value by combining the result of +map+. Unlike +inject+, you must specify an explicit initial value as the first parameter. The default accumulator is ":+", but you can specify a different symbol to +send+:
 
 	mr = (0..4).p_mapreduce([], :concat) { |i| [10**i] }
-	puts "#{mr} => [1, 1000, 10, 100, 10000]"
+	puts "p_mapreduce(:concat): #{mr} => [1, 1000, 10, 100, 10000]"
 	
 Because of those parameters, the optional +stride+ is now the third:
 
 	mr = (0..4).p_mapreduce([], :concat, 3) { |i| [10**i] }
-	puts "#{mr} => [1000, 10000, 1, 10, 100]"
+	puts "p_mapreduce(3): #{mr} => [1000, 10000, 1, 10, 100]"
 
 === Enumerable#p_find_all
 
 Passes each object and collects those for which the block is true, like +find_all+:
 
+	puts "find_all | p_find_all | p_find_all(3)"
 	puts (0..4).find_all { |i| i.odd? }.inspect
 	puts (0..4).p_find_all { |i| i.odd? }.inspect
 	puts (0..4).p_find_all(3) { |i| i.odd? }.inspect
@@ -268,12 +269,31 @@ Passes each object and collects those for which the block is true, like +find_al
 
 Passes each object and returns nil if none match. Similar to +find+, it returns the first object it _finds_ for which the block is true, but unlike +find+ that may not be the _actual_ first object since blocks -- say it with me -- "may complete out of order":
 
+	puts "find | p_find | p_find(3)"
+
 	puts (0..4).find { |i| i == 5 } # => nil
 	puts (0..4).p_find { |i| i == 5 } # => nil
+	puts (0..4).p_find(3) { |i| i == 5 } # => nil
 
 	puts "#{(0..4).find { |i| i.odd? }} => 1"
 	puts "#{(0..4).p_find { |i| i.odd? }} => 1?"
 	puts "#{(0..4).p_find(3) { |i| i.odd? }} => 3?"
+
+== Queues: Serialization
+
+Most of the time, you can simply use GCD's default concurrent queues or the built-in queues associated with synchronized objects.  However, if you want finer-gain control you can create and use your own queues.
+
+=== Queue::for
+
+The simplest way to create a queue is by passing in the object you want the queue +for+
+
+	puts q = Dispatch::Queue.for("my_object")
+
+=== Queue#join
+
+The most common reason you want your own queue is to ensure that all pending blocks have been executed, via a +join+:
+
+	q.sync {}
 
 == Sources: Asynchronous Events
 
@@ -291,14 +311,14 @@ When the source “fires,” GCD will schedule the _handler_ block on the specif
 
 We'll start with a simple example: a +periodic+ timer that runs every 0.4 seconds and prints out the number of pending events:
 
-	timer = Dispatch::Source.periodic(0.4) { |src| puts "periodic: #{src.data}" }
+	timer = Dispatch::Source.periodic(0.4) { |src| puts "Dispatch::Source.periodic: #{src.data}" }
 	sleep 1 # => 1 1 ...
 	
 If you're familiar with the C API for GCD, be aware that a +Dispatch::Source+ is fully configured at the time of instantiation, and does not need to be +resume+d. Also, times are in seconds, not nanoseconds.
 
 === Source#data
 
-As you can see above, the handle  gets called with the source itself as a parameter, which allows you query it for the source's +data+. The meaning of the data varies with the type of +Source+, though it is always an integer. Most commonly -- as in this case -- it is a count of the number of events being processed, and thus "1".
+As you can see above, the handle gets called with the source itself as a parameter, which allows you query it for the source's +data+. The meaning of the data varies with the type of +Source+, though it is always an integer. Most commonly -- as in this case -- it is a count of the number of events being processed, and thus "1".
 
 === Source#suspend!
 
@@ -316,9 +336,9 @@ If you change your mind, you can always +resume!+ the source:
 
 	timer.resume!
 	puts "resume!"
-	sleep 1 # => 2 1 ...
+	sleep 1 # => 1 2 1 ...
 
-If the +Source+ has fired one or more times, it will schedule a block containing the coalesced events. In this case, we were suspended for over 2 intervals, so the pending block will fire with +data+ being at least 2.  
+If the +Source+ has fired one or more times, it will schedule a block containing the coalesced events. In this case, we were suspended for over 2 intervals, so the next block will fire with +data+ being at least 2.  
 
 === Source#cancel!
 
@@ -333,12 +353,14 @@ Cancellation is particularly significant in MacRuby's implementation of GCD, sin
 
 Next up are _custom_ or _application-specific_ sources, which are fired explicitly by the developer instead of in response to an external event.  These simple behaviors are the primitives upon which other sources are built.
 
+Like timers, these sources default to scheduling blocks on the concurrent queue.  However, we will instead schedule them on our own queue, so can ensure the handler has been run.
+
 ==== Source.add
 
 The +add+ source accumulates the sum of the event data (e.g., for numbers) in a thread-safe manner:
 
 	@sum = 0
-	adder = Dispatch::Source.add { |s| puts "add #{s.data} => #{@sum += s.data}" }
+	adder = Dispatch::Source.add(q) { |s| puts "Dispatch::Source.add: #{s.data} (#{@sum += s.data})" }
 
 Note that we use an instance variable (since it is re-assigned), but we don't have to +synchronize+ it -- and can safely re-assign it -- since the event handler does not need to be reentrant.
 
@@ -347,13 +369,19 @@ Note that we use an instance variable (since it is re-assigned), but we don't ha
 To fire a custom source, we invoke what GCD calls a _merge_ using the shovel operator ('+<<+'):
 
 	adder << 1
+	q.sync {}
+	puts "sum: #{@sum} => 1"
 
 The name "merge" makes more sense when you see it coalesce multiple firings into a single handler:
 
 	adder.suspend!
 	adder << 3
 	adder << 5
+	q.sync {}
+	puts "sum: #{@sum} => 1"
 	adder.resume!
+	q.sync {}
+	puts "sum: #{@sum} => 9"
 	adder.cancel!
 
 Since the source is suspended -- mimicking what would happen if your event handler was busy at the time -- GCD automatically _merges_ the results together using addition.  This is useful for tracking cumulative results across multiple threads, e.g. for a progress meter.  Notice this is the event coalescing behavior used by +periodic+.
@@ -363,11 +391,17 @@ Since the source is suspended -- mimicking what would happen if your event handl
 Similarly, the +or+ source combines events using a logical OR (e.g, for booleans or bitmasks):
 
 	@mask = 0
-	masker = Dispatch::Source.or { |s| puts "or #{s.data.to_s(2)} => #{(@mask |= s.data).to_s(2)}"}
+	masker = Dispatch::Source.or(q) { |s| puts "Dispatch::Source.or: #{s.data.to_s(2)} (#{(@mask |= s.data).to_s(2)})"}
+	masker << 0b0001
+	q.sync {}
+	puts "mask: #{@mask.to_s(2)} => 1"
 	masker.suspend!
 	masker << 0b0011
 	masker << 0b1010
+	puts "mask: #{@mask.to_s(2)} => 1"
 	masker.resume!
+	q.sync {}
+	puts "mask: #{@mask.to_s(2)} => 1011"
 	masker.cancel!
 
 This is primarily useful for flagging what _kinds_ of events have taken place since the last time the handler fired.
@@ -391,8 +425,8 @@ The underlying API expects and returns integers, e.g.:
 
 	@event = 0
 	mask = Dispatch::Source::PROC_EXIT | Dispatch::Source::PROC_SIGNAL
-	proc_src = Dispatch::Source.process($$, mask) do |s|
-		@event |= s.data
+	proc_src = Dispatch::Source.process($$, mask, q) do |s|
+		puts "Dispatch::Source.process: #{s.data} (#{@event |= s.data})"
 	end
 	
 In this case, we are watching the current process ('$$') for +:signal+ and (less usefully :-) +:exit+ events .  
@@ -403,8 +437,9 @@ Alternatively, you can pass in array of names (symbols or strings) for the mask,
 
 	@events = []
 	mask2 = [:exit, :fork, :exec, :signal]
-	proc_src2 = Dispatch::Source.process($$, mask2) do |s|
-		@events << Dispatch::Source.data2events(s.data)
+	proc_src2 = Dispatch::Source.process($$, mask2, q) do |s|
+		@events += Dispatch::Source.data2events(s.data)
+		puts "Dispatch::Source.process: #{Dispatch::Source.data2events(s.data)} (#{@events})"
 	end
 
 ==== Source.process Example
@@ -417,45 +452,48 @@ To fire the event, we can, e.g., send a un-trapped signal :
 	Signal.trap(sig_usr1, "IGNORE")
 	Process.kill(sig_usr1, $$)
 	Signal.trap(sig_usr1, "DEFAULT")
+	q.sync {}
 
 You can check which flags were set by _and_ing against the bitmask:
 
-	result = "%b" % (@event & mask) # => 1000000000000000000000000000 # Dispatch::Source::PROC_SIGNAL
+	puts "@event: #{(result = @event & mask).to_s(2)} => 1000000000000000000000000000 (Dispatch::Source::PROC_SIGNAL)"
 	proc_src.cancel!
 
-Or equivalently, interseting the array:
+Or equivalently, intersecting the array:
 
-	result2 = (@events & mask2) # => [:signal]
+	puts "@events: #{(result2 = @events & mask2)} => [:signal]"
 	proc_src2.cancel!
 
 ==== Source#event2num
 
 You can convert from symbol to int via +event2num+:
 
-	puts result == Dispatch::Source#event2num(result2[0]) # => true
+	puts "event2num: #{Dispatch::Source.event2num(result2[0])} => #{result}"
 
-==== Source#num2event
+==== Source#data2events
 
-Similarly, use +num2event+ to turn an int into a symbol:
+Similarly, use +data2events+ to turn an int into a symbol:
 
-	puts result2[0] == Dispatch::Source#num2event(result) # => true
+	puts "data2events: #{Dispatch::Source.data2events(result)} => #{result2}"
 
 ==== Source.signal
 
 This +Source+ overlaps slightly with the previous one, but uses +add+ to track the number of times that a specific +signal+ was fired against the *current* process:
 
-	@count = 0
+	@signals = 0
 	sig_usr2 = Signal.list["USR2"]
-	signal = Dispatch::Source.signal(sig_usr2) do |s|
-		@count += s.data
+	signal = Dispatch::Source.signal(sig_usr2, q) do |s|
+		puts "Dispatch::Source.signal: #{s.data} (#{@signals += s.data})"
 	end
 
 	signal.suspend!
 	Signal.trap(sig_usr2, "IGNORE")
 	3.times { Process.kill(sig_usr2, $$) }
 	Signal.trap(sig_usr2, "DEFAULT")
+	puts "signals: #{@signals} => 0"
 	signal.resume!
-	puts @count # => 3
+	q.sync {}
+	puts "signals: #{@signals} => 3"
 	signal.cancel!
 
 === File Sources
@@ -481,15 +519,17 @@ As before, the underlying API expects and returns integers, e.g.:
 	filename = "/tmp/dispatch-#{@msg}"
 	file = File.open(filename, "w")
 	fmask = Dispatch::Source::VNODE_DELETE | Dispatch::Source::VNODE_WRITE
-	file_src = Dispatch::Source.file(file.fileno, fmask) do |s|
-		@fevent |= s.data
+	file_src = Dispatch::Source.file(file.fileno, fmask, q) do |s|
+		puts "Dispatch::Source.file: #{s.data.to_s(2)} (#{(@fevent |= s.data).to_s(2)})"
 	end
 	file.puts @msg
 	file.flush
 	file.close
-	puts @fevent & fmask # => Dispatch::Source::VNODE_WRITE
+	q.sync {}
+	puts "fevent: #{@fevent & fmask} => #{Dispatch::Source::VNODE_WRITE} (Dispatch::Source::VNODE_WRITE)"
 	File.delete(filename)
-	puts @fevent == fmask # => true
+	q.sync {}
+	puts "fevent: #{@fevent} => #{fmask} (Dispatch::Source::VNODE_DELETE | Dispatch::Source::VNODE_WRITE)"
 	file_src.cancel!
 	
 And of course can also use symbols:
@@ -497,13 +537,17 @@ And of course can also use symbols:
 	@fevent2 = []
 	file = File.open(filename, "w")
 	fmask2 = %w(delete write)
-	file_src2 = Dispatch::Source.file(file, fmask2) do |s|
-		@fevent2 << Dispatch::Source.data2events(s.data)
+	file_src2 = Dispatch::Source.file(file, fmask2, q) do |s|
+		@fevent2 += Dispatch::Source.data2events(s.data)
+		puts "Dispatch::Source.file: #{Dispatch::Source.data2events(s.data)} (#{@fevent2})"
 	end
 	file.puts @msg
 	file.flush
-	puts @fevent2 & fmask2 # => [:write]
+	q.sync {}
+	puts "fevent2: #{@fevent2} => [:write]"
 	file_src2.cancel!
+	File.delete(filename)
+	exit
 	
 As a bonus, if you pass in an actual IO object (not just a file descriptor) the Dispatch library will automatically create a handler that closes the file for you when cancelled!
 

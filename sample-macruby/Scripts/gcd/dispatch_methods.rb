@@ -3,27 +3,27 @@
 require 'dispatch'	
 job = Dispatch::Job.new { Math.sqrt(10**100) }
 @result = job.value
-puts "#{@result.to_int.to_s.size} => 50"
+puts "value (sync): #{@result} => 1.0e+50"
 
-job.value {|v| puts "#{v.to_int.to_s.size} => 50" } # (eventually)
+job.value {|v| puts "value (async): #{v.to_int.to_s.size} => 1.0e+50" } # (eventually)
 job.join
 puts "join done (sync)"
 
 job.join { puts "join done (async)" }
 job.add { Math.sqrt(2**64) }
-job.value {|b| puts "#{b} => 4294967296.0" }
+job.value {|b| puts "value (async): #{b} => 4294967296.0" }
 @values = job.values
-puts "#{@values.inspect} => [1.0E50]"
+puts "values: #{@values.inspect} => [1.0E50]"
 job.join
-puts "#{@values.inspect} => [1.0E50, 4294967296.0]"
+puts "values: #{@values.inspect} => [1.0E50, 4294967296.0]"
 job = Dispatch::Job.new {}
 @hash = job.synchronize Hash.new
-puts "#{@hash.class} => Dispatch::Proxy"
+puts "synchronize: #{@hash.class} => Dispatch::Proxy"
 
-puts "#{job.values.class} => Dispatch::Proxy"
+puts "values: #{job.values.class} => Dispatch::Proxy"
 
 @hash[:foo] = :bar
-puts "#{@hash} => {:foo=>:bar}"
+puts "proxy: #{@hash} => {:foo=>:bar}"
 @hash.delete :foo
 
 
@@ -31,70 +31,75 @@ puts "#{@hash} => {:foo=>:bar}"
 	job.add { @hash[n] = Math.sqrt(10**n) }
 end
 job.join
-puts "#{@hash} => {64 => 1.0E32, 100 => 1.0E50}"
+puts "proxy: #{@hash} => {64 => 1.0E32, 100 => 1.0E50}"
 
-@hash.inspect { |s| puts "#{s} => {64 => 1.0E32, 100 => 1.0E50}" }
+@hash.inspect { |s| puts "inspect: #{s} => {64 => 1.0E32, 100 => 1.0E50}" }
 delegate = @hash.__value__
-puts "\n#{delegate.class} => Hash"
+puts "\n__value__: #{delegate.class} => Hash"
 
 n = 42
-job = Dispatch::Job.new { puts "#{n} => 42" }
+job = Dispatch::Job.new { puts "n (during): #{n} => 42" }
 job.join
 
 n = 0
-job = Dispatch::Job.new { n = 42 }
+job = Dispatch::Job.new { n = 21 }
 job.join
-puts "#{n} => 0 != 42"
+puts "n (after): #{n} => 0?!?"
 n = 0
-job = Dispatch::Job.new { n += 42 }
+job = Dispatch::Job.new { n += 84 }
 job.join
-puts "#{n} => 0 != 42"
+puts "n (+=): #{n} => 0?!?"
 5.times { |i| print "#{10**i}\t" }
-puts "done times"
+puts "times"
 
 5.p_times { |i| print "#{10**i}\t" }
-puts "done p_times"
+puts "p_times"
 
 5.p_times(3) { |i| print "#{10**i}\t" }
-puts "done p_times(3)"
+puts "p_times(3)"
 DAYS=%w(Mon Tue Wed Thu Fri)
 DAYS.each { |day| print "#{day}\t"}
-puts "done each"
+puts "each"
 DAYS.p_each { |day| print "#{day}\t"}
-puts "done p_each"
+puts "p_each"
 DAYS.p_each(3) { |day| print "#{day}\t"}
-puts "done p_each(3)"
+puts "p_each(3)"
 DAYS.each_with_index { |day, i | print "#{i}:#{day}\t"}
-puts "done each_with_index"
+puts "each_with_index"
 DAYS.p_each_with_index { |day, i | print "#{i}:#{day}\t"}
-puts "done p_each_with_index"
+puts "p_each_with_index"
 DAYS.p_each_with_index(3) { |day, i | print "#{i}:#{day}\t"}
-puts "done p_each_with_index(3)"
+puts "p_each_with_index(3)"
 print (0..4).map { |i| "#{10**i}\t" }.join
-puts "done map"
+puts "map"
 
 print (0..4).p_map { |i| "#{10**i}\t" }.join
-puts "done p_map"
+puts "p_map"
 print (0..4).p_map(3) { |i| "#{10**i}\t" }.join
-puts "done p_map(3) [sometimes fails!?!]"
+puts "p_map(3) [sometimes fails!?!]"
 mr = (0..4).p_mapreduce(0) { |i| 10**i }
-puts "#{mr} => 11111"
+puts "p_mapreduce: #{mr} => 11111"
 mr = (0..4).p_mapreduce([], :concat) { |i| [10**i] }
-puts "#{mr} => [1, 1000, 10, 100, 10000]"
+puts "p_mapreduce(:concat): #{mr} => [1, 1000, 10, 100, 10000]"
 
 mr = (0..4).p_mapreduce([], :concat, 3) { |i| [10**i] }
-puts "#{mr} => [1000, 10000, 1, 10, 100]"
+puts "p_mapreduce(3): #{mr} => [1000, 10000, 1, 10, 100]"
+puts "find_all | p_find_all | p_find_all(3)"
 puts (0..4).find_all { |i| i.odd? }.inspect
 puts (0..4).p_find_all { |i| i.odd? }.inspect
 puts (0..4).p_find_all(3) { |i| i.odd? }.inspect
 
+puts "find | p_find | p_find(3)"
 puts (0..4).find { |i| i == 5 } # => nil
 puts (0..4).p_find { |i| i == 5 } # => nil
+puts (0..4).p_find(3) { |i| i == 5 } # => nil
 puts "#{(0..4).find { |i| i.odd? }} => 1"
 puts "#{(0..4).p_find { |i| i.odd? }} => 1?"
 puts "#{(0..4).p_find(3) { |i| i.odd? }} => 3?"
+puts q = Dispatch::Queue.for("my_object")
+q.sync {}
 
-timer = Dispatch::Source.periodic(0.4) { |src| puts "periodic: #{src.data}" }
+timer = Dispatch::Source.periodic(0.4) { |src| puts "Dispatch::Source.periodic: #{src.data}" }
 sleep 1 # => 1 1 ...
 
 timer.suspend!
@@ -102,84 +107,106 @@ puts "suspend!"
 sleep 1
 timer.resume!
 puts "resume!"
-sleep 1 # => 2 1 ...
+sleep 1 # => 1 2 1 ...
 timer.cancel!
 puts "cancel!"
 @sum = 0
-adder = Dispatch::Source.add { |s| puts "add #{s.data} => #{@sum += s.data}" }
+adder = Dispatch::Source.add(q) { |s| puts "Dispatch::Source.add: #{s.data} (#{@sum += s.data})" }
 adder << 1
+q.sync {}
+puts "sum: #{@sum} => 1"
 adder.suspend!
 adder << 3
 adder << 5
+q.sync {}
+puts "sum: #{@sum} => 1"
 adder.resume!
+q.sync {}
+puts "sum: #{@sum} => 9"
 adder.cancel!
 @mask = 0
-masker = Dispatch::Source.or { |s| puts "or #{s.data.to_s(2)} => #{(@mask |= s.data).to_s(2)}"}
+masker = Dispatch::Source.or(q) { |s| puts "Dispatch::Source.or: #{s.data.to_s(2)} (#{(@mask |= s.data).to_s(2)})"}
+masker << 0b0001
+q.sync {}
+puts "mask: #{@mask.to_s(2)} => 1"
 masker.suspend!
 masker << 0b0011
 masker << 0b1010
+puts "mask: #{@mask.to_s(2)} => 1"
 masker.resume!
+q.sync {}
+puts "mask: #{@mask.to_s(2)} => 1011"
 masker.cancel!
 @event = 0
 mask = Dispatch::Source::PROC_EXIT | Dispatch::Source::PROC_SIGNAL
-proc_src = Dispatch::Source.process($$, mask) do |s|
-	@event |= s.data
+proc_src = Dispatch::Source.process($$, mask, q) do |s|
+	puts "Dispatch::Source.process: #{s.data} (#{@event |= s.data})"
 end
 
 
 @events = []
 mask2 = [:exit, :fork, :exec, :signal]
-proc_src2 = Dispatch::Source.process($$, mask2) do |s|
-	@events << Dispatch::Source.data2events(s.data)
+proc_src2 = Dispatch::Source.process($$, mask2, q) do |s|
+	@events += Dispatch::Source.data2events(s.data)
+	puts "Dispatch::Source.process: #{Dispatch::Source.data2events(s.data)} (#{@events})"
 end
 sig_usr1 = Signal.list["USR1"]
 Signal.trap(sig_usr1, "IGNORE")
 Process.kill(sig_usr1, $$)
 Signal.trap(sig_usr1, "DEFAULT")
-result = "%b" % (@event & mask) # => 1000000000000000000000000000 # Dispatch::Source::PROC_SIGNAL
+q.sync {}
+puts "@event: #{(result = @event & mask).to_s(2)} => 1000000000000000000000000000 (Dispatch::Source::PROC_SIGNAL)"
 proc_src.cancel!
-result2 = (@events & mask2) # => [:signal]
+puts "@events: #{(result2 = @events & mask2)} => [:signal]"
 proc_src2.cancel!
-puts result == Dispatch::Source#event2num(result2[0]) # => true
-puts result2[0] == Dispatch::Source#num2event(result) # => true
-@count = 0
+puts "event2num: #{Dispatch::Source.event2num(result2[0])} => #{result}"
+puts "data2events: #{Dispatch::Source.data2events(result)} => #{result2}"
+@signals = 0
 sig_usr2 = Signal.list["USR2"]
-signal = Dispatch::Source.signal(sig_usr2) do |s|
-	@count += s.data
+signal = Dispatch::Source.signal(sig_usr2, q) do |s|
+	puts "Dispatch::Source.signal: #{s.data} (#{@signals += s.data})"
 end
 signal.suspend!
 Signal.trap(sig_usr2, "IGNORE")
 3.times { Process.kill(sig_usr2, $$) }
 Signal.trap(sig_usr2, "DEFAULT")
+puts "signals: #{@signals} => 0"
 signal.resume!
-puts @count # => 3
+q.sync {}
+puts "signals: #{@signals} => 3"
 signal.cancel!
 @fevent = 0
 @msg = "#{$$}-#{Time.now.to_s.gsub(' ','_')}"
 filename = "/tmp/dispatch-#{@msg}"
 file = File.open(filename, "w")
 fmask = Dispatch::Source::VNODE_DELETE | Dispatch::Source::VNODE_WRITE
-file_src = Dispatch::Source.file(file.fileno, fmask) do |s|
-	@fevent |= s.data
+file_src = Dispatch::Source.file(file.fileno, fmask, q) do |s|
+	puts "Dispatch::Source.file: #{s.data.to_s(2)} (#{(@fevent |= s.data).to_s(2)})"
 end
 file.puts @msg
 file.flush
 file.close
-puts @fevent & fmask # => Dispatch::Source::VNODE_WRITE
+q.sync {}
+puts "fevent: #{@fevent & fmask} => #{Dispatch::Source::VNODE_WRITE} (Dispatch::Source::VNODE_WRITE)"
 File.delete(filename)
-puts @fevent == fmask # => true
+q.sync {}
+puts "fevent: #{@fevent} => #{fmask} (Dispatch::Source::VNODE_DELETE | Dispatch::Source::VNODE_WRITE)"
 file_src.cancel!
 
 @fevent2 = []
 file = File.open(filename, "w")
 fmask2 = %w(delete write)
-file_src2 = Dispatch::Source.file(file, fmask2) do |s|
-	@fevent2 << Dispatch::Source.data2events(s.data)
+file_src2 = Dispatch::Source.file(file, fmask2, q) do |s|
+	@fevent2 += Dispatch::Source.data2events(s.data)
+	puts "Dispatch::Source.file: #{Dispatch::Source.data2events(s.data)} (#{@fevent2})"
 end
 file.puts @msg
 file.flush
-puts @fevent2 & fmask2 # => [:write]
+q.sync {}
+puts "fevent2: #{@fevent2} => [:write]"
 file_src2.cancel!
+File.delete(filename)
+exit
 
 file = File.open(filename, "r")
 @result = ""
