@@ -293,7 +293,7 @@ The simplest way to create a queue is by passing in the object you want the queu
 
 The most common reason you want your own queue is to ensure that all pending blocks have been executed, via a +join+:
 
-	q.sync {}
+	q.join
 
 == Sources: Asynchronous Events
 
@@ -369,7 +369,7 @@ Note that we use an instance variable (since it is re-assigned), but we don't ha
 To fire a custom source, we invoke what GCD calls a _merge_ using the shovel operator ('+<<+'):
 
 	adder << 1
-	q.sync {}
+	q.join
 	puts "sum: #{@sum} => 1"
 
 The name "merge" makes more sense when you see it coalesce multiple firings into a single handler:
@@ -377,10 +377,10 @@ The name "merge" makes more sense when you see it coalesce multiple firings into
 	adder.suspend!
 	adder << 3
 	adder << 5
-	q.sync {}
+	q.join
 	puts "sum: #{@sum} => 1"
 	adder.resume!
-	q.sync {}
+	q.join
 	puts "sum: #{@sum} => 9"
 	adder.cancel!
 
@@ -393,14 +393,14 @@ Similarly, the +or+ source combines events using a logical OR (e.g, for booleans
 	@mask = 0
 	masker = Dispatch::Source.or(q) { |s| puts "Dispatch::Source.or: #{s.data.to_s(2)} (#{(@mask |= s.data).to_s(2)})"}
 	masker << 0b0001
-	q.sync {}
+	q.join
 	puts "mask: #{@mask.to_s(2)} => 1"
 	masker.suspend!
 	masker << 0b0011
 	masker << 0b1010
 	puts "mask: #{@mask.to_s(2)} => 1"
 	masker.resume!
-	q.sync {}
+	q.join
 	puts "mask: #{@mask.to_s(2)} => 1011"
 	masker.cancel!
 
@@ -452,7 +452,7 @@ To fire the event, we can, e.g., send a un-trapped signal :
 	Signal.trap(sig_usr1, "IGNORE")
 	Process.kill(sig_usr1, $$)
 	Signal.trap(sig_usr1, "DEFAULT")
-	q.sync {}
+	q.join
 
 You can check which flags were set by _and_ing against the bitmask:
 
@@ -492,7 +492,7 @@ This +Source+ overlaps slightly with the previous one, but uses +add+ to track t
 	3.times { Process.kill(sig_usr2, $$) }
 	Signal.trap(sig_usr2, "DEFAULT")
 	signal.resume!
-	q.sync {}
+	q.join
 	puts "signals: #{@signals} => 3"
 	signal.cancel!
 
@@ -527,10 +527,10 @@ As before, the underlying API expects and returns integers, e.g.:
 	file.print @msg
 	file.flush
 	file.close
-	q.sync {}
+	q.join
 	puts "fevent: #{@fevent & fmask} => #{Dispatch::Source::VNODE_WRITE} (Dispatch::Source::VNODE_WRITE)"
 	File.delete(filename)
-	q.sync {}
+	q.join
 	puts "fevent: #{@fevent} => #{fmask} (Dispatch::Source::VNODE_DELETE | Dispatch::Source::VNODE_WRITE)"
 	file_src.cancel!
 	
@@ -545,7 +545,7 @@ And of course can also use symbols:
 	end
 	file.print @msg
 	file.flush
-	q.sync {}
+	q.join
 	puts "fevent2: #{@fevent2} => [:write]"
 	file_src2.cancel!
 	
@@ -562,7 +562,7 @@ In contrast to the previous sources, these next two refer to internal state rath
 		puts "Dispatch::Source.read: #{s.data}: #{@input}"
 	end
 	while (@input.size < @msg.size) do; end
-	q.sync {}
+	q.join
 	puts "input: #{@input} => msg" # => e.g., 74323-2010-07-07_15:23:10_-0700
 	reader.cancel!
 
@@ -576,7 +576,7 @@ This +add+-style event is similar to the above, but waits until a +write+ buffer
 	@message = @msg.dup
 	writer = Dispatch::Source.write(file, q) do |s|
 		if @message.size > 0 then
-			char = @message[0..0]
+			char = @message[0]
 			file.write(char)
 			rest = @message[1..-1]
 			puts "Dispatch::Source.write: #{char}|#{rest}"
