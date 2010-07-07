@@ -338,7 +338,7 @@ If you change your mind, you can always +resume!+ the source:
 	puts "resume!"
 	sleep 1 # => 1 2 1 ...
 
-If the +Source+ has fired one or more times, it will schedule a block containing the coalesced events. In this case, we were suspended for over 2 intervals, so the next block will fire with +data+ being at least 2.  
+If the +Source+ has fired one or more times, it will schedule a block containing the coalesced events. In this case, we were suspended for over 2 intervals, so the next block will fire with +data+ being at least 2.
 
 === Source#cancel!
 
@@ -516,13 +516,15 @@ As before, the underlying API expects and returns integers, e.g.:
 
 	@fevent = 0
 	@msg = "#{$$}-#{Time.now.to_s.gsub(' ','_')}"
+	puts "msg: #{@msg}"
 	filename = "/tmp/dispatch-#{@msg}"
+	puts "filename: #{filename}"
 	file = File.open(filename, "w")
 	fmask = Dispatch::Source::VNODE_DELETE | Dispatch::Source::VNODE_WRITE
 	file_src = Dispatch::Source.file(file.fileno, fmask, q) do |s|
 		puts "Dispatch::Source.file: #{s.data.to_s(2)} (#{(@fevent |= s.data).to_s(2)})"
 	end
-	file.puts @msg
+	file.print @msg
 	file.flush
 	file.close
 	q.sync {}
@@ -541,13 +543,11 @@ And of course can also use symbols:
 		@fevent2 += Dispatch::Source.data2events(s.data)
 		puts "Dispatch::Source.file: #{Dispatch::Source.data2events(s.data)} (#{@fevent2})"
 	end
-	file.puts @msg
+	file.print @msg
 	file.flush
 	q.sync {}
 	puts "fevent2: #{@fevent2} => [:write]"
 	file_src2.cancel!
-	File.delete(filename)
-	exit
 	
 As a bonus, if you pass in an actual IO object (not just a file descriptor) the Dispatch library will automatically create a handler that closes the file for you when cancelled!
 
@@ -556,34 +556,37 @@ As a bonus, if you pass in an actual IO object (not just a file descriptor) the 
 In contrast to the previous sources, these next two refer to internal state rather than external events. Specifically, this +add+-style source avoids blocking on a +read+ by only calling the handler when it estimates there are +s.data+ unread bytes available in the buffer:  
 
 	file = File.open(filename, "r")
-	@result = ""
-	reader = Dispatch::Source.read(file) do |s|
-		@result << @file.read(s.data)
+	@input = ""
+	reader = Dispatch::Source.read(file, q) do |s|
+		@input << file.read(s.data)
+		puts "Dispatch::Source.read: #{s.data}: #{@input}"
 	end
-	while (@result.size < @msg.size) do; end
-	puts @result # => e.g., 489-Wed_Mar_24_15:59:00_-0700_2010
+	while (@input.size < @msg.size) do; end
+	q.sync {}
+	puts "input: #{@input} => msg" # => e.g., 74323-2010-07-07_15:23:10_-0700
 	reader.cancel!
 
-Strictly speaking, the count returned by +s.data+ is only an estimate. It would be safer to instead call +@file.read(1)+ to avoid any risk of blocking, but that would lead to many more block invocations, which might not be a net win.
+Strictly speaking, the count returned by +s.data+ is only an estimate. It would be safer to instead call +@file.read(1)+ each time to avoid any risk of blocking -- but that would lead to many more block invocations, which might not be a net win.
 
 ==== Source.write
 
 This +add+-style event is similar to the above, but waits until a +write+ buffer is available:
 
 	file = File.open(filename, "w")
-	@message = @msg
-	writer = Dispatch::Source.write(file) do |s|
+	@message = @msg.dup
+	writer = Dispatch::Source.write(file, q) do |s|
 		if @message.size > 0 then
 			char = @message[0..0]
-			@file.write(char)
-			@message = @message[1..-1]
+			file.write(char)
+			rest = @message[1..-1]
+			puts "Dispatch::Source.write: #{char}|#{rest}"
+			@message = rest
 		end
 	end
 	while (@message.size > 0) do; end
-	result = File.read(filename)
-	puts result # => e.g., 489-Wed_Mar_24_15:59:00_-0700_2010
+	puts "output: #{File.read(filename)} => msg" # e.g., 74323-2010-07-07_15:23:10_-0700
 
-In this case we play it safe by only writing out a single character at a time, to avoid risk of blocking (and simplify our algorithm).
+In this case we play it safe by only writing out a single character each time we are called, to avoid risk of blocking (and simplify our algorithm).
 
 = What's Next?
 

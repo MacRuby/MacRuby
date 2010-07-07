@@ -39,7 +39,7 @@ if MACOSX_VERSION >= 10.6
         @q.async {@n = 42}
         @n.should == 0
         @q.join
-        @n.should == 42        
+        @n.should == 42
       end
     end
   end

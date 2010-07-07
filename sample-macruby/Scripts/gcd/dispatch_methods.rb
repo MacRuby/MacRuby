@@ -177,13 +177,15 @@ puts "signals: #{@signals} => 3"
 signal.cancel!
 @fevent = 0
 @msg = "#{$$}-#{Time.now.to_s.gsub(' ','_')}"
+puts "msg: #{@msg}"
 filename = "/tmp/dispatch-#{@msg}"
+puts "filename: #{filename}"
 file = File.open(filename, "w")
 fmask = Dispatch::Source::VNODE_DELETE | Dispatch::Source::VNODE_WRITE
 file_src = Dispatch::Source.file(file.fileno, fmask, q) do |s|
 	puts "Dispatch::Source.file: #{s.data.to_s(2)} (#{(@fevent |= s.data).to_s(2)})"
 end
-file.puts @msg
+file.print @msg
 file.flush
 file.close
 q.sync {}
@@ -200,32 +202,33 @@ file_src2 = Dispatch::Source.file(file, fmask2, q) do |s|
 	@fevent2 += Dispatch::Source.data2events(s.data)
 	puts "Dispatch::Source.file: #{Dispatch::Source.data2events(s.data)} (#{@fevent2})"
 end
-file.puts @msg
+file.print @msg
 file.flush
 q.sync {}
 puts "fevent2: #{@fevent2} => [:write]"
 file_src2.cancel!
-File.delete(filename)
-exit
 
 file = File.open(filename, "r")
-@result = ""
-reader = Dispatch::Source.read(file) do |s|
-	@result << @file.read(s.data)
+@input = ""
+reader = Dispatch::Source.read(file, q) do |s|
+	@input << file.read(s.data)
+	puts "Dispatch::Source.read: #{s.data}: #{@input}"
 end
-while (@result.size < @msg.size) do; end
-puts @result # => e.g., 489-Wed_Mar_24_15:59:00_-0700_2010
+while (@input.size < @msg.size) do; end
+q.sync {}
+puts "input: #{@input} => msg" # => e.g., 74323-2010-07-07_15:23:10_-0700
 reader.cancel!
 file = File.open(filename, "w")
-@message = @msg
-writer = Dispatch::Source.write(file) do |s|
+@message = @msg.dup
+writer = Dispatch::Source.write(file, q) do |s|
 	if @message.size > 0 then
 		char = @message[0..0]
-		@file.write(char)
-		@message = @message[1..-1]
+		file.write(char)
+		rest = @message[1..-1]
+		puts "Dispatch::Source.write: #{char}|#{rest}"
+		@message = rest
 	end
 end
 while (@message.size > 0) do; end
-result = File.read(filename)
-puts result # => e.g., 489-Wed_Mar_24_15:59:00_-0700_2010
+puts "output: #{File.read(filename)} => msg" # e.g., 74323-2010-07-07_15:23:10_-0700
 	
