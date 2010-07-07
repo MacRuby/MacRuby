@@ -1,5 +1,6 @@
+
 #!/usr/local/bin/macruby
-require 'dispatch'
+require 'dispatch'	
 job = Dispatch::Job.new { Math.sqrt(10**100) }
 @result = job.value
 puts @result.to_int.to_s.size # => 50
@@ -23,7 +24,7 @@ puts @hash.to_s  # => "{:foo=>:bar}"
 
 
 [64, 100].each do |n|
-  job.add { @hash[n] = Math.sqrt(10**n) }
+	job.add { @hash[n] = Math.sqrt(10**n) }
 end
 puts @hash.inspect # => {64 => 1.0E32, 100 => 1.0E50}
 
@@ -59,17 +60,17 @@ p n # => 0
 (0..4).p_find_all { |i| i.odd?} # => {3, 1}
 (0..4).p_find_all(3) { |i| i.odd?} # => {3, 1}
 
-(0..4).p_find_all { |i| i == 5 } # => nil
-(0..4).p_find_all { |i| i.odd?} # => 1
-(0..4).p_find_all(3) { |i| i.odd?} # => 3
+(0..4).p_find { |i| i == 5 } # => nil
+(0..4).p_find { |i| i.odd?} # => 1
+(0..4).p_find(3) { |i| i.odd?} # => 3
 
 timer = Dispatch::Source.periodic(0.9) { |src| puts src.data }
-sleep 0.2 # => 1 1 ...
+sleep 2 # => 1 1 ...
 
 timer.suspend!
-sleep 0.2
+sleep 2
 timer.resume!
-sleep 0.2 # => 2 1 ...
+sleep 2 # => 2 1 ...
 timer.cancel!
 @sum = 0
 adder = Dispatch::Source.add { |s| @sum += s.data;  }
@@ -90,13 +91,14 @@ masker.cancel!
 @event = 0
 mask = Dispatch::Source::PROC_EXIT | Dispatch::Source::PROC_SIGNAL 
 proc_src = Dispatch::Source.process($$, mask) do |s|
-@event |= s.data
+	@event |= s.data
 end
+
 
 @events = []
 mask2 = [:exit, :fork, :exec, :signal]
 proc_src2 = Dispatch::Source.process($$, mask2) do |s|
-  @events << Dispatch::Source.data2events(s.data)
+	@events << Dispatch::Source.data2events(s.data)
 end
 sig_usr1 = Signal.list["USR1"]
 Signal.trap(sig_usr1, "IGNORE")
@@ -111,7 +113,7 @@ puts result2[0] == Dispatch::Source#num2event(result) # => true
 @count = 0
 sig_usr2 = Signal.list["USR2"]
 signal = Dispatch::Source.signal(sig_usr2) do |s|
-  @count += s.data
+	@count += s.data
 end
 signal.suspend!
 Signal.trap(sig_usr2, "IGNORE")
@@ -126,8 +128,10 @@ filename = "/tmp/dispatch-#{@msg}"
 file = File.open(filename, "w")
 fmask = Dispatch::Source::VNODE_DELETE | Dispatch::Source::VNODE_WRITE
 file_src = Dispatch::Source.file(file.fileno, fmask) do |s|
-  @fevent |= s.data
+	@fevent |= s.data
 end
+file.puts @msg
+file.flush
 file.close
 puts @fevent & fmask # => Dispatch::Source::VNODE_WRITE
 File.delete(filename)
@@ -138,20 +142,21 @@ file_src.cancel!
 file = File.open(filename, "w")
 fmask2 = %w(delete write)
 file_src2 = Dispatch::Source.file(file, fmask2) do |s|
-  @fevent2 << Dispatch::Source.data2events(s.data)
+	@fevent2 << Dispatch::Source.data2events(s.data)
 end
+file.puts @msg
+file.flush
 puts @fevent2 & fmask2 # => [:write]
 file_src2.cancel!
 
 file = File.open(filename, "r")
 @result = ""
 reader = Dispatch::Source.read(file) do |s|
-  @result << @file.read(s.data)
+	@result << @file.read(s.data)
 end
 while (@result.size < @msg.size) do; end
 puts @result # => e.g., 489-Wed_Mar_24_15:59:00_-0700_2010
 reader.cancel!
-
 file = File.open(filename, "w")
 @message = @msg
 writer = Dispatch::Source.write(file) do |s|
@@ -164,3 +169,4 @@ end
 while (@message.size > 0) do; end
 result = File.read(filename)
 puts result # => e.g., 489-Wed_Mar_24_15:59:00_-0700_2010
+	
