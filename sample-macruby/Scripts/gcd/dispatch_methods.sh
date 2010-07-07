@@ -1,3 +1,5 @@
 #!/bin/sh
 DISPATCH=../../../lib/dispatch
-grep "	" $DISPATCH/README.rdoc | sed "s/	//" | grep -v '\$ ' | tail +2
+/bin/echo -n "#!"
+which macruby
+grep "	" $DISPATCH/README.rdoc | sed "s/	//" | grep -v '\$ '

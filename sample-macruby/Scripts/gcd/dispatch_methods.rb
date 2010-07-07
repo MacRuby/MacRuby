@@ -1,4 +1,5 @@
 #!/usr/local/bin/macruby
+
 require 'dispatch'	
 job = Dispatch::Job.new { Math.sqrt(10**100) }
 @result = job.value
@@ -11,13 +12,13 @@ puts "join done (sync)"
 job.join { puts "join done (async)" }
 job.add { Math.sqrt(2**64) }
 job.value {|b| puts "#{b} => 4294967296.0" }
-@values = job.values 
+@values = job.values
 puts "#{@values.inspect} => [1.0E50]"
 job.join
 puts "#{@values.inspect} => [1.0E50, 4294967296.0]"
 job = Dispatch::Job.new {}
 @hash = job.synchronize Hash.new
-puts "#{@hash.class} => Dispatch::Proxy" # 
+puts "#{@hash.class} => Dispatch::Proxy"
 
 puts "#{job.values.class} => Dispatch::Proxy"
 
@@ -34,7 +35,7 @@ puts "#{@hash} => {64 => 1.0E32, 100 => 1.0E50}"
 
 @hash.inspect { |s| puts "#{s} => {64 => 1.0E32, 100 => 1.0E50}" }
 delegate = @hash.__value__
-puts "\n#{delegate.class} => Hash" 
+puts "\n#{delegate.class} => Hash"
 
 n = 42
 job = Dispatch::Job.new { puts "#{n} => 42" }
@@ -78,7 +79,7 @@ print (0..4).p_map(3) { |i| "#{10**i}\t" }.join
 puts "done p_map(3) [sometimes fails!?!]"
 mr = (0..4).p_mapreduce(0) { |i| 10**i }
 puts "#{mr} => 11111"
-mr = (0..4).p_mapreduce([], :concat) { |i| [10**i] } 
+mr = (0..4).p_mapreduce([], :concat) { |i| [10**i] }
 puts "#{mr} => [1, 1000, 10, 100, 10000]"
 
 mr = (0..4).p_mapreduce([], :concat, 3) { |i| [10**i] }
@@ -120,7 +121,7 @@ masker << 0b1010
 masker.resume!
 masker.cancel!
 @event = 0
-mask = Dispatch::Source::PROC_EXIT | Dispatch::Source::PROC_SIGNAL 
+mask = Dispatch::Source::PROC_EXIT | Dispatch::Source::PROC_SIGNAL
 proc_src = Dispatch::Source.process($$, mask) do |s|
 	@event |= s.data
 end

@@ -29,7 +29,6 @@ In addition, MacRuby 0.6 provides additional, higher-level abstractions and conv
 Note that MacRuby 0.6 is currently (as of March 2010) only available as source[http://www.macruby.org/source.html] or via the {nightly builds}[http://www.icoretech.org/2009/09/macruby-nightlies/]. The examples all assume you run the latest macirb and require the +dispatch+ library:
 
 	$ macirb
-	#!/usr/local/bin/macruby
 	require 'dispatch'	
 
 We also assume that you are already familiar with Ruby, though not necessarily MacRuby. No prior knowledge of C or GCD is assumed or required, but the {dispatch(3) man page}[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch.3.html] may be helpful if you wish to better understand the underlying semantics.
@@ -108,7 +107,7 @@ The easiest way to create a Proxy is to first create an empty Job:
 then ask it to wrap the object you want to modify from multiple threads:
 
 	@hash = job.synchronize Hash.new
-	puts "#{@hash.class} => Dispatch::Proxy" #
+	puts "#{@hash.class} => Dispatch::Proxy"
 	
 This is actually the same type of object used to manage the list of +values+:
 
