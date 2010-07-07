@@ -6,6 +6,7 @@ if MACOSX_VERSION >= 10.6
   describe "Dispatch::Queue" do
     before :each do
       @my_object = "Hello, World!"
+      @q = Dispatch::Queue.for(@my_object)
     end
 
     describe :labelize do
@@ -18,20 +19,27 @@ if MACOSX_VERSION >= 10.6
 
     describe :for do
       it "should return a dispatch queue" do
-        q = Dispatch::Queue.for(@my_object)
-        q.should be_kind_of Dispatch::Queue
+        @q.should be_kind_of Dispatch::Queue
       end
 
       it "should return a unique queue for each object" do
-        q1 = Dispatch::Queue.for(@my_object)
-        q2 = Dispatch::Queue.for(@my_object)
-        q1.should_not == q2
+        q = Dispatch::Queue.for(@my_object)
+        @q.should_not == q
       end
 
       it "should return a unique label for each queue" do
-        q1 = Dispatch::Queue.for(@my_object)
-        q2 = Dispatch::Queue.for(@my_object)
-        q1.to_s.should_not == q2.to_s
+        q = Dispatch::Queue.for(@my_object)
+        @q.to_s.should_not == q.to_s
+      end
+    end
+
+    describe :join do
+      it "should wait until pending blocks execute " do
+        @n = 0
+        @q.async {@n = 42}
+        @n.should == 0
+        @q.join
+        @n.should == 42        
       end
     end
   end

@@ -26,5 +26,8 @@ module Dispatch
       new(labelize(obj))
     end
     
+    def join
+      sync {}
+    end
   end
 end
