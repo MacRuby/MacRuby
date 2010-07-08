@@ -373,8 +373,13 @@ vm_fast_mult(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0 && NUMERIC_IMM_P(left) && NUMERIC_IMM_P(right)) {
 	if (FIXNUM_P(left) && FIXNUM_P(right)) {
-	    const long res = FIX2LONG(left) * FIX2LONG(right);
-	    if (FIXABLE(res)) {
+	    const long a = FIX2LONG(left);
+	    if (a == 0) {
+		return left;
+	    }
+	    const long b = FIX2LONG(right);
+	    const long res = a * b;
+	    if (FIXABLE(res) && res / a == b) {
 		return LONG2FIX(res);
 	    }
 	}
