@@ -20,6 +20,7 @@ BOOL ConstantNO;
 NSPoint ConstantNSPoint;
 NSSize ConstantNSSize;
 NSRect ConstantNSRect;
+id ConstantMagicCookie;
 
 void
 Init_constant(void)
@@ -44,4 +45,5 @@ Init_constant(void)
     ConstantNSPoint = NSMakePoint(1, 2);
     ConstantNSSize = NSMakeSize(3, 4);
     ConstantNSRect = NSMakeRect(1, 2, 3, 4);
+    ConstantMagicCookie = (id)0x1234;
 }

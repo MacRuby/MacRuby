@@ -21,4 +21,6 @@
   <constant name='ConstantUnsignedLongLong' type='Q'/>
   <constant name='ConstantUnsignedShort' type='S'/>
   <constant name='ConstantYES' type='B'/>
+  <constant name='ConstantWhichDoesNotExist' type='@'/>
+  <constant name='ConstantMagicCookie' type='@' magic_cookie='true'/>
 </signatures>

@@ -80,6 +80,14 @@ describe "A BridgeSupport constant" do
     ConstantNSRect.class.should == NSRect
     ConstantNSRect.should == NSRect.new(NSPoint.new(1, 2), NSSize.new(3, 4))
   end
+
+  it "whose symbol cannot be located at Runtime will raise a RuntimeError" do
+    lambda { ConstantWhichDoesNotExist }.should raise_error(RuntimeError)
+  end
+
+  it "tagged as a magic cookie will raise a RuntimeError (not yet supported)" do
+    lambda { ConstantMagicCookie }.should raise_error(RuntimeError)
+  end
 end
 
 describe "NSNotFound" do

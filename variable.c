@@ -1499,8 +1499,7 @@ retry:
 		rb_warn("toplevel constant %s referenced by %s::%s",
 			rb_id2name(id), rb_class2name(klass), rb_id2name(id));
 	    }
-	    value = rb_vm_resolve_const_value(value, klass, id);
-	    return value;
+	    return rb_vm_resolve_const_value(value, klass, id);
 	}
 	if (!recurse && klass != rb_cObject) {
 	    break;

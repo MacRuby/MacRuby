@@ -77,8 +77,17 @@ rb_vm_resolve_const_value(VALUE v, VALUE klass, ID id)
 
 	void *sym = dlsym(RTLD_DEFAULT, bs_const->name);
 	if (sym == NULL) {
-	    rb_bug("cannot locate symbol for BridgeSupport constant `%s'",
-		    bs_const->name);
+	    // The symbol can't be located, it's probably because the current
+	    // program links against a different version of the framework.
+	    rb_raise(rb_eRuntimeError, "can't locate symbol for constant %s",
+		rb_id2name(id));
+	}
+
+	if (bs_const->magic_cookie) {
+	    // Constant is a magic cookie. We don't support these yet.
+	    rb_raise(rb_eRuntimeError,
+		    "magic-cookie constant %s is not supported yet",
+		    rb_id2name(id));
 	}
 
 	void *convertor = GET_CORE()->gen_to_rval_convertor(bs_const->type);
