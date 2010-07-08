@@ -2843,7 +2843,7 @@ Init_Bignum(void)
     rb_objc_define_method(rb_cBignum, "%", rb_big_modulo_imp, 1);
     rb_objc_define_method(rb_cBignum, "div", rb_big_idiv_imp, 1);
     rb_objc_define_method(rb_cBignum, "divmod", rb_big_divmod_imp, 1);
-    rb_objc_define_method(rb_cBignum, "modulo", rb_big_modulo, 1);
+    rb_objc_define_method(rb_cBignum, "modulo", rb_big_modulo_imp, 1);
     rb_objc_define_method(rb_cBignum, "remainder", rb_big_remainder, 1);
     rb_objc_define_method(rb_cBignum, "fdiv", rb_big_fdiv, 1);
     rb_objc_define_method(rb_cBignum, "**", rb_big_pow_imp, 1);
