@@ -529,6 +529,9 @@ RoxorCompiler::compile_dispatch_arguments(NODE *args,
 Value *
 RoxorCompiler::compile_when_splat(Value *comparedToVal, Value *splatVal)
 {
+    if (comparedToVal == NULL) {
+	return splatVal;
+    }
     GlobalVariable *is_redefined = GET_CORE()->redefined_op_gvar(selEqq, true);
     Value *args[] = {
 	new LoadInst(is_redefined, "", bb),
@@ -4525,7 +4528,7 @@ RoxorCompiler::compile_node0(NODE *node)
 
 		assert(subnode != NULL);
 		assert(nd_type(subnode) == NODE_WHEN);
-		while ((subnode != NULL) && (nd_type(subnode) == NODE_WHEN)) {
+		while (subnode != NULL && nd_type(subnode) == NODE_WHEN) {
 		    NODE *valueNode = subnode->nd_head;
 		    assert(valueNode != NULL);
 
