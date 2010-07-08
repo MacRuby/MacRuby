@@ -400,7 +400,7 @@ rb_io_syswrite(VALUE io, SEL sel, VALUE data)
 
     data = rb_str_bstr(rb_obj_as_string(data));
     
-    if (CFDataGetLength(io_struct->buf) > 0) {
+    if (io_struct->buf && CFDataGetLength(io_struct->buf) > 0) {
 	rb_warn("Calling #syswrite on buffered I/O may lead to unexpected results");
     }
     
