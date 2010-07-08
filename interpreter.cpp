@@ -9,7 +9,7 @@
 #if !defined(MACRUBY_STATIC)
 
 #include "llvm.h"
-#include "ruby/ruby.h"
+#include "ruby/macruby.h"
 #include "ruby/node.h"
 #include "interpreter.h"
 #include "vm.h"

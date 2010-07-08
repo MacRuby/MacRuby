@@ -8,7 +8,7 @@
  * Copyright (C) 2010, Apple Inc. All rights reserved.
  */
 
-#include "ruby/ruby.h"
+#include "ruby/macruby.h"
 #include "ruby/node.h"
 #include "vm.h"
 #include "compiler.h"

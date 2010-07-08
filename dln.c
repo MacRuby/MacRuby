@@ -9,7 +9,7 @@
 
 **********************************************************************/
 
-#include "ruby/ruby.h"
+#include "ruby/macruby.h"
 #include "dln.h"
 #include <stdlib.h>
 #include <alloca.h>

@@ -77,13 +77,6 @@ extern "C" {
 #include "defines.h"
 #endif
 
-#include <objc/objc.h>
-#include <objc/runtime.h>
-#include <objc/message.h>
-#include <objc/objc-auto.h>
-#include <assert.h>
-#include <CoreFoundation/CoreFoundation.h>
-
 #if defined(HAVE_ALLOCA_H)
 #include <alloca.h>
 #else
@@ -695,9 +688,6 @@ struct RBignum {
 #define FL_USER19    (((VALUE)1)<<(FL_USHIFT+19))
 #define FL_USER20    (((VALUE)1)<<(FL_USHIFT+20))
 
-bool rb_obj_is_native(VALUE obj);
-#define NATIVE(obj) (rb_obj_is_native((VALUE)obj))
-
 #define SPECIAL_CONST_P(x) (IMMEDIATE_P(x) || !RTEST(x))
 
 #define FL_ABLE(x) (!SPECIAL_CONST_P(x) && !NATIVE(x) && BUILTIN_TYPE(x) != T_NODE)
@@ -743,8 +733,6 @@ VALUE rb_define_class_under(VALUE, const char*, VALUE);
 VALUE rb_define_module_under(VALUE, const char*);
 
 void rb_include_module(VALUE,VALUE);
-void rb_include_module2(VALUE klass, VALUE orig_klass, VALUE module, bool check,
-	bool add_methods);
 void rb_extend_object(VALUE,VALUE);
 
 void rb_define_variable(const char*,VALUE*);
@@ -793,7 +781,7 @@ const char *rb_id2name(ID val)
 const char *rb_class2name(VALUE);
 const char *rb_obj_classname(VALUE);
 
-void rb_p(VALUE, SEL);
+void rb_p(VALUE);
 
 VALUE rb_eval_string(const char*);
 VALUE rb_eval_string_protect(const char*, int*);
@@ -848,8 +836,6 @@ int rb_block_given_p(void);
 void rb_need_block(void);
 VALUE rb_iterate(VALUE(*)(VALUE),VALUE,VALUE(*)(ANYARGS),VALUE);
 VALUE rb_block_call(VALUE,ID,int,VALUE*,VALUE(*)(ANYARGS),VALUE);
-VALUE rb_objc_block_call(VALUE obj, SEL sel, int argc,
-	VALUE *argv, VALUE (*bl_proc) (ANYARGS), VALUE data2);
 VALUE rb_rescue(VALUE(*)(ANYARGS),VALUE,VALUE(*)(ANYARGS),VALUE);
 VALUE rb_rescue2(VALUE(*)(ANYARGS),VALUE,VALUE(*)(ANYARGS),VALUE,...);
 VALUE rb_ensure(VALUE(*)(ANYARGS),VALUE,VALUE(*)(ANYARGS),VALUE);
@@ -1039,54 +1025,12 @@ rb_type(VALUE obj)
     return rb_objc_type(obj);
 }
 
-static inline bool
+// static inline bool
+static inline int
 rb_special_const_p(VALUE obj)
 {
     return SPECIAL_CONST_P(obj) ? Qtrue : Qfalse;
 }
-
-#if !defined(__AUTO_ZONE__)
-boolean_t auto_zone_set_write_barrier(void *zone, const void *dest, const void *new_value);
-void auto_zone_add_root(void *zone, void *address_of_root_ptr, void *value);
-void auto_zone_retain(void *zone, void *ptr);
-unsigned int auto_zone_release(void *zone, void *ptr);
-extern void *__auto_zone;
-#else
-extern auto_zone_t *__auto_zone;
-#endif
-
-#define GC_WB(dst, newval) \
-    do { \
-	void *nv = (void *)newval; \
-	if (!SPECIAL_CONST_P(nv)) { \
-	    if (!auto_zone_set_write_barrier(__auto_zone, \
-			(const void *)dst, (const void *)nv)) { \
-		rb_bug("destination %p isn't in the auto zone", dst); \
-	    } \
-	} \
-	*(void **)dst = nv; \
-    } \
-    while (0)
-
-static inline void *
-rb_objc_retain(void *addr)
-{
-    if (addr != NULL && !SPECIAL_CONST_P(addr)) {
-        auto_zone_retain(__auto_zone, addr);
-    }
-    return addr;
-}
-#define GC_RETAIN(obj) (rb_objc_retain((void *)obj))
-
-static inline void *
-rb_objc_release(void *addr)
-{
-    if (addr != NULL && !SPECIAL_CONST_P(addr)) {
-        auto_zone_release(__auto_zone, addr);
-    }
-    return addr;
-}
-#define GC_RELEASE(obj) (rb_objc_release((void *)obj))
 
 #if RUBY_INCLUDED_AS_FRAMEWORK
 #include <MacRuby/ruby/missing.h>

@@ -9,7 +9,7 @@
  * Copyright (C) 2000 Information-technology Promotion Agency, Japan
  */
 
-#include "ruby/ruby.h"
+#include "ruby/macruby.h"
 #include "ruby/io.h"
 #include "ruby/util.h"
 #include "ruby/node.h"
@@ -2847,7 +2847,7 @@ rb_f_puts(VALUE recv, SEL sel, int argc, VALUE *argv)
 }
 
 void
-rb_p(VALUE obj, SEL sel) /* for debug print within C code */
+rb_p(VALUE obj) /* for debug print within C code */
 {
     rb_io_write(rb_stdout, rb_obj_as_string(rb_inspect(obj)));
     rb_io_write(rb_stdout, rb_default_rs);
@@ -2886,7 +2886,7 @@ rb_f_p(VALUE self, SEL sel, int argc, VALUE *argv)
     VALUE ret = Qnil;
 
     for (i = 0; i < argc; i++) {
-	rb_p(argv[i], 0);
+	rb_p(argv[i]);
     }
     if (argc == 1) {
 	ret = argv[0];

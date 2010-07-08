@@ -13,7 +13,7 @@
 #include <unistd.h>
 #include <math.h>
 
-#include "ruby/ruby.h"
+#include "ruby/macruby.h"
 #include "ruby/encoding.h"
 #include "encoding.h"
 #include "objc.h"

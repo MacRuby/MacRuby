@@ -243,7 +243,7 @@ rb_mod_undef_method(VALUE mod, SEL sel, int argc, VALUE *argv)
 static SEL selRespondToDefault = 0;
 
 static bool
-rb_obj_respond_to2(VALUE obj, VALUE klass, ID id, bool priv, bool check_override)
+rb_obj_respond_to2(VALUE obj, VALUE klass, ID id, int priv, int check_override)
 {
     const char *id_name = rb_id2name(id);
     SEL sel = sel_registerName(id_name);
@@ -657,13 +657,13 @@ rb_mod_modfunc(VALUE module, SEL sel, int argc, VALUE *argv)
  *  method is called and the result is returned.
  */
 
-bool
-rb_obj_respond_to(VALUE obj, ID id, bool priv)
+int
+rb_obj_respond_to(VALUE obj, ID id, int priv)
 {
     return rb_obj_respond_to2(obj, Qnil, id, priv, true);
 }
 
-bool
+int
 rb_respond_to(VALUE obj, ID id)
 {
     return rb_obj_respond_to(obj, id, false);

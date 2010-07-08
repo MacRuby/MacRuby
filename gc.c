@@ -17,7 +17,7 @@
 # include "auto_zone_1060.h"
 #endif
 
-#include "ruby/ruby.h"
+#include "ruby/macruby.h"
 #include "ruby/signal.h"
 #include "ruby/st.h"
 #include "ruby/node.h"

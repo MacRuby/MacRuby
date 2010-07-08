@@ -8,7 +8,7 @@
 #include "llvm.h"
 
 #undef RUBY_EXPORT
-#include "ruby.h"
+#include "ruby/macruby.h"
 #include "ruby/node.h"
 #ifdef HAVE_LOCALE_H
 #include <locale.h>

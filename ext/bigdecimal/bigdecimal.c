@@ -13,7 +13,7 @@
  *
  */
 
-#include "ruby/ruby.h"
+#include "ruby/macruby.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>

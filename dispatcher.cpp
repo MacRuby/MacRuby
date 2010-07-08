@@ -7,7 +7,7 @@
  */
 
 #include "llvm.h"
-#include "ruby/ruby.h"
+#include "ruby/macruby.h"
 #include "ruby/node.h"
 #include "id.h"
 #include "vm.h"
@@ -15,6 +15,8 @@
 #include "objc.h"
 #include "dtrace.h"
 #include "class.h"
+
+
 
 #include <execinfo.h>
 #include <dlfcn.h>

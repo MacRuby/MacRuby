@@ -7,7 +7,7 @@
  * Copyright (C) 2004-2007 Koichi Sasada
  */
 
-#include "ruby/ruby.h"
+#include "ruby/macruby.h"
 #include "ruby/node.h"
 #include "vm.h"
 #include "class.h"

@@ -9,7 +9,7 @@
  * Copyright (C) 2000 Information-technology Promotion Agency, Japan
  */
 
-#include "ruby.h"
+#include "ruby/macruby.h"
 #include "encoding.h"
 #include "unicode/ucnv.h"
 

@@ -6,7 +6,7 @@
  * Copyright (C) 2009-2010, Apple Inc. All rights reserved.
  */
 
-#include "ruby.h"
+#include "ruby/macruby.h"
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
 

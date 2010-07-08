@@ -18,7 +18,7 @@
 #include <fcntl.h>
 #include <sys/param.h>
 
-#include "ruby/ruby.h"
+#include "ruby/macruby.h"
 #include "ruby/node.h"
 #include "ruby/encoding.h"
 #include "dln.h"

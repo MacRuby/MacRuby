@@ -10,7 +10,7 @@
 #define RUBY_NKF_REVISION "$Revision: 16493 $"
 #define RUBY_NKF_VERSION NKF_VERSION " (" NKF_RELEASE_DATE ")"
 
-#include "ruby/ruby.h"
+#include "ruby/macruby.h"
 #include "ruby/encoding.h"
 
 /* Replace nkf's getchar/putchar for variable modification */

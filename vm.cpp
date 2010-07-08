@@ -49,7 +49,7 @@ using namespace llvm;
 # include <mach/mach_time.h>
 #endif
 
-#include "ruby/ruby.h"
+#include "ruby/macruby.h"
 #include "ruby/node.h"
 #include "id.h"
 #include "vm.h"

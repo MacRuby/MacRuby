@@ -5,7 +5,7 @@
   which is written in ruby.
 */
 
-#include "ruby.h"
+#include "ruby/macruby.h"
 #include <math.h>
 #include "ruby/node.h"
 #include "vm.h"

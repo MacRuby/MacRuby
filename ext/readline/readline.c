@@ -33,7 +33,7 @@
 #include <editline/readline.h>
 #endif
 
-#include "ruby/ruby.h"
+#include "ruby/macruby.h"
 #include "ruby/io.h"
 
 #ifdef HAVE_UNISTD_H

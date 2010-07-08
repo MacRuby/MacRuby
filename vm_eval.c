@@ -11,7 +11,7 @@
 
 **********************************************************************/
 
-#include "ruby/ruby.h"
+#include "ruby/macruby.h"
 #include "ruby/node.h"
 #include "ruby/st.h"
 #include "vm.h"

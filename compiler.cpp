@@ -18,7 +18,7 @@
 #include <llvm/Transforms/Utils/Cloning.h>
 
 #include "llvm.h"
-#include "ruby/ruby.h"
+#include "ruby/macruby.h"
 #include "ruby/encoding.h"
 #include "ruby/node.h"
 #include "id.h"

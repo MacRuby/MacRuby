@@ -9,7 +9,7 @@
 
 **********************************************************************/
 
-#include "ruby/ruby.h"
+#include "ruby/macruby.h"
 #include "ruby/io.h"
 #include "ruby/st.h"
 #include "ruby/util.h"

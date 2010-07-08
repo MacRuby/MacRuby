@@ -7,7 +7,7 @@
  * Copyright (C) 1993-2007 Yukihiro Matsumoto
  */
 
-#include "ruby/ruby.h"
+#include "ruby/macruby.h"
 #include "ruby/encoding.h"
 #include <ctype.h>
 #include <math.h>

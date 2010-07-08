@@ -15,7 +15,7 @@
 #define YYERROR_VERBOSE 1
 #define YYSTACK_USE_ALLOCA 0
 
-#include "ruby/ruby.h"
+#include "ruby/macruby.h"
 #include "ruby/intern.h"
 #define __IN_PARSE_Y__ 1
 #include "ruby/node.h"

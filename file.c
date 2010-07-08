@@ -11,7 +11,7 @@
 
 **********************************************************************/
 
-#include "ruby/ruby.h"
+#include "ruby/macruby.h"
 #include "ruby/io.h"
 #include "ruby/signal.h"
 #include "ruby/util.h"

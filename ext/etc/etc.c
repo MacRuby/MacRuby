@@ -7,7 +7,7 @@
 
 ************************************************/
 
-#include "ruby.h"
+#include "ruby/macruby.h"
 
 #include <sys/types.h>
 #ifdef HAVE_UNISTD_H

@@ -9,7 +9,7 @@
 
 #include "unicode/regex.h"
 #include "unicode/unistr.h"
-#include "ruby/ruby.h"
+#include "ruby/macruby.h"
 #include "encoding.h"
 #include "objc.h"
 #include "re.h"

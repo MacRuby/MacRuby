@@ -28,7 +28,7 @@ extern "C" {
 #if defined(RFILE) /*&& !defined(OSSL_DEBUG)*/
 #  undef RFILE
 #endif
-#include <ruby.h>
+#include <ruby/macruby.h>
 #include <ruby/io.h>
 
 /*
