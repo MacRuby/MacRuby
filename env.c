@@ -506,7 +506,7 @@ env_has_value(VALUE dmy, SEL sel, VALUE obj)
 }
 
 static VALUE
-env_rassoc(VALUE dmy, VALUE obj)
+env_rassoc(VALUE dmy, SEL sel, VALUE obj)
 {
     rb_secure(4);
 
