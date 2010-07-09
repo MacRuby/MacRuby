@@ -16,8 +16,6 @@
 #include "dtrace.h"
 #include "class.h"
 
-
-
 #include <execinfo.h>
 #include <dlfcn.h>
 
@@ -1344,7 +1342,7 @@ rb_vm_prepare_block(void *function, int flags, VALUE self, rb_vm_arity_t arity,
     }
 
     b->proc = Qnil;
-    b->self = self;
+    GC_WB(&b->self, self);
     b->klass = (VALUE)vm->get_current_class();
     b->parent_var_uses = parent_var_uses;
     GC_WB(&b->parent_block, parent_block);
