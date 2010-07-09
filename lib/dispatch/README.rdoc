@@ -54,7 +54,7 @@ This will wait until the value has been calculated, allowing it to be used as an
 
 Wherever possible, you should instead attempt to figure out exactly _when_  and _why_ you need to know the result of asynchronous work. Then, call +value+ with a block to also perform _that_ work asynchronously once the value has been calculated -- all without blocking the main thread:
 
-	job.value {|v| puts "value (async): #{v.to_int.to_s.size} => 1.0e+50" } # (eventually)
+	job.value {|v| puts "value (async): #{v} => 1.0e+50" } # (eventually)
 
 === Job#join: Job Completion
 
@@ -237,7 +237,7 @@ Passes each object and collects the transformed values, like +map+:
 	puts "p_map"
 
 	print (0..4).p_map(3) { |i| "#{10**i}\t" }.join
-	puts "p_map(3) [sometimes fails!?!]"
+	puts "p_map(3)"
 
 === Enumerable#p_mapreduce
 
@@ -271,9 +271,9 @@ Passes each object and returns nil if none match. Similar to +find+, it returns 
 
 	puts "find | p_find | p_find(3)"
 
-	puts (0..4).find { |i| i == 5 } # => nil
-	puts (0..4).p_find { |i| i == 5 } # => nil
-	puts (0..4).p_find(3) { |i| i == 5 } # => nil
+	puts (0..4).find { |i| i == 5 }.nil? # => nil
+	puts (0..4).p_find { |i| i == 5 }.nil? # => nil
+	puts (0..4).p_find(3) { |i| i == 5 }.nil? # => nil
 
 	puts "#{(0..4).find { |i| i.odd? }} => 1"
 	puts "#{(0..4).p_find { |i| i.odd? }} => 1?"
@@ -281,14 +281,15 @@ Passes each object and returns nil if none match. Similar to +find+, it returns 
 
 == Queues: Serialization
 
-Most of the time, you can simply use GCD's default concurrent queues or the built-in queues associated with synchronized objects.  However, if you want finer-gain control you can create and use your own queues.
+Most of the time, you can simply use GCD's default concurrent queues or the built-in queues associated with synchronized objects.  However, if you want more precise control you can create and use your own queues.
 
 === Queue::for
 
 The simplest way to create a queue is by passing in the object you want the queue +for+
 
 	puts q = Dispatch::Queue.for("my_object")
-
+	puts
+	
 === Queue#join
 
 The most common reason you want your own queue is to ensure that all pending blocks have been executed, via a +join+:
@@ -311,7 +312,9 @@ When the source “fires,” GCD will schedule the _handler_ block on the specif
 
 We'll start with a simple example: a +periodic+ timer that runs every 0.4 seconds and prints out the number of pending events:
 
-	timer = Dispatch::Source.periodic(0.4) { |src| puts "Dispatch::Source.periodic: #{src.data}" }
+	timer = Dispatch::Source.periodic(0.4) do |src|
+	 	puts "Dispatch::Source.periodic: #{src.data}"
+	end
 	sleep 1 # => 1 1 ...
 	
 If you're familiar with the C API for GCD, be aware that a +Dispatch::Source+ is fully configured at the time of instantiation, and does not need to be +resume+d. Also, times are in seconds, not nanoseconds.
@@ -347,20 +350,22 @@ Finally, you can stop the source entirely by calling +cancel!+:
 	timer.cancel!
 	puts "cancel!"
 
-Cancellation is particularly significant in MacRuby's implementation of GCD, since (due to the reliance garbage collection) there is no other way to explicitly stop using a source.  
+Cancellation is particularly significant in MacRuby's implementation of GCD, since (due to the reliance on garbage collection) there is no other way to explicitly stop using a source.  
 
 === Custom Sources
 
 Next up are _custom_ or _application-specific_ sources, which are fired explicitly by the developer instead of in response to an external event.  These simple behaviors are the primitives upon which other sources are built.
 
-Like timers, these sources default to scheduling blocks on the concurrent queue.  However, we will instead schedule them on our own queue, so can ensure the handler has been run.
+Like timers, these sources default to scheduling blocks on the concurrent queue.  However, we will instead schedule them on our own queue, to ensure the handler has been run.
 
 ==== Source.add
 
-The +add+ source accumulates the sum of the event data (e.g., for numbers) in a thread-safe manner:
+The +add+ source accumulates the sum of the event data (e.g., for a counter) in a thread-safe manner:
 
 	@sum = 0
-	adder = Dispatch::Source.add(q) { |s| puts "Dispatch::Source.add: #{s.data} (#{@sum += s.data})" }
+	adder = Dispatch::Source.add(q) do |s|
+	 	puts "Dispatch::Source.add: #{s.data} (#{@sum += s.data})"
+	end
 
 Note that we use an instance variable (since it is re-assigned), but we don't have to +synchronize+ it -- and can safely re-assign it -- since the event handler does not need to be reentrant.
 
@@ -391,7 +396,10 @@ Since the source is suspended -- mimicking what would happen if your event handl
 Similarly, the +or+ source combines events using a logical OR (e.g, for booleans or bitmasks):
 
 	@mask = 0
-	masker = Dispatch::Source.or(q) { |s| puts "Dispatch::Source.or: #{s.data.to_s(2)} (#{(@mask |= s.data).to_s(2)})"}
+	masker = Dispatch::Source.or(q) do |s|
+		@mask |= s.data
+		puts "Dispatch::Source.or: #{s.data.to_s(2)} (#{@mask.to_s(2)})"
+	end
 	masker << 0b0001
 	q.join
 	puts "mask: #{@mask.to_s(2)} => 1"
@@ -414,12 +422,12 @@ Let's see how both of use are used for sources which deal with UNIX processes.
 
 This +or+-style source takes and returns a mask of different events affecting the specified +process+:
 
-exec::Dispatch::Source.PROC_EXEC
-exit::Dispatch::Source.PROC_EXIT
-fork::Dispatch::Source.PROC_FORK
-signal::Dispatch::Source.PROC_SIGNAL
+exec:: Dispatch::Source.PROC_EXEC
+exit:: Dispatch::Source.PROC_EXIT
+fork:: Dispatch::Source.PROC_FORK
+signal:: Dispatch::Source.PROC_SIGNAL
 
-_[WARNING: +Thread#fork+ is not supported by MacRuby]_
+[*WARNING*: +Thread#fork+ is not supported by MacRuby]
 
 The underlying API expects and returns integers, e.g.:
 
@@ -438,13 +446,14 @@ Alternatively, you can pass in array of names (symbols or strings) for the mask,
 	@events = []
 	mask2 = [:exit, :fork, :exec, :signal]
 	proc_src2 = Dispatch::Source.process($$, mask2, q) do |s|
-		@events += Dispatch::Source.data2events(s.data)
-		puts "Dispatch::Source.process: #{Dispatch::Source.data2events(s.data)} (#{@events})"
+		this_events = Dispatch::Source.data2events(s.data)
+		@events += this_events
+		puts "Dispatch::Source.process: #{this_events} (#{@events})"
 	end
 
 ==== Source.process Example
 
-_[WARNING: Signals are only partially implemented in the current version of MacRuby, and may give erratic results]_
+[*WARNING*: Signals are only partially implemented in the current version of MacRuby, and may give erratic results]_
 
 To fire the event, we can, e.g., send a un-trapped signal :
 
@@ -456,7 +465,9 @@ To fire the event, we can, e.g., send a un-trapped signal :
 
 You can check which flags were set by _and_ing against the bitmask:
 
-	puts "@event: #{(result = @event & mask).to_s(2)} => 1000000000000000000000000000 (Dispatch::Source::PROC_SIGNAL)"
+	result = @event & mask
+	print "@event: #{result.to_s(2)} =>"
+	puts  " #{Dispatch::Source::PROC_SIGNAL} (Dispatch::Source::PROC_SIGNAL)"
 	proc_src.cancel!
 
 Or equivalently, intersecting the array:
@@ -504,13 +515,13 @@ Next up are sources which deal with file operations -- actually, anything that m
 
 This +or+-style source takes and returns a mask of different events affecting the specified +file+:
 
-delete::Dispatch::Source.VNODE_DELETE
-write::Dispatch::Source.VNODE_WRITE
-extend::Dispatch::Source.VNODE_EXTEND
-attrib::Dispatch::Source.VNODE_ATTRIB
-link::Dispatch::Source.VNODE_LINK
-rename::Dispatch::Source.VNODE_RENAME
-revoke::Dispatch::Source.VNODE_REVOKE
+delete:: Dispatch::Source.VNODE_DELETE
+write:: Dispatch::Source.VNODE_WRITE
+extend:: Dispatch::Source.VNODE_EXTEND
+attrib:: Dispatch::Source.VNODE_ATTRIB
+link:: Dispatch::Source.VNODE_LINK
+rename:: Dispatch::Source.VNODE_RENAME
+revoke:: Dispatch::Source.VNODE_REVOKE
 
 As before, the underlying API expects and returns integers, e.g.:
 
@@ -528,10 +539,12 @@ As before, the underlying API expects and returns integers, e.g.:
 	file.flush
 	file.close
 	q.join
-	puts "fevent: #{@fevent & fmask} => #{Dispatch::Source::VNODE_WRITE} (Dispatch::Source::VNODE_WRITE)"
+	print "fevent: #{@fevent & fmask} =>"
+	puts " #{Dispatch::Source::VNODE_WRITE} (Dispatch::Source::VNODE_WRITE)"
 	File.delete(filename)
 	q.join
-	puts "fevent: #{@fevent} => #{fmask} (Dispatch::Source::VNODE_DELETE | Dispatch::Source::VNODE_WRITE)"
+	print "fevent: #{@fevent} => #{fmask}" 
+	puts " (Dispatch::Source::VNODE_DELETE | Dispatch::Source::VNODE_WRITE)"
 	file_src.cancel!
 	
 And of course can also use symbols:
@@ -563,7 +576,7 @@ In contrast to the previous sources, these next two refer to internal state rath
 	end
 	while (@input.size < @msg.size) do; end
 	q.join
-	puts "input: #{@input} => msg" # => e.g., 74323-2010-07-07_15:23:10_-0700
+	puts "input: #{@input} => #{@msg}" # => e.g., 74323-2010-07-07_15:23:10_-0700
 	reader.cancel!
 
 Strictly speaking, the count returned by +s.data+ is only an estimate. It would be safer to instead call +@file.read(1)+ each time to avoid any risk of blocking -- but that would lead to many more block invocations, which might not be a net win.
@@ -573,18 +586,18 @@ Strictly speaking, the count returned by +s.data+ is only an estimate. It would 
 This +add+-style event is similar to the above, but waits until a +write+ buffer is available:
 
 	file = File.open(filename, "w")
-	@message = @msg.dup
+	@next_char = 0
 	writer = Dispatch::Source.write(file, q) do |s|
-		if @message.size > 0 then
-			char = @message[0]
+		if @next_char < @msg.size then
+			char = @msg[@next_char]
 			file.write(char)
-			rest = @message[1..-1]
-			puts "Dispatch::Source.write: #{char}|#{rest}"
-			@message = rest
+			@next_char += 1	
+			puts "Dispatch::Source.write: #{char}|#{@msg[@next_char..-1]}"
 		end
 	end
-	while (@message.size > 0) do; end
-	puts "output: #{File.read(filename)} => msg" # e.g., 74323-2010-07-07_15:23:10_-0700
+	while (@next_char < @msg.size) do; end
+	puts "output: #{File.read(filename)} => #{@msg}" # e.g., 74323-2010-07-07_15:23:10_-0700
+	File.delete(filename)
 
 In this case we play it safe by only writing out a single character each time we are called, to avoid risk of blocking (and simplify our algorithm).
 

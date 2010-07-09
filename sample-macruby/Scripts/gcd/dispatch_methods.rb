@@ -5,7 +5,7 @@ job = Dispatch::Job.new { Math.sqrt(10**100) }
 @result = job.value
 puts "value (sync): #{@result} => 1.0e+50"
 
-job.value {|v| puts "value (async): #{v.to_int.to_s.size} => 1.0e+50" } # (eventually)
+job.value {|v| puts "value (async): #{v} => 1.0e+50" } # (eventually)
 job.join
 puts "join done (sync)"
 
@@ -76,7 +76,7 @@ puts "map"
 print (0..4).p_map { |i| "#{10**i}\t" }.join
 puts "p_map"
 print (0..4).p_map(3) { |i| "#{10**i}\t" }.join
-puts "p_map(3) [sometimes fails!?!]"
+puts "p_map(3)"
 mr = (0..4).p_mapreduce(0) { |i| 10**i }
 puts "p_mapreduce: #{mr} => 11111"
 mr = (0..4).p_mapreduce([], :concat) { |i| [10**i] }
@@ -90,16 +90,20 @@ puts (0..4).p_find_all { |i| i.odd? }.inspect
 puts (0..4).p_find_all(3) { |i| i.odd? }.inspect
 
 puts "find | p_find | p_find(3)"
-puts (0..4).find { |i| i == 5 } # => nil
-puts (0..4).p_find { |i| i == 5 } # => nil
-puts (0..4).p_find(3) { |i| i == 5 } # => nil
+puts (0..4).find { |i| i == 5 }.nil? # => nil
+puts (0..4).p_find { |i| i == 5 }.nil? # => nil
+puts (0..4).p_find(3) { |i| i == 5 }.nil? # => nil
 puts "#{(0..4).find { |i| i.odd? }} => 1"
 puts "#{(0..4).p_find { |i| i.odd? }} => 1?"
 puts "#{(0..4).p_find(3) { |i| i.odd? }} => 3?"
 puts q = Dispatch::Queue.for("my_object")
+puts
+
 q.join
 
-timer = Dispatch::Source.periodic(0.4) { |src| puts "Dispatch::Source.periodic: #{src.data}" }
+timer = Dispatch::Source.periodic(0.4) do |src|
+ 	puts "Dispatch::Source.periodic: #{src.data}"
+end
 sleep 1 # => 1 1 ...
 
 timer.suspend!
@@ -111,7 +115,9 @@ sleep 1 # => 1 2 1 ...
 timer.cancel!
 puts "cancel!"
 @sum = 0
-adder = Dispatch::Source.add(q) { |s| puts "Dispatch::Source.add: #{s.data} (#{@sum += s.data})" }
+adder = Dispatch::Source.add(q) do |s|
+ 	puts "Dispatch::Source.add: #{s.data} (#{@sum += s.data})"
+end
 adder << 1
 q.join
 puts "sum: #{@sum} => 1"
@@ -125,7 +131,10 @@ q.join
 puts "sum: #{@sum} => 9"
 adder.cancel!
 @mask = 0
-masker = Dispatch::Source.or(q) { |s| puts "Dispatch::Source.or: #{s.data.to_s(2)} (#{(@mask |= s.data).to_s(2)})"}
+masker = Dispatch::Source.or(q) do |s|
+	@mask |= s.data
+	puts "Dispatch::Source.or: #{s.data.to_s(2)} (#{@mask.to_s(2)})"
+end
 masker << 0b0001
 q.join
 puts "mask: #{@mask.to_s(2)} => 1"
@@ -147,15 +156,18 @@ end
 @events = []
 mask2 = [:exit, :fork, :exec, :signal]
 proc_src2 = Dispatch::Source.process($$, mask2, q) do |s|
-	@events += Dispatch::Source.data2events(s.data)
-	puts "Dispatch::Source.process: #{Dispatch::Source.data2events(s.data)} (#{@events})"
+	this_events = Dispatch::Source.data2events(s.data)
+	@events += this_events
+	puts "Dispatch::Source.process: #{this_events} (#{@events})"
 end
 sig_usr1 = Signal.list["USR1"]
 Signal.trap(sig_usr1, "IGNORE")
 Process.kill(sig_usr1, $$)
 Signal.trap(sig_usr1, "DEFAULT")
 q.join
-puts "@event: #{(result = @event & mask).to_s(2)} => 1000000000000000000000000000 (Dispatch::Source::PROC_SIGNAL)"
+result = @event & mask
+print "@event: #{result.to_s(2)} =>"
+puts  " #{Dispatch::Source::PROC_SIGNAL} (Dispatch::Source::PROC_SIGNAL)"
 proc_src.cancel!
 puts "@events: #{(result2 = @events & mask2)} => [:signal]"
 proc_src2.cancel!
@@ -189,10 +201,12 @@ file.print @msg
 file.flush
 file.close
 q.join
-puts "fevent: #{@fevent & fmask} => #{Dispatch::Source::VNODE_WRITE} (Dispatch::Source::VNODE_WRITE)"
+print "fevent: #{@fevent & fmask} =>"
+puts " #{Dispatch::Source::VNODE_WRITE} (Dispatch::Source::VNODE_WRITE)"
 File.delete(filename)
 q.join
-puts "fevent: #{@fevent} => #{fmask} (Dispatch::Source::VNODE_DELETE | Dispatch::Source::VNODE_WRITE)"
+print "fevent: #{@fevent} => #{fmask}" 
+puts " (Dispatch::Source::VNODE_DELETE | Dispatch::Source::VNODE_WRITE)"
 file_src.cancel!
 
 @fevent2 = []
@@ -216,19 +230,19 @@ reader = Dispatch::Source.read(file, q) do |s|
 end
 while (@input.size < @msg.size) do; end
 q.join
-puts "input: #{@input} => msg" # => e.g., 74323-2010-07-07_15:23:10_-0700
+puts "input: #{@input} => #{@msg}" # => e.g., 74323-2010-07-07_15:23:10_-0700
 reader.cancel!
 file = File.open(filename, "w")
-@message = @msg.dup
+@next_char = 0
 writer = Dispatch::Source.write(file, q) do |s|
-	if @message.size > 0 then
-		char = @message[0]
+	if @next_char < @msg.size then
+		char = @msg[@next_char]
 		file.write(char)
-		rest = @message[1..-1]
-		puts "Dispatch::Source.write: #{char}|#{rest}"
-		@message = rest
+		@next_char += 1	
+		puts "Dispatch::Source.write: #{char}|#{@msg[@next_char..-1]}"
 	end
 end
-while (@message.size > 0) do; end
-puts "output: #{File.read(filename)} => msg" # e.g., 74323-2010-07-07_15:23:10_-0700
+while (@next_char < @msg.size) do; end
+puts "output: #{File.read(filename)} => #{@msg}" # e.g., 74323-2010-07-07_15:23:10_-0700
+File.delete(filename)
 	
