@@ -1362,13 +1362,17 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
     if (line_limit != -1) {
 	rb_bstr_resize(bstr, line_limit);
 	uint8_t *bytes = rb_bstr_bytes(bstr);
-	rb_io_read_internal(io_struct, bytes, line_limit);
-#if 0 // TODO
-	CFRange r = CFStringFind((CFStringRef)bstr, (CFStringRef)sep, 0);
-	if (r.location != kCFNotFound) {
-	    CFDataSetLength(data, r.location);
+	long r = rb_io_read_internal(io_struct, bytes, line_limit);
+
+	CFRange range = CFStringFind((CFStringRef)bstr, (CFStringRef)sep, 0);
+	if (range.location != kCFNotFound) {
+	    rb_io_create_buf(io_struct);
+	    long rest_size = r - (range.location + 1);
+	    CFDataAppendBytes(io_struct->buf, bytes + range.location + 1, rest_size);
+	    r = range.location + 1;
 	}
-#endif
+	// Resize the buffer to whatever was actually read (can be different from asked size)
+	rb_bstr_resize(bstr, r);
     }
     else {
 	const char *sepstr = RSTRING_PTR(sep);
