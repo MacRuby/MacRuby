@@ -813,21 +813,35 @@ rb_struct_select(VALUE s, SEL sel, int argc, VALUE *argv)
  */
 
 static VALUE
+rb_struct_equal_r(VALUE s, VALUE s2, int recur)
+{
+    if (recur) {
+	return Qtrue;
+    }
+    for (int i = 0; i < RSTRUCT_LEN(s); i++) {
+	if (!rb_equal(RSTRUCT_PTR(s)[i], RSTRUCT_PTR(s2)[i])) {
+	    return Qfalse;
+	}
+    }
+    return Qtrue;
+}
+
+static VALUE
 rb_struct_equal(VALUE s, SEL sel, VALUE s2)
 {
-    long i;
-
-    if (s == s2) return Qtrue;
-    if (TYPE(s2) != T_STRUCT) return Qfalse;
-    if (rb_obj_class(s) != rb_obj_class(s2)) return Qfalse;
+    if (s == s2) {
+	return Qtrue;
+    }
+    if (TYPE(s2) != T_STRUCT) {
+	return Qfalse;
+    }
+    if (rb_obj_class(s) != rb_obj_class(s2)) {
+	return Qfalse;
+    }
     if (RSTRUCT_LEN(s) != RSTRUCT_LEN(s2)) {
 	rb_bug("inconsistent struct"); /* should never happen */
     }
-
-    for (i=0; i<RSTRUCT_LEN(s); i++) {
-	if (!rb_equal(RSTRUCT_PTR(s)[i], RSTRUCT_PTR(s2)[i])) return Qfalse;
-    }
-    return Qtrue;
+    return rb_exec_recursive(rb_struct_equal_r, s, s2);
 }
 
 /*
