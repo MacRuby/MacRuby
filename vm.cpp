@@ -4876,6 +4876,7 @@ Init_VM(void)
 {
     rb_cTopLevel = rb_define_class("TopLevel", rb_cObject);
     rb_objc_define_method(rb_cTopLevel, "to_s", (void *)rb_toplevel_to_s, 0);
+    rb_objc_define_method(rb_cTopLevel, "inspect", (void *)rb_toplevel_to_s, 0);
 
     GET_VM()->set_current_class(NULL);
 
