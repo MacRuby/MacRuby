@@ -460,13 +460,13 @@ io_write(VALUE io, SEL sel, VALUE data)
     if (length == 0) {
         return INT2FIX(0);
     }
-	
+
     ssize_t code = write(io_struct->write_fd, buffer, length);
     if (code == -1) {
 	rb_sys_fail("write() failed");
     }
 
-    if (io_struct->buf != NULL) {
+    if (io_struct->buf != NULL && CFDataGetLength(io_struct->buf) > 0) {
 	if (length > CFDataGetLength(io_struct->buf) - io_struct->buf_offset) {
 	    CFDataIncreaseLength(io_struct->buf, length);
 	}
