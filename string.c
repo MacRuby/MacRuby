@@ -3879,7 +3879,9 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 			    results[0].end - results[0].beg));
                 val = rb_obj_as_string(val);
             }
-	    rstr_frozen_check(str);
+	    if (bang) {
+		rstr_frozen_check(str);
+	    }
 	    if (block_given) {
 		rb_backref_set(match);
 		RETURN_IF_BROKEN();
