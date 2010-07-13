@@ -340,7 +340,7 @@ Init_NSString(void)
     forward_bang("[]=", -1);
     forward("slice", -1);
     forward_bang("slice!", -1);
-    forward_bang("insert", 3);
+    forward_bang("insert", 2);
     forward("index", -1);
     forward("rindex", -1);
     forward("+", 1);
@@ -381,9 +381,9 @@ Init_NSString(void)
     forward("ljust", -1);
     forward("rjust", -1);
     forward("center", -1);
-    forward("strip", -1);
-    forward("lstrip", -1);
-    forward("rstrip", -1);
+    forward("strip", 0);
+    forward("lstrip", 0);
+    forward("rstrip", 0);
     forward_bang("strip!", 0);
     forward_bang("lstrip!", 0);
     forward_bang("rstrip!", 0);
