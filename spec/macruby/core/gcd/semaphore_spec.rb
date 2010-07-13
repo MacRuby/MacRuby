@@ -10,24 +10,25 @@ if MACOSX_VERSION >= 10.6
       @sema1 = Dispatch::Semaphore.new 1
       @q = Dispatch::Queue.new('org.macruby.gcd_spec.semaphore')
     end
+    describe :new do
+      it "returns an instance of Semaphore for non-negative counts" do
+        @sema0.should be_kind_of(Dispatch::Semaphore)
+        @sema1.should be_kind_of(Dispatch::Semaphore)
+      end
 
-    it "returns an instance of Semaphore for non-negative counts" do
-      @sema0.should be_kind_of(Dispatch::Semaphore)
-      @sema1.should be_kind_of(Dispatch::Semaphore)
-    end
+      it "raises an ArgumentError if the count isn't specified" do
+        lambda { Dispatch::Semaphore.new }.should raise_error(ArgumentError)
+      end
 
-    it "raises an ArgumentError if the count isn't specified" do
-      lambda { Dispatch::Semaphore.new }.should raise_error(ArgumentError)
-    end
+      it "raises a TypeError if a non-numeric count is provided" do
+        lambda { Dispatch::Semaphore.new :foo }.should raise_error(TypeError)
+        lambda { Dispatch::Semaphore.new 3.5 }.should_not raise_error(TypeError)
+        lambda { Dispatch::Semaphore.new "3" }.should raise_error(TypeError)
+      end
 
-    it "raises a TypeError if a non-numeric count is provided" do
-      lambda { Dispatch::Semaphore.new :foo }.should raise_error(TypeError)
-      lambda { Dispatch::Semaphore.new 3.5 }.should_not raise_error(TypeError)
-      lambda { Dispatch::Semaphore.new "3" }.should raise_error(TypeError)
-    end
-
-    it "raises an ArgumentError if the specified count is less than zero" do
-      lambda { Dispatch::Semaphore.new -1 }.should raise_error(ArgumentError)
+      it "raises an ArgumentError if the specified count is less than zero" do
+        lambda { Dispatch::Semaphore.new -1 }.should raise_error(ArgumentError)
+      end
     end
 
     describe :wait do

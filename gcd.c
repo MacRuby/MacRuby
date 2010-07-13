@@ -129,6 +129,14 @@ Check_Group(VALUE object)
     }
 }
 
+static VALUE 
+rb_raise_init(VALUE self, SEL sel)
+{
+	rb_raise(rb_eArgError, "initializer called without any arguments");
+    return self;
+}
+
+
 #define SEC2NSEC_UINT64(sec) (uint64_t)(sec * NSEC_PER_SEC)
 #define SEC2NSEC_INT64(sec) (int64_t)(sec * NSEC_PER_SEC)
 #define TIMEOUT_MAX (1.0 * INT64_MAX / NSEC_PER_SEC)
@@ -1234,6 +1242,7 @@ Init_Dispatch(void)
     rb_objc_define_method(*(VALUE *)cQueue, "current", rb_queue_get_current, 0);
     rb_objc_define_method(*(VALUE *)cQueue, "main", rb_queue_get_main, 0);
     rb_objc_define_method(cQueue, "initialize", rb_queue_init, 1);
+    rb_objc_define_method(cQueue, "initialize", rb_raise_init, 0);
     rb_objc_define_method(cQueue, "apply", rb_queue_apply, 1);
     rb_objc_define_method(cQueue, "async", rb_queue_dispatch_async, -1);
     rb_objc_define_method(cQueue, "sync", rb_queue_dispatch_sync, 0);
@@ -1268,7 +1277,7 @@ Init_Dispatch(void)
     rb_objc_define_method(*(VALUE *)cGroup, "alloc", rb_group_alloc, 0);
     rb_objc_define_method(cGroup, "initialize", rb_group_init, 0);
     rb_objc_define_method(cGroup, "notify", rb_group_notify, 1);
-    rb_objc_define_method(cGroup, "on_completion", rb_group_notify, 1);
+    rb_objc_define_method(cGroup, "on_completion", rb_group_notify, 1); // deprecated
     rb_objc_define_method(cGroup, "wait", rb_group_wait, -1);
     
     rb_group_finalize_super = rb_objc_install_method2((Class)cGroup,
@@ -1318,6 +1327,7 @@ Init_Dispatch(void)
     rb_objc_define_method(*(VALUE *)cSource, "alloc", rb_source_alloc, 0);
     rb_objc_define_method(*(VALUE *)cSource, "timer", rb_source_timer, 4);
     rb_objc_define_method(cSource, "initialize", rb_source_init, 4);
+    rb_objc_define_method(cSource, "initialize", rb_raise_init, 0);
     rb_objc_define_method(cSource, "cancelled?", rb_source_cancelled_p, 0);
     rb_objc_define_method(cSource, "cancel!", rb_source_cancel, 0);
     rb_objc_define_method(cSource, "resume!", rb_dispatch_resume, 0);
@@ -1338,6 +1348,7 @@ Init_Dispatch(void)
     cSemaphore = rb_define_class_under(mDispatch, "Semaphore", rb_cObject);
     rb_objc_define_method(*(VALUE *)cSemaphore, "alloc", rb_semaphore_alloc, 0);
     rb_objc_define_method(cSemaphore, "initialize", rb_semaphore_init, 1);
+    rb_objc_define_method(cSemaphore, "initialize", rb_raise_init, 0);
     rb_objc_define_method(cSemaphore, "wait", rb_semaphore_wait, -1);
     rb_objc_define_method(cSemaphore, "signal", rb_semaphore_signal, 0);
     rb_semaphore_finalize_super = rb_objc_install_method2((Class)cSemaphore,
