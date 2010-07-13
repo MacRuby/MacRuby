@@ -52,6 +52,7 @@ if MACOSX_VERSION >= 10.6
     describe "of type" do
       before :each do
         @q = Dispatch::Queue.new('org.macruby.gcd_spec.sources')
+        @sm = Dispatch::Semaphore.new(0)
       end
 
       after :each do
@@ -75,9 +76,9 @@ if MACOSX_VERSION >= 10.6
 
         it "fires event handler on merge" do
           @i = 0
-          src = Dispatch::Source.new(@type, 0, 0, @q) {|s|  @i = 42}
+          src = Dispatch::Source.new(@type, 0, 0, @q) {|s|  @i = 42; @sm.signal}
           src << 42
-          @q.sync { }
+          @sm.wait
           @i.should == 42
         end        
 
@@ -85,9 +86,10 @@ if MACOSX_VERSION >= 10.6
           @flag = false
           src = Dispatch::Source.new(@type, 0, 0, @q) do |source|
             @flag = (source.is_a? Dispatch::Source)
+            @sm.signal
           end
           src << 42
-          @q.sync { }
+          @sm.wait
           @flag.should == true
         end        
 
@@ -95,9 +97,10 @@ if MACOSX_VERSION >= 10.6
           @i = 0
           src = Dispatch::Source.new(@type, 0, 0, @q) do |source|
             @i = source.data
+            @sm.signal
           end
           src << 42
-          @q.sync { }
+          @sm.wait
           @i.should == 42
         end        
 
@@ -105,12 +108,13 @@ if MACOSX_VERSION >= 10.6
           @i = 0
           src = Dispatch::Source.new(@type, 0, 0, @q) do |source|
             @i = source.data
+            @sm.signal
           end
           src.suspend!
           src << 17
           src << 25
           src.resume!
-          @q.sync { }
+          @sm.wait
           @i.should == 42
         end        
       end
@@ -128,9 +132,9 @@ if MACOSX_VERSION >= 10.6
 
         it "fires event handler on merge" do
           @i = 0
-          src = Dispatch::Source.new(@type, 0, 0, @q) {|s|  @i = 42}
+          src = Dispatch::Source.new(@type, 0, 0, @q) {|s|  @i = 42; @sm.signal}
           src << 42
-          @q.sync { }
+          @sm.wait
           @i.should == 42
         end        
         
@@ -138,12 +142,13 @@ if MACOSX_VERSION >= 10.6
           @i = 0
           src = Dispatch::Source.new(@type, 0, 0, @q) do |source|
             @i = source.data
+            @sm.signal
           end
           src.suspend!
           src << 0b000_010
           src << 0b101_000
           src.resume!
-          @q.sync { }
+          @sm.wait
           @i.should == 42 #0b101_010
           src.cancel!
         end        
@@ -169,11 +174,12 @@ if MACOSX_VERSION >= 10.6
           src = Dispatch::Source.new(@type, $$, @mask, @q) do |s|
             @i = s.data
             @fired = true
+            @sm.signal
           end
           Signal.trap(@signal, "IGNORE")
           Process.kill(@signal, $$)
           Signal.trap(@signal, "DEFAULT")
-          @q.sync { }
+          @sm.wait
           #while (@fired == false) do; end
           @fired.should == true
           @i.should == @mask
@@ -199,12 +205,12 @@ if MACOSX_VERSION >= 10.6
           src = Dispatch::Source.new(@type, @signal, 0, @q) do |s|
             @i = s.data
             @fired = true
+            @sm.signal
           end
           Signal.trap(@signal, "IGNORE")
           Process.kill(@signal, $$)
           Signal.trap(@signal, "DEFAULT")
-          @q.sync { }
-          #while (@fired == false) do; end
+          @sm.wait
           @fired.should == true
           @i.should == 1
           src.cancel!
@@ -336,11 +342,11 @@ if MACOSX_VERSION >= 10.6
             @src = Dispatch::Source.new(@type, @file.to_i, @mask, @q) do |s|
                 @flag = s.data
                 @fired = true
+                @sm.signal
             end
             @file.write(@msg)
             @file.flush
-            @q.sync { }
-            #while (@fired == false) do; end
+            @sm.wait
             @fired.should == true
             @flag.should == @mask
           end    
@@ -348,7 +354,7 @@ if MACOSX_VERSION >= 10.6
           it "does not close file when cancelled given descriptor" do
             @src = Dispatch::Source.new(@type, @file.to_i, 0, @q) { }
             @src.cancel!
-            @q.sync { }
+            @sm.wait
             @file.closed?.should == false
           end
 
