@@ -26,6 +26,7 @@ module Dispatch
       new(labelize(obj))
     end
     
+    # Wait until pending blocks have completed
     def join
       sync {}
     end
