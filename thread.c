@@ -171,8 +171,7 @@ thread_join_m(VALUE self, SEL sel, int argc, VALUE *argv)
 	    }
 	}
 	else {
-	    // Timeout given: sleep then check if the thread is dead.
-	    // TODO do multiple sleeps instead of only one.
+	    // Timeout given: sleep and check if the thread is dead.
 	    struct timeval tv = rb_time_interval(timeout);
 	    struct timespec ts;
 	    ts.tv_sec = tv.tv_sec;
@@ -181,13 +180,34 @@ thread_join_m(VALUE self, SEL sel, int argc, VALUE *argv)
 		ts.tv_sec += 1;
 		ts.tv_nsec -= 1000000000;
 	    }
-	    nanosleep(&ts, NULL);
-	    if (t->status != THREAD_DEAD) {
-		return Qnil;
+
+	    while (ts.tv_sec > 0 || ts.tv_nsec > 0) {
+		struct timespec its;
+again:
+		if (ts.tv_nsec > 100000000) {
+		    ts.tv_nsec -= 100000000;
+		    its.tv_sec = 0;
+		    its.tv_nsec = 100000000;
+		}
+		else if (ts.tv_sec > 0) {
+		    ts.tv_sec -= 1;
+		    ts.tv_nsec += 1000000000;
+		    goto again;
+		}
+		else {
+		    its = ts;
+		    ts.tv_sec = ts.tv_nsec = 0;
+		}
+		nanosleep(&its, NULL);
+		if (t->status == THREAD_DEAD) {
+		    goto dead;
+		}
 	    }
+	    return Qnil;
 	}
     }
 
+dead:
     // If the thread was terminated because of an exception, we need to
     // propagate it.
     if (t->exception != Qnil) {
