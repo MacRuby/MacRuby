@@ -8,7 +8,7 @@ This article explains how to use Grand Central Dispatch (*GCD*) from MacRuby, an
 	
 GCD is a revolutionary approach to multicore computing that is woven throughout the fabric of {Mac OS X}[http://www.apple.com/macosx/] version 10.6 Snow Leopard. GCD combines an easy-to-use programming model with highly-efficient system services to radically simplify the code needed to make best use of multiple processors. The technologies in GCD improve the performance, efficiency, and responsiveness of Snow Leopard out of the box, and will deliver even greater benefits as more developers adopt them.
 
-The central insight of GCD is shifting the responsibility for managing threads and their execution from applications to the operating system. As a result, programmers can write less code to deal with concurrent operations in their applications, and the system can perform more efficiently on single-processor machines, large multiprocessor servers, and everything in between. Without a pervasive approach such as GCD, even the best-written application cannot deliver optimal performance, because it doesn't have full insight into everything else happening in the system. 
+The central insight of GCD is shifting the responsibility for managing threads and their execution from applications to the operating system. As a result, programmers can write less code to deal with concurrent operations in their applications, and the system can perform more efficiently on single-processor machines, large multiprocessor servers, and everything in between. Without a pervasive approach such as GCD, even the best-written application cannot deliver optimal performance, because it doesn't have full insight into everything else happening in the system.
 
 === The MacRuby Dispatch module
 
@@ -22,7 +22,7 @@ Dispatch::Source:: Monitors and coalesces low-level system events so that they c
 
 Dispatch::Semaphore:: Synchronizes threads via a combination of waiting and signalling.
 
-In addition, MacRuby 0.6 provides additional, higher-level abstractions and convenience APIs such as +Job+ and +Proxy+ via the "dispatch" library (i.e., +require 'dispatch'+). As the MacRuby 0.6 features help reduce the learning curve for GCD, we will assume those for the remainder of this article. 
+In addition, MacRuby 0.6 provides additional, higher-level abstractions and convenience APIs such as +Job+ and +Proxy+ via the "dispatch" library (i.e., +require 'dispatch'+). As the MacRuby 0.6 features help reduce the learning curve for GCD, we will assume those for the remainder of this article.
 
 === What You Need
 
@@ -41,7 +41,7 @@ The easiest way to perform concurrent work is via a +Job+ object. Say you have a
 
 This atomically[http://en.wikipedia.org/wiki/Atomic_operation] adds the block to GCD's default concurrent queue, then returns immediately so you don't stall the main thread.
 
-Concurrent queues schedule as many simultaneous blocks as they can on a first-in/first-out (FIFO[http://en.wikipedia.org/wiki/FIFO]) basis, as long as there are threads available.  If there are spare CPUs, the system will automatically create more threads -- and reclaim them when idle -- allowing GCD to dynamically scale the number of threads based on the overall system load.  Thus (unlike with threads, which choke when you create too many) you can generally create as many jobs as you want, and GCD will do the right thing. 
+Concurrent queues schedule as many simultaneous blocks as they can on a first-in/first-out (FIFO[http://en.wikipedia.org/wiki/FIFO]) basis, as long as there are threads available.  If there are spare CPUs, the system will automatically create more threads -- and reclaim them when idle -- allowing GCD to dynamically scale the number of threads based on the overall system load.  Thus (unlike with threads, which choke when you create too many) you can generally create as many jobs as you want, and GCD will do the right thing.
 
 === Job#value: Asynchronous Return Values
 
@@ -50,7 +50,7 @@ The downside of asynchrony is that you don't know exactly when your job will exe
 	@result = job.value
 	puts "value (sync): #{@result} => 1.0e+50"
 	
-This will wait until the value has been calculated, allowing it to be used as an {explicit Future}[http://en.wikipedia.org/wiki/Futures_and_promises]. However, this may stall the main thread indefinitely, which reduces the benefits of concurrency.  
+This will wait until the value has been calculated, allowing it to be used as an {explicit Future}[http://en.wikipedia.org/wiki/Futures_and_promises]. However, this may stall the main thread indefinitely, which reduces the benefits of concurrency.
 
 Wherever possible, you should instead attempt to figure out exactly _when_  and _why_ you need to know the result of asynchronous work. Then, call +value+ with a block to also perform _that_ work asynchronously once the value has been calculated -- all without blocking the main thread:
 
@@ -94,7 +94,7 @@ Note that unlike +value+ this will not by itself first +join+ the job, and thus 
 
 Concurrency would be easy if everything was {embarrassingly parallel}[http://en.wikipedia.org/wiki/Embarrassingly_parallel], but it becomes tricky when we need to share data between threads. If two threads try to modify the same object at the same time, it could lead to inconsistent (read: _corrupt_) data.  There are well-known techniques for preventing this sort of data corruption (e.g. locks[http://en.wikipedia.org/wiki/Lock_(computer_science)] andmutexes[http://en.wikipedia.org/wiki/Mutual%20eclusion]), but these have their own well-known problems (e.g., deadlock[http://en.wikipedia.org/wiki/Deadlock], and {priority inversion}[http://en.wikipedia.org/wiki/Priority_inversion]).
 
-Because Ruby traditionally had a global VM lock (or GIL[http://en.wikipedia.org/wiki/Global_Interpreter_Lock]), only one thread could modify data at a time, so developers never had to worry about these issues; then again, this also meant they didn't get much benefit from additional threads.  
+Because Ruby traditionally had a global VM lock (or GIL[http://en.wikipedia.org/wiki/Global_Interpreter_Lock]), only one thread could modify data at a time, so developers never had to worry about these issues; then again, this also meant they didn't get much benefit from additional threads.
 
 In MacRuby, every thread has its own Virtual Machine, which means all of them can access Ruby objects at the same time -- great for concurrency, not so great for data integrity. Fortunately, GCD provides _serial queues_ for {lock-free synchronization}[http://en.wikipedia.org/wiki/Non-blocking_synchronization], by ensuring that only one thread a time accesses a particular object -- without the complexity and inefficiency of locking. Here we will focus on +Dispatch::Proxy+, a high-level construct that implements the {Actor model}[http://en.wikipedia.org/wiki/Actor_model] by wrapping any arbitrary Ruby object with a +SimpleDelegate+ that only allows execution of one method at a time (i.e., serializes data access on to a private queue).
 
@@ -144,11 +144,11 @@ If for any reason you need to retrieve the original (unproxied) object, simply c
 	
 This differs from +SimpleDelegate#__getobj__+ (which Dispatch::Proxy inherits) in that it will first wait until any pending asynchronous blocks have executed.
 
-As elsewhere in Ruby, the "__" namespace implies "internal" methods, in this case meaning they are called directly on the proxy rather than passed to the delegate. 
+As elsewhere in Ruby, the "__" namespace implies "internal" methods, in this case meaning they are called directly on the proxy rather than passed to the delegate.
 
 ====  Caveat: Local Variables
 
-Because Dispatch blocks may execute after the local context has gone away, you should always store Proxy objects in a non-local variable: instance, class, or global -- anything with a sigil[http://en.wikipedia.org/wiki/Sigil_(computer_programming)]. 
+Because Dispatch blocks may execute after the local context has gone away, you should always store Proxy objects in a non-local variable: instance, class, or global -- anything with a sigil[http://en.wikipedia.org/wiki/Sigil_(computer_programming)].
 
 Note that we can as usual _access_ local variables from inside the block; GCD automatically copies them, which is why this works as expected:
 
@@ -172,7 +172,7 @@ The general rule is "do *not* assign to external variables inside a Dispatch blo
 
 == Dispatch Enumerable: Parallel Iterations
 
-Jobs are useful when you want to run a single item in the background or to run many different operations at once. But if you want to run the _same_ operation multiple times, you can take advantage of specialized GCD iterators.  The Dispatch module defines "p_" variants of common Ruby iterators, making it trivial to parallelize existing operations.  
+Jobs are useful when you want to run a single item in the background or to run many different operations at once. But if you want to run the _same_ operation multiple times, you can take advantage of specialized GCD iterators.  The Dispatch module defines "p_" variants of common Ruby iterators, making it trivial to parallelize existing operations.
 
 In addition, for simplicity they all are _synchronous_, meaning they won't return until all the work has completed.
 
@@ -395,7 +395,7 @@ Finally, you can stop the source entirely by calling +cancel!+:
 	puts "cancel!"
 	puts
 
-Cancellation is particularly significant in MacRuby's implementation of GCD, since (due to the reliance on garbage collection) there is no other way to explicitly stop using a source.  
+Cancellation is particularly significant in MacRuby's implementation of GCD, since (due to the reliance on garbage collection) there is no other way to explicitly stop using a source.
 
 === Custom Sources
 
@@ -486,7 +486,7 @@ The underlying API expects and returns integers, e.g.:
 		semaphore.signal
 	end
 	
-In this case, we are watching the current process ('$$') for +:signal+ and (less usefully :-) +:exit+ events .  
+In this case, we are watching the current process ('$$') for +:signal+ and (less usefully :-) +:exit+ events .
 
 ==== Source#data2events
 	
@@ -598,7 +598,7 @@ As before, the underlying API expects and returns integers, e.g.:
 	puts " #{Dispatch::Source::VNODE_WRITE.to_s(2)} (Dispatch::Source::VNODE_WRITE)"
 	File.delete(filename)
 	#semaphore.wait
-	print "fevent: #{@fevent.to_s(2)} => #{fmask.to_s(2)}" 
+	print "fevent: #{@fevent.to_s(2)} => #{fmask.to_s(2)}"
 	puts " (Dispatch::Source::VNODE_DELETE | Dispatch::Source::VNODE_WRITE)"
 	file_src.cancel!
 	q.join
@@ -623,7 +623,7 @@ As a bonus, if you pass in an actual IO object (not just a file descriptor) the 
 
 ==== Source.read
 
-In contrast to the previous sources, these next two refer to internal state rather than external events. Specifically, this +add+-style source avoids blocking on a +read+ by only calling the handler when it estimates there are +s.data+ unread bytes available in the buffer:  
+In contrast to the previous sources, these next two refer to internal state rather than external events. Specifically, this +add+-style source avoids blocking on a +read+ by only calling the handler when it estimates there are +s.data+ unread bytes available in the buffer:
 
 	file = File.open(filename, "r")
 	@input = ""
