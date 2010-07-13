@@ -528,14 +528,14 @@ rb_queue_apply(VALUE self, SEL sel, VALUE n)
 
 /* 
  *  call-seq:
- *    gcdq.label -> str
+ *    gcdq.to_s -> str
  *
- *  Returns the label of the dispatch queue (aliased to 'to_s')
+ *  Returns the label of the dispatch queue
  *  
  *     gcdq = Dispatch::Queue.new('doc')
- *     gcdq.label #=> 'doc'
+ *     gcdq.to_s #=> 'doc'
  *     gcdq = Dispatch::Queue.main
- *     gcdq.label #=> 'com.apple.main-thread'
+ *     gcdq.to_s #=> 'com.apple.main-thread'
  *
  */
 
@@ -1247,7 +1247,7 @@ Init_Dispatch(void)
     rb_objc_define_method(cQueue, "async", rb_queue_dispatch_async, -1);
     rb_objc_define_method(cQueue, "sync", rb_queue_dispatch_sync, 0);
     rb_objc_define_method(cQueue, "after", rb_queue_dispatch_after, 1);
-    rb_objc_define_method(cQueue, "label", rb_queue_label, 0);
+    rb_objc_define_method(cQueue, "label", rb_queue_label, 0); // deprecated
     rb_objc_define_method(cQueue, "to_s", rb_queue_label, 0);
     rb_objc_define_method(cQueue, "resume!", rb_dispatch_resume, 0);
     rb_objc_define_method(cQueue, "suspend!", rb_dispatch_suspend, 0);

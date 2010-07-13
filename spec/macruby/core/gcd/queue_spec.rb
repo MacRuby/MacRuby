@@ -158,17 +158,13 @@ if MACOSX_VERSION >= 10.6
       end
     end
 
-    describe :label, :shared => true do
+    describe :to_s do
       it "returns the name of the queue" do
-        @q.label.should == 'org.macruby.gcd_spec.queue'
+        @q.to_s.should == 'org.macruby.gcd_spec.queue'
 
         qm = Dispatch::Queue.main
-        qm.label.should == 'com.apple.main-thread'
+        qm.to_s.should == 'com.apple.main-thread'
       end
-    end    
-
-    describe :to_s do
-      it_should_behave_like :label
     end
 
     describe :suspend! do
