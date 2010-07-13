@@ -1,2 +1,0 @@
-fails:Dispatch::Queue == should be true if the underlying dispatch_queues are equal
-fails:suspend! suspends the queue which can be resumed by calling #resume!
