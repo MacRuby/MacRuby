@@ -78,7 +78,7 @@ if MACOSX_VERSION >= 10.6
           @i = 0
           src = Dispatch::Source.new(@type, 0, 0, @q) {|s|  @i = 42; @sm.signal}
           src << 42
-          @sm.wait
+          @sm.wait(0.1)
           @i.should == 42
         end        
 
@@ -89,7 +89,7 @@ if MACOSX_VERSION >= 10.6
             @sm.signal
           end
           src << 42
-          @sm.wait
+          @sm.wait(0.1)
           @flag.should == true
         end        
 
@@ -100,7 +100,7 @@ if MACOSX_VERSION >= 10.6
             @sm.signal
           end
           src << 42
-          @sm.wait
+          @sm.wait(0.1)
           @i.should == 42
         end        
 
@@ -114,7 +114,7 @@ if MACOSX_VERSION >= 10.6
           src << 17
           src << 25
           src.resume!
-          @sm.wait
+          @sm.wait(0.1)
           @i.should == 42
         end        
       end
@@ -134,7 +134,7 @@ if MACOSX_VERSION >= 10.6
           @i = 0
           src = Dispatch::Source.new(@type, 0, 0, @q) {|s|  @i = 42; @sm.signal}
           src << 42
-          @sm.wait
+          @sm.wait(0.1)
           @i.should == 42
         end        
         
@@ -148,7 +148,7 @@ if MACOSX_VERSION >= 10.6
           src << 0b000_010
           src << 0b101_000
           src.resume!
-          @sm.wait
+          @sm.wait(0.1)
           @i.should == 42 #0b101_010
           src.cancel!
         end        
@@ -179,7 +179,7 @@ if MACOSX_VERSION >= 10.6
           Signal.trap(@signal, "IGNORE")
           Process.kill(@signal, $$)
           Signal.trap(@signal, "DEFAULT")
-          @sm.wait
+          @sm.wait(0.1)
           #while (@fired == false) do; end
           @fired.should == true
           @i.should == @mask
@@ -210,7 +210,7 @@ if MACOSX_VERSION >= 10.6
           Signal.trap(@signal, "IGNORE")
           Process.kill(@signal, $$)
           Signal.trap(@signal, "DEFAULT")
-          @sm.wait
+          @sm.wait(0.1)
           @fired.should == true
           @i.should == 1
           src.cancel!
@@ -346,7 +346,7 @@ if MACOSX_VERSION >= 10.6
             end
             @file.write(@msg)
             @file.flush
-            @sm.wait
+            @sm.wait(0.1)
             @fired.should == true
             @flag.should == @mask
           end    
@@ -354,7 +354,7 @@ if MACOSX_VERSION >= 10.6
           it "does not close file when cancelled given descriptor" do
             @src = Dispatch::Source.new(@type, @file.to_i, 0, @q) { }
             @src.cancel!
-            @sm.wait
+            @sm.wait(0.1)
             @file.closed?.should == false
           end
 
