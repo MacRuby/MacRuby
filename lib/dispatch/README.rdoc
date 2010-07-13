@@ -283,12 +283,12 @@ Passes each object and returns nil if none match. Similar to +find+, it returns 
 
 Most of the time, you can simply use GCD's default concurrent queues or the built-in queues associated with synchronized objects.  However, if you want more precise control you can create and use your own queues.
 
-=== Queue::for
+=== Queue::new
 
-The simplest way to create a queue is by passing in the object you want the queue +for+
+The simplest way to create a +new+ queue is by passing it a meaningful name, typically using reverse-DNS naming:
 
 	puts
-	puts q = Dispatch::Queue.for("my_object")
+	puts q = Dispatch::Queue.new("org.macruby.queue.example")
 
 === Queue#sync
 
