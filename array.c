@@ -788,7 +788,7 @@ rary_fetch(VALUE ary, SEL sel, int argc, VALUE *argv)
 static size_t
 rary_index_of_item(VALUE ary, size_t origin, VALUE item)
 {
-    assert(origin < RARY(ary)->len);
+    assert(RARY(ary)->len == 0 || origin < RARY(ary)->len);
     for (size_t i = origin; i < RARY(ary)->len; i++) {
 	VALUE item2 = rary_elt(ary, i);
 	if (rb_equal_fast(item2, item) == Qtrue) {
@@ -840,7 +840,7 @@ rary_index(VALUE ary, SEL sel, int argc, VALUE *argv)
 static size_t
 rary_rindex_of_item(VALUE ary, long origin, VALUE item)
 {
-    assert(origin < RARY(ary)->len);
+    assert(RARY(ary)->len == 0 || origin < RARY(ary)->len);
     for (long i = origin; i >= 0; i--) {
 	VALUE item2 = rary_elt(ary, i);
 	if (rb_equal_fast(item, item2) == Qtrue) {
@@ -3721,7 +3721,6 @@ Init_Array(void)
     rb_objc_define_method(rb_cRubyArray, "compact", rary_compact, 0);
     rb_objc_define_method(rb_cRubyArray, "compact!", rary_compact_bang, 0);
     rb_objc_define_method(rb_cRubyArray, "count", rary_count, -1);
-    rb_objc_define_method(rb_cRubyArray, "nitems", rary_count, -1);
     rb_objc_define_method(rb_cRubyArray, "shuffle!", rary_shuffle_bang, 0);
     rb_objc_define_method(rb_cRubyArray, "shuffle", rary_shuffle, 0);
     rb_objc_define_method(rb_cRubyArray, "take", rary_take, 1);
