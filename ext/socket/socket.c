@@ -2973,6 +2973,58 @@ sock_sysaccept(VALUE sock)
     return rb_assoc_new(sock2, rb_str_new(buf, len));
 }
 
+static inline VALUE
+rb_io_check_io(VALUE io)
+{
+    return rb_check_convert_type(io, T_FILE, "IO", "to_io");
+}
+
+VALUE rb_f_open(VALUE io, SEL sel, int argc, VALUE *argv);
+
+/*
+ *  call-seq:
+ *     socket.sendfile(dest, offset, len)     => integer
+ *
+ *  Uses the sendfile(2) system call to send the file specified by <code>dest</code> 
+ *  to <code>socket</code>. <code>dest</code> must either be a readable IO object or 
+ *  a String representing a path on the file system. The <code>offset</code>
+ *  and <code>len</code> parameters determine the offset and length of the sent file.
+ *  Returns the number of bytes set. May throw a SystemCallError if the underlying call fails.
+ */
+ 
+static VALUE
+socket_sendfile(VALUE self, SEL sel, VALUE file, VALUE offset, VALUE len)
+{
+    bool needs_to_close = false;
+    if (TYPE(file) == T_STRING) {
+        file = rb_f_open(rb_cIO, 0, 1, &file);
+        needs_to_close = true;
+    }
+    
+    file = rb_io_check_io(file);
+    
+    rb_io_t *source = ExtractIOStruct(self);
+    rb_io_t *dest = ExtractIOStruct(file);
+    
+    rb_io_assert_readable(source);
+    rb_io_assert_writable(dest);
+    
+    off_t to_write = NUM2OFFT(len);
+    
+    if (sendfile(source->read_fd, dest->write_fd, NUM2OFFT(offset), &to_write, NULL, 0) == -1) {
+        if (needs_to_close) {
+            rb_io_close(file);
+        }
+        rb_sys_fail("sendfile(2) failed.");
+    }
+    
+    if (needs_to_close) {
+        rb_io_close(file);
+    }
+    
+    return OFFT2NUM(to_write);
+}
+
 #ifdef HAVE_GETHOSTNAME
 static VALUE
 sock_gethostname(VALUE obj)
@@ -3573,6 +3625,7 @@ Init_socket()
 
     rb_objc_define_method(rb_cSocket, "recvfrom", sock_recvfrom, -1);
     rb_objc_define_method(rb_cSocket, "recvfrom_nonblock", sock_recvfrom_nonblock, -1);
+    rb_objc_define_method(rb_cSocket, "sendfile", socket_sendfile, 3);
 
     rb_objc_define_method(*(VALUE *)rb_cSocket, "socketpair", sock_s_socketpair, 3);
     rb_objc_define_method(*(VALUE *)rb_cSocket, "pair", sock_s_socketpair, 3);
