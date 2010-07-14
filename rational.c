@@ -1582,13 +1582,13 @@ static VALUE
 nurat_marshal_load(VALUE self, SEL sel, VALUE a)
 {
     get_dat1(self);
-    dat->num = RARRAY_PTR(a)[0];
-    dat->den = RARRAY_PTR(a)[1];
-    rb_copy_generic_ivar(self, a);
-
-    if (f_zero_p(dat->den))
+    VALUE ary = rb_convert_type(a, T_ARRAY, "Array", "to_ary");
+    dat->num = RARRAY_AT(ary, 0);
+    dat->den = RARRAY_AT(ary ,1);
+    rb_copy_generic_ivar(self, ary);
+    if (f_zero_p(dat->den)) {
 	rb_raise_zerodiv();
-
+    }
     return self;
 }
 
