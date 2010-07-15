@@ -112,20 +112,14 @@ static VALUE cSource;
 static VALUE cSemaphore;
 
 static inline void
-Check_Queue(VALUE object)
+Check_Class(VALUE object, VALUE wants_klass)
 {
-    if (CLASS_OF(object) != cQueue) {
-	rb_raise(rb_eArgError, "expected Queue object, but got %s",
-		rb_class2name(CLASS_OF(object)));
-    }
-}
-
-static inline void
-Check_Group(VALUE object)
-{
-    if (CLASS_OF(object) != cGroup) {
-	rb_raise(rb_eArgError, "expected Group object, but got %s",
-		rb_class2name(CLASS_OF(object)));
+    VALUE has_klass = CLASS_OF(object);
+    if (has_klass != wants_klass) {
+	  rb_raise(rb_eArgError, "expected class of [%p] to be %s [%p], but got %s [%p]",
+	    (void*) object,
+	    rb_class2name(wants_klass), (void*) wants_klass,
+		rb_class2name(has_klass), (void*) has_klass);
     }
 }
 
@@ -417,7 +411,7 @@ rb_queue_dispatch_async(VALUE self, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "01", &group);
 
     if (group != Qnil) {
-	Check_Group(group);
+	Check_Class(group, cGroup);
 	dispatch_group_async_f(RGroup(group)->group, RQueue(self)->queue,
 		(void *)block, rb_block_dispatcher);
     }
@@ -681,7 +675,7 @@ static VALUE
 rb_group_notify(VALUE self, SEL sel, VALUE target)
 {
     rb_vm_block_t *block = get_prepared_block();
-    Check_Queue(target);
+    Check_Class(target, cQueue);
 
     dispatch_group_notify_f(RGroup(self)->group, RQueue(target)->queue,
 	    (void *)block, rb_block_dispatcher);
@@ -814,7 +808,7 @@ static VALUE
 rb_source_init(VALUE self, SEL sel,
     VALUE type, VALUE handle, VALUE mask, VALUE queue)
 {
-    Check_Queue(queue);
+    Check_Class(queue, cQueue);
     rb_source_t *src = RSource(self);
     src->source_enum = (source_enum_t) NUM2LONG(type);
     dispatch_source_type_t c_type = rb_source_enum2type(src->source_enum);
@@ -862,7 +856,7 @@ rb_source_init(VALUE self, SEL sel,
 static VALUE
 rb_source_timer(VALUE klass, VALUE sel, VALUE delay, VALUE interval, VALUE leeway, VALUE queue)
 {
-    Check_Queue(queue);
+    Check_Class(queue, cQueue);
     dispatch_time_t start_time;
     VALUE argv[4] = {INT2FIX(SOURCE_TYPE_TIMER),
         INT2FIX(0), INT2FIX(0), queue};
