@@ -112,12 +112,20 @@ static VALUE cSource;
 static VALUE cSemaphore;
 
 static inline void
-Check_Class(VALUE object, VALUE wants_klass)
+Check_Queue(VALUE object)
 {
-    VALUE has_klass = CLASS_OF(object);
-    if (has_klass != wants_klass) {
-	  rb_raise(rb_eArgError, "expected class to be %s, but got %s",
-	    rb_class2name(wants_klass),	rb_class2name(has_klass));
+    if (CLASS_OF(object) != cQueue) {
+	rb_raise(rb_eArgError, "expected Queue object, but got %s",
+		rb_class2name(CLASS_OF(object)));
+    }
+}
+
+static inline void
+Check_Group(VALUE object)
+{
+    if (CLASS_OF(object) != cGroup) {
+	rb_raise(rb_eArgError, "expected Group object, but got %s",
+		rb_class2name(CLASS_OF(object)));
     }
 }
 
@@ -409,7 +417,7 @@ rb_queue_dispatch_async(VALUE self, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "01", &group);
 
     if (group != Qnil) {
-	Check_Class(group, cGroup);
+	Check_Group(group);
 	dispatch_group_async_f(RGroup(group)->group, RQueue(self)->queue,
 		(void *)block, rb_block_dispatcher);
     }
@@ -673,7 +681,7 @@ static VALUE
 rb_group_notify(VALUE self, SEL sel, VALUE target)
 {
     rb_vm_block_t *block = get_prepared_block();
-    Check_Class(target, cQueue);
+    Check_Queue(target);
 
     dispatch_group_notify_f(RGroup(self)->group, RQueue(target)->queue,
 	    (void *)block, rb_block_dispatcher);
@@ -806,7 +814,7 @@ static VALUE
 rb_source_init(VALUE self, SEL sel,
     VALUE type, VALUE handle, VALUE mask, VALUE queue)
 {
-    Check_Class(queue, cQueue);
+    Check_Queue(queue);
     rb_source_t *src = RSource(self);
     src->source_enum = (source_enum_t) NUM2LONG(type);
     dispatch_source_type_t c_type = rb_source_enum2type(src->source_enum);
@@ -854,7 +862,7 @@ rb_source_init(VALUE self, SEL sel,
 static VALUE
 rb_source_timer(VALUE klass, VALUE sel, VALUE delay, VALUE interval, VALUE leeway, VALUE queue)
 {
-    Check_Class(queue, cQueue);
+    Check_Queue(queue);
     dispatch_time_t start_time;
     VALUE argv[4] = {INT2FIX(SOURCE_TYPE_TIMER),
         INT2FIX(0), INT2FIX(0), queue};
