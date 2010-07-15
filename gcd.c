@@ -116,10 +116,8 @@ Check_Class(VALUE object, VALUE wants_klass)
 {
     VALUE has_klass = CLASS_OF(object);
     if (has_klass != wants_klass) {
-	  rb_raise(rb_eArgError, "expected class of [%p] to be %s [%p], but got %s [%p]",
-	    (void*) object,
-	    rb_class2name(wants_klass), (void*) wants_klass,
-		rb_class2name(has_klass), (void*) has_klass);
+	  rb_raise(rb_eArgError, "expected class to be %s, but got %s",
+	    rb_class2name(wants_klass),	rb_class2name(has_klass));
     }
 }
 
