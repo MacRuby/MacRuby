@@ -96,16 +96,16 @@ puts (0..4).p_find(3) { |i| i == 5 }.nil? # => nil
 puts "#{(0..4).find { |i| i.odd? }} => 1"
 puts "#{(0..4).p_find { |i| i.odd? }} => 1?"
 puts "#{(0..4).p_find(3) { |i| i.odd? }} => 3?"
-puts q = Dispatch::Queue.for("my_object")
 puts
-q.sync {"done sync"}
+puts q = Dispatch::Queue.new("org.macruby.queue.example")
+q.sync { puts "queue sync" }
 
-q.async {"done async"}
+q.async { puts "queue async" }
 	
-puts "joining async"
+puts "queue join"
 q.join
-puts sema = Dispatch::Semaphore.new(0)
 puts
+puts semaphore = Dispatch::Semaphore.new(0)
 q.async {
 	puts "semaphore signal"
 	semaphore.signal
@@ -115,6 +115,7 @@ puts "semaphore wait"
 semaphore.wait
 
 
+puts
 timer = Dispatch::Source.periodic(0.4) do |src|
  	puts "Dispatch::Source.periodic: #{src.data}"
 end
@@ -128,6 +129,7 @@ puts "resume!"
 sleep 1 # => 1 2 1 ...
 timer.cancel!
 puts "cancel!"
+puts
 @sum = 0
 adder = Dispatch::Source.add do |s|
  	puts "Dispatch::Source.add: #{s.data} (#{@sum += s.data})"
@@ -145,7 +147,7 @@ semaphore.wait
 puts "sum: #{@sum} => 9"
 adder.cancel!
 @mask = 0
-masker = Dispatch::Source.or(q) do |s|
+masker = Dispatch::Source.or do |s|
 	@mask |= s.data
 	puts "Dispatch::Source.or: #{s.data.to_s(2)} (#{@mask.to_s(2)})"
 	semaphore.signal
@@ -161,21 +163,24 @@ masker.resume!
 semaphore.wait
 puts "mask: #{@mask.to_s(2)} => 1011"
 masker.cancel!
+puts
+
 @event = 0
 mask = Dispatch::Source::PROC_EXIT | Dispatch::Source::PROC_SIGNAL
-proc_src = Dispatch::Source.process($$, mask, q) do |s|
-	puts "Dispatch::Source.process: #{s.data} (#{@event |= s.data})"
+proc_src = Dispatch::Source.process($$, mask) do |s|
+	@event |= s.data
+	puts "Dispatch::Source.process: #{s.data.to_s(2)} (#{@event.to_s(2)})"
 	semaphore.signal
 end
 
 
-sema2 = Dispatch::Semaphore.new(0)
+semaphore2 = Dispatch::Semaphore.new(0)
 @events = []
 mask2 = [:exit, :fork, :exec, :signal]
-proc_src2 = Dispatch::Source.process($$, mask2, q) do |s|
-	this_events = Dispatch::Source.data2events(s.data)
-	@events += this_events
-	puts "Dispatch::Source.process: #{this_events} (#{@events})"
+proc_src2 = Dispatch::Source.process($$, mask2) do |s|
+	these = Dispatch::Source.data2events(s.data)
+	@events += these
+	puts "Dispatch::Source.process: #{these} (#{@events})"
 	semaphore2.signal
 end
 sig_usr1 = Signal.list["USR1"]
@@ -185,16 +190,16 @@ Signal.trap(sig_usr1, "DEFAULT")
 semaphore.wait
 result = @event & mask
 print "@event: #{result.to_s(2)} =>"
-puts  " #{Dispatch::Source::PROC_SIGNAL} (Dispatch::Source::PROC_SIGNAL)"
+puts  " #{Dispatch::Source::PROC_SIGNAL.to_s(2)} (Dispatch::Source::PROC_SIGNAL)"
 proc_src.cancel!
 semaphore2.wait
 puts "@events: #{(result2 = @events & mask2)} => [:signal]"
 proc_src2.cancel!
-puts "event2num: #{Dispatch::Source.event2num(result2[0])} => #{result}"
+puts "event2num: #{Dispatch::Source.event2num(result2[0]).to_s(2)} => #{result.to_s(2)}"
 puts "data2events: #{Dispatch::Source.data2events(result)} => #{result2}"
 @signals = 0
 sig_usr2 = Signal.list["USR2"]
-signal = Dispatch::Source.signal(sig_usr2, q) do |s|
+signal = Dispatch::Source.signal(sig_usr2) do |s|
 	puts "Dispatch::Source.signal: #{s.data} (#{@signals += s.data})"
 	semaphore.signal
 end
@@ -207,6 +212,7 @@ signal.resume!
 semaphore.wait
 puts "signals: #{@signals} => 3"
 signal.cancel!
+puts
 @fevent = 0
 @msg = "#{$$}-#{Time.now.to_s.gsub(' ','_')}"
 puts "msg: #{@msg}"
@@ -215,38 +221,40 @@ puts "filename: #{filename}"
 file = File.open(filename, "w")
 fmask = Dispatch::Source::VNODE_DELETE | Dispatch::Source::VNODE_WRITE
 file_src = Dispatch::Source.file(file.fileno, fmask, q) do |s|
-	puts "Dispatch::Source.file: #{s.data.to_s(2)} (#{(@fevent |= s.data).to_s(2)})"
+	@fevent |= s.data
+	puts "Dispatch::Source.file: #{s.data.to_s(2)} (#{@fevent.to_s(2)})"
 	semaphore.signal
 end
 file.print @msg
 file.flush
 file.close
-semaphore.wait
-print "fevent: #{@fevent & fmask} =>"
-puts " #{Dispatch::Source::VNODE_WRITE} (Dispatch::Source::VNODE_WRITE)"
+semaphore.wait(0.1)
+print "fevent: #{(@fevent & fmask).to_s(2)} =>"
+puts " #{Dispatch::Source::VNODE_WRITE.to_s(2)} (Dispatch::Source::VNODE_WRITE)"
 File.delete(filename)
-semaphore.wait
-print "fevent: #{@fevent} => #{fmask}" 
+semaphore.wait(0.1)
+print "fevent: #{@fevent.to_s(2)} => #{fmask.to_s(2)}"
 puts " (Dispatch::Source::VNODE_DELETE | Dispatch::Source::VNODE_WRITE)"
 file_src.cancel!
+q.join
 
 @fevent2 = []
 file = File.open(filename, "w")
 fmask2 = %w(delete write)
-file_src2 = Dispatch::Source.file(file, fmask2, q) do |s|
+file_src2 = Dispatch::Source.file(file, fmask2) do |s|
 	@fevent2 += Dispatch::Source.data2events(s.data)
 	puts "Dispatch::Source.file: #{Dispatch::Source.data2events(s.data)} (#{@fevent2})"
 	semaphore2.signal
 end
 file.print @msg
 file.flush
-semaphore2.wait
+semaphore2.wait(0.1)
 puts "fevent2: #{@fevent2} => [:write]"
 file_src2.cancel!
 
 file = File.open(filename, "r")
 @input = ""
-reader = Dispatch::Source.read(file, q) do |s|
+reader = Dispatch::Source.read(file) do |s|
 	@input << file.read(s.data)
 	puts "Dispatch::Source.read: #{s.data}: #{@input}"
 end
@@ -255,7 +263,7 @@ puts "input: #{@input} => #{@msg}" # => e.g., 74323-2010-07-07_15:23:10_-0700
 reader.cancel!
 file = File.open(filename, "w")
 @next_char = 0
-writer = Dispatch::Source.write(file, q) do |s|
+writer = Dispatch::Source.write(file) do |s|
 	if @next_char < @msg.size then
 		char = @msg[@next_char]
 		file.write(char)

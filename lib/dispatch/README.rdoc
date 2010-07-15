@@ -592,12 +592,11 @@ As before, the underlying API expects and returns integers, e.g.:
 	file.print @msg
 	file.flush
 	file.close
-	q.join
-	#semaphore.wait
+	semaphore.wait(0.1)
 	print "fevent: #{(@fevent & fmask).to_s(2)} =>"
 	puts " #{Dispatch::Source::VNODE_WRITE.to_s(2)} (Dispatch::Source::VNODE_WRITE)"
 	File.delete(filename)
-	#semaphore.wait
+	semaphore.wait(0.1)
 	print "fevent: #{@fevent.to_s(2)} => #{fmask.to_s(2)}"
 	puts " (Dispatch::Source::VNODE_DELETE | Dispatch::Source::VNODE_WRITE)"
 	file_src.cancel!
@@ -615,7 +614,7 @@ And of course can also use symbols:
 	end
 	file.print @msg
 	file.flush
-	semaphore2.wait
+	semaphore2.wait(0.1)
 	puts "fevent2: #{@fevent2} => [:write]"
 	file_src2.cancel!
 	
