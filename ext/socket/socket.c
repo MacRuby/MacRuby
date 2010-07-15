@@ -3003,15 +3003,12 @@ socket_sendfile(VALUE self, SEL sel, VALUE file, VALUE offset, VALUE len)
     
     file = rb_io_check_io(file);
     
-    rb_io_t *source = ExtractIOStruct(self);
-    rb_io_t *dest = ExtractIOStruct(file);
-    
-    rb_io_assert_readable(source);
-    rb_io_assert_writable(dest);
+    rb_io_t *socket = ExtractIOStruct(self);
+    rb_io_t *source = ExtractIOStruct(file);
     
     off_t to_write = NUM2OFFT(len);
     
-    if (sendfile(source->read_fd, dest->write_fd, NUM2OFFT(offset), &to_write, NULL, 0) == -1) {
+    if (sendfile(source->fd, socket->fd, NUM2OFFT(offset), &to_write, NULL, 0) == -1) {
         if (needs_to_close) {
             rb_io_close(file);
         }
@@ -3567,6 +3564,7 @@ Init_socket()
     rb_objc_define_method(rb_cBasicSocket, "recv_nonblock", bsock_recv_nonblock, -1);
     rb_objc_define_method(rb_cBasicSocket, "do_not_reverse_lookup", bsock_do_not_reverse_lookup, 0);
     rb_objc_define_method(rb_cBasicSocket, "do_not_reverse_lookup=", bsock_do_not_reverse_lookup_set, 1);
+    rb_objc_define_method(rb_cBasicSocket, "sendfile", socket_sendfile, 3);
 
     rb_cIPSocket = rb_define_class("IPSocket", rb_cBasicSocket);
     rb_objc_define_method(rb_cIPSocket, "addr", ip_addr, 0);
@@ -3625,7 +3623,6 @@ Init_socket()
 
     rb_objc_define_method(rb_cSocket, "recvfrom", sock_recvfrom, -1);
     rb_objc_define_method(rb_cSocket, "recvfrom_nonblock", sock_recvfrom_nonblock, -1);
-    rb_objc_define_method(rb_cSocket, "sendfile", socket_sendfile, 3);
 
     rb_objc_define_method(*(VALUE *)rb_cSocket, "socketpair", sock_s_socketpair, 3);
     rb_objc_define_method(*(VALUE *)rb_cSocket, "pair", sock_s_socketpair, 3);
