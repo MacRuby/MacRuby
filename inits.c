@@ -60,6 +60,7 @@ void Init_FFI(void);
 void Init_Dispatch(void);
 void Init_Transcode(void);
 void Init_PostVM(void);
+void Init_sandbox(void);
 
 void
 rb_call_inits()
@@ -112,5 +113,6 @@ rb_call_inits()
     Init_FFI();
     Init_Dispatch();
     Init_Transcode();
+    Init_sandbox();
     Init_PostVM();
 }

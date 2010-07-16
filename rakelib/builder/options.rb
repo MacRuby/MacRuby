@@ -126,7 +126,7 @@ OBJS = %w{
   util variable version thread id objc bs ucnv encoding main dln dmyext marshal
   gcd vm_eval gc-stub bridgesupport compiler dispatcher vm symbol debugger
   interpreter MacRuby MacRubyDebuggerConnector NSArray NSDictionary NSString
-  transcode 
+  transcode sandbox
 }
 
 # Static MacRuby builds less objects.
