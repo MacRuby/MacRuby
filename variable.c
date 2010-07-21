@@ -1242,7 +1242,16 @@ rb_obj_remove_instance_variable(VALUE obj, SEL sel, VALUE name)
 
     switch (TYPE(obj)) {
 	case T_OBJECT:
-	    // TODO
+	    {
+		const int slot = rb_vm_get_ivar_slot(obj, id, false);
+		if (slot != -1) {
+		    val = rb_vm_get_ivar_from_slot(obj, slot);
+		    if (val != Qundef) {
+			rb_vm_set_ivar_from_slot(obj, Qundef, slot);
+			return val;
+		    }
+		}
+	    }
 	    break;
 
 	case T_CLASS:
