@@ -1266,10 +1266,8 @@ rb_obj_remove_instance_variable(VALUE obj, SEL sel, VALUE name)
 	    break;
 
 	default:
-	    if (FL_TEST(obj, FL_EXIVAR) || rb_special_const_p(obj)) {
-		if (generic_ivar_remove(obj, id, &val)) {
-		    return val;
-		}
+	    if (generic_ivar_remove(obj, id, &val)) {
+		return val;
 	    }
 	    break;
     }
