@@ -165,17 +165,20 @@ get_attribute(xmlTextReaderPtr reader, const char *name)
 }
 
 static inline char *
+get_type64_attribute(xmlTextReaderPtr reader)
+{
+  return (char *)xmlTextReaderGetAttribute(reader, (xmlChar *)"type64");
+}
+
+static inline char *
 get_type_attribute(xmlTextReaderPtr reader)
 {
-  xmlChar * value;
-
 #if __LP64__
-  value = xmlTextReaderGetAttribute(reader, (xmlChar *)"type64");
-  if (value == NULL)
+  char *value = get_type64_attribute(reader);
+  if (value != NULL)
+    return value;
 #endif
-  value = xmlTextReaderGetAttribute(reader, (xmlChar *)"type");
-
-  return (char *)value;
+  return (char *)xmlTextReaderGetAttribute(reader, (xmlChar *)"type");
 }
 
 static void
@@ -959,6 +962,14 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
               }
               else {
                 free(bs_retval);
+#if !defined(__LP64__)
+		if (get_type64_attribute(reader) != NULL) {
+		    // The function has no 32-bit return value type and we
+		    // run in 32-bit mode. We just ignore it.
+		    func = NULL;
+		    break;
+		}
+#endif
                 BAIL("function '%s' return value defined without type", 
                      func->name);
               }
@@ -1139,7 +1150,10 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
         }
  
         case BS_XML_FUNCTION: 
-        { 
+        {
+          if (func == NULL) {
+            break;
+          }
           for (i = 0; i < func->args_count; i++) {
             if (args[i].type == NULL)
               BAIL("function '%s' argument #%d type not provided", 
