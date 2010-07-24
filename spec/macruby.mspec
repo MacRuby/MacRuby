@@ -81,6 +81,7 @@ class MSpecScript
                         [%r(language/), 'tags/macruby/language/'],
                         [%r(core/),     'tags/macruby/core/'],
                         [%r(library/),  'tags/macruby/library/'],
+                        [%r(dietrb/),   'dietrb/tags/'],
                         [/_spec.rb$/,   '_tags.txt']
                       ]
 end
