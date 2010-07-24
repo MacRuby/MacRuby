@@ -40,13 +40,15 @@ describe "IRB::Formatter" do
   
   it "does not filter the backtrace if $DEBUG is true" do
     begin
-      before, $DEBUG = $DEBUG, true
+      stderr, $stderr = $stderr, OutputStub.new
+      debug, $DEBUG = $DEBUG, true
       
       begin; @context.__evaluate__('DoesNotExist'); rescue NameError => e; exception = e; end
       @formatter.exception(exception).should ==
         "NameError: uninitialized constant IRB::Context::DoesNotExist\n\t#{exception.backtrace.join("\n\t")}"
     ensure
-      $DEBUG = before
+      $stderr = stderr
+      $DEBUG = debug
     end
   end
   
@@ -67,7 +69,7 @@ describe "IRB::Formatter" do
     def object.inspect; @inspected = true; "Never called!"; end
     def object.__id__; 2158110700; end
     
-    @formatter.result(object).should == "=> #<Object:0x101444fd8>"
+    @formatter.result(object).should == "=> #<#{object.class.name}:0x101444fd8>"
     object.instance_variable_get(:@inspected).should_not == true
   end
   

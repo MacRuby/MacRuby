@@ -1,9 +1,11 @@
 require File.expand_path('../../spec_helper', __FILE__)
+require 'irb/driver'
 require 'irb/ext/completion'
 
 module CompletionHelper
   def complete(str)
-    IRB::Completion.new(@context, str).results
+    # IRB::Completion.new(@context, str).results
+    @completion.call(str)
   end
   
   def imethods(klass, receiver = nil)
@@ -35,12 +37,14 @@ $a_completion_stub = CompletionStub.new
 describe "IRB::Completion" do
   extend CompletionHelper
   
-  before do
+  before :all do
+    @completion = IRB::Completion.new
     @context = IRB::Context.new(Playground.new)
+    IRB::Driver.current = StubDriver.new(@context)
   end
   
   it "quacks like a Proc" do
-    IRB::Completion.call('//.').should == imethods(Regexp, '//')
+    @completion.call('//.').should == imethods(Regexp, '//')
   end
   
   describe "when doing a method call on an explicit receiver," do

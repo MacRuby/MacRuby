@@ -5,28 +5,13 @@
 # Copyright (C) 2009-2010, Eloy Duran <eloy.de.enige@gmail.com>
 
 require 'irb/formatter'
-require 'readline'
 
 module IRB
   class Context
-    class << self
-      attr_accessor :current
-      
-      def make_current(context)
-        # Messing with a current context is gonna bite me in the ass when we
-        # get to multi-threading, but we'll it when we get there.
-        before, @current = @current, context
-        yield
-      ensure
-        @current = before
-      end
-      
-      def processors
-        @processors ||= []
-      end
-    end
+    IGNORE_RESULT = :irb_ignore_result
     
-    attr_reader :object, :binding, :line, :source, :processors
+    attr_reader :object, :binding, :line, :source
+    attr_accessor :formatter
     
     def initialize(object, explicit_binding = nil)
       @object  = object
@@ -34,8 +19,8 @@ module IRB
       @line    = 1
       clear_buffer
       
-      @underscore_assigner = __evaluate__("_ = nil; proc { |val| _ = val }")
-      @processors = self.class.processors.map { |processor| processor.new(self) }
+      @last_result_assigner = __evaluate__("_ = nil; proc { |val| _ = val }")
+      @exception_assigner   = __evaluate__("e = exception = nil; proc { |ex| e = exception = ex }")
     end
     
     def __evaluate__(source, file = __FILE__, line = __LINE__)
@@ -44,31 +29,14 @@ module IRB
     
     def evaluate(source)
       result = __evaluate__(source.to_s, '(irb)', @line - @source.buffer.size + 1)
-      store_result(result)
-      puts formatter.result(result)
-      result
+      unless result == IGNORE_RESULT
+        store_result(result)
+        puts(formatter.result(result))
+        result
+      end
     rescue Exception => e
       store_exception(e)
-      puts formatter.exception(e)
-    end
-    
-    # Reads input and passes it to all processors.
-    def readline
-      input = Readline.readline(formatter.prompt(self), true)
-      @processors.each { |processor| input = processor.input(input) }
-      input
-    rescue Interrupt
-      clear_buffer
-      ""
-    end
-    
-    def run
-      self.class.make_current(self) do
-        while line = readline
-          continue = process_line(line)
-          break unless continue
-        end
-      end
+      puts(formatter.exception(e))
     end
     
     # Returns whether or not the user wants to continue the current runloop.
@@ -88,7 +56,7 @@ module IRB
       return false if @source.terminate?
       
       if @source.syntax_error?
-        puts formatter.syntax_error(@line, @source.syntax_error)
+        puts(formatter.syntax_error(@line, @source.syntax_error))
         @source.pop
       elsif @source.code_block?
         evaluate(@source)
@@ -99,13 +67,17 @@ module IRB
       true
     end
     
+    def prompt
+      formatter.prompt(self)
+    end
+    
     def input_line(line)
-      puts formatter.prompt(self) + line
+      puts(formatter.prompt(self) + line)
       process_line(line)
     end
     
     def formatter
-      IRB.formatter
+      @formatter ||= IRB.formatter
     end
     
     def clear_buffer
@@ -113,20 +85,11 @@ module IRB
     end
     
     def store_result(result)
-      @underscore_assigner.call(result)
+      @last_result_assigner.call(result)
     end
     
     def store_exception(exception)
-      $e = $EXCEPTION = exception
+      @exception_assigner.call(exception)
     end
   end
-end
-
-module Kernel
-  # Creates a new IRB::Context with the given +object+ and runs it.
-  def irb(object, binding = nil)
-    IRB::Context.new(object, binding).run
-  end
-  
-  private :irb
 end

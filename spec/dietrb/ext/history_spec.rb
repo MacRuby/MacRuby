@@ -1,5 +1,9 @@
 require File.expand_path('../../spec_helper', __FILE__)
+require 'readline'
 require "tempfile"
+
+require 'irb/ext/history'
+require 'irb/driver'
 
 describe "IRB::History, by default," do
   it "stores the history in ~/.irb_history" do
@@ -11,7 +15,7 @@ describe "IRB::History" do
   before do
     @file = Tempfile.new("irb_history.txt")
     IRB::History.file = @file.path
-    @history = IRB::History.new(nil)
+    @history = IRB::History
   end
   
   after do
@@ -54,8 +58,8 @@ describe "IRB::History" do
     @history.input "puts :ok"
     @history.input "foo(x)"
     
-    IRB::History.new(nil)
-    IRB::History.new(nil)
+    IRB::History.setup
+    IRB::History.setup
     
     Readline::HISTORY.to_a.should == ["puts :ok", "foo(x)"]
   end
@@ -70,24 +74,15 @@ describe "IRB::History" do
   end
 end
 
-class IRB::History
-  def printed
-    @printed ||= ""
-  end
-  
-  def print(s)
-    printed << s
-  end
-  
-  def puts(s)
-    printed << "#{s}\n"
-  end
-  
-  def clear!
-    @cleared = true
-  end
-  def cleared?
-    @cleared
+module IRB::History
+  class << self
+    def clear!
+      @cleared = true
+    end
+    
+    def cleared?
+      @cleared
+    end
   end
 end
 
@@ -115,24 +110,22 @@ describe "IRB::History, concerning the user api," do
     
     IRB::History.max_entries_in_overview = 5
     
-    @context = IRB::Context.new(Object.new)
-    IRB::Context.current = @context
+    IRB::History.extend(OutputStubMixin)
+    IRB::History.clear_printed!
     
-    @history = @context.processors.find { |p| p.is_a?(IRB::History) }
-  end
-  
-  after do
-    IRB::Context.current = nil
+    @context = IRB::Context.new(Object.new)
+    @context.extend(OutputStubMixin)
+    IRB::Driver.current = StubDriver.new(@context)
   end
   
   it "returns nil so that IRB doesn't cache some arbitrary line number" do
-    history.should == nil
+    history.should == IRB::Context::IGNORE_RESULT
   end
   
-  it "prints a formatted list with, by default IRB::History.max_entries_in_overview, number of history entries" do
+  it "prints a formatted list with IRB::History.max_entries_in_overview number of history entries" do
     history
     
-    @history.printed.should == %{
+    IRB::History.printed.should == %{
 2: class AAA
 3:   def bar
 4:     :ok
@@ -144,7 +137,7 @@ describe "IRB::History, concerning the user api," do
   it "prints a formatted list of N most recent history entries" do
     history(7)
     
-    @history.printed.should == %{
+    IRB::History.printed.should == %{
 0: puts :ok
 1: x = foo(x)
 2: class AAA
@@ -158,7 +151,7 @@ describe "IRB::History, concerning the user api," do
   it "prints a formatted list of all history entries if the request number of entries is more than there is" do
     history(777)
 
-    @history.printed.should == %{
+    IRB::History.printed.should == %{
 0: puts :ok
 1: x = foo(x)
 2: class AAA
@@ -182,6 +175,6 @@ describe "IRB::History, concerning the user api," do
   
   it "clears the history and history file" do
     clear_history!
-    @history.cleared?.should == true
+    IRB::History.cleared?.should == true
   end
 end

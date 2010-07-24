@@ -10,13 +10,6 @@ require 'irb/version'
 
 require 'irb/deprecated'
 
-require 'irb/ext/history'
-require 'irb/ext/completion'
-
-# if !ENV['SPECCING'] && defined?(RUBY_ENGINE) && RUBY_ENGINE == "macruby"
-#   require 'irb/ext/macruby'
-# end
-
 module IRB
   class << self
     # This is just here for so the ruby 1.9 IRB will seemingly work, but actually
