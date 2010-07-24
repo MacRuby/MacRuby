@@ -46,7 +46,7 @@ namespace :spec do
   
   desc "Run the DietRB specs"
   task :irb do
-    mspec :ci, "./spec/dietrb"
+    mspec :ci, ":irb"
   end
   
   desc "Run language examples that are known to fail"

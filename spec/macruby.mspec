@@ -52,6 +52,7 @@ class MSpecScript
   end
   
   set :macruby, ['spec/macruby']
+  set :irb, ['spec/dietrb']
   set :rubyspec, get(:command_line) + get(:language) + get(:core) + get(:library)
   set :full, get(:macruby) + get(:rubyspec)
   
