@@ -323,9 +323,11 @@ ossl_cipher_update(VALUE self, SEL sel, int argc, VALUE *argv)
     out_len = in_len+EVP_CIPHER_CTX_block_size(ctx);
 
     if (NIL_P(str)) {
-        str = rb_str_new(0, out_len);
+	str = rb_bstr_new();
+	rb_bstr_resize(str, out_len);
     } else {
         StringValue(str);
+	str = rb_str_bstr(str);
         rb_str_resize(str, out_len);
     }
 
@@ -353,7 +355,8 @@ ossl_cipher_final(VALUE self, SEL sel)
     VALUE str;
 
     GetCipher(self, ctx);
-    str = rb_str_new(0, EVP_CIPHER_CTX_block_size(ctx));
+    str = rb_bstr_new();
+    rb_bstr_resize(str, EVP_CIPHER_CTX_block_size(ctx));
     if (!EVP_CipherFinal_ex(ctx, (unsigned char *)RSTRING_PTR(str), &out_len))
 	ossl_raise(eCipherError, NULL);
     assert(out_len <= RSTRING_LEN(str));
