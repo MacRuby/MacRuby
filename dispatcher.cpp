@@ -1210,7 +1210,9 @@ rb_vm_yield_args(void *_vm, int argc, const VALUE *argv)
 	}
 	~Finally() {
 	    vm->add_current_block(b);
-	    b->flags &= ~VM_BLOCK_THREAD;
+	    if (vm == RoxorVM::main) {
+		b->flags &= ~VM_BLOCK_THREAD;
+	    }
 	}
     } finalizer(vm, b);
 
@@ -1338,7 +1340,7 @@ rb_vm_prepare_block(void *function, int flags, VALUE self, rb_vm_arity_t arity,
     }
     else {
 	assert(b->dvars_size == dvars_size);
-	assert((b->flags & flags) == (flags & ~VM_BLOCK_THREAD));
+	assert((b->flags & flags) == flags);
     }
 
     b->proc = Qnil;
