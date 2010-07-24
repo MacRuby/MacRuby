@@ -481,12 +481,18 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
   }                                             \
   while (0)
 
-#define CHECK_ATTRIBUTE(a, name)                        \
+#define CHECK_ATTRIBUTE_CAN_BE_EMPTY(a, name) \
+  CHECK_ATTRIBUTE0(a, name, true)
+
+#define CHECK_ATTRIBUTE(a, name) \
+  CHECK_ATTRIBUTE0(a, name, false)
+
+#define CHECK_ATTRIBUTE0(a, name, can_be_empty)         \
   do {                                                  \
     if (a == NULL)                                      \
       BAIL("expected attribute `%s' for element `%s'",  \
            name, xmlTextReaderConstName(reader));       \
-    if (*a == '\0') {                                   \
+    if (!can_be_empty && *a == '\0') {                  \
       free(a);                                          \
       BAIL("empty attribute `%s' for element `%s'",     \
            name, xmlTextReaderConstName(reader));       \
@@ -600,7 +606,7 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
           strconst_name = get_attribute(reader, "name");
           CHECK_ATTRIBUTE(strconst_name, "name");
           strconst_value = get_attribute(reader, "value");
-          CHECK_ATTRIBUTE(strconst_value, "value");
+          CHECK_ATTRIBUTE_CAN_BE_EMPTY(strconst_value, "value");
 
           bs_strconst = (bs_element_string_constant_t *)
             malloc(sizeof(bs_element_string_constant_t));
