@@ -596,9 +596,12 @@ rb_vm_call0(void *vm, VALUE top, VALUE self, Class klass, SEL sel,
 	    argc, argv);
 }
 
+SEL rb_objc_ignored_sel(SEL);
+
 static inline VALUE
 rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *argv)
 {
+    sel = rb_objc_ignored_sel(sel);
     return rb_vm_call0(rb_vm_current_vm(), 0, self, (Class)CLASS_OF(self), sel,
 	    NULL, DISPATCH_FCALL, argc, argv);
 }
@@ -606,6 +609,7 @@ rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *argv)
 static inline VALUE
 rb_vm_call_super(VALUE self, SEL sel, int argc, const VALUE *argv)
 {
+    sel = rb_objc_ignored_sel(sel);
     return rb_vm_call0(rb_vm_current_vm(), 0, self, (Class)CLASS_OF(self), sel,
 	    NULL, DISPATCH_SUPER, argc, argv);
 }
@@ -617,6 +621,7 @@ rb_vm_call2(rb_vm_block_t *block, VALUE self, VALUE klass, SEL sel, int argc,
     if (klass == 0) {
 	klass = CLASS_OF(self);
     }
+    sel = rb_objc_ignored_sel(sel);
     return rb_vm_call0(rb_vm_current_vm(), 0, self, (Class)klass, sel, block,
 	    DISPATCH_FCALL, argc, argv);
 }
@@ -1152,6 +1157,6 @@ class RoxorVM {
 #endif /* __cplusplus */
 
 #define not_implemented_in_static(s) \
-    rb_raise(rb_eRuntimeError, "%s is not supported in MacRuby static", sel_getName(s))
+    rb_raise(rb_eRuntimeError, "%s: not supported in static compilation", sel_getName(s))
 
 #endif /* __VM_H_ */

@@ -1821,7 +1821,7 @@ RoxorCore::resolve_method(Class klass, SEL sel, void *func,
 
 #if MACRUBY_STATIC
     if (objc_imp == NULL) {
-	printf("can't define method `%s' because no Objective-C stub was pre-compiled", sel_getName(sel));
+	printf("can't define method `%s' because no Objective-C stub was pre-compiled for types `%s'\n", sel_getName(sel), types);
 	abort();
     }
 #else
@@ -1996,10 +1996,7 @@ prepare_method(Class klass, bool dynamic_class, SEL sel, void *data,
 	flags |= VM_METHOD_PROTECTED;
     }
 
-    if (rb_objc_ignore_sel(sel)) {
-	// TODO
-	return;
-    }
+    sel = rb_objc_ignored_sel(sel);
 
     const char *sel_name = sel_getName(sel);
     const bool genuine_selector = sel_name[strlen(sel_name) - 1] == ':';
@@ -2152,7 +2149,7 @@ rb_vm_prepare_method2(Class klass, unsigned char dynamic_class, SEL sel,
 static void
 push_method(VALUE ary, SEL sel, int flags, int (*filter) (VALUE, ID, VALUE))
 {
-    if (rb_objc_ignore_sel(sel)) {
+    if (rb_objc_ignored_sel(sel) != sel) {
 	return; 
     }
 
@@ -2488,10 +2485,7 @@ __rb_vm_define_method(Class klass, SEL sel, IMP objc_imp, IMP ruby_imp,
 {
     assert(klass != NULL);
 
-    if (rb_objc_ignore_sel(sel)) {
-	// TODO
-	return NULL;
-    }
+    sel = rb_objc_ignored_sel(sel);
 
     const char *sel_name = sel_getName(sel);
     const bool genuine_selector = sel_name[strlen(sel_name) - 1] == ':';

@@ -853,7 +853,7 @@ RoxorCompiler::recompile_dispatch_argv(std::vector<Value *> &params, int offset)
     for (int i = 0; i < argc; i++) {
 	Value *idx = ConstantInt::get(Int32Ty, i);
 	Value *slot = GetElementPtrInst::Create(dispatch_argv, idx, "", bb);
-	new StoreInst(params[offset + i], slot, "", bb);
+	new StoreInst(params[offset + i], slot, bb);
     }
 
     return dispatch_argv;
@@ -1093,7 +1093,7 @@ RoxorCompiler::compile_prepare_block(void)
     int flags = 0;
     params.push_back(compile_prepare_block_args(current_block_func, &flags));
     if (nd_type(current_block_node) == NODE_SCOPE
-	&& current_block_node->nd_body == NULL) {
+	    && current_block_node->nd_body == NULL) {
 	flags |= VM_BLOCK_EMPTY;
     }
     params.push_back(ConstantInt::get(Int32Ty, flags));
@@ -2257,6 +2257,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    return NULL;
 	}
 	SEL new_sel = mid_to_sel(SYM2ID(sym), argc - 1);
+	new_sel = rb_objc_ignored_sel(new_sel);
 
 	GlobalVariable *is_redefined = GET_CORE()->redefined_op_gvar(sel, true);
 
@@ -2974,6 +2975,7 @@ rescan_args:
     SEL sel;
     if (mid != 0) {
 	sel = mid_to_sel(mid, positive_arity ? 1 : 0);
+	sel = rb_objc_ignored_sel(sel);
 	sel_val = compile_sel(sel);
 	if (block_declaration && super_call) {
 	    // A super call inside a block. The selector cannot
@@ -4739,7 +4741,7 @@ RoxorAOTCompiler::compile_init_function(void)
 
 	Value *val = CallInst::Create(getConstCacheFunc,
 		compile_const_global_string(rb_id2name(name)), "", bb);
-	new StoreInst(val, gvar, "", bb);
+	new StoreInst(val, gvar, bb);
     }
 
     // Compile selectors.
@@ -4756,7 +4758,7 @@ RoxorAOTCompiler::compile_init_function(void)
 	Value *val = CallInst::Create(registerSelFunc,
 		compile_const_global_string(sel_getName(sel)), "", bb);
 	val = new BitCastInst(val, PtrTy, "", bb);
-	new StoreInst(val, gvar, "", bb);
+	new StoreInst(val, gvar, bb);
     }
 
     // Compile literals.
@@ -4862,7 +4864,7 @@ RoxorAOTCompiler::compile_init_function(void)
 	}
 
 	assert(lit_val != NULL);
-	new StoreInst(lit_val, gvar, "", bb);
+	new StoreInst(lit_val, gvar, bb);
     }
 
     // Compile IDs.
@@ -4880,7 +4882,7 @@ RoxorAOTCompiler::compile_init_function(void)
 
 	Value *val = CallInst::Create(rbInternFunc,
 		compile_const_global_string(rb_id2name(name)), "", bb);
-	new StoreInst(val, gvar, "", bb);
+	new StoreInst(val, gvar, bb);
     }
 
     // Compile global entries.
@@ -4899,7 +4901,7 @@ RoxorAOTCompiler::compile_init_function(void)
 	Value *val = CallInst::Create(rbInternFunc,
 		compile_const_global_string(rb_id2name(name)), "", bb);
 	val = CallInst::Create(globalEntryFunc, val, "", bb);
-	new StoreInst(val, gvar, "", bb);
+	new StoreInst(val, gvar, bb);
     }
 
     // Compile constant class references.
@@ -4912,7 +4914,7 @@ RoxorAOTCompiler::compile_init_function(void)
 	Value *val = CallInst::Create(getClassFunc,
 		compile_const_global_string(gvar->getName().str().c_str()),
 		"",bb);
-	new StoreInst(val, gvar, "", bb);
+	new StoreInst(val, gvar, bb);
     }
 
     // Instance variable slots.
@@ -4927,7 +4929,7 @@ RoxorAOTCompiler::compile_init_function(void)
 
 	GlobalVariable *gvar = *i;
 	Value *val = CallInst::Create(ivarSlotAlloc, "", bb);
-	new StoreInst(val, gvar, "", bb);
+	new StoreInst(val, gvar, bb);
     }
 
     // Stubs.
@@ -5312,7 +5314,7 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 				"", bb);
 			Value *rval = compile_conversion_to_ruby(
 				arg_ctypes[i].c_str(), arg_types[i], arg++);
-			new StoreInst(rval, aslot, "", bb);
+			new StoreInst(rval, aslot, bb);
 		    }
 		}
 
@@ -6351,7 +6353,7 @@ RoxorCompiler::compile_block_caller(rb_vm_block_t *block)
 	for (int i = 0; i < arity; i++) {
 	    Value *index = ConstantInt::get(Int32Ty, i);
 	    Value *slot = GetElementPtrInst::Create(argv, index, "", bb);
-	    new StoreInst(arg++, slot, "", bb);
+	    new StoreInst(arg++, slot, bb);
 	}
     }
 

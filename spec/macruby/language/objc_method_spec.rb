@@ -764,3 +764,19 @@ describe "A Proc object" do
     lambda { functionMultiplicatingByTwoViaFctPtr(42, Proc.new { |x, y| x * y }) }.should raise_error(ArgumentError)
   end
 end
+
+describe "Ignored Obj-C selectors" do
+  it "can be defined and messaged" do
+    o = Object.new
+    def o.retain; 1; end
+    def o.release; 2; end
+    def o.autorelease; 3; end
+    def o.retainCount; 4; end
+    def o.dealloc; 5; end
+    o.retain.should == 1
+    o.release.should == 2
+    o.autorelease.should == 3
+    o.retainCount.should == 4
+    o.dealloc.should == 5
+  end
+end

@@ -1338,7 +1338,7 @@ rb_vm_prepare_block(void *function, int flags, VALUE self, rb_vm_arity_t arity,
     }
     else {
 	assert(b->dvars_size == dvars_size);
-	assert((b->flags & flags) == flags);
+	assert((b->flags & flags) == (flags & ~VM_BLOCK_THREAD));
     }
 
     b->proc = Qnil;

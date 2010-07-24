@@ -216,7 +216,7 @@ rb_ocid_to_rval(id obj)
 
 void rb_objc_exception_raise(const char *name, const char *message);
 
-bool rb_objc_ignore_sel(SEL sel);
+SEL rb_objc_ignored_sel(SEL sel);
 bool rb_objc_isEqual(VALUE x, VALUE y); 
 void rb_objc_force_class_initialize(Class klass);
 void rb_objc_fix_relocatable_load_path(void);
