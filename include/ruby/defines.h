@@ -294,6 +294,11 @@ void rb_ia64_flushrs(void);
 #define HAVE_RUBY_VM_H 
 #endif
 
+#ifndef HAVE_RUBY_ENCODING_H
+// Some C extensions use that variable to determine if they build against 1.9.
+#define HAVE_RUBY_ENCODING_H
+#endif
+
 #define force_inline __attribute__((always_inline))
 
 #if defined(__cplusplus)

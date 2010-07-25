@@ -40,7 +40,6 @@ PRINTF_ARGS(VALUE rb_enc_sprintf(rb_encoding *, const char*, ...), 2, 3);
 VALUE rb_enc_vsprintf(rb_encoding *, const char*, va_list);
 long rb_enc_strlen(const char*, const char*, rb_encoding*);
 char* rb_enc_nth(const char*, const char*, int, rb_encoding*);
-VALUE rb_obj_encoding(VALUE, SEL);
 VALUE rb_enc_str_buf_cat(VALUE str, const char *ptr, long len, rb_encoding *enc);
 
 /* index -> rb_encoding */
@@ -136,6 +135,9 @@ rb_enc_dummy_p(rb_encoding *enc)
 }
 
 VALUE rb_str_transcode(VALUE str, VALUE to);
+
+// MRI compat.
+#define rb_external_str_new_with_enc rb_enc_str_new
 
 #if defined(__cplusplus)
 }
