@@ -1996,7 +1996,9 @@ prepare_method(Class klass, bool dynamic_class, SEL sel, void *data,
 	flags |= VM_METHOD_PROTECTED;
     }
 
-    sel = rb_objc_ignored_sel(sel);
+    if (rb_objc_ignored_sel(sel)) {
+	return;
+    }
 
     const char *sel_name = sel_getName(sel);
     const bool genuine_selector = sel_name[strlen(sel_name) - 1] == ':';
@@ -2149,7 +2151,7 @@ rb_vm_prepare_method2(Class klass, unsigned char dynamic_class, SEL sel,
 static void
 push_method(VALUE ary, SEL sel, int flags, int (*filter) (VALUE, ID, VALUE))
 {
-    if (rb_objc_ignored_sel(sel) != sel) {
+    if (rb_objc_ignored_sel(sel)) {
 	return; 
     }
 
@@ -2485,7 +2487,9 @@ __rb_vm_define_method(Class klass, SEL sel, IMP objc_imp, IMP ruby_imp,
 {
     assert(klass != NULL);
 
-    sel = rb_objc_ignored_sel(sel);
+    if (rb_objc_ignored_sel(sel)) {
+	return NULL;
+    }
 
     const char *sel_name = sel_getName(sel);
     const bool genuine_selector = sel_name[strlen(sel_name) - 1] == ':';

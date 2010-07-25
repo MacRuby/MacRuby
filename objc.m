@@ -639,25 +639,14 @@ rb_objc_nsnumber2numeric(id obj)
     return (VALUE)obj;
 }
 
-SEL
+bool
 rb_objc_ignored_sel(SEL sel)
 {
-    if (sel == @selector(retain)) {
-	return @selector(__hidden__retain);
-    }
-    if (sel == @selector(release)) {
-	return @selector(__hidden__release);
-    }
-    if (sel == @selector(autorelease)) {
-	return @selector(__hidden__autorelease);
-    }
-    if (sel == @selector(retainCount)) {
-	return @selector(__hidden__retainCount);
-    }
-    if (sel == @selector(dealloc)) {
-	return @selector(__hidden__dealloc);
-    }
-    return sel;
+    return sel == @selector(retain)
+	|| sel == @selector(release)
+	|| sel == @selector(autorelease)
+	|| sel == @selector(retainCount)
+	|| sel == @selector(dealloc);
 }
 
 bool

@@ -323,13 +323,17 @@ RoxorCompiler::mid_to_sel(ID mid, int arity)
 {
     SEL sel;
     const char *mid_str = rb_id2name(mid);
+    char buf[100];
     if (mid_str[strlen(mid_str) - 1] != ':' && arity > 0) {
-	char buf[100];
 	snprintf(buf, sizeof buf, "%s:", mid_str);
 	sel = sel_registerName(buf);
     }
     else {
 	sel = sel_registerName(mid_str);
+	if (rb_objc_ignored_sel(sel)) {
+	    snprintf(buf, sizeof buf, "__hidden__%s", mid_str);
+	    sel = sel_registerName(buf);
+	}
     }
     return sel;
 }
@@ -2257,7 +2261,6 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    return NULL;
 	}
 	SEL new_sel = mid_to_sel(SYM2ID(sym), argc - 1);
-	new_sel = rb_objc_ignored_sel(new_sel);
 
 	GlobalVariable *is_redefined = GET_CORE()->redefined_op_gvar(sel, true);
 
@@ -2975,7 +2978,6 @@ rescan_args:
     SEL sel;
     if (mid != 0) {
 	sel = mid_to_sel(mid, positive_arity ? 1 : 0);
-	sel = rb_objc_ignored_sel(sel);
 	sel_val = compile_sel(sel);
 	if (block_declaration && super_call) {
 	    // A super call inside a block. The selector cannot
