@@ -1012,9 +1012,6 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 		CFDictionarySetValue(rb_cObject_dict, (const void *)name, 
 			(const void *)val);
 	    }
-	    else {
-		rb_warning("bs: enum `%s' already defined", rb_id2name(name));
-	    }
 	    break;
 	}
 
@@ -1029,10 +1026,6 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 		CFDictionarySetValue(rb_cObject_dict, (const void *)name, 
 			(const void *)bs_const_magic_cookie);
 		do_not_free = true;
-	    }
-	    else {
-		rb_warning("bs: constant `%s' already defined", 
-			   rb_id2name(name));
 	    }
 	    break;
 	}
@@ -1049,10 +1042,6 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 		CFDictionarySetValue(rb_cObject_dict, (const void *)name, 
 			(const void *)val);
 	    }
-	    else {
-		rb_warning("bs: string constant `%s' already defined", 
-			   rb_id2name(name));
-	    }
 	    break;
 	}
 
@@ -1066,9 +1055,6 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 	    if (iter == bs_funcs.end()) {
 		bs_funcs[name] = bs_func;
 		do_not_free = true;
-	    }
-	    else {
-		rb_warning("bs: function `%s' already defined", bs_func->name);
 	    }
 	    break;
 	}
@@ -1100,10 +1086,6 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 	{
 	    if (register_bs_boxed(type, value)) {
 		do_not_free = true;
-	    }
-	    else {
-		rb_warning("bs: boxed `%s' already defined",
-			((bs_element_opaque_t *)value)->name);
 	    }
 	    break;
 	}
@@ -1197,10 +1179,6 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 		    bs_cftypes[s] = bs_cftype;
 		}
 		do_not_free = true;
-	    }
-	    else {
-		rb_warning("bs: CF type `%s' already defined",
-			bs_cftype->type);
 	    }
 	    break;
 	}
