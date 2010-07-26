@@ -287,7 +287,8 @@ ossl_rsa_to_der(VALUE self)
 	i2d_func = i2d_RSAPublicKey;
     if((len = i2d_func(pkey->pkey.rsa, NULL)) <= 0)
 	ossl_raise(eRSAError, NULL);
-    str = rb_str_new(0, len);
+    str = rb_bstr_new();
+    rb_bstr_resize(str, len);
     p = (unsigned char *)RSTRING_PTR(str);
     if(i2d_func(pkey->pkey.rsa, &p) < 0)
 	ossl_raise(eRSAError, NULL);
@@ -314,7 +315,8 @@ ossl_rsa_public_encrypt(VALUE self, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "11", &buffer, &padding);
     pad = (argc == 1) ? RSA_PKCS1_PADDING : NUM2INT(padding);
     StringValue(buffer);
-    str = rb_str_new(0, ossl_rsa_buf_size(pkey));
+    str = rb_bstr_new();
+    rb_bstr_resize(str, ossl_rsa_buf_size(pkey));
     buf_len = RSA_public_encrypt(RSTRING_LEN(buffer), (unsigned char *)RSTRING_PTR(buffer),
 				 (unsigned char *)RSTRING_PTR(str), pkey->pkey.rsa,
 				 pad);
@@ -340,7 +342,8 @@ ossl_rsa_public_decrypt(VALUE self, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "11", &buffer, &padding);
     pad = (argc == 1) ? RSA_PKCS1_PADDING : NUM2INT(padding);
     StringValue(buffer);
-    str = rb_str_new(0, ossl_rsa_buf_size(pkey));
+    str = rb_bstr_new();
+    rb_bstr_resize(str, ossl_rsa_buf_size(pkey));
     buf_len = RSA_public_decrypt(RSTRING_LEN(buffer), (unsigned char *)RSTRING_PTR(buffer),
 				 (unsigned char *)RSTRING_PTR(str), pkey->pkey.rsa,
 				 pad);
@@ -369,7 +372,8 @@ ossl_rsa_private_encrypt(VALUE self, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "11", &buffer, &padding);
     pad = (argc == 1) ? RSA_PKCS1_PADDING : NUM2INT(padding);
     StringValue(buffer);
-    str = rb_str_new(0, ossl_rsa_buf_size(pkey));
+    str = rb_bstr_new();
+    rb_bstr_resize(str, ossl_rsa_buf_size(pkey));
     buf_len = RSA_private_encrypt(RSTRING_LEN(buffer), (unsigned char *)RSTRING_PTR(buffer),
 				  (unsigned char *)RSTRING_PTR(str), pkey->pkey.rsa,
 				  pad);
@@ -399,7 +403,8 @@ ossl_rsa_private_decrypt(VALUE self, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "11", &buffer, &padding);
     pad = (argc == 1) ? RSA_PKCS1_PADDING : NUM2INT(padding);
     StringValue(buffer);
-    str = rb_str_new(0, ossl_rsa_buf_size(pkey));
+    str = rb_bstr_new();
+    rb_bstr_resize(str, ossl_rsa_buf_size(pkey));
     buf_len = RSA_private_decrypt(RSTRING_LEN(buffer), (unsigned char *)RSTRING_PTR(buffer),
 				  (unsigned char *)RSTRING_PTR(str), pkey->pkey.rsa,
 				  pad);
