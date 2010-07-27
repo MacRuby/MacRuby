@@ -50,8 +50,6 @@ module RbConfig
   ARCHFLAGS = 
     if e = ENV['ARCHFLAGS']
       e.dup
-    elsif e = ENV['RC_ARCHS']
-      e.split.map { |a| "-arch \#{a}" }.join(' ')
     else
       "#{archflags}"
     end
