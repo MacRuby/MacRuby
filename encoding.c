@@ -484,6 +484,12 @@ rb_enc_set_default_external(VALUE encoding)
     default_external = RENC(encoding); 
 }
 
+rb_encoding *
+rb_default_internal_encoding(void)
+{
+    return (rb_encoding *)default_internal;
+}
+
 static int
 index_of_encoding(rb_encoding_t *enc)
 {
@@ -501,6 +507,27 @@ int
 rb_enc_get_index(VALUE obj)
 {
     return index_of_encoding(rb_enc_get(obj));
+}
+
+int
+rb_to_encoding_index(VALUE enc)
+{
+    if (CLASS_OF(enc) != rb_cEncoding && TYPE(enc) != T_STRING) {
+        return -1;
+    }
+    else {
+        int idx = index_of_encoding(rb_enc_get(enc));
+        if (idx >= 0) {
+            return idx;
+        }
+        else if (NIL_P(enc = rb_check_string_type(enc))) {
+            return -1;
+        }
+        if (!rb_enc_asciicompat(rb_enc_get(enc))) {
+            return -1;
+        }
+        return rb_enc_find_index(StringValueCStr(enc));
+    }
 }
 
 int
@@ -527,3 +554,9 @@ rb_usascii_encindex(void)
     return index_of_encoding(rb_encodings[ENCODING_ASCII]);
 }
 
+rb_encoding *
+rb_enc_from_index(int idx)
+{
+    assert(idx >= 0 && idx < ENCODINGS_COUNT);
+    return rb_encodings[idx];
+}
