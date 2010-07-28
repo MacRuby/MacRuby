@@ -19,7 +19,7 @@ http://macruby.org
 * An Intel machine. PowerPC machines are not supported anymore, but may still
   work. An Intel 64-bit machine (Intel Core Duo 2) is recommended.
 
-* Mac OS X 10.5.6 or later. Mac OS X 10.6 or later is recommended.
+* Mac OS X 10.6 or later.
 
 * LLVM ToT, compiled for both i386 and x86_64.
 
