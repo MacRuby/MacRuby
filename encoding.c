@@ -484,3 +484,46 @@ rb_enc_set_default_external(VALUE encoding)
     default_external = RENC(encoding); 
 }
 
+static int
+index_of_encoding(rb_encoding_t *enc)
+{
+    if (enc != NULL) {
+	for (int i = 0; i <ENCODINGS_COUNT; i++) {
+	    if (rb_encodings[i] == enc) {
+		return i;
+	    }
+	}
+    }
+    return -1;
+}
+
+int
+rb_enc_get_index(VALUE obj)
+{
+    return index_of_encoding(rb_enc_get(obj));
+}
+
+int
+rb_enc_find_index(const char *name)
+{
+    return index_of_encoding(rb_enc_find(name));
+}
+
+int
+rb_ascii8bit_encindex(void)
+{
+    return index_of_encoding(rb_encodings[ENCODING_BINARY]);
+}
+
+int
+rb_utf8_encindex(void)
+{
+    return index_of_encoding(rb_encodings[ENCODING_UTF8]);
+}
+
+int
+rb_usascii_encindex(void)
+{
+    return index_of_encoding(rb_encodings[ENCODING_ASCII]);
+}
+
