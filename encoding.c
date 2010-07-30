@@ -560,3 +560,14 @@ rb_enc_from_index(int idx)
     assert(idx >= 0 && idx < ENCODINGS_COUNT);
     return rb_encodings[idx];
 }
+
+VALUE
+rb_enc_associate_index(VALUE obj, int idx)
+{
+    if (TYPE(obj) == T_STRING) {
+	assert(idx >= 0 && idx < ENCODINGS_COUNT);
+	rb_str_force_encoding(obj, rb_encodings[idx]);
+	return obj;
+    }
+    rb_raise(rb_eArgError, "cannot set encoding on non-string object");
+}
