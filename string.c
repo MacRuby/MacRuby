@@ -6574,7 +6574,5 @@ rb_str_export_to_enc(VALUE str, rb_encoding *enc)
     if (!IS_RSTR(str)) {
 	rb_raise(rb_eArgError, "cannot transcode NSString");
     }
-    return (VALUE)str_transcode(RSTR(str), RSTR(str)->encoding, enc,
-	    TRANSCODE_BEHAVIOR_RAISE_EXCEPTION,
-	    TRANSCODE_BEHAVIOR_RAISE_EXCEPTION, NULL);
+    return (VALUE)str_simple_transcode(RSTR(str), enc);
 }
