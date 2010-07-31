@@ -516,7 +516,7 @@ rb_to_encoding_index(VALUE enc)
         return -1;
     }
     else {
-        int idx = index_of_encoding(rb_enc_get(enc));
+        int idx = index_of_encoding((rb_encoding_t *)enc);
         if (idx >= 0) {
             return idx;
         }
