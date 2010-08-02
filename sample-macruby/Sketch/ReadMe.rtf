@@ -1,0 +1,133 @@
+{\rtf1\ansi\ansicpg1252\cocoartf912\cocoasubrtf100
+{\fonttbl\f0\froman\fcharset0 Times-Roman;}
+{\colortbl;\red255\green255\blue255;}
+\deftab720
+\pard\tx2188\tx4376\tx6564\tx8752\tx10940\tx13128\tx15316\tx17505\tx19693\tx21881\tx24069\tx26257\tx28445\tx30633\tx32821\tx35010\tx37198\tx39386\tx41574\tx43762\tx45950\tx48138\tx50326\tx52515\tx54703\tx56891\tx59079\tx61267\tx63455\tx65643\tx67831\tx70020\tx72208\tx74396\tx76584\tx78772\tx80960\tx83148\tx85336\tx87525\tx89713\tx91901\tx94089\tx96277\tx98465\tx100653\tx102841\tx105030\tx107218\tx109406\tx111594\tx113782\tx115970\tx118158\tx120346\tx122535\tx124723\tx126911\tx129099\tx131287\tx133475\tx135663\tx137851\tx140040\tx142228\tx144416\tx146604\tx148792\tx150980\tx153168\tx155356\tx157545\tx159733\tx161921\tx164109\tx166297\tx168485\tx170673\tx172861\tx175050\tx177238\tx179426\tx181614\tx183802\tx185990\tx188178\tx190366\tx192555\tx194743\tx196931\tx199119\tx201307\tx203495\tx205683
+\tx207871\tx210060\tx212248\tx214436\tx216624\tx218812\pardeftab720\li3282\fi-3282\ql\qnatural
+
+\f0\b\fs48 \cf0 Sketch (Objective-C)\
+\pard\tx2188\tx4376\tx6564\tx8752\tx10940\tx13128\tx15316\tx17505\tx19693\tx21881\tx24069\tx26257\tx28445\tx30633\tx32821\tx35010\tx37198\tx39386\tx41574\tx43762\tx45950\tx48138\tx50326\tx52515\tx54703\tx56891\tx59079\tx61267\tx63455\tx65643\tx67831\tx70020\tx72208\tx74396\tx76584\tx78772\tx80960\tx83148\tx85336\tx87525\tx89713\tx91901\tx94089\tx96277\tx98465\tx100653\tx102841\tx105030\tx107218\tx109406\tx111594\tx113782\tx115970\tx118158\tx120346\tx122535\tx124723\tx126911\tx129099\tx131287\tx133475\tx135663\tx137851\tx140040\tx142228\tx144416\tx146604\tx148792\tx150980\tx153168\tx155356\tx157545\tx159733\tx161921\tx164109\tx166297\tx168485\tx170673\tx172861\tx175050\tx177238\tx179426\tx181614\tx183802\tx185990\tx188178\tx190366\tx192555\tx194743\tx196931\tx199119\tx201307\tx203495\tx205683
+\tx207871\tx210060\tx212248\tx214436\tx216624\tx218812\pardeftab720\li1894\fi-1894\ql\qnatural
+
+\b0\fs28 \cf0 version 1.0\
+7 January 1999\
+\
+This example replaces the original Draw application as an example.\
+\
+We are shipping Sketch in two mostly equivalent implementations:  one in Java and one in Objective-C.  This is the Objective-C implementation.  For those interested in the difference between Objective-C and Java coding of Cocoa applications, a side-by-side comparison of the two versions of Sketch can be educational.  Every attempt has been made to keep the two implementations exactly parallel as much as possible.\
+\
+Sketch has been rewritten from scratch to be a much better client of the AppKit.  It uses new AppKit features and classes where ever it is appropriate and it has a much better Model-View-Controller (MVC) separation than the original Draw example.\
+\
+Sketch is not a commercial graphics application.  There are some things about the architecture that are intentionally simpler than they would be if it were a commercial application.  For instance, there is no architecture for dynamically loading graphic types, drawing effects, or custom inspectors. \
+\
+Among other things, some of the main AppKit features that are showcased in Sketch include:  the new document architecture, AppleScript support, NSUndoManager, and NSBezierPath.  In addition, and perhaps more importantly, Sketch is a good example of the Model-View-Controller pattern which many of the new features of the AppKit are designed to work best with.  While it is possible to use the new features such as NSDocument, NSUndoManager, and scripting support without an underlying MVC design, it is much easier (and better in our opinion) if your application does make an effort to use the MVC pattern.\
+\
+\pard\tx2188\tx4376\tx6564\tx8752\tx10940\tx13128\tx15316\tx17505\tx19693\tx21881\tx24069\tx26257\tx28445\tx30633\tx32821\tx35010\tx37198\tx39386\tx41574\tx43762\tx45950\tx48138\tx50326\tx52515\tx54703\tx56891\tx59079\tx61267\tx63455\tx65643\tx67831\tx70020\tx72208\tx74396\tx76584\tx78772\tx80960\tx83148\tx85336\tx87525\tx89713\tx91901\tx94089\tx96277\tx98465\tx100653\tx102841\tx105030\tx107218\tx109406\tx111594\tx113782\tx115970\tx118158\tx120346\tx122535\tx124723\tx126911\tx129099\tx131287\tx133475\tx135663\tx137851\tx140040\tx142228\tx144416\tx146604\tx148792\tx150980\tx153168\tx155356\tx157545\tx159733\tx161921\tx164109\tx166297\tx168485\tx170673\tx172861\tx175050\tx177238\tx179426\tx181614\tx183802\tx185990\tx188178\tx190366\tx192555\tx194743\tx196931\tx199119\tx201307\tx203495\tx205683
+\tx207871\tx210060\tx212248\tx214436\tx216624\tx218812\pardeftab720\li2461\fi-2461\ql\qnatural
+
+\b\fs36 \cf0 Things of note\
+\pard\tx2188\tx4376\tx6564\tx8752\tx10940\tx13128\tx15316\tx17505\tx19693\tx21881\tx24069\tx26257\tx28445\tx30633\tx32821\tx35010\tx37198\tx39386\tx41574\tx43762\tx45950\tx48138\tx50326\tx52515\tx54703\tx56891\tx59079\tx61267\tx63455\tx65643\tx67831\tx70020\tx72208\tx74396\tx76584\tx78772\tx80960\tx83148\tx85336\tx87525\tx89713\tx91901\tx94089\tx96277\tx98465\tx100653\tx102841\tx105030\tx107218\tx109406\tx111594\tx113782\tx115970\tx118158\tx120346\tx122535\tx124723\tx126911\tx129099\tx131287\tx133475\tx135663\tx137851\tx140040\tx142228\tx144416\tx146604\tx148792\tx150980\tx153168\tx155356\tx157545\tx159733\tx161921\tx164109\tx166297\tx168485\tx170673\tx172861\tx175050\tx177238\tx179426\tx181614\tx183802\tx185990\tx188178\tx190366\tx192555\tx194743\tx196931\tx199119\tx201307\tx203495\tx205683
+\tx207871\tx210060\tx212248\tx214436\tx216624\tx218812\pardeftab720\li1894\fi-1894\ql\qnatural
+
+\b0\fs28 \cf0 \
+\pard\tx2188\tx4376\tx6564\tx8752\tx10940\tx13128\tx15316\tx17505\tx19693\tx21881\tx24069\tx26257\tx28445\tx30633\tx32821\tx35010\tx37198\tx39386\tx41574\tx43762\tx45950\tx48138\tx50326\tx52515\tx54703\tx56891\tx59079\tx61267\tx63455\tx65643\tx67831\tx70020\tx72208\tx74396\tx76584\tx78772\tx80960\tx83148\tx85336\tx87525\tx89713\tx91901\tx94089\tx96277\tx98465\tx100653\tx102841\tx105030\tx107218\tx109406\tx111594\tx113782\tx115970\tx118158\tx120346\tx122535\tx124723\tx126911\tx129099\tx131287\tx133475\tx135663\tx137851\tx140040\tx142228\tx144416\tx146604\tx148792\tx150980\tx153168\tx155356\tx157545\tx159733\tx161921\tx164109\tx166297\tx168485\tx170673\tx172861\tx175050\tx177238\tx179426\tx181614\tx183802\tx185990\tx188178\tx190366\tx192555\tx194743\tx196931\tx199119\tx201307\tx203495\tx205683
+\tx207871\tx210060\tx212248\tx214436\tx216624\tx218812\pardeftab720\li1914\fi-1914\ql\qnatural
+
+\b \cf0 Recent renaming\
+\pard\tx2188\tx4376\tx6564\tx8752\tx10940\tx13128\tx15316\tx17505\tx19693\tx21881\tx24069\tx26257\tx28445\tx30633\tx32821\tx35010\tx37198\tx39386\tx41574\tx43762\tx45950\tx48138\tx50326\tx52515\tx54703\tx56891\tx59079\tx61267\tx63455\tx65643\tx67831\tx70020\tx72208\tx74396\tx76584\tx78772\tx80960\tx83148\tx85336\tx87525\tx89713\tx91901\tx94089\tx96277\tx98465\tx100653\tx102841\tx105030\tx107218\tx109406\tx111594\tx113782\tx115970\tx118158\tx120346\tx122535\tx124723\tx126911\tx129099\tx131287\tx133475\tx135663\tx137851\tx140040\tx142228\tx144416\tx146604\tx148792\tx150980\tx153168\tx155356\tx157545\tx159733\tx161921\tx164109\tx166297\tx168485\tx170673\tx172861\tx175050\tx177238\tx179426\tx181614\tx183802\tx185990\tx188178\tx190366\tx192555\tx194743\tx196931\tx199119\tx201307\tx203495\tx205683
+\tx207871\tx210060\tx212248\tx214436\tx216624\tx218812\pardeftab720\li1894\fi-1894\ql\qnatural
+
+\b0 \cf0 \
+If you have looked at Sketch in previous releases you may notice that all of Sketch's classes are now prefixed with SKT.  This is because as Cocoa begins to depend on more of Carbon, the global namespace for Cocoa apps is changing by the release.  In order to avoid naming conflicts now and in the future, it is wise for all global symbols in a Cocoa app to be prefixed with some project-specific prefix.  For Sketch, I have chosen SKT.\
+\
+\pard\tx2188\tx4376\tx6564\tx8752\tx10940\tx13128\tx15316\tx17505\tx19693\tx21881\tx24069\tx26257\tx28445\tx30633\tx32821\tx35010\tx37198\tx39386\tx41574\tx43762\tx45950\tx48138\tx50326\tx52515\tx54703\tx56891\tx59079\tx61267\tx63455\tx65643\tx67831\tx70020\tx72208\tx74396\tx76584\tx78772\tx80960\tx83148\tx85336\tx87525\tx89713\tx91901\tx94089\tx96277\tx98465\tx100653\tx102841\tx105030\tx107218\tx109406\tx111594\tx113782\tx115970\tx118158\tx120346\tx122535\tx124723\tx126911\tx129099\tx131287\tx133475\tx135663\tx137851\tx140040\tx142228\tx144416\tx146604\tx148792\tx150980\tx153168\tx155356\tx157545\tx159733\tx161921\tx164109\tx166297\tx168485\tx170673\tx172861\tx175050\tx177238\tx179426\tx181614\tx183802\tx185990\tx188178\tx190366\tx192555\tx194743\tx196931\tx199119\tx201307\tx203495\tx205683
+\tx207871\tx210060\tx212248\tx214436\tx216624\tx218812\pardeftab720\li1914\fi-1914\ql\qnatural
+
+\b \cf0 Model-View-Controller Design\
+\pard\tx2188\tx4376\tx6564\tx8752\tx10940\tx13128\tx15316\tx17505\tx19693\tx21881\tx24069\tx26257\tx28445\tx30633\tx32821\tx35010\tx37198\tx39386\tx41574\tx43762\tx45950\tx48138\tx50326\tx52515\tx54703\tx56891\tx59079\tx61267\tx63455\tx65643\tx67831\tx70020\tx72208\tx74396\tx76584\tx78772\tx80960\tx83148\tx85336\tx87525\tx89713\tx91901\tx94089\tx96277\tx98465\tx100653\tx102841\tx105030\tx107218\tx109406\tx111594\tx113782\tx115970\tx118158\tx120346\tx122535\tx124723\tx126911\tx129099\tx131287\tx133475\tx135663\tx137851\tx140040\tx142228\tx144416\tx146604\tx148792\tx150980\tx153168\tx155356\tx157545\tx159733\tx161921\tx164109\tx166297\tx168485\tx170673\tx172861\tx175050\tx177238\tx179426\tx181614\tx183802\tx185990\tx188178\tx190366\tx192555\tx194743\tx196931\tx199119\tx201307\tx203495\tx205683
+\tx207871\tx210060\tx212248\tx214436\tx216624\tx218812\pardeftab720\li1894\fi-1894\ql\qnatural
+
+\b0 \cf0 \
+The Model layer of Sketch is mainly the SKTGraphic class and its subclasses.  A Sketch Document is made up of a list of SKTGraphics.  SKTGraphics are mainly data-bearing classes.  Each graphic keeps all the information required to represent whatever kind of graphic it is.  The SKTGraphic class defines a set of primitive methods for modifying a graphic and some of the subclasses add new primitives of their own.  The SKTGraphic class also defines some extended methods for modifying a graphic which are implemented in terms of the primitives.\
+\
+The SKTGraphic class defines a set of methods that allow it to draw itself.  While this may not strictly seem like it should be part of the model, keep in mind that what we are modelling is a collection of visual objects.  Even though a SKTGraphic knows how to render itself within a view, it is not a view itself.\
+\
+The Controller layer consists of the Model-Controller class SKTDocument and the View-Controller class SKTWindowController as well as other NSWindowController subclasses which control the app's auxiliary panels.  The notion of splitting the control layer into two tiers is sometimes useful when considering the new document architecture.  The NSDocument class is most closely tied to the model.  It "owns" the model and is intimately concerned with controlling the model's persistence.  The NSWindowController class is most closely tied to the view.  It "owns" the UI and controls it.  NSDocument and NSWindowController cooperate together to bridge the gap between the model and the view of an application.\
+\
+The View layer consists mainly of the SKTGraphicView class.  (Technically, it also includes the window, and all the app's panels and menus, but these are almost entirely made up of standard AppKit classes.)  SKTGraphicView manages the presentation of the SKTGraphics in a document to the user and allows the user to manipulate those graphics directly and through menu commands and auxiliary panels.\
+\
+\pard\tx2188\tx4376\tx6564\tx8752\tx10940\tx13128\tx15316\tx17505\tx19693\tx21881\tx24069\tx26257\tx28445\tx30633\tx32821\tx35010\tx37198\tx39386\tx41574\tx43762\tx45950\tx48138\tx50326\tx52515\tx54703\tx56891\tx59079\tx61267\tx63455\tx65643\tx67831\tx70020\tx72208\tx74396\tx76584\tx78772\tx80960\tx83148\tx85336\tx87525\tx89713\tx91901\tx94089\tx96277\tx98465\tx100653\tx102841\tx105030\tx107218\tx109406\tx111594\tx113782\tx115970\tx118158\tx120346\tx122535\tx124723\tx126911\tx129099\tx131287\tx133475\tx135663\tx137851\tx140040\tx142228\tx144416\tx146604\tx148792\tx150980\tx153168\tx155356\tx157545\tx159733\tx161921\tx164109\tx166297\tx168485\tx170673\tx172861\tx175050\tx177238\tx179426\tx181614\tx183802\tx185990\tx188178\tx190366\tx192555\tx194743\tx196931\tx199119\tx201307\tx203495\tx205683
+\tx207871\tx210060\tx212248\tx214436\tx216624\tx218812\pardeftab720\li1914\fi-1914\ql\qnatural
+
+\b \cf0 AppKit Document Architecture\
+\pard\tx2188\tx4376\tx6564\tx8752\tx10940\tx13128\tx15316\tx17505\tx19693\tx21881\tx24069\tx26257\tx28445\tx30633\tx32821\tx35010\tx37198\tx39386\tx41574\tx43762\tx45950\tx48138\tx50326\tx52515\tx54703\tx56891\tx59079\tx61267\tx63455\tx65643\tx67831\tx70020\tx72208\tx74396\tx76584\tx78772\tx80960\tx83148\tx85336\tx87525\tx89713\tx91901\tx94089\tx96277\tx98465\tx100653\tx102841\tx105030\tx107218\tx109406\tx111594\tx113782\tx115970\tx118158\tx120346\tx122535\tx124723\tx126911\tx129099\tx131287\tx133475\tx135663\tx137851\tx140040\tx142228\tx144416\tx146604\tx148792\tx150980\tx153168\tx155356\tx157545\tx159733\tx161921\tx164109\tx166297\tx168485\tx170673\tx172861\tx175050\tx177238\tx179426\tx181614\tx183802\tx185990\tx188178\tx190366\tx192555\tx194743\tx196931\tx199119\tx201307\tx203495\tx205683
+\tx207871\tx210060\tx212248\tx214436\tx216624\tx218812\pardeftab720\li1894\fi-1894\ql\qnatural
+
+\b0 \cf0 \
+Sketch uses the AppKit's new document architecture which is comprised mainly of the three classes NSDocument, NSDocumentController, and NSWindowController.  SKTDocument is a subclass of NSDocument.  SKTWindowController is a subclass of NSWindowController.\
+\
+Sketch merely implements the subclass responsibilities and inherits almost all of the standard behavior of a multi-document app.\
+\
+SKTDocument adds storage and management of the list of SKTGraphics that makes up a document.  It also implements the methods for saving and loading the graphics.\
+\
+\pard\tx2188\tx4376\tx6564\tx8752\tx10940\tx13128\tx15316\tx17505\tx19693\tx21881\tx24069\tx26257\tx28445\tx30633\tx32821\tx35010\tx37198\tx39386\tx41574\tx43762\tx45950\tx48138\tx50326\tx52515\tx54703\tx56891\tx59079\tx61267\tx63455\tx65643\tx67831\tx70020\tx72208\tx74396\tx76584\tx78772\tx80960\tx83148\tx85336\tx87525\tx89713\tx91901\tx94089\tx96277\tx98465\tx100653\tx102841\tx105030\tx107218\tx109406\tx111594\tx113782\tx115970\tx118158\tx120346\tx122535\tx124723\tx126911\tx129099\tx131287\tx133475\tx135663\tx137851\tx140040\tx142228\tx144416\tx146604\tx148792\tx150980\tx153168\tx155356\tx157545\tx159733\tx161921\tx164109\tx166297\tx168485\tx170673\tx172861\tx175050\tx177238\tx179426\tx181614\tx183802\tx185990\tx188178\tx190366\tx192555\tx194743\tx196931\tx199119\tx201307\tx203495\tx205683
+\tx207871\tx210060\tx212248\tx214436\tx216624\tx218812\pardeftab720\li1914\fi-1914\ql\qnatural
+
+\b \cf0 AppleScript Support\
+\pard\tx2188\tx4376\tx6564\tx8752\tx10940\tx13128\tx15316\tx17505\tx19693\tx21881\tx24069\tx26257\tx28445\tx30633\tx32821\tx35010\tx37198\tx39386\tx41574\tx43762\tx45950\tx48138\tx50326\tx52515\tx54703\tx56891\tx59079\tx61267\tx63455\tx65643\tx67831\tx70020\tx72208\tx74396\tx76584\tx78772\tx80960\tx83148\tx85336\tx87525\tx89713\tx91901\tx94089\tx96277\tx98465\tx100653\tx102841\tx105030\tx107218\tx109406\tx111594\tx113782\tx115970\tx118158\tx120346\tx122535\tx124723\tx126911\tx129099\tx131287\tx133475\tx135663\tx137851\tx140040\tx142228\tx144416\tx146604\tx148792\tx150980\tx153168\tx155356\tx157545\tx159733\tx161921\tx164109\tx166297\tx168485\tx170673\tx172861\tx175050\tx177238\tx179426\tx181614\tx183802\tx185990\tx188178\tx190366\tx192555\tx194743\tx196931\tx199119\tx201307\tx203495\tx205683
+\tx207871\tx210060\tx212248\tx214436\tx216624\tx218812\pardeftab720\li1894\fi-1894\ql\qnatural
+
+\b0 \cf0 \
+Sketch is scriptable.  It contains a scriptSuite and scriptTerminology that define its scripting terminology (building on the Core suite and Text suite defined by the scripting frameworks).  It also contains code in the SKTDocument and SKTGraphic classes to support scripting.\
+\
+Most of the code is pretty simple stuff that defines keys for scripting, but Sketch does have some examples of more advanced Scripting support.  \
+\
+In particular the SKTDocument class defines several keys (circles, rectangles, lines, images, textAreas) that are really just subsets of the graphics key.  It includes special NSScriptObjectSpecifier evaluation code to allow scripts to refer to things like "the rectangle after the first circle" or "the graphics from circle 1 to line 5".  These types of specifiers are not directly evaluatable by the default scripting machinery, but they make sense, so Sketch handles them specially.\
+\
+Another area of interest is the SKTGraphic class' objectSpecifier() implementation.  This method allows a SKTGraphic object to construct an NSScriptObjectSpecifier that identifies it.  When a script command's result cannot  be translated into a native AppleScript type, the result will be sent back to ScriptEditor as an object specifier if the object can provide one.  SKTGraphic's implementation of objectSpecifier() allows this to work for SKTGraphic objects.\
+\
+\pard\tx2188\tx4376\tx6564\tx8752\tx10940\tx13128\tx15316\tx17505\tx19693\tx21881\tx24069\tx26257\tx28445\tx30633\tx32821\tx35010\tx37198\tx39386\tx41574\tx43762\tx45950\tx48138\tx50326\tx52515\tx54703\tx56891\tx59079\tx61267\tx63455\tx65643\tx67831\tx70020\tx72208\tx74396\tx76584\tx78772\tx80960\tx83148\tx85336\tx87525\tx89713\tx91901\tx94089\tx96277\tx98465\tx100653\tx102841\tx105030\tx107218\tx109406\tx111594\tx113782\tx115970\tx118158\tx120346\tx122535\tx124723\tx126911\tx129099\tx131287\tx133475\tx135663\tx137851\tx140040\tx142228\tx144416\tx146604\tx148792\tx150980\tx153168\tx155356\tx157545\tx159733\tx161921\tx164109\tx166297\tx168485\tx170673\tx172861\tx175050\tx177238\tx179426\tx181614\tx183802\tx185990\tx188178\tx190366\tx192555\tx194743\tx196931\tx199119\tx201307\tx203495\tx205683
+\tx207871\tx210060\tx212248\tx214436\tx216624\tx218812\pardeftab720\li1914\fi-1914\ql\qnatural
+
+\b \cf0 AppKit Undo\
+\pard\tx2188\tx4376\tx6564\tx8752\tx10940\tx13128\tx15316\tx17505\tx19693\tx21881\tx24069\tx26257\tx28445\tx30633\tx32821\tx35010\tx37198\tx39386\tx41574\tx43762\tx45950\tx48138\tx50326\tx52515\tx54703\tx56891\tx59079\tx61267\tx63455\tx65643\tx67831\tx70020\tx72208\tx74396\tx76584\tx78772\tx80960\tx83148\tx85336\tx87525\tx89713\tx91901\tx94089\tx96277\tx98465\tx100653\tx102841\tx105030\tx107218\tx109406\tx111594\tx113782\tx115970\tx118158\tx120346\tx122535\tx124723\tx126911\tx129099\tx131287\tx133475\tx135663\tx137851\tx140040\tx142228\tx144416\tx146604\tx148792\tx150980\tx153168\tx155356\tx157545\tx159733\tx161921\tx164109\tx166297\tx168485\tx170673\tx172861\tx175050\tx177238\tx179426\tx181614\tx183802\tx185990\tx188178\tx190366\tx192555\tx194743\tx196931\tx199119\tx201307\tx203495\tx205683
+\tx207871\tx210060\tx212248\tx214436\tx216624\tx218812\pardeftab720\li1894\fi-1894\ql\qnatural
+
+\b0 \cf0 \
+Sketch uses the NSUndoManager to implement full Undo.  It is interesting to note that there is really very little Undo-related code.\
+\
+Basically, all the primitives in SKTGraphic (and its subclasses) which alter the graphic are in charge of registering undo invocations for the changes they perform.  SKTDocument is in charge of registering undo invocations for changes such as the addition, removal, and reordering of SKTGraphics.  This is the bulk of the undo support and it is the only essential part.\
+\
+SKTGraphicView (and some of the panel controllers) also do a little undo-related stuff.  They register reasonable names for undo groups.  Because SKTGraphicView and the panel controllers are the entry points for user actions, they know the semantic details of what's happening.  They are in a position to name undo groups in ways that make sense.\
+\
+Finally, because SKTGraphicView keeps track of the selection, and changes in selection should be undone along with actual changes to the document, SKTGraphicView adds some extra undo support to register undo invocations for selection changes.  These are purely cosmetic undo invocations since they have no effect on the persistent state of the document, but they make the experience of undoing stuff much more visually sensible.\
+\
+All in all, there are about 20 lines of code that actually reigster undo invocations and about 35 lines that register an action name.\
+\
+\pard\tx2188\tx4376\tx6564\tx8752\tx10940\tx13128\tx15316\tx17505\tx19693\tx21881\tx24069\tx26257\tx28445\tx30633\tx32821\tx35010\tx37198\tx39386\tx41574\tx43762\tx45950\tx48138\tx50326\tx52515\tx54703\tx56891\tx59079\tx61267\tx63455\tx65643\tx67831\tx70020\tx72208\tx74396\tx76584\tx78772\tx80960\tx83148\tx85336\tx87525\tx89713\tx91901\tx94089\tx96277\tx98465\tx100653\tx102841\tx105030\tx107218\tx109406\tx111594\tx113782\tx115970\tx118158\tx120346\tx122535\tx124723\tx126911\tx129099\tx131287\tx133475\tx135663\tx137851\tx140040\tx142228\tx144416\tx146604\tx148792\tx150980\tx153168\tx155356\tx157545\tx159733\tx161921\tx164109\tx166297\tx168485\tx170673\tx172861\tx175050\tx177238\tx179426\tx181614\tx183802\tx185990\tx188178\tx190366\tx192555\tx194743\tx196931\tx199119\tx201307\tx203495\tx205683
+\tx207871\tx210060\tx212248\tx214436\tx216624\tx218812\pardeftab720\li1914\fi-1914\ql\qnatural
+
+\b \cf0 NSBezierPath\
+\pard\tx2188\tx4376\tx6564\tx8752\tx10940\tx13128\tx15316\tx17505\tx19693\tx21881\tx24069\tx26257\tx28445\tx30633\tx32821\tx35010\tx37198\tx39386\tx41574\tx43762\tx45950\tx48138\tx50326\tx52515\tx54703\tx56891\tx59079\tx61267\tx63455\tx65643\tx67831\tx70020\tx72208\tx74396\tx76584\tx78772\tx80960\tx83148\tx85336\tx87525\tx89713\tx91901\tx94089\tx96277\tx98465\tx100653\tx102841\tx105030\tx107218\tx109406\tx111594\tx113782\tx115970\tx118158\tx120346\tx122535\tx124723\tx126911\tx129099\tx131287\tx133475\tx135663\tx137851\tx140040\tx142228\tx144416\tx146604\tx148792\tx150980\tx153168\tx155356\tx157545\tx159733\tx161921\tx164109\tx166297\tx168485\tx170673\tx172861\tx175050\tx177238\tx179426\tx181614\tx183802\tx185990\tx188178\tx190366\tx192555\tx194743\tx196931\tx199119\tx201307\tx203495\tx205683
+\tx207871\tx210060\tx212248\tx214436\tx216624\tx218812\pardeftab720\li1894\fi-1894\ql\qnatural
+
+\b0 \cf0 \
+Sketch uses NSBezierPath to draw most of its simple graphic types.  There is no use of postscript wraps at all.\
+\
+NSBezierPath is a higher level drawing abstraction than using the postscript directly.  It insulates you from the underlying drawing model and makes the code more portable in the long run.\
+\
+The base SKTGraphic class defines a method which returns a NSBezierPath.  If a subclass overrides this to return a path, then the SKTGraphic base class can handle all the drawing itself.  Some more complex subclasses such as SKTText and SKTImage do not use the bezierPath API.  They override drawInView:isSelected: instead to do their own drawing.\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardeftab720\li1894\fi-1894\ql\qnatural
+\cf0 \
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardeftab720\ql\qnatural
+
+\b \cf0 Use of NSWindowController for panels\
+
+\b0 \
+The NSWindowController class was added mainly to support the new document architecture, but it is actually quite useful on its own.  An NSWindowController owns and manages a nib file.  Among other things, it will assume ownership and responsibility for releasing all the top-level objects in a nib file (something that was fairly tedious before).\
+\
+NSWindowController is therefore quite useful as a controller for the non-document panels in your application as well as for the document windows.  All the panels in Sketch have an NSWindowController subclass to manage them.\
+\
+Mike Ferris\
+Cocoa Application Frameworks\
+}
