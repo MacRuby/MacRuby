@@ -3273,7 +3273,6 @@ retry:
 	GC_WB(&ARGF.filename, rb_str_new2("-"));
     }
     return Qtrue;
-
 }
 
 static VALUE
@@ -3415,7 +3414,7 @@ static VALUE rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv);
  */
 
 static VALUE
-argf_readlines(VALUE argf, SEL sel, int argc, VALUE *argv)
+argf_readlines(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     next_argv();
     ARGF_FORWARD(0, 0);
@@ -3423,9 +3422,9 @@ argf_readlines(VALUE argf, SEL sel, int argc, VALUE *argv)
 }
 
 static VALUE
-rb_f_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
+rb_f_readlines(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
-    return argf_readlines(recv, sel, argc, argv);
+    return argf_readlines(rcv, sel, argc, argv);
 }
 
 /*
