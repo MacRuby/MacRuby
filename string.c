@@ -828,9 +828,20 @@ str_concat_bytes(rb_str_t *self, const char *bytes, long len)
 static void
 str_concat_uchars(rb_str_t *self, const UChar *chars, long len)
 {
-    assert(str_try_making_data_uchars(self));
+    if (str_try_making_data_uchars(self)) {
+	str_concat_bytes(self, (const char *)chars, UCHARS_TO_BYTES(len)); 
+    }
+    else {
+	assert(BINARY_ENC(RSTR(self)->encoding));
+	const long new_length_in_bytes = RSTR(self)->length_in_bytes + len;
 
-    str_concat_bytes(self, (const char *)chars, UCHARS_TO_BYTES(len)); 
+	str_resize_bytes(self, new_length_in_bytes);
+	char *ptr = (RSTR(self)->data.bytes + RSTR(self)->length_in_bytes);
+	for (int i = 0; i < len; ++i) {
+	    ptr[i] = chars[i];
+	}
+	self->length_in_bytes = new_length_in_bytes;
+    }
 }
 
 static void

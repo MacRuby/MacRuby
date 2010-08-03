@@ -47,6 +47,8 @@ struct rb_op_tbl_entry {
 // Defined in parse.y.
 extern struct rb_op_tbl_entry rb_op_tbl[];
 
+VALUE rb_sym_str(VALUE sym);
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif

@@ -10,6 +10,7 @@
 #include "unicode/regex.h"
 #include "unicode/unistr.h"
 #include "ruby/macruby.h"
+#include "ruby/encoding.h"
 #include "encoding.h"
 #include "objc.h"
 #include "re.h"
@@ -586,6 +587,7 @@ typedef struct rb_regexp_matcher {
     struct RBasic basic;
     UnicodeString *unistr;
     RegexMatcher *matcher;
+    rb_encoding_t *str_enc;
 } rb_regexp_matcher_t;
 
 static IMP regexp_matcher_finalize_imp_super = NULL; 
@@ -628,6 +630,7 @@ rb_reg_matcher_new(VALUE re, VALUE str)
 
     matcher->matcher = regexp_matcher;
     matcher->unistr = unistr;
+    matcher->str_enc = rb_enc_get(str);
 
     return (VALUE)matcher;
 }
@@ -718,6 +721,7 @@ rb_reg_matcher_search(VALUE re, VALUE matcher, int pos, bool reverse)
     }
 
     rb_str_set_len(RMATCH(match)->str, 0);
+    rb_str_force_encoding(RMATCH(match)->str, re_matcher->str_enc);
     rb_str_append_uchars(RMATCH(match)->str, re_matcher->unistr->getBuffer(),
 	    re_matcher->unistr->length());
 

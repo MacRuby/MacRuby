@@ -837,3 +837,9 @@ rb_id_attrset(ID id)
     id |= ID_ATTRSET;
     return id;
 }
+
+VALUE
+rb_sym_str(VALUE sym)
+{
+    return RSYM(sym)->str;
+}

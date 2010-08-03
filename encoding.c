@@ -14,6 +14,7 @@
 #include "ruby/macruby.h"
 #include "ruby/encoding.h"
 #include "encoding.h"
+#include "symbol.h"
 
 VALUE rb_cEncoding;
 
@@ -403,10 +404,16 @@ rb_enc_from_encoding(rb_encoding_t *enc)
 rb_encoding_t *
 rb_enc_get(VALUE obj)
 {
-    if (IS_RSTR(obj)) {
-	return RSTR(obj)->encoding;
+    switch (TYPE(obj)) {
+	case T_STRING:
+	    if (IS_RSTR(obj)) {
+		return RSTR(obj)->encoding;
+	    }
+	    return rb_encodings[ENCODING_UTF8];
+
+	case T_SYMBOL:
+	    return rb_enc_get(rb_sym_str(obj));
     }
-    // TODO support symbols
     return NULL;
 }
 
