@@ -4291,6 +4291,9 @@ RoxorCore::unregister_thread(VALUE thread)
 {
     RoxorCoreLock lock;
 
+    rb_vm_thread_t *t = GetThreadPtr(thread);
+    t->status = THREAD_DEAD;
+
     // We do not call #delete because it might trigger #== in case it has been
     // overriden on the thread object, and therefore cause a deadlock if the
     // new method tries to acquire the RoxorCore GIL.
@@ -4310,8 +4313,6 @@ RoxorCore::unregister_thread(VALUE thread)
     }
 
     lock.unlock();
-
-    rb_vm_thread_t *t = GetThreadPtr(thread);
 
     const int code = pthread_mutex_destroy(&t->sleep_mutex);
     if (code == EBUSY) {
@@ -4333,8 +4334,6 @@ RoxorCore::unregister_thread(VALUE thread)
     t->vm = NULL;
 
     pthread_assert(pthread_setspecific(RoxorVM::vm_thread_key, NULL));
-
-    t->status = THREAD_DEAD;
 }
 
 static inline void
