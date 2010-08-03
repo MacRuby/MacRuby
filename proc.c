@@ -720,8 +720,17 @@ method_eq(VALUE method, SEL sel, VALUE other)
 
     if (m1->oclass != m2->oclass
 	|| m1->rclass != m2->rclass
-	|| m1->recv != m2->recv
-	|| m1->node->objc_imp != m2->node->objc_imp) {
+	|| m1->recv != m2->recv) {
+	return Qfalse;
+    }
+
+    IMP m1_imp = m1->node == NULL
+	? class_getMethodImplementation((Class)m1->oclass, m1->sel)
+	: m1->node->objc_imp;
+    IMP m2_imp = m2->node == NULL
+	? class_getMethodImplementation((Class)m2->oclass, m2->sel)
+	: m2->node->objc_imp;
+    if (m1_imp != m2_imp) {
 	return Qfalse;
     }
 
