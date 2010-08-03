@@ -442,6 +442,12 @@ describe "A pure Objective-C method" do
     lambda { @o.methodAcceptingAnonymousStructure(nil) }.should raise_error(TypeError)
     lambda { @o.methodAcceptingAnonymousStructure(NSRange.new(42, 4200)) }.should raise_error(TypeError)
   end
+
+  it "can be retrieved as a Method object" do
+    o = NSString.method(:hash)
+    o.class.should == Method
+    o.should == NSString.method(:hash)
+  end
 end
 
 describe "A pure MacRuby method" do
