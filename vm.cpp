@@ -4525,6 +4525,11 @@ rb_thread_sleep_forever()
 {
     rb_vm_thread_t *t = GET_THREAD();
 
+    if (rb_thread_alone()) {
+	rb_raise(rb_eThreadError,
+		"stopping only thread\n\tnote: use sleep to stop forever");
+    }
+
     pre_wait(t);
     const int code = pthread_cond_wait(&t->sleep_cond, &t->sleep_mutex);
     assert(code == 0 || code == ETIMEDOUT);

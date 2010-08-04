@@ -788,8 +788,7 @@ rb_thread_key_p(VALUE self, SEL sel, VALUE key)
 int
 rb_thread_alone()
 {
-    // TODO
-    return 0;
+    return RARRAY_LEN(rb_vm_threads()) <= 1;
 }
 
 /*
