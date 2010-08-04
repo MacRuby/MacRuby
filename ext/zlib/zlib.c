@@ -1103,11 +1103,13 @@ deflate_run(VALUE args)
 static VALUE
 rb_deflate_s_deflate(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
-    struct zstream *z = (struct zstream*)zstream_deflate_new(klass);
+    struct zstream *z;
     VALUE src, level, dst, args[2];
     int err, lev;
 
     rb_scan_args(argc, argv, "11", &src, &level);
+
+    z = (struct zstream *)xmalloc(sizeof(struct zstream));
 
     lev = ARG_LEVEL(level);
     StringValue(src);
