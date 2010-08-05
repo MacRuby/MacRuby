@@ -521,19 +521,16 @@ rb_obj_instance_eval(VALUE self, SEL sel, VALUE top, int argc, VALUE *argv)
 {
     VALUE klass;
 
-    if (SPECIAL_CONST_P(self)) {
+    if (SPECIAL_CONST_P(self) || CLASS_OF(self) == rb_cSymbol) {
 	klass = 0;
     }
     else {
-	switch (TYPE(self)) {
-	    default:
-		klass = rb_singleton_class(self);
-		switch (TYPE(top)) {
-		    case T_CLASS:
-		    case T_MODULE:
-			rb_vm_set_outer(klass, top);
-			break;
-		}
+	klass = rb_singleton_class(self);
+	switch (TYPE(top)) {
+	    case T_CLASS:
+	    case T_MODULE:
+		rb_vm_set_outer(klass, top);
+		break;
 	}
     }
     return specific_eval(argc, argv, klass, self);
