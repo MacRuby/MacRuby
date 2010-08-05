@@ -4088,22 +4088,18 @@ RoxorCompiler::compile_node0(NODE *node)
 	case NODE_UNDEF:
 	    {
 		if (undefFunc == NULL) {
-		    // VALUE rb_vm_undef(VALUE klass, ID name,
+		    // VALUE rb_vm_undef2(VALUE klass, VALUE sym,
 		    //	unsigned char dynamic_class);
 		    undefFunc =
 			cast<Function>(module->getOrInsertFunction(
-				"rb_vm_undef",
-				VoidTy, RubyObjTy, IntTy, Int8Ty, NULL));
+				"rb_vm_undef2",
+				VoidTy, RubyObjTy, RubyObjTy, Int8Ty, NULL));
 		}
 
 		assert(node->u2.node != NULL);
-		VALUE name = node->u2.node->nd_lit;
-		assert(TYPE(name) == T_SYMBOL);
-		ID name_id = SYM2ID(name);
-
 		Value *args[] = {
 		    compile_current_class(),
-		    compile_id(name_id),
+		    compile_node(node->u2.node),
 		    ConstantInt::get(Int8Ty, dynamic_class ? 1 : 0)
 		};
 		compile_protected_call(undefFunc, args, args + 3);

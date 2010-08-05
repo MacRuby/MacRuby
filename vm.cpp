@@ -1541,6 +1541,14 @@ rb_vm_undef(VALUE klass, ID name, unsigned char dynamic_class)
 }
 
 extern "C"
+void
+rb_vm_undef2(VALUE klass, VALUE sym, unsigned char dynamic_class)
+{
+    assert(TYPE(sym) == T_SYMBOL);
+    return rb_vm_undef(klass, SYM2ID(sym), dynamic_class);
+}
+
+extern "C"
 VALUE
 rb_vm_defined(VALUE self, int type, VALUE what, VALUE what2)
 {
