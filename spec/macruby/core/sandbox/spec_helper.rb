@@ -11,10 +11,8 @@ def result
 end
 
 def with_temporary_file(temp = tmp('sandbox', false))
-  p "Creating #{temp}"
   FileUtils.touch temp
   yield temp
   FileUtils.rm temp
-  p "Deleting #{temp}"
 end
   
