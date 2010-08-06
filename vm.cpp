@@ -1664,6 +1664,16 @@ kvo_sel(Class klass, const char *selname, const size_t selsize,
 #endif
 }
 
+static const char *
+get_bs_method_type(bs_element_method_t *bs_method, int idx)
+{
+    const char *type = rb_get_bs_method_type(bs_method, idx);
+    if (type == NULL) {
+	type = "@";
+    }
+    return type;
+}
+
 static void 
 resolve_method_type(char *buf, const size_t buflen, Class klass, Method m,
 	SEL sel, const unsigned int types_count)
@@ -1716,6 +1726,19 @@ resolve_method_type(char *buf, const size_t buflen, Class klass, Method m,
 	    else if (kvo_sel(klass, selname, selsize, "get", ":range:")) {
 	    }
 #endif
+	    else if (bs_method != NULL) {
+		buf[0] = '\0';
+
+		// retval, self and sel.
+		strlcat(buf, get_bs_method_type(bs_method, -1), buflen);
+		strlcat(buf, "@", buflen);
+		strlcat(buf, ":", buflen);
+
+		// Arguments.
+		for (unsigned int i = 3; i < types_count; i++) {
+		    strlcat(buf, get_bs_method_type(bs_method, i - 3), buflen);
+		}
+	    }
 	    else {
 		assert(types_count < buflen);
 

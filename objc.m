@@ -26,27 +26,6 @@
 # include "bs.h"
 #endif
 
-static inline const char *
-rb_get_bs_method_type(bs_element_method_t *bs_method, int arg)
-{
-    if (bs_method != NULL) {
-	if (arg == -1) {
-	    if (bs_method->retval != NULL) {
-		return bs_method->retval->type;
-	    }
-	}
-	else {
-	    int i;
-	    for (i = 0; i < bs_method->args_count; i++) {
-		if (bs_method->args[i].index == arg) {
-		    return bs_method->args[i].type;
-		}
-	    }
-	}
-    }
-    return NULL;
-}
-
 bool
 rb_objc_get_types(VALUE recv, Class klass, SEL sel, Method method,
 		  bs_element_method_t *bs_method, char *buf, size_t buflen)
