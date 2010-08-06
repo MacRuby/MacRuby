@@ -25,7 +25,8 @@ rb_get_bs_method_type(bs_element_method_t *bs_method, int arg)
 	    }
 	}
 	else {
-	    for (unsigned int i = 0; i < bs_method->args_count; i++) {
+	    unsigned int i;
+	    for (i = 0; i < bs_method->args_count; i++) {
 		if (bs_method->args[i].index == arg) {
 		    return bs_method->args[i].type;
 		}
