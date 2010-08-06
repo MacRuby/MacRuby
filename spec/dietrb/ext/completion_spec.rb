@@ -58,6 +58,11 @@ describe "IRB::Completion" do
           complete('foo.').should include('foo.singleton_method')
         end
         
+        it "matches as an instance variable" do
+          @context.__evaluate__('@an_instance_variable = ::CompletionStub.new')
+          complete('@an_instance_variable.').should == imethods(::CompletionStub, '@an_instance_variable')
+        end
+        
         it "matches as a global variable" do
           complete('$a_completion_stub.').should == imethods(::CompletionStub, '$a_completion_stub')
         end
@@ -193,9 +198,10 @@ describe "IRB::Completion" do
       end
       
       it "filters the methods, of the variable receiver, by the given method name" do
-        @context.__evaluate__('foo = ::CompletionStub.new')
+        @context.__evaluate__('foo = @an_instance_variable = ::CompletionStub.new')
         complete('foo.an_im').should == %w{ foo.an_imethod }
         complete('$a_completion_stub.an_im').should == %w{ $a_completion_stub.an_imethod }
+        complete('@an_instance_variable.an_im').should == %w{ @an_instance_variable.an_imethod }
         # TODO: fix
         # complete('CompletionStub.a_sing').should == %w{ CompletionStub.a_singleton_method }
       end
@@ -204,7 +210,7 @@ describe "IRB::Completion" do
   
   describe "when *not* doing a method call on an explicit receiver" do
     before do
-      @context.__evaluate__("a_local_variable = :ok")
+      @context.__evaluate__("a_local_variable = @an_instance_variable = :ok")
     end
     
     it "matches local variables" do
@@ -217,6 +223,10 @@ describe "IRB::Completion" do
     
     it "matches local variables and instance method of the context object" do
       complete("a_loc").should == %w{ a_local_method a_local_variable }
+    end
+    
+    it "matches instance variables" do
+      complete("@an_inst").should == %w{ @an_instance_variable }
     end
     
     it "matches global variables" do

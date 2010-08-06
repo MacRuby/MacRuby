@@ -140,11 +140,14 @@ describe "IRB::Source::Reflector" do
   it "returns whether or not the source contains a syntax error, except a code block not ending" do
     reflect("def;").syntax_error?.should == true
     reflect("def;").syntax_error?.should == true
+    reflect("{ [ } ]").syntax_error?.should == true
     reflect("def foo").syntax_error?.should == false
     reflect("class A; }").syntax_error?.should == true
     reflect("class A; {" ).syntax_error?.should == false
+    reflect("class A; def {").syntax_error?.should == true
     reflect("class A def foo").syntax_error?.should == true
     reflect("class A; def foo" ).syntax_error?.should == false
+    reflect("def foo; {; end; }").syntax_error?.should == true
   end
   
   it "returns the actual syntax error message if one occurs" do
@@ -185,12 +188,68 @@ describe "IRB::Source::Reflector" do
   it "correctly increases and decreases the code block indentation level for literals" do
     [
       ["lambda { |x|", "}"],
-      ["{", "}"],
-      ['"#{', '}"'],
-      ["[", "]"]
+      ["{ :foo => ", " :bar }"],
+      ["[ 1", ", 2 ]"],
+
+      ["'", "'"],
+      ["' ", " '"],
+      ["'foo ", " bar'"],
+      ["' foo ", " bar '"],
+
+      ['"', '"'],
+      ['" ', ' "'],
+      ['"foo ', ' bar"'],
+      ['" foo ', ' bar "'],
+
+      ["%{", "}"],
+      ["%{ ", " }"],
+      ["%{foo ", " bar}"],
+      ["%{ foo ", " bar }"],
+      ["%(foo ", " bar)"],
+      ["%( foo ", " bar )"],
+      ["%[ foo ", " bar ]"],
+      ["%[foo ", " bar]"],
+
+      ["%w{ ", " }"],
+      ["%w{foo ", " bar}"],
+      ["%w{ foo ", " bar }"],
+      ["%w(foo ", " bar)"],
+      ["%w( foo ", " bar )"],
+      ["%w[foo ", " bar]"],
+      ["%w[ foo ", " bar ]"],
+
+      ["%W{foo ", " bar}"],
+      ["%W{ foo ", " bar }"],
+      ["%W(foo ", " bar)"],
+      ["%W( foo ", " bar )"],
+      ["%W[foo ", " bar]"],
+      ["%W[ foo ", " bar ]"],
+
+      ["%r{foo ", " bar}"],
+      ["%r{ foo ", " bar }"],
+      ["%r(foo ", " bar)"],
+      ["%r( foo ", " bar )"],
+      ["%r[foo ", " bar]"],
+      ["%r[ foo ", " bar ]"],
+
+      ["/foo ", " bar/"],
+      ["/ foo ", " bar /"],
     ].each do |open, close|
       reflect(open).level.should == 1
+      reflect(open).code_block?.should == false
       reflect("#{open}\n#{close}").level.should == 0
+      reflect("#{open}\n#{close}").code_block?.should == true
+    end
+  end
+
+  it "handles cases that contain backspaces" do
+    [
+      ["%{", "\b"],
+      ["%w{", "\b"],
+      ["%r{", "\b"],
+    ].each do |open, close|
+      reflect("#{open}\n#{close}").level.should == 1
+      reflect("#{open}\n#{close}").code_block?.should == false
     end
   end
 end

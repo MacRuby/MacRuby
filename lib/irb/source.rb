@@ -72,7 +72,7 @@ module IRB
       def initialize(source)
         super
         @level = 0
-        @code_block = !parse.nil?
+        @code_block = !parse.nil? && !@in_string && !@in_regexp && !@in_array
       end
       
       # Returns the code block indentation level.
@@ -182,6 +182,65 @@ module IRB
       def on_rbrace(token) #:nodoc:
         @level -= 1
         super
+      end
+
+      def on_tstring_beg(token)
+        @in_string = token
+        @level += 1
+        super
+      end
+
+      def on_tstring_end(token)
+        if @in_string && tokens_match?(@in_string, token)
+          @in_string = nil
+          @level -= 1
+        end
+        super
+      end
+
+      def on_qwords_beg(token)
+        @in_array = token.strip
+        @level += 1
+        super
+      end
+      alias_method :on_words_beg, :on_qwords_beg
+
+      def on_words_sep(token)
+        if tokens_match?(@in_array, token)
+          @in_array = false
+          @level -= 1
+        end
+        super
+      end
+
+      def on_regexp_beg(token)
+        @in_regexp = token
+        @level += 1
+        super
+      end
+
+      def on_regexp_end(token)
+        if tokens_match?(@in_regexp, token)
+          @in_regexp = false
+          @level -= 1
+        end
+        super
+      end
+
+      def tokens_match?(open_token, close_token)
+        last_char_open_token = open_token[-1, 1]
+        last_char_close_token = close_token[-1, 1]
+        if last_char_open_token == last_char_close_token
+          true
+        else
+          case last_char_open_token
+          when '{' then last_char_close_token == '}'
+          when '(' then last_char_close_token == ')'
+          when '[' then last_char_close_token == ']'
+          else
+            false
+          end
+        end
       end
     end
   end

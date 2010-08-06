@@ -59,6 +59,14 @@ module IRB
       evaluate('local_variables').map(&:to_s)
     end
     
+    def instance_variables
+      context.object.instance_variables.map(&:to_s)
+    end
+    
+    def global_variables
+      super.map(&:to_s)
+    end
+    
     def instance_methods
       context.object.methods.map(&:to_s)
     end
@@ -106,7 +114,13 @@ module IRB
         end
         
         if call
-          format_methods(receiver, methods || methods_of_object(root), filter)
+          if results = (methods || methods_of_object(root))
+            format_methods(receiver, results, filter)
+          else
+            # this is mainly because MacRuby currently has a problem with local_variables,
+            # normally I'd prefer to let the program die so the user might report it
+            []
+          end
         else
           match_methods_vars_or_consts_in_scope(root)
         end.sort.uniq
@@ -129,8 +143,10 @@ module IRB
       case var[TYPE]
       when :@ident
         local_variables + instance_methods + RESERVED_DOWNCASE_WORDS
+      when :@ivar
+        instance_variables
       when :@gvar
-        global_variables.map(&:to_s)
+        global_variables
       when :@const
         if symbol[TYPE] == :top_const_ref
           filter = "::#{filter}"
@@ -174,8 +190,10 @@ module IRB
         case type
         when :@ident
           evaluate(name).methods if local_variables.include?(name)
+        when :@ivar
+          evaluate(name).methods if instance_variables.include?(name)
         when :@gvar
-          eval(name).methods if global_variables.include?(name.to_sym)
+          eval(name).methods if global_variables.include?(name)
         when :@const
           evaluate(name).methods if constants.include?(name)
         end
