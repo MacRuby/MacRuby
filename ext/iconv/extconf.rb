@@ -42,6 +42,7 @@ if have_func("iconv", "iconv.h") or
     end
     $cleanfiles << wrapper
   end
+  $INCFLAGS << ' -I../..'
   create_makefile("iconv")
   if conf
     open("Makefile", "a") do |mf|

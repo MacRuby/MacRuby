@@ -516,6 +516,15 @@ rb_enc_get_index(VALUE obj)
     return index_of_encoding(rb_enc_get(obj));
 }
 
+void
+rb_enc_set_index(VALUE obj, int encindex)
+{
+    if (encindex < ENCODINGS_COUNT) {
+	return ;
+    }
+    rb_str_force_encoding(obj, rb_encodings[encindex]);
+}
+
 int
 rb_to_encoding_index(VALUE enc)
 {

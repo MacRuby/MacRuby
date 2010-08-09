@@ -2,7 +2,7 @@ require File.expand_path('../options', __FILE__)
 
 EXTENSIONS = %w{
   ripper digest etc readline libyaml fcntl socket zlib bigdecimal openssl json
-  nkf
+  nkf iconv
 }.sort
 
 class Builder

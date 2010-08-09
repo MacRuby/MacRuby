@@ -13,12 +13,14 @@
 
 **********************************************************************/
 
-#include "ruby/ruby.h"
+#include "ruby/macruby.h"
+#include "ruby/node.h"
+#include "vm.h"
+#include "encoding.h"
 #include <errno.h>
 #include <iconv.h>
 #include <assert.h>
 #include "ruby/st.h"
-#include "ruby/intern.h"
 #include "ruby/encoding.h"
 
 /*
@@ -27,20 +29,20 @@
  * == Summary
  *
  * Ruby extension for charset conversion.
- * 
+ *
  * == Abstract
  *
  * Iconv is a wrapper class for the UNIX 95 <tt>iconv()</tt> function family,
  * which translates string between various encoding systems.
- * 
+ *
  * See Open Group's on-line documents for more details.
  * * <tt>iconv.h</tt>:       http://www.opengroup.org/onlinepubs/007908799/xsh/iconv.h.html
  * * <tt>iconv_open()</tt>:  http://www.opengroup.org/onlinepubs/007908799/xsh/iconv_open.html
  * * <tt>iconv()</tt>:       http://www.opengroup.org/onlinepubs/007908799/xsh/iconv.html
  * * <tt>iconv_close()</tt>: http://www.opengroup.org/onlinepubs/007908799/xsh/iconv_close.html
- * 
+ *
  * Which coding systems are available is platform-dependent.
- * 
+ *
  * == Examples
  *
  * 1. Simple conversion between two charsets.
@@ -67,6 +69,12 @@
  * 4. Shorthand for (3).
  *
  *      Iconv.iconv(to, from, *input.to_a)
+ *
+ * == Attentions
+ *
+ * Even if some extentions of implementation dependent are useful,
+ * DON'T USE those extentions in libraries and scripts to widely distribute.
+ * If you want to use those feature, use String#encode.
  */
 
 /* Invalid value for iconv_t is -1 but 0 for VALUE, I hope VALUE is
@@ -101,6 +109,7 @@ static VALUE rb_eIconvBrokenLibrary;
 
 static ID rb_success, rb_failed;
 static VALUE iconv_fail _((VALUE error, VALUE success, VALUE failed, struct iconv_env_t* env, const char *mesg));
+static VALUE iconv_fail_retry _((VALUE error, VALUE success, VALUE failed, struct iconv_env_t* env, const char *mesg));
 static VALUE iconv_failure_initialize _((VALUE error, VALUE mesg, VALUE success, VALUE failed));
 static VALUE iconv_failure_success _((VALUE self));
 static VALUE iconv_failure_failed _((VALUE self));
@@ -109,8 +118,8 @@ static iconv_t iconv_create _((VALUE to, VALUE from, struct rb_iconv_opt_t *opt,
 static void iconv_dfree _((void *cd));
 static VALUE iconv_free _((VALUE cd));
 static VALUE iconv_try _((iconv_t cd, const char **inptr, size_t *inlen, char **outptr, size_t *outlen));
-static VALUE rb_str_derive _((VALUE str, const char* ptr, int len));
-static VALUE iconv_convert _((iconv_t cd, VALUE str, int start, int length, int toidx,
+static VALUE rb_str_derive _((VALUE str, const char* ptr, long len));
+static VALUE iconv_convert _((iconv_t cd, VALUE str, long start, long length, int toidx,
 			      struct iconv_env_t* env));
 static VALUE iconv_s_allocate _((VALUE klass));
 static VALUE iconv_initialize _((int argc, VALUE *argv, VALUE self));
@@ -136,52 +145,127 @@ charset_map_get(void)
     return charset_map;
 }
 
+static VALUE
+strip_glibc_option(VALUE *code)
+{
+    VALUE val = StringValue(*code);
+    const char *ptr = RSTRING_PTR(val), *pend = RSTRING_END(val);
+    const char *slash = memchr(ptr, '/', pend - ptr);
+
+    if (slash && slash < pend - 1 && slash[1] ==  '/') {
+	VALUE opt = rb_str_subseq(val, slash - ptr, pend - slash);
+	val = rb_str_subseq(val, 0, slash - ptr);
+	*code = val;
+	return opt;
+    }
+    return 0;
+}
+
 static char *
 map_charset(VALUE *code)
 {
-    VALUE val = *code;
+    VALUE val = StringValue(*code);
 
     if (RHASH_SIZE(charset_map)) {
 	VALUE key = rb_funcall2(val, rb_intern("downcase"), 0, 0);
 	StringValuePtr(key);
 	val = rb_hash_aref(charset_map, key);
-	if (val != Qnil)
+	if (!NIL_P(val)) {
 	    *code = val;
+	}
     }
     return StringValuePtr(*code);
 }
 
+NORETURN(static void rb_iconv_sys_fail(const char *s));
+static void
+rb_iconv_sys_fail(const char *s)
+{
+    if (errno == 0) {
+	rb_exc_raise(iconv_fail(rb_eIconvBrokenLibrary, Qnil, Qnil, NULL, s));
+    }
+    rb_sys_fail(s);
+}
+
+#define rb_sys_fail(s) rb_iconv_sys_fail(s)
+
 static iconv_t
 iconv_create(VALUE to, VALUE from, struct rb_iconv_opt_t *opt, int *idx)
 {
+    VALUE toopt = strip_glibc_option(&to);
+    VALUE fromopt = strip_glibc_option(&from);
+    VALUE toenc = 0, fromenc = 0;
     const char* tocode = map_charset(&to);
     const char* fromcode = map_charset(&from);
     iconv_t cd;
+    int retry = 0;
 
     *idx = rb_enc_find_index(tocode);
 
-    cd = iconv_open(tocode, fromcode);
-    if (cd == (iconv_t)-1) {
+    if (toopt) {
+	toenc = rb_str_plus(to, toopt);
+	tocode = RSTRING_PTR(toenc);
+    }
+    if (fromopt) {
+	fromenc = rb_str_plus(from, fromopt);
+	fromcode = RSTRING_PTR(fromenc);
+    }
+    while ((cd = iconv_open(tocode, fromcode)) == (iconv_t)-1) {
+	int inval = 0;
 	switch (errno) {
 	  case EMFILE:
 	  case ENFILE:
 	  case ENOMEM:
-	    rb_gc();
-	    cd = iconv_open(tocode, fromcode);
+	    if (!retry++) {
+		rb_gc();
+		continue;
+	    }
+	    break;
+	  case EINVAL:
+	    retry = 0;
+	    inval = 1;
+	    if (toenc) {
+		tocode = RSTRING_PTR(to);
+		rb_str_resize(toenc, 0);
+		toenc = 0;
+		continue;
+	    }
+	    if (fromenc) {
+		fromcode = RSTRING_PTR(from);
+		rb_str_resize(fromenc, 0);
+		fromenc = 0;
+		continue;
+	    }
+	    break;
 	}
-	if (cd == (iconv_t)-1) {
-	    int inval = errno == EINVAL;
+	{
 	    const char *s = inval ? "invalid encoding " : "iconv";
-	    volatile VALUE msg = rb_str_new(0, strlen(s) + RSTRING_LEN(to) +
-					    RSTRING_LEN(from) + 8);
+	    VALUE error = rb_str_new2(inval ? "invalid encoding " : "iconv");
+	    VALUE format = rb_str_new2("%s(\"%s\", \"%s\")");
+	    VALUE format_args = rb_ary_new3(3, error, to, from);
+	    VALUE msg = rb_str_format(RARRAY_LEN(format_args),
+		RARRAY_PTR(format_args), format);
 
-	    sprintf(RSTRING_PTR(msg), "%s(\"%s\", \"%s\")",
-		    s, RSTRING_PTR(to), RSTRING_PTR(from));
 	    s = RSTRING_PTR(msg);
-	    rb_str_set_len(msg, strlen(s));
-	    if (!inval) rb_sys_fail(s);
-	    iconv_fail(rb_eIconvInvalidEncoding,
-		       Qnil, rb_ary_new3(2, to, from), NULL, s);
+	    if (!inval) {
+		rb_sys_fail(s);
+	    }
+	    rb_exc_raise(iconv_fail(rb_eIconvInvalidEncoding, Qnil,
+				    rb_ary_new3(2, to, from), NULL, s));
+	}
+    }
+
+    if (toopt || fromopt) {
+	if (toopt && fromopt && RTEST(rb_str_equal(toopt, fromopt))) {
+	    fromopt = 0;
+	}
+	if (toopt && fromopt) {
+	    rb_warning("encoding option isn't portable: %s, %s",
+		       RSTRING_PTR(toopt) + 2, RSTRING_PTR(fromopt) + 2);
+	}
+	else {
+	    rb_warning("encoding option isn't portable: %s",
+		       (toopt ? RSTRING_PTR(toopt) : RSTRING_PTR(fromopt)) + 2);
 	}
     }
 
@@ -189,6 +273,7 @@ iconv_create(VALUE to, VALUE from, struct rb_iconv_opt_t *opt, int *idx)
 #ifdef ICONV_SET_TRANSLITERATE
 	if (opt->transliterate != Qundef) {
 	    int flag = RTEST(opt->transliterate);
+	    rb_warning("encoding option isn't portable: transliterate");
 	    if (iconvctl(cd, ICONV_SET_TRANSLITERATE, (void *)&flag))
 		rb_sys_fail("ICONV_SET_TRANSLITERATE");
 	}
@@ -196,6 +281,7 @@ iconv_create(VALUE to, VALUE from, struct rb_iconv_opt_t *opt, int *idx)
 #ifdef ICONV_SET_DISCARD_ILSEQ
 	if (opt->discard_ilseq != Qundef) {
 	    int flag = RTEST(opt->discard_ilseq);
+	    rb_warning("encoding option isn't portable: discard_ilseq");
 	    if (iconvctl(cd, ICONV_SET_DISCARD_ILSEQ, (void *)&flag))
 		rb_sys_fail("ICONV_SET_DISCARD_ILSEQ");
 	}
@@ -275,7 +361,8 @@ iconv_try(iconv_t cd, const char **inptr, size_t *inlen, char **outptr, size_t *
 static VALUE
 iconv_failure_initialize(VALUE error, VALUE mesg, VALUE success, VALUE failed)
 {
-    rb_call_super(1, &mesg);
+    rb_vm_call_super(error, sel_registerName("initialize:"), 1, &mesg);
+    //rb_call_super(1, &mesg);
     rb_ivar_set(error, rb_success, success);
     rb_ivar_set(error, rb_failed, failed);
     return error;
@@ -305,14 +392,20 @@ iconv_fail(VALUE error, VALUE success, VALUE failed, struct iconv_env_t* env, co
 	    args[2] = rb_ary_new4(env->argc, env->argv);
 	}
     }
-    error = rb_class_new_instance(3, args, error);
+    return rb_class_new_instance(3, args, error);
+}
+
+static VALUE
+iconv_fail_retry(VALUE error, VALUE success, VALUE failed, struct iconv_env_t* env, const char *mesg)
+{
+    error = iconv_fail(error, success, failed, env, mesg);
     if (!rb_block_given_p()) rb_exc_raise(error);
     rb_set_errinfo(error);
     return rb_yield(failed);
 }
 
 static VALUE
-rb_str_derive(VALUE str, const char* ptr, int len)
+rb_str_derive(VALUE str, const char* ptr, long len)
 {
     VALUE ret;
 
@@ -327,7 +420,7 @@ rb_str_derive(VALUE str, const char* ptr, int len)
 }
 
 static VALUE
-iconv_convert(iconv_t cd, VALUE str, int start, int length, int toidx, struct iconv_env_t* env)
+iconv_convert(iconv_t cd, VALUE str, long start, long length, int toidx, struct iconv_env_t* env)
 {
     VALUE ret = Qfalse;
     VALUE error = Qfalse;
@@ -351,7 +444,7 @@ iconv_convert(iconv_t cd, VALUE str, int start, int length, int toidx, struct ic
 	error = iconv_try(cd, &inptr, &inlen, &outptr, &outlen);
 	if (RTEST(error)) {
 	    unsigned int i;
-	    rescue = iconv_fail(error, Qnil, Qnil, env, 0);
+	    rescue = iconv_fail_retry(error, Qnil, Qnil, env, 0);
 	    if (TYPE(rescue) == T_ARRAY) {
 		str = RARRAY_LEN(rescue) > 0 ? RARRAY_AT(rescue, 0) : Qnil;
 	    }
@@ -368,23 +461,15 @@ iconv_convert(iconv_t cd, VALUE str, int start, int length, int toidx, struct ic
 	length = 0;
     }
     else {
-	int slen;
+	long slen;
 
 	StringValue(str);
 	slen = RSTRING_LEN(str);
 	inptr = RSTRING_PTR(str);
 
-	if (start < 0 ? (start += slen) < 0 : start >= slen)
-	    length = 0;
-	else if (length < 0 && (length += slen + 1) < 0)
-	    length = 0;
-	else if ((length -= start) < 0)
-	    length = 0;
-	else {
-	    inptr += start;
-	    if (length > slen)
-		length = slen;
-	}
+	inptr += start;
+	if (length < 0 || length > start + slen)
+	    length = slen - start;
     }
     instart = inptr;
     inlen = length;
@@ -398,11 +483,15 @@ iconv_convert(iconv_t cd, VALUE str, int start, int length, int toidx, struct ic
 	errmsg[0] = 0;
 	error = iconv_try(cd, &inptr, &inlen, &outptr, &outlen);
 
-	if (0 <= outlen && outlen <= sizeof(buffer)) {
+	if (
+#if SIGNEDNESS_OF_SIZE_T < 0
+	    0 <= outlen &&
+#endif
+	    outlen <= sizeof(buffer)) {
 	    outlen = sizeof(buffer) - outlen;
 	    if (NIL_P(error) ||	/* something converted */
-		outlen > inptr - tmpstart || /* input can't contain output */
-		(outlen < inptr - tmpstart && inlen > 0) || /* something skipped */
+		outlen > (size_t)(inptr - tmpstart) || /* input can't contain output */
+		(outlen < (size_t)(inptr - tmpstart) && inlen > 0) || /* something skipped */
 		memcmp(buffer, tmpstart, outlen)) /* something differs */
 	    {
 		if (NIL_P(str)) {
@@ -443,7 +532,7 @@ iconv_convert(iconv_t cd, VALUE str, int start, int length, int toidx, struct ic
 		rb_str_cat(ret, instart, inptr - instart);
 	    }
 	    str = rb_str_derive(str, inptr, inlen);
-	    rescue = iconv_fail(error, ret, str, env, errmsg);
+	    rescue = iconv_fail_retry(error, ret, str, env, errmsg);
 	    if (TYPE(rescue) == T_ARRAY) {
 		if ((len = RARRAY_LEN(rescue)) > 0)
 		    rb_str_concat(ret, RARRAY_AT(rescue, 0));
@@ -552,7 +641,7 @@ get_iconv_opt(struct rb_iconv_opt_t *opt, VALUE options)
  *
  * Creates new code converter from a coding-system designated with +from+
  * to another one designated with +to+.
- * 
+ *
  * === Parameters
  *
  * +to+::   encoding name for destination
@@ -577,7 +666,7 @@ iconv_initialize(int argc, VALUE *argv, VALUE self)
     iconv_free(check_iconv(self));
     DATA_PTR(self) = NULL;
     DATA_PTR(self) = (void *)ICONV2VALUE(iconv_create(to, from, &opt, &idx));
-    if (idx >= 0) ENCODING_SET(self, idx);
+    if (idx >= 0) rb_enc_set_index(self, idx);
     return self;
 }
 
@@ -601,7 +690,7 @@ iconv_s_open(int argc, VALUE *argv, VALUE self)
     cd = ICONV2VALUE(iconv_create(to, from, &opt, &idx));
 
     self = Data_Wrap_Struct(self, NULL, ICONV_FREE, (void *)cd);
-    if (idx >= 0) ENCODING_SET(self, idx);
+    if (idx >= 0) rb_enc_set_index(self, idx);
 
     if (rb_block_given_p()) {
 	return rb_ensure(rb_yield, self, (VALUE(*)())iconv_finish, self);
@@ -732,6 +821,7 @@ list_iconv(unsigned int namescount, const char *const *names, void *data)
 }
 #endif
 
+#if defined(HAVE_ICONVLIST) || defined(HAVE___ICONV_FREE_LIST)
 static VALUE
 iconv_s_list(void)
 {
@@ -762,11 +852,12 @@ iconv_s_list(void)
     for (i = 0; i < RARRAY_LEN(ary); i++) {
 	rb_yield(RARRAY_AT(ary, i));
     }
-#else
-    rb_notimplement();
 #endif
     return Qnil;
 }
+#else
+#define iconv_s_list rb_f_notimplement
+#endif
 
 /*
  * Document-method: close
@@ -784,7 +875,7 @@ iconv_init_state(VALUE self)
 {
     iconv_t cd = VALUE2ICONV((VALUE)DATA_PTR(self));
     DATA_PTR(self) = NULL;
-    return iconv_convert(cd, Qnil, 0, 0, ENCODING_GET(self), NULL);
+    return iconv_convert(cd, Qnil, 0, 0, rb_enc_get_index(self), NULL);
 }
 
 static VALUE
@@ -828,16 +919,32 @@ iconv_iconv(int argc, VALUE *argv, VALUE self)
 {
     VALUE str, n1, n2;
     VALUE cd = check_iconv(self);
+    long start = 0, length = 0, slen = 0;
 
-    n1 = n2 = Qnil;
     rb_scan_args(argc, argv, "12", &str, &n1, &n2);
+    if (!NIL_P(str)) {
+	VALUE n = rb_str_length(StringValue(str));
+	slen = NUM2LONG(n);
 
-    str = iconv_convert(VALUE2ICONV(cd), str,
-			NIL_P(n1) ? 0 : NUM2INT(n1),
-			NIL_P(n2) ? -1 : NUM2INT(n2),
-			ENCODING_GET(self),
-			NULL);
-    return str;
+	if (!NIL_P(n1)) {
+	    start = NUM2LONG(n1);
+	    if (start < 0) {
+		start += slen;
+	    }
+	    if (start < 0) {
+		return rb_str_new2("");
+	    }
+	}
+	if (!NIL_P(n2)) {
+	    length = NUM2LONG(n2);
+	}
+	if (NIL_P(n2) || length < 0) {
+	    length = slen;
+	}
+	str = rb_str_subseq(str, start, length);
+    }
+
+    return iconv_convert(VALUE2ICONV(cd), str, 0, -1, rb_enc_get_index(self), NULL);
 }
 
 /*
@@ -853,7 +960,7 @@ iconv_conv(int argc, VALUE *argv, VALUE self)
 {
     iconv_t cd = VALUE2ICONV(check_iconv(self));
     VALUE str, s;
-    int toidx = ENCODING_GET(self);
+    int toidx = rb_enc_get_index(self);
 
     str = iconv_convert(cd, Qnil, 0, 0, toidx, NULL);
     if (argc > 0) {
@@ -870,6 +977,7 @@ iconv_conv(int argc, VALUE *argv, VALUE self)
     return str;
 }
 
+#ifdef ICONV_TRIVIALP
 /*
  * Document-method: trivial?
  * call-seq: trivial?
@@ -879,16 +987,16 @@ iconv_conv(int argc, VALUE *argv, VALUE self)
 static VALUE
 iconv_trivialp(VALUE self)
 {
-#ifdef ICONV_TRIVIALP
     int trivial = 0;
     iconv_ctl(self, ICONV_TRIVIALP, trivial);
     if (trivial) return Qtrue;
-#else
-    rb_notimplement();
-#endif
     return Qfalse;
 }
+#else
+#define iconv_trivialp rb_f_notimplement
+#endif
 
+#ifdef ICONV_GET_TRANSLITERATE
 /*
  * Document-method: transliterate?
  * call-seq: transliterate?
@@ -898,16 +1006,16 @@ iconv_trivialp(VALUE self)
 static VALUE
 iconv_get_transliterate(VALUE self)
 {
-#ifdef ICONV_GET_TRANSLITERATE
     int trans = 0;
     iconv_ctl(self, ICONV_GET_TRANSLITERATE, trans);
     if (trans) return Qtrue;
-#else
-    rb_notimplement();
-#endif
     return Qfalse;
 }
+#else
+#define iconv_get_transliterate rb_f_notimplement
+#endif
 
+#ifdef ICONV_SET_TRANSLITERATE
 /*
  * Document-method: transliterate=
  * call-seq: cd.transliterate = flag
@@ -917,15 +1025,15 @@ iconv_get_transliterate(VALUE self)
 static VALUE
 iconv_set_transliterate(VALUE self, VALUE transliterate)
 {
-#ifdef ICONV_SET_TRANSLITERATE
     int trans = RTEST(transliterate);
     iconv_ctl(self, ICONV_SET_TRANSLITERATE, trans);
-#else
-    rb_notimplement();
-#endif
     return self;
 }
+#else
+#define iconv_set_transliterate rb_f_notimplement
+#endif
 
+#ifdef ICONV_GET_DISCARD_ILSEQ
 /*
  * Document-method: discard_ilseq?
  * call-seq: discard_ilseq?
@@ -935,16 +1043,16 @@ iconv_set_transliterate(VALUE self, VALUE transliterate)
 static VALUE
 iconv_get_discard_ilseq(VALUE self)
 {
-#ifdef ICONV_GET_DISCARD_ILSEQ
     int dis = 0;
     iconv_ctl(self, ICONV_GET_DISCARD_ILSEQ, dis);
     if (dis) return Qtrue;
-#else
-    rb_notimplement();
-#endif
     return Qfalse;
 }
+#else
+#define iconv_get_discard_ilseq rb_f_notimplement
+#endif
 
+#ifdef ICONV_SET_DISCARD_ILSEQ
 /*
  * Document-method: discard_ilseq=
  * call-seq: cd.discard_ilseq = flag
@@ -954,14 +1062,13 @@ iconv_get_discard_ilseq(VALUE self)
 static VALUE
 iconv_set_discard_ilseq(VALUE self, VALUE discard_ilseq)
 {
-#ifdef ICONV_SET_DISCARD_ILSEQ
     int dis = RTEST(discard_ilseq);
     iconv_ctl(self, ICONV_SET_DISCARD_ILSEQ, dis);
-#else
-    rb_notimplement();
-#endif
     return self;
 }
+#else
+#define iconv_set_discard_ilseq rb_f_notimplement
+#endif
 
 /*
  * Document-method: ctlmethods
@@ -1017,7 +1124,7 @@ iconv_failure_success(VALUE self)
  * call-seq: failed
  *
  * Returns substring of the original string passed to Iconv that starts at the
- * character caused the exception. 
+ * character caused the exception.
  */
 static VALUE
 iconv_failure_failed(VALUE self)
@@ -1034,7 +1141,7 @@ iconv_failure_failed(VALUE self)
 static VALUE
 iconv_failure_inspect(VALUE self)
 {
-    char *cname = rb_class2name(CLASS_OF(self));
+    const char *cname = rb_class2name(CLASS_OF(self));
     VALUE success = rb_attr_get(self, rb_success);
     VALUE failed = rb_attr_get(self, rb_failed);
     VALUE str = rb_str_buf_cat2(rb_str_new2("#<"), cname);
@@ -1047,13 +1154,13 @@ iconv_failure_inspect(VALUE self)
 
 /*
  * Document-class: Iconv::InvalidEncoding
- * 
+ *
  * Requested coding-system is not available on this system.
  */
 
 /*
  * Document-class: Iconv::IllegalSequence
- * 
+ *
  * Input conversion stopped due to an input byte that does not belong to
  * the input codeset, or the output codeset does not contain the
  * character.
@@ -1061,20 +1168,20 @@ iconv_failure_inspect(VALUE self)
 
 /*
  * Document-class: Iconv::InvalidCharacter
- * 
+ *
  * Input conversion stopped due to an incomplete character or shift
  * sequence at the end of the input buffer.
  */
 
 /*
  * Document-class: Iconv::OutOfRange
- * 
+ *
  * Iconv library internal error.  Must not occur.
  */
 
 /*
  * Document-class: Iconv::BrokenLibrary
- * 
+ *
  * Detected a bug of underlying iconv(3) libray.
  * * returns an error without setting errno properly
  */
@@ -1122,8 +1229,8 @@ Init_iconv(void)
     id_transliterate = rb_intern("transliterate");
     id_discard_ilseq = rb_intern("discard_ilseq");
 
-    rb_gc_register_address(&charset_map);
     charset_map = rb_hash_new();
+    GC_RETAIN(charset_map);
     rb_define_singleton_method(rb_cIconv, "charset_map", charset_map_get, 0);
 }
 
