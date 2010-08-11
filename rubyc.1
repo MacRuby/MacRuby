@@ -41,7 +41,9 @@ to create a dynamic library or executable.
 .It Fl C
 Compile, assemble, and link a loadable object file. This option produces a Mach-O MacRuby loadable object bundle (.rbo) for every Ruby source file passed to
 .Nm macrubyc ,
-using a default file name which consists of the source file name with the .rbo file extension. A MacRuby loadable object is a Mach-O bundle, compiled with a global constructor that will evaluate the Ruby machine code once it's loaded by the dynamic linker, at runtime, generally upon a Ruby #require statement.
+using a default file name which consists of the source file name with the .rbo file extension. A MacRuby loadable object is a Mach-O bundle, compiled with a global constructor that will evaluate the Ruby machine code once it's loaded by the dynamic linker, at runtime, generally upon a call to Ruby's 
+.Nm require
+method.
 .Pp
 .It Fl -dylib
 Create a dynamic library instead of an executable. This option compiles every Ruby source file passed to 
@@ -92,7 +94,9 @@ will create a binary executable, like the C compiler.
 .Pp
 When building an executable, the very first file passed to
 .Nm macrubyc
-will be considered as the main file. Its machine code will be run once the executable starts. Other machine code files will be linked into the executable, but only run upon #require calls.
+will be considered as the main file. Its machine code will be run once the executable starts. Other machine code files will be linked into the executable, but only run upon calls to the 
+.Nm require
+method.
 .Pp
 .Dl $ echo """def t1; 21; end""" > t1.rb
 .Dl $ echo """def t2; 21; end""" > t2.rb
@@ -103,7 +107,9 @@ will be considered as the main file. Its machine code will be run once the execu
 .Nm macrubyc
 is also able to generate a dynamic library (.dylib) out of Ruby source files, using the
 .Fl -dylib
-option. Such a library can later be linked against an executable that uses the MacRuby runtime. Like executables, the Ruby machine code files will run upon #require calls. Libraries can also be passed to
+option. Such a library can later be linked against an executable that uses the MacRuby runtime. Like executables, the Ruby machine code files will run upon calls to the 
+.Nm require
+method. Libraries can also be passed to
 .Nm macrubyc
 when forming an executable, allowing the compilation of multiple executables sharing common code.
 .Pp
@@ -134,7 +140,9 @@ option and the find command:
 .Pp
 .Dl $ find ./lib -name """*.rb""" -exec macrubyc -C {} \e;
 .Pp
-This creates bundles with the .rbo file extension in the same directory as the original .rb source files. The MacRuby runtime will always pick .rbo files over .rb files upon #require calls. The source files can then be removed. 
+This creates bundles with the .rbo file extension in the same directory as the original .rb source files. The MacRuby runtime will always pick .rbo files over .rb files upon calls to the 
+.Nm require
+method. The source files can then be removed. 
 .Pp
 .Sh SEE ALSO
 .Xr macruby 1 ,
