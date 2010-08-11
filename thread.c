@@ -1363,10 +1363,18 @@ rb_mutex_locked_p(VALUE self, SEL sel)
 static VALUE
 rb_mutex_trylock(VALUE self, SEL sel)
 {
-    if (pthread_mutex_trylock(&GetMutexPtr(self)->mutex) == 0) {
-	GetMutexPtr(self)->thread = GetThreadPtr(rb_vm_current_thread());
+    rb_vm_mutex_t *m = GetMutexPtr(self);
+
+    if (pthread_mutex_trylock(&m->mutex) == 0) {
+	rb_vm_thread_t *current = GetThreadPtr(rb_vm_current_thread());
+	m->thread = current;
+	if (current->mutexes == Qnil) {
+	    GC_WB(&current->mutexes, rb_ary_new());
+	}
+	rb_ary_push(current->mutexes, self);
 	return Qtrue;
     }
+
     return Qfalse;
 }
 
