@@ -717,7 +717,7 @@ str_resize_bytes(rb_str_t *self, long new_capacity)
 static void
 str_ensure_null_terminator(rb_str_t *self)
 {
-    assert(!str_is_stored_in_uchars(self));
+    assert(!str_is_stored_in_uchars(self) || NATIVE_UTF16_ENC(self->encoding));
 
     if (self->length_in_bytes > 0
 	&& (self->capacity_in_bytes == self->length_in_bytes
