@@ -399,8 +399,9 @@ module FileUtils
   #alias copy cp
   #module_function :copy
 
-  OPT_TABLE['cp']   =
-  OPT_TABLE['copy'] = [:preserve, :noop, :verbose]
+  #OPT_TABLE['cp']   =
+  #OPT_TABLE['copy'] = [:preserve, :noop, :verbose]
+  OPT_TABLE['cp'] = [:preserve, :noop, :verbose]
 
   #
   # Options: preserve noop verbose dereference_root remove_destination
