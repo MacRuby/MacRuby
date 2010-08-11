@@ -2488,7 +2488,8 @@ RoxorCompiler::compile_keep_vars(BasicBlock *startBB, BasicBlock *mergeBB)
 
     bb = notNullBB;
 
-    // params must be filled each time because in AOT mode it contains instructions
+    // params must be filled each time because in AOT mode it contains
+    // instructions
     std::vector<Value *> params;
     params.push_back(new LoadInst(current_var_uses, "", bb));
     params.push_back(NULL);

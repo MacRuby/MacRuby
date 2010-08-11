@@ -2989,23 +2989,26 @@ rb_vm_keep_vars(rb_vm_var_uses *uses, int lvars_size, ...)
 {
     rb_vm_var_uses *current = uses;
 
-    if ((current == NULL) || (current->uses_count == 0)) {
+    if (current == NULL || current->uses_count == 0) {
 	// there's no use alive so nothing to do
 	return;
     }
 
-    rb_vm_kept_local *locals = (rb_vm_kept_local *)xmalloc(
-	    sizeof(rb_vm_kept_local)*lvars_size);
+    rb_vm_kept_local *locals = NULL;
+    if (lvars_size > 0) {
+	locals = (rb_vm_kept_local *)xmalloc(sizeof(rb_vm_kept_local)
+		* lvars_size);
 
-    va_list ar;
-    va_start(ar, lvars_size);
-    for (int i = 0; i < lvars_size; ++i) {
-	locals[i].name = va_arg(ar, ID);
-	locals[i].stack_address = va_arg(ar, VALUE *);
-	GC_WB(&locals[i].new_address, (VALUE *)xmalloc(sizeof(VALUE)));
-	GC_WB(locals[i].new_address, *locals[i].stack_address);
+	va_list ar;
+	va_start(ar, lvars_size);
+	for (int i = 0; i < lvars_size; ++i) {
+	    locals[i].name = va_arg(ar, ID);
+	    locals[i].stack_address = va_arg(ar, VALUE *);
+	    GC_WB(&locals[i].new_address, (VALUE *)xmalloc(sizeof(VALUE)));
+	    GC_WB(locals[i].new_address, *locals[i].stack_address);
+	}
+	va_end(ar);
     }
-    va_end(ar);
 
     while (current != NULL) {
 	for (int use_index = 0; use_index < current->uses_count; ++use_index) {
