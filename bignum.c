@@ -12,6 +12,7 @@
 #include "ruby/macruby.h"
 
 #include "objc.h"
+#include "encoding.h"
 
 #include <math.h>
 #include <float.h>
@@ -593,6 +594,7 @@ rb_str_to_inum(VALUE str, int base, int badcheck)
     long len;
 
     StringValue(str);
+    str_check_ascii_compatible(str);
     if (badcheck) {
 	s = StringValueCStr(str);
     }

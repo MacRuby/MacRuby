@@ -359,6 +359,14 @@ rb_str_t *str_need_string(VALUE str);
 rb_str_t *replacement_string_for_encoding(rb_encoding_t* enc);
 void str_replace_with_string(rb_str_t *self, rb_str_t *source);
 
+static inline void
+str_check_ascii_compatible(VALUE str)
+{
+    if (IS_RSTR(str) && !RSTR(str)->encoding->ascii_compatible) {
+	rb_raise(rb_eEncCompatError, "ASCII incompatible encoding: %s",
+		RSTR(str)->encoding->public_name);
+    }
+}
 
 #if defined(__cplusplus)
 } // extern "C"
