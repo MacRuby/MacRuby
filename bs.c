@@ -1111,11 +1111,9 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
 
 	      // Function ptr return type
 	      strlcpy(tmp_type, func_ptr->retval->type, sizeof(tmp_type));
-	      free(func_ptr->retval->type);
 	      // Function ptr args
 	      for (i = 0; i < func_ptr->args_count; i++) {
 		  strlcat(tmp_type, fptr_args[i].type, sizeof(tmp_type));
-		  free(fptr_args[i].type);
 	      }
 	      // Clear the final type string
 	      memset(new_type, 0, sizeof(new_type));
