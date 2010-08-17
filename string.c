@@ -6495,7 +6495,14 @@ rb_uchar_strtol(UniChar *chars, long chars_len, long pos, long *end_offset)
     unum_close(nf);
 
     if (end_offset != NULL) {
-	*end_offset = (long)parse_pos;
+	long offset = (long)pos;
+	do {
+	    if (!isdigit(chars[offset])) {
+		break;
+	    }
+	}
+	while (++offset < parse_pos);
+	*end_offset = offset;
     }
     return val;
 }
