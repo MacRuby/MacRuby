@@ -1455,18 +1455,13 @@ format_error:
 	    OBJSETUP(big, rb_cBignum, T_BIGNUM);
 	    RBIGNUM_SET_SIGN(big, (r_byte(arg) == '+'));
 	    len = r_long(arg);
-	    data = r_bytes0(len * 2, arg);
-	    // TODO: this doesn't work at all
-#if SIZEOF_BDIGITS == SIZEOF_SHORT
-            rb_big_resize((VALUE)big, len);
-#else
-            rb_big_resize((VALUE)big, (len + 1) * 2 / sizeof(BDIGIT));
-#endif
-            digits = RBIGNUM_DIGITS(big);
-	    MEMCPY(digits, RSTRING_PTR(data), char, len * 2);
-#if 0//SIZEOF_BDIGITS > SIZEOF_SHORT
-	    MEMZERO((char *)digits + len * 2, char,
-		    RBIGNUM_LEN(big) * sizeof(BDIGIT) - len * 2);
+	    data = r_bytes0(len * SIZEOF_SHORT, arg);
+	    rb_big_resize((VALUE)big, (len + (SIZEOF_BDIGITS/SIZEOF_SHORT - 1)) * SIZEOF_SHORT / SIZEOF_BDIGITS);
+	    digits = RBIGNUM_DIGITS(big);
+	    MEMCPY(digits, RSTRING_PTR(data), char, len * SIZEOF_SHORT);
+#if SIZEOF_BDIGITS > SIZEOF_SHORT
+	    MEMZERO((char *)digits + len * SIZEOF_SHORT, char,
+		RBIGNUM_LEN(big) * SIZEOF_BDIGITS - len * SIZEOF_SHORT);
 #endif
 	    len = RBIGNUM_LEN(big);
 	    while (len > 0) {
@@ -1477,7 +1472,7 @@ format_error:
 		int i;
 
 		for (i=0; i<SIZEOF_BDIGITS; i++) {
-		    num |= (int)p[i] << shift;
+		    num |= (BDIGIT)p[i] << shift;
 		    shift += 8;
 		}
 #else
