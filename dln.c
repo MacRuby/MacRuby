@@ -240,11 +240,8 @@ dln_find_1(const char *fname, const char *path, char *fbuf, int size,
 	memcpy(bp, fname, i + 1);
 
 	if (stat(fbuf, &st) == 0) {
-	    if (exe_flag == 0) {
-		return fbuf;
-	    }
-	    /* looking for executable */
-	    if (!S_ISDIR(st.st_mode) && eaccess(fbuf, X_OK) == 0) {
+	    if (!S_ISDIR(st.st_mode)
+		    && (exe_flag == 0 || eaccess(fbuf, X_OK) == 0)) {
 		return fbuf;
 	    }
 	}
