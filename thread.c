@@ -328,6 +328,10 @@ static VALUE
 rb_thread_kill(VALUE thread, SEL sel)
 {
     rb_vm_thread_t *t = GetThreadPtr(thread);
+    rb_vm_thread_t *t_main = GetThreadPtr(rb_vm_main_thread()); 
+    if (t->thread == t_main->thread) { 
+	rb_exit(EXIT_SUCCESS); 
+    } 
     if (t->status != THREAD_KILLED) {
 	rb_vm_thread_cancel(t);
     }
