@@ -1220,10 +1220,11 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
     uint8_t *bytes = rb_bstr_bytes(outbuf);
 
     const long data_read = rb_io_read_internal(io_struct, bytes, size);
+    rb_bstr_set_length(outbuf, data_read);
+
     if (data_read == 0) {
 	return Qnil;
     }
-    rb_bstr_set_length(outbuf, data_read);
 
     return outbuf;
 }
