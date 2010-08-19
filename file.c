@@ -2734,6 +2734,60 @@ rb_file_s_dirname(VALUE klass, SEL sel, VALUE fname)
 }
 
 /*
+ * accept a String, and return the pointer of the extension.
+ * if len is passed, set the length of extension to it.
+ * returned pointer is in ``name'' or NULL.
+ *                 returns   *len
+ *   no dot        NULL      0
+ *   dotfile       top       0
+ *   end with dot  dot       1
+ *   .ext          dot       len of .ext
+ *   .ext:stream   dot       len of .ext without :stream (NT only)
+ *
+ */
+const char *
+ruby_find_extname(const char *name, long *len)
+{
+    const char *p, *e;
+
+    p = strrdirsep(name);	/* get the last path component */
+    if (!p) {
+	p = name;
+    }
+    else {
+	do {
+	    name = ++p;
+	} while (isdirsep(*p));
+    }
+
+    e = 0;
+    while (*p && *p == '.') { p++; }
+    while (*p) {
+	if (*p == '.') {
+	    e = p;	  /* get the last dot of the last component */
+	}
+	else if (isdirsep(*p)) {
+	    break;
+	}
+	p = CharNext(p);
+    }
+
+    if (len) {
+	/* no dot, or the only dot is first or end? */
+	if (!e || e == name) {
+	    *len = 0;
+	}
+	else if (e+1 == p) {
+	    *len = 1;
+	}
+	else {
+	    *len = p - e;
+	}
+    }
+    return e;
+}
+
+/*
  *  call-seq:
  *     File.extname(path) -> string
  *  
@@ -2750,29 +2804,17 @@ rb_file_s_dirname(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_file_s_extname(VALUE klass, SEL sel, VALUE fname)
 {
-    const char *name, *p, *e;
+    const char *name, *e;
+    long len;
     VALUE extname;
 
     FilePathStringValue(fname);
     name = StringValueCStr(fname);
-    p = strrdirsep(name);	/* get the last path component */
-    if (!p)
-	p = name;
-    else
-	name = ++p;
-
-    e = 0;
-    while (*p) {
-	if (*p == '.' || istrailinggabage(*p)) {
-	    e = p;	  /* get the last dot of the last component */
-	}
-	else if (isdirsep(*p))
-	    break;
-	p = CharNext(p);
-    }
-    if (!e || e == name || e+1 == p)	/* no dot, or the only dot is first or end? */
+    e = ruby_find_extname(name, &len);
+    if (len <= 1) {
 	return rb_str_new(0, 0);
-    extname = rb_str_new(e, p - e);	/* keep the dot, too! */
+    }
+    extname = rb_str_new(e, len);	/* keep the dot, too! */
     OBJ_INFECT(extname, fname);
     return extname;
 }
