@@ -39,7 +39,7 @@ rb_reg_search(VALUE re, VALUE str, int pos, bool reverse)
 int rb_reg_options_to_mri(int opt);
 int rb_reg_options_from_mri(int mri_opt);
 
-void regexp_get_uchars(VALUE re, const UChar **chars_p, long *chars_len_p);
+void regexp_get_uchars(VALUE re, const UChar **chars_p, int32_t *chars_len_p);
 
 typedef struct rb_match_result {
     unsigned int beg;

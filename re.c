@@ -7,15 +7,13 @@
  * Copyright (C) 1993-2007 Yukihiro Matsumoto
  */
 
-#include "unicode/regex.h"
-#include "unicode/unistr.h"
+#include "unicode/uregex.h"
+#include "unicode/ustring.h"
 #include "ruby/macruby.h"
 #include "ruby/encoding.h"
 #include "encoding.h"
 #include "objc.h"
 #include "re.h"
-
-extern "C" {
 
 VALUE rb_eRegexpError;
 VALUE rb_cRegexp;
@@ -25,8 +23,7 @@ static VALUE rb_cRegexpMatcher;
 
 typedef struct rb_regexp {
     struct RBasic basic;
-    UnicodeString *unistr;
-    RegexPattern *pattern;
+    URegularExpression *pattern;
     bool fixed_encoding;
 } rb_regexp_t;
 
@@ -53,7 +50,6 @@ regexp_alloc(VALUE klass, SEL sel)
 {
     NEWOBJ(re, struct rb_regexp);
     OBJSETUP(re, klass, T_REGEXP);
-    re->unistr = NULL;
     re->pattern = NULL;
     re->fixed_encoding = false;
     return re;
@@ -75,12 +71,8 @@ static void
 regexp_finalize(rb_regexp_t *regexp)
 {
     if (regexp->pattern != NULL) {
-	delete regexp->pattern;
+	uregex_close(regexp->pattern);
 	regexp->pattern = NULL;
-    }
-    if (regexp->unistr != NULL) {
-	delete regexp->unistr;
-	regexp->unistr = NULL;
     }
 }
 
@@ -95,45 +87,63 @@ regexp_finalize_imp(void *rcv, SEL sel)
     }
 }
 
-static UnicodeString *
-str_to_unistr(VALUE str)
-{
-    UChar *chars = NULL;
-    long chars_len = 0;
-    bool need_free = false;
-
-    rb_str_get_uchars(str, &chars, &chars_len, &need_free);
-
-    UnicodeString *unistr = new UnicodeString((const UChar *)chars, chars_len);
-
-    if (need_free) {
-	free(chars);
-    }
-    return unistr;
-}
-
 // Work around ICU limitations.
 static void
-sanitize_regexp_string(UnicodeString *unistr)
+sanitize_regexp_string(UChar **chars_p, long *chars_len_p, bool *need_free_p)
 {
+    UChar *chars = *chars_p;
+    long chars_len = *chars_len_p;
+    bool need_free = *need_free_p;
+
+#define copy_if_needed() \
+    do { \
+	if (!need_free) { \
+	    UChar *tmp = (UChar *)malloc(sizeof(UChar) * chars_len); \
+	    memcpy(tmp, chars, sizeof(UChar) * chars_len); \
+	    chars = tmp; \
+	    need_free = true; \
+	} \
+    } \
+    while (0)
+
     // Replace all occurences [[:word:]] by \w.
     UChar word_chars[10] = {'[', '[', ':', 'w', 'o', 'r', 'd', ':', ']', ']'};
-    UnicodeString word_str(word_chars, 10);
-    UChar repl_chars[2] = {'\\', 'w'};
-    UnicodeString repl_str(repl_chars, 2);
-    unistr->findAndReplace(word_str, repl_str);
+    size_t pos = 0;
+    while (true) {
+	UChar *p = u_strFindFirst(chars + pos, chars_len - pos, word_chars, 10);
+	if (p == NULL) {
+	    break;
+	}
+	pos = p - chars;
+	copy_if_needed();
+	chars[pos] = '\\';
+	chars[pos + 1] = 'w';
+	memmove(&chars[pos + 2], &chars[pos + 10],
+		sizeof(UChar) * (chars_len - (pos + 8)));
+	chars_len -= 8;
+    }
 
-    // Replace all occurences of \n (where n is a number) by the number value.
-    int32_t pos = 0;
+    // Replace all occurences of \n (where n is a number < 1 or > 9) by the
+    // number value.
+    UChar backslash_chars[] = {'\\'};
     char buf[11];
-    while ((pos = unistr->indexOf('\\', pos)) >= 0) {
+    pos = 0;
+    while (true) {
+	UChar *p = u_strFindFirst(chars + pos, chars_len - pos,
+		backslash_chars, 1);
+	if (p == NULL) {
+	    break;
+	}
+	pos = p - chars;
+	copy_if_needed();
+
 	int n = 0;
 	while (true) {
 	    const int i = pos + n + 1;
-	    if (i >= unistr->length()) {
+	    if (i >= chars_len) {
 		break;
 	    }
-	    UChar c = unistr->charAt(i);
+	    UChar c = chars[i];
 	    if (c >= '0' && c <= '9') {
 		assert(n < 10);
 		buf[n++] = (char)c;
@@ -147,7 +157,10 @@ sanitize_regexp_string(UnicodeString *unistr)
 	    buf[n] = '\0';
 	    const int l = atoi(buf);
 	    if (l < 1 || l > 9) {
-		unistr->replace(pos, n + 1, (UChar)l);
+		chars[pos] = (UChar)l;
+		memmove(&chars[pos + 1], &chars[pos + n + 1],
+			sizeof(UChar) * (chars_len - (pos + n + 1)));
+		chars_len -= n;
 		pos = 0;
 		continue;
 	    }
@@ -155,6 +168,20 @@ sanitize_regexp_string(UnicodeString *unistr)
 	}
 	pos++;
     }
+
+#undef copy_if_needed
+
+#if 0
+printf("out:\n");
+for (int i = 0; i < chars_len; i++) {
+printf("%c", chars[i]);
+}
+printf("\n");
+#endif
+
+    *chars_p = chars;
+    *chars_len_p = chars_len;
+    *need_free_p = need_free;
 }
 
 static bool
@@ -162,17 +189,33 @@ init_from_string(rb_regexp_t *regexp, VALUE str, int option, VALUE *excp)
 {
     option |= REGEXP_OPT_DEFAULT;
 
-    UnicodeString *unistr = str_to_unistr(str);
-    assert(unistr != NULL);
+    UChar *chars = NULL;
+    long chars_len = 0;
+    bool need_free = false;
+    rb_str_get_uchars(str, &chars, &chars_len, &need_free);
 
-    sanitize_regexp_string(unistr);
+    UChar null_char = '\0';
+    if (chars_len == 0) {
+	// uregex_open() will complain if we pass a NULL pattern or a
+	// pattern length of 0, so we do pass an empty pattern with a length
+	// of -1 which indicates it's terminated by \0.
+	chars = &null_char;
+	chars_len = -1;
+    }
+    else {
+	sanitize_regexp_string(&chars, &chars_len, &need_free);
+    }
 
     UParseError pe;
     UErrorCode status = U_ZERO_ERROR;
-    RegexPattern *pattern = RegexPattern::compile(*unistr, option, pe, status);
+    URegularExpression *pattern = uregex_open(chars, chars_len, option,
+	    &pe, &status);
+
+    if (need_free) {
+	free(chars);
+    }
 
     if (pattern == NULL) {
-	delete unistr;
 	if (excp != NULL) {
 	    char error[1024];
 	    snprintf(error, sizeof error, "regexp `%s' compilation error: %s",
@@ -190,7 +233,6 @@ init_from_string(rb_regexp_t *regexp, VALUE str, int option, VALUE *excp)
 
     regexp_finalize(regexp);
     regexp->pattern = pattern;
-    regexp->unistr = unistr;
     regexp->fixed_encoding = fixed_encoding;
 
     return true;
@@ -200,8 +242,13 @@ static void
 init_from_regexp(rb_regexp_t *regexp, rb_regexp_t *from)
 {
     regexp_finalize(regexp);
-    regexp->unistr = new UnicodeString(*from->unistr);
-    regexp->pattern = new RegexPattern(*from->pattern);
+
+    UErrorCode status = U_ZERO_ERROR;
+    regexp->pattern = uregex_clone(from->pattern, &status);
+    if (regexp->pattern == NULL) {
+	rb_raise(rb_eRegexpError, "can't clone given regexp: %s",
+		u_errorName(status));
+    }
 }
 
 static VALUE
@@ -495,16 +542,32 @@ regexp_initialize_copy(VALUE rcv, SEL sel, VALUE other)
  * Produce a hash based on the text and options of this regular expression.
  */
 
+static void
+regexp_get_pattern(URegularExpression *pat, const UChar **chars,
+	int32_t *chars_len)
+{
+    assert(pat != NULL);
+
+    UErrorCode status = U_ZERO_ERROR;
+    *chars = uregex_pattern(pat, chars_len, &status);
+    if (*chars == NULL) {
+	rb_raise(rb_eRegexpError, "can't retrieve regexp pattern: %s",
+		u_errorName(status));
+    }
+    if (*chars_len < 0) {
+	*chars_len = 0;
+    }
+}
+
 static VALUE
 regexp_hash(VALUE rcv, SEL sel)
 {
-    UnicodeString *unistr = RREGEXP(rcv)->unistr;
-    assert(unistr != NULL);
+    const UChar *chars = NULL;
+    int32_t chars_len = 0;
+    regexp_get_pattern(RREGEXP(rcv)->pattern, &chars, &chars_len);
 
-    unsigned long code = rb_str_hash_uchars(unistr->getBuffer(),
-	    unistr->length());
+    unsigned long code = rb_str_hash_uchars(chars, chars_len);
     code += rb_reg_options(rcv);
-
     return LONG2NUM(code);
 }
 
@@ -533,14 +596,31 @@ regexp_equal(VALUE rcv, SEL sel, VALUE other)
 	return Qfalse;
     }
 
-    assert(RREGEXP(rcv)->unistr != NULL && RREGEXP(rcv)->pattern != NULL);
-    assert(RREGEXP(other)->unistr != NULL && RREGEXP(other)->pattern != NULL);
+    assert(RREGEXP(rcv)->pattern != NULL);
+    assert(RREGEXP(other)->pattern != NULL);
 
-    // Using the == operator on the RegexpPatterns does not work, for a
-    // reason... so we are comparing source strings and flags.
-    return *RREGEXP(rcv)->unistr == *RREGEXP(other)->unistr
-	&& RREGEXP(rcv)->pattern->flags() == RREGEXP(other)->pattern->flags()
-	? Qtrue : Qfalse;
+    UErrorCode status = U_ZERO_ERROR;
+
+    if (uregex_flags(RREGEXP(rcv)->pattern, &status)
+	    != uregex_flags(RREGEXP(other)->pattern, &status)) {
+	return Qfalse;
+    }
+
+    int32_t rcv_chars_len = 0;
+    const UChar *rcv_chars = NULL;
+    regexp_get_pattern(RREGEXP(rcv)->pattern, &rcv_chars, &rcv_chars_len);
+
+    int32_t other_chars_len = 0;
+    const UChar *other_chars = NULL;
+    regexp_get_pattern(RREGEXP(other)->pattern, &other_chars, &other_chars_len);
+
+    if (rcv_chars_len != other_chars_len) {
+	return Qfalse;
+    }
+    if (memcmp(rcv_chars, other_chars, sizeof(UChar) * rcv_chars_len) != 0) {
+	return Qfalse;
+    }
+    return Qtrue;
 }
 
 /*
@@ -585,25 +665,30 @@ regexp_equal(VALUE rcv, SEL sel, VALUE other)
 
 typedef struct rb_regexp_matcher {
     struct RBasic basic;
-    UnicodeString *unistr;
-    RegexMatcher *matcher;
-    rb_encoding_t *str_enc;
+    URegularExpression *pattern;
+    UChar *text_to_free;
+    rb_encoding_t *encoding;
 } rb_regexp_matcher_t;
+
+static void
+reg_matcher_cleanup(rb_regexp_matcher_t *m)
+{
+    if (m->pattern != NULL) {
+	uregex_close(m->pattern);
+	m->pattern = NULL;
+    }
+    if (m->text_to_free != NULL) {
+	free(m->text_to_free);
+	m->text_to_free = NULL;
+    }
+}
 
 static IMP regexp_matcher_finalize_imp_super = NULL; 
 
 static void
 regexp_matcher_finalize_imp(void *rcv, SEL sel)
 {
-    rb_regexp_matcher_t *matcher = (rb_regexp_matcher_t *)rcv;
-    if (matcher->unistr != NULL) {
-	delete matcher->unistr;
-	matcher->unistr = NULL;
-    }
-    if (matcher->matcher != NULL) {
-	delete matcher->matcher;
-	matcher->matcher = NULL;
-    }
+    reg_matcher_cleanup((rb_regexp_matcher_t *)rcv);
     if (regexp_matcher_finalize_imp_super != NULL) {
 	((void(*)(void *, SEL))regexp_matcher_finalize_imp_super)(rcv, sel);
     }
@@ -614,23 +699,43 @@ rb_reg_matcher_new(VALUE re, VALUE str)
     NEWOBJ(matcher, struct rb_regexp_matcher);
     OBJSETUP(matcher, rb_cRegexpMatcher, T_OBJECT);
 
-    UnicodeString *unistr = str_to_unistr(str);
-    assert(unistr != NULL);
-
     UErrorCode status = U_ZERO_ERROR;
     assert(RREGEXP(re)->pattern != NULL);
-    RegexMatcher *regexp_matcher =
-	RREGEXP(re)->pattern->matcher(*unistr, status);
-
-    if (regexp_matcher == NULL) {
-	delete unistr;
-	rb_raise(rb_eRegexpError, "can't create matcher: %s",
+    URegularExpression *match_pattern = uregex_clone(RREGEXP(re)->pattern,
+	    &status);
+    if (match_pattern == NULL) {
+	rb_raise(rb_eRegexpError, "can't clone given regexp: %s",
 		u_errorName(status));
     }
 
-    matcher->matcher = regexp_matcher;
-    matcher->unistr = unistr;
-    matcher->str_enc = rb_enc_get(str);
+    UChar *chars = NULL;
+    long chars_len = 0;
+    bool need_free = false;
+    rb_str_get_uchars(str, &chars, &chars_len, &need_free);
+
+    UChar null_char = '\0';
+    if (chars_len == 0) {
+	// uregex_setText() will complain if we pass a NULL pattern or a
+	// pattern length of 0, so we do pass an empty pattern with a length
+	// of -1 which indicates it's terminated by \0.
+	chars = &null_char;
+	chars_len = -1;
+    }
+
+    uregex_setText(match_pattern, chars, chars_len, &status);
+
+    if (status != U_ZERO_ERROR) {
+	uregex_close(matcher->pattern);
+	rb_raise(rb_eRegexpError, "can't set pattern text: %s",
+		u_errorName(status));	
+    }
+
+    matcher->pattern = match_pattern;
+    matcher->encoding = rb_enc_get(str);
+
+    // Apparently uregex_setText doesn't copy the given string, so we need
+    // to keep it around until we finally destroy the matcher object.
+    matcher->text_to_free = need_free ? chars : NULL;
 
     return (VALUE)matcher;
 }
@@ -638,35 +743,37 @@ rb_reg_matcher_new(VALUE re, VALUE str)
 void
 rb_reg_matcher_destroy(VALUE matcher)
 {
-    rb_regexp_matcher_t *m = (rb_regexp_matcher_t *)matcher;
-    if (m ->unistr != NULL) {
-	delete m ->unistr;
-	m->unistr = NULL;
-    }
-    if (m ->matcher != NULL) {
-	delete m ->matcher;
-	m->matcher = NULL;
-    }
-    xfree(m);
+    reg_matcher_cleanup((rb_regexp_matcher_t *)matcher);
+    xfree((void *)matcher);
 }
 
 int
 rb_reg_matcher_search(VALUE re, VALUE matcher, int pos, bool reverse)
 {
-    rb_regexp_matcher *re_matcher = (rb_regexp_matcher *)matcher;
+    rb_regexp_matcher_t *re_matcher = (rb_regexp_matcher_t *)matcher;
 
-    if (pos > re_matcher->unistr->length() || pos < 0) {
+    UErrorCode status = U_ZERO_ERROR;
+    int32_t chars_len = 0;
+    const UChar *chars = uregex_getText(re_matcher->pattern, &chars_len,
+	    &status);
+    if (chars == NULL) {
+	rb_raise(rb_eRegexpError, "can't get text from regexp: %s",
+		u_errorName(status));
+    }
+    if (chars_len < 0) {
+	chars_len = 0;
+    }
+ 
+    if (pos > chars_len || pos < 0) {
 	rb_backref_set(Qnil);
 	return -1;
     }
 
-    UErrorCode status = U_ZERO_ERROR;
-
     if (reverse) {
 	const int orig = pos;
 	while (pos >= 0) {
-	    if (re_matcher->matcher->find(pos, status)) {
-		if (re_matcher->matcher->start(status) <= orig) {
+	    if (uregex_find(re_matcher->pattern, pos, &status)) {
+		if (uregex_start(re_matcher->pattern, 0, &status) <= orig) {
 		    break;
 		}
 	    }
@@ -678,14 +785,14 @@ rb_reg_matcher_search(VALUE re, VALUE matcher, int pos, bool reverse)
 	    return -1;
 	}
     }
-    else if (!re_matcher->matcher->find(pos, status)) {
+    else if (!uregex_find(re_matcher->pattern, pos, &status)) {
 	// No match.
 	rb_backref_set(Qnil);
 	return -1;
     }
 
     // Match found.
-    const int res_count = 1 + re_matcher->matcher->groupCount();
+    const int res_count = 1 + uregex_groupCount(re_matcher->pattern, &status);
     rb_match_result_t *res = NULL;
 
     VALUE match = rb_backref_get();
@@ -721,16 +828,12 @@ rb_reg_matcher_search(VALUE re, VALUE matcher, int pos, bool reverse)
     }
 
     rb_str_set_len(RMATCH(match)->str, 0);
-    rb_str_force_encoding(RMATCH(match)->str, re_matcher->str_enc);
-    rb_str_append_uchars(RMATCH(match)->str, re_matcher->unistr->getBuffer(),
-	    re_matcher->unistr->length());
+    rb_str_force_encoding(RMATCH(match)->str, re_matcher->encoding);
+    rb_str_append_uchars(RMATCH(match)->str, chars, chars_len);
 
-    res[0].beg = re_matcher->matcher->start(status);
-    res[0].end = re_matcher->matcher->end(status);
-
-    for (int i = 0; i < re_matcher->matcher->groupCount(); i++) {
-	res[i + 1].beg = re_matcher->matcher->start(i + 1, status);
-	res[i + 1].end = re_matcher->matcher->end(i + 1, status);
+    for (int i = 0; i < res_count; i++) {
+	res[i].beg = uregex_start(re_matcher->pattern, i, &status);
+	res[i].end = uregex_end(re_matcher->pattern, i, &status);
     }
 
     return res[0].beg;
@@ -900,11 +1003,9 @@ regexp_eqq(VALUE rcv, SEL sel, VALUE str)
 VALUE
 rb_regexp_source(VALUE re)
 {
-    assert(RREGEXP(re)->unistr != NULL);
-
-    const UChar *chars = RREGEXP(re)->unistr->getBuffer();
-    const int32_t chars_len = RREGEXP(re)->unistr->length();
-    assert(chars_len >= 0);
+    int32_t chars_len = 0;
+    const UChar *chars = NULL;
+    regexp_get_pattern(RREGEXP(re)->pattern, &chars, &chars_len);
 
     return rb_unicode_str_new(chars, chars_len);
 }
@@ -937,9 +1038,10 @@ regexp_inspect(VALUE rcv, SEL sel)
     VALUE str = rb_unicode_str_new(NULL, 0);
     rb_str_append_uchar(str, '/');
 
-    assert(RREGEXP(rcv)->unistr != NULL);
-    const UChar *chars = RREGEXP(rcv)->unistr->getBuffer();
-    const int32_t chars_len = RREGEXP(rcv)->unistr->length();
+    int32_t chars_len = 0;
+    const UChar *chars = NULL;
+    regexp_get_pattern(RREGEXP(rcv)->pattern, &chars, &chars_len);
+
     for (int i = 0; i < chars_len; i++) {
 	UChar c = chars[i];
 	if (c == '/') {
@@ -1043,7 +1145,8 @@ int
 rb_reg_options(VALUE re)
 {
     assert(RREGEXP(re)->pattern != NULL);
-    return RREGEXP(re)->pattern->flags();
+    UErrorCode status = U_ZERO_ERROR;
+    return uregex_flags(RREGEXP(re)->pattern, &status);
 }
 
 static VALUE
@@ -1255,61 +1358,50 @@ Init_Regexp(void)
 {
     rb_eRegexpError = rb_define_class("RegexpError", rb_eStandardError);
 
-#define DEFINE_GVAR(name, getter, setter) \
-    rb_define_virtual_variable(name, (VALUE (*)(...))getter, \
-	    (void (*)(...))setter)
-
-    DEFINE_GVAR("$~", match_getter, match_setter);
-    DEFINE_GVAR("$&", last_match_getter, 0);
-    DEFINE_GVAR("$`", prematch_getter, 0);
-    DEFINE_GVAR("$'", postmatch_getter, 0);
-    DEFINE_GVAR("$+", last_paren_match_getter, 0);
-    DEFINE_GVAR("$=", ignorecase_getter, ignorecase_setter);
-    DEFINE_GVAR("$KCODE", kcode_getter, kcode_setter);
-    DEFINE_GVAR("$-K", kcode_getter, kcode_setter);
-
-#undef DEFINE_GVAR
+    rb_define_virtual_variable("$~", match_getter, match_setter);
+    rb_define_virtual_variable("$&", last_match_getter, 0);
+    rb_define_virtual_variable("$`", prematch_getter, 0);
+    rb_define_virtual_variable("$'", postmatch_getter, 0);
+    rb_define_virtual_variable("$+", last_paren_match_getter, 0);
+    rb_define_virtual_variable("$=", ignorecase_getter, ignorecase_setter);
+    rb_define_virtual_variable("$KCODE", kcode_getter, kcode_setter);
+    rb_define_virtual_variable("$-K", kcode_getter, kcode_setter);
 
     rb_cRegexp = rb_define_class("Regexp", rb_cObject);
-    rb_objc_define_method(*(VALUE *)rb_cRegexp, "alloc",
-	    (void *)regexp_alloc, 0);
+    rb_objc_define_method(*(VALUE *)rb_cRegexp, "alloc", regexp_alloc, 0);
     rb_objc_define_method(*(VALUE *)rb_cRegexp, "compile",
-	    (void *)rb_class_new_instance_imp, -1);
-    rb_objc_define_method(*(VALUE *)rb_cRegexp, "quote",
-	    (void *)regexp_quote, 1);
-    rb_objc_define_method(*(VALUE *)rb_cRegexp, "escape",
-	    (void *)regexp_quote, 1);
-    rb_objc_define_method(*(VALUE *)rb_cRegexp, "union",
-	    (void *)regexp_union, -1);
+	    rb_class_new_instance_imp, -1);
+    rb_objc_define_method(*(VALUE *)rb_cRegexp, "quote", regexp_quote, 1);
+    rb_objc_define_method(*(VALUE *)rb_cRegexp, "escape", regexp_quote, 1);
+    rb_objc_define_method(*(VALUE *)rb_cRegexp, "union", regexp_union, -1);
     rb_objc_define_method(*(VALUE *)rb_cRegexp, "last_match",
-	    (void *)regexp_last_match, -1);
+	    regexp_last_match, -1);
     rb_objc_define_method(*(VALUE *)rb_cRegexp, "try_convert",
-	    (void *)regexp_try_convert, 1);
+	    regexp_try_convert, 1);
 
-    rb_objc_define_method(rb_cRegexp, "initialize",
-	    (void *)regexp_initialize, -1);
+    rb_objc_define_method(rb_cRegexp, "initialize", regexp_initialize, -1);
     rb_objc_define_method(rb_cRegexp, "initialize_copy",
-	    (void *)regexp_initialize_copy, 1);
-    rb_objc_define_method(rb_cRegexp, "hash", (void *)regexp_hash, 0);
-    rb_objc_define_method(rb_cRegexp, "eql?", (void *)regexp_equal, 1);
-    rb_objc_define_method(rb_cRegexp, "==", (void *)regexp_equal, 1);
-    rb_objc_define_method(rb_cRegexp, "=~", (void *)regexp_match, 1);
-    rb_objc_define_method(rb_cRegexp, "match", (void *)regexp_match2, -1);
-    rb_objc_define_method(rb_cRegexp, "~", (void *)regexp_match3, 0);
-    rb_objc_define_method(rb_cRegexp, "===", (void *)regexp_eqq, 1);
-    rb_objc_define_method(rb_cRegexp, "source", (void *)regexp_source, 0);
-    rb_objc_define_method(rb_cRegexp, "casefold?", (void *)regexp_casefold, 0);
-    rb_objc_define_method(rb_cRegexp, "options", (void *)regexp_options, 0);
+	    regexp_initialize_copy, 1);
+    rb_objc_define_method(rb_cRegexp, "hash", regexp_hash, 0);
+    rb_objc_define_method(rb_cRegexp, "eql?", regexp_equal, 1);
+    rb_objc_define_method(rb_cRegexp, "==", regexp_equal, 1);
+    rb_objc_define_method(rb_cRegexp, "=~", regexp_match, 1);
+    rb_objc_define_method(rb_cRegexp, "match", regexp_match2, -1);
+    rb_objc_define_method(rb_cRegexp, "~", regexp_match3, 0);
+    rb_objc_define_method(rb_cRegexp, "===", regexp_eqq, 1);
+    rb_objc_define_method(rb_cRegexp, "source", regexp_source, 0);
+    rb_objc_define_method(rb_cRegexp, "casefold?", regexp_casefold, 0);
+    rb_objc_define_method(rb_cRegexp, "options", regexp_options, 0);
     rb_objc_define_method(rb_cRegexp, "fixed_encoding?",
-	    (void *)regexp_fixed_encoding, 0);
+	    regexp_fixed_encoding, 0);
 #if 0
     rb_objc_define_method(rb_cRegexp, "encoding", rb_reg_encoding, 0);
 #endif
-    rb_objc_define_method(rb_cRegexp, "names", (void *)regexp_names, 0);
+    rb_objc_define_method(rb_cRegexp, "names", regexp_names, 0);
     rb_objc_define_method(rb_cRegexp, "named_captures",
-	    (void *)regexp_named_captures, 0);
-    rb_objc_define_method(rb_cRegexp, "to_s", (void *)regexp_to_s, 0);
-    rb_objc_define_method(rb_cRegexp, "inspect", (void *)regexp_inspect, 0);
+	    regexp_named_captures, 0);
+    rb_objc_define_method(rb_cRegexp, "to_s", regexp_to_s, 0);
+    rb_objc_define_method(rb_cRegexp, "inspect", regexp_inspect, 0);
 
     regexp_finalize_imp_super = rb_objc_install_method2((Class)rb_cRegexp,
 	    "finalize", (IMP)regexp_finalize_imp);
@@ -1609,8 +1701,10 @@ match_aref(VALUE rcv, SEL sel, int argc, VALUE *argv)
 	    case T_STRING:
 	    case T_SYMBOL:
 	    case T_FIXNUM:
-		const int pos = match_backref_number(rcv, backref, false);
-		return rb_reg_nth_match(pos, rcv);
+		{
+		    const int pos = match_backref_number(rcv, backref, false);
+		    return rb_reg_nth_match(pos, rcv);
+		}
 	}
     }
     return rb_ary_aref(match_to_a(rcv, 0), 0, argc, argv);
@@ -1904,41 +1998,36 @@ Init_Match(void)
     rb_cMatch = rb_define_class("MatchData", rb_cObject);
     rb_undef_method(CLASS_OF(rb_cMatch), "new");
 
-    rb_objc_define_method(*(VALUE *)rb_cMatch, "alloc", (void *)match_alloc, 0);
+    rb_objc_define_method(*(VALUE *)rb_cMatch, "alloc", match_alloc, 0);
     rb_objc_define_method(rb_cMatch, "initialize_copy",
-	    (void *)match_initialize_copy, 1);
-    rb_objc_define_method(rb_cMatch, "regexp", (void *)match_regexp, 0);
-    rb_objc_define_method(rb_cMatch, "names", (void *)match_names, 0);
-    rb_objc_define_method(rb_cMatch, "size", (void *)match_size, 0);
-    rb_objc_define_method(rb_cMatch, "length", (void *)match_size, 0);
-    rb_objc_define_method(rb_cMatch, "offset", (void *)match_offset, 1);
-    rb_objc_define_method(rb_cMatch, "begin", (void *)match_begin, 1);
-    rb_objc_define_method(rb_cMatch, "end", (void *)match_end, 1);
-    rb_objc_define_method(rb_cMatch, "to_a", (void *)match_to_a, 0);
-    rb_objc_define_method(rb_cMatch, "captures", (void *)match_captures, 0);
-    rb_objc_define_method(rb_cMatch, "[]", (void *)match_aref, -1);
-    rb_objc_define_method(rb_cMatch, "values_at", (void *)match_values_at, -1);
-    rb_objc_define_method(rb_cMatch, "pre_match", (void *)match_pre, 0);
-    rb_objc_define_method(rb_cMatch, "post_match", (void *)match_post, 0);
-    rb_objc_define_method(rb_cMatch, "to_s", (void *)match_to_s, 0);
-    rb_objc_define_method(rb_cMatch, "string", (void *)match_string, 0);
-    rb_objc_define_method(rb_cMatch, "inspect", (void *)match_inspect, 0);
-    rb_objc_define_method(rb_cMatch, "eql?", (void *)match_equal, 1);
-    rb_objc_define_method(rb_cMatch, "==", (void *)match_equal, 1);
+	    match_initialize_copy, 1);
+    rb_objc_define_method(rb_cMatch, "regexp", match_regexp, 0);
+    rb_objc_define_method(rb_cMatch, "names", match_names, 0);
+    rb_objc_define_method(rb_cMatch, "size", match_size, 0);
+    rb_objc_define_method(rb_cMatch, "length", match_size, 0);
+    rb_objc_define_method(rb_cMatch, "offset", match_offset, 1);
+    rb_objc_define_method(rb_cMatch, "begin", match_begin, 1);
+    rb_objc_define_method(rb_cMatch, "end", match_end, 1);
+    rb_objc_define_method(rb_cMatch, "to_a", match_to_a, 0);
+    rb_objc_define_method(rb_cMatch, "captures", match_captures, 0);
+    rb_objc_define_method(rb_cMatch, "[]", match_aref, -1);
+    rb_objc_define_method(rb_cMatch, "values_at", match_values_at, -1);
+    rb_objc_define_method(rb_cMatch, "pre_match", match_pre, 0);
+    rb_objc_define_method(rb_cMatch, "post_match",match_post, 0);
+    rb_objc_define_method(rb_cMatch, "to_s", match_to_s, 0);
+    rb_objc_define_method(rb_cMatch, "string", match_string, 0);
+    rb_objc_define_method(rb_cMatch, "inspect", match_inspect, 0);
+    rb_objc_define_method(rb_cMatch, "eql?", match_equal, 1);
+    rb_objc_define_method(rb_cMatch, "==", match_equal, 1);
 }
 
 // Compiler primitives.
 
 void
-regexp_get_uchars(VALUE re, const UChar **chars_p, long *chars_len_p)
+regexp_get_uchars(VALUE re, const UChar **chars_p, int32_t *chars_len_p)
 {
     assert(chars_p != NULL && chars_len_p != NULL);
-
-    UnicodeString *unistr = RREGEXP(re)->unistr;
-    assert(unistr != NULL);
-
-    *chars_p = unistr->getBuffer();
-    *chars_len_p = unistr->length();
+    regexp_get_pattern(RREGEXP(re)->pattern, chars_p, chars_len_p);
 }
 
 VALUE
@@ -2112,5 +2201,3 @@ rb_reg_options_to_mri(int opt)
     }
     return mri_opt;
 }
-
-} // extern "C"

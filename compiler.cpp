@@ -4802,7 +4802,7 @@ RoxorAOTCompiler::compile_init_function(void)
 	    case T_REGEXP:
 		{
 		    const UChar *chars = NULL;
-		    long chars_len = 0;
+		    int32_t chars_len = 0;
 
 		    regexp_get_uchars(val, &chars, &chars_len);
 
