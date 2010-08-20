@@ -4347,7 +4347,7 @@ str_strip(VALUE str, int direction)
 	// Strip left side.
 	long pos = 0;
 	while (pos < len) {
-	    if (!iswspace(rb_str_get_uchar(str, pos))) {
+	    if (!isspace((char)rb_str_get_uchar(str, pos))) {
 		break;
 	    }
 	    pos++;
@@ -4365,7 +4365,7 @@ str_strip(VALUE str, int direction)
 	long pos = len - 1;
 	while (pos >= 0) {
 	    UChar c = rb_str_get_uchar(str, pos);
-	    if (!iswspace(c) && c != '\0') {
+	    if (!isspace((char)c) && c != '\0') {
 		break;
 	    }
 	    pos--;
