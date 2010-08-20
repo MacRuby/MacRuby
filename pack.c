@@ -446,6 +446,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
     char type;
     long items, len, idx, plen;
     const char *ptr;
+    int enc_info = 1;		/* 0 - BINARY, 1 - US-ASCII, 2 - UTF-8 */
 #ifdef NATINT_PACK
     int natint;		/* native integer */
 #endif
@@ -505,6 +506,22 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 	}
 	else {
 	    len = 1;
+	}
+
+	switch (type) {
+	  case 'U':
+	    /* if encoding is US-ASCII, upgrade to UTF-8 */
+	    if (enc_info == 1) {
+		enc_info = 2;
+	    }
+	    break;
+	  case 'm': case 'M': case 'u':
+	    /* keep US-ASCII (do nothing) */
+	    break;
+	  default:
+	    /* fall back to BINARY */
+	    enc_info = 0;
+	    break;
 	}
 
 	switch (type) {
@@ -1026,6 +1043,20 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 	    }
 	}
     }
+
+    switch (enc_info) {
+      case 1:
+	// TODO
+	// ENCODING_CODERANGE_SET(data, rb_usascii_encindex(), ENC_CODERANGE_7BIT);
+	break;
+      case 2:
+	rb_str_force_encoding(data, rb_encodings[ENCODING_UTF8]);
+	break;
+      default:
+	/* do nothing, keep ASCII-8BIT */
+	break;
+    }
+
     return data;
 }
 
