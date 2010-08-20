@@ -28,6 +28,7 @@ extern bool ruby_initialized;
 	    char **argv = NULL;
 	    ruby_sysinit(&argc, &argv);
 	    ruby_init();
+	    ruby_init_loadpath();
 	    rb_vm_init_compiler();
 	    rb_vm_init_jit();
 	}
