@@ -3902,6 +3902,17 @@ rb_vm_aot_compile(NODE *node)
 	}
     }
 
+    // Mark all VM primitives as static, to avoid symbol collision when
+    // linking with other AOT compiled files.
+    llvm::Module::FunctionListType &funcs =
+	RoxorCompiler::module->getFunctionList();
+    for (llvm::Module::FunctionListType::iterator i = funcs.begin();
+	    i != funcs.end(); ++i) {
+	if (i->getName().startswith("vm_")) {
+	    i->setLinkage(GlobalValue::InternalLinkage);
+	}
+    }
+
     // Compile the program as IR.
     RoxorCompiler::shared->set_fname(RSTRING_PTR(rb_progname));
     Function *f = RoxorCompiler::shared->compile_main_function(node, NULL);
