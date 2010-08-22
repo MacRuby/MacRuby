@@ -364,6 +364,48 @@ module ModuleSpecs
   module CyclicAppendB
     include CyclicAppendA
   end
+
+  module ExtendObject
+    C = :test
+    def test_method
+      "hello test"
+    end
+  end
+
+  module ExtendObjectPrivate
+    class << self
+      def extend_object(obj)
+        ScratchPad.record :extended
+      end
+      private :extend_object
+    end
+  end
+end
+
+class Object
+  def module_specs_public_method_on_object; end
+
+  def module_specs_private_method_on_object; end
+  private :module_specs_private_method_on_object
+
+  def module_specs_protected_method_on_object; end
+  protected :module_specs_private_method_on_object
+
+  def module_specs_private_method_on_object_for_kernel_public; end
+  private :module_specs_private_method_on_object_for_kernel_public
+
+  def module_specs_public_method_on_object_for_kernel_protected; end
+  def module_specs_public_method_on_object_for_kernel_private; end
+end
+
+module Kernel
+  def module_specs_public_method_on_kernel; end
+
+  alias_method :module_specs_alias_on_kernel, :module_specs_public_method_on_object
+
+  public :module_specs_private_method_on_object_for_kernel_public
+  protected :module_specs_public_method_on_object_for_kernel_protected
+  private :module_specs_public_method_on_object_for_kernel_private
 end
 
 ModuleSpecs::Nesting[:root_level] = Module.nesting

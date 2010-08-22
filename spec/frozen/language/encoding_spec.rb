@@ -1,5 +1,4 @@
 require File.expand_path('../../spec_helper', __FILE__)
-require File.expand_path('../shared/pseudo_variable', __FILE__)
 
 ruby_version_is "1.9" do
   describe "The __ENCODING__ pseudo-variable" do
@@ -24,6 +23,8 @@ ruby_version_is "1.9" do
       eval(code).should == Encoding::US_ASCII
     end
 
-    it_behaves_like :language_pseudo_variable, "__ENCODING__", nil
+    it "raises a SyntaxError if assigned to" do
+      lambda { eval("__ENCODING__ = 1") }.should raise_error(SyntaxError)
+    end
   end
 end

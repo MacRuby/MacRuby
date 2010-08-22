@@ -134,4 +134,24 @@ module MethodSpecs
     end
 
   end
+
+  class ToProc
+    def method_called(a, b)
+      ScratchPad << [a, b]
+    end
+
+    def to_proc
+      method(:method_called).to_proc
+    end
+  end
+
+  class ToProcBeta
+    def method_called(a)
+      a
+    end
+
+    def to_proc
+      method(:method_called).to_proc
+    end
+  end
 end

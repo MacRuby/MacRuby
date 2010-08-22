@@ -1,10 +1,11 @@
 require File.expand_path('../../spec_helper', __FILE__)
 require File.expand_path('../../fixtures/code_loading', __FILE__)
 require File.expand_path('../shared/__LINE__', __FILE__)
-require File.expand_path('../shared/pseudo_variable', __FILE__)
 
 describe "The __LINE__ pseudo-variable" do
-  it_behaves_like :language_pseudo_variable, "__FILE__", "/an/example/file/path.rb".dump
+  it "raises a SyntaxError if assigned to" do
+    lambda { eval("__LINE__ = 1") }.should raise_error(SyntaxError)
+  end
 
   before :each do
     ScratchPad.record []

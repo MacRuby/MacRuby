@@ -357,7 +357,80 @@ describe "Execution variable $:" do
     $: << "foo"
     $:.should include("foo")
   end
+
+  it "is read-only" do
+    lambda {
+      $: = []
+    }.should raise_error(NameError)
+
+    lambda {
+      $LOAD_PATH = []
+    }.should raise_error(NameError)
+
+    lambda {
+      $-I = []
+    }.should raise_error(NameError)
+  end
 end
+
+describe "Global variable $\"" do
+  it "is an alias for $LOADED_FEATURES" do
+    $".object_id.should == $LOADED_FEATURES.object_id
+  end
+
+  it "is read-only" do
+    lambda {
+      $" = []
+    }.should raise_error(NameError)
+
+    lambda {
+      $LOADED_FEATURES = []
+    }.should raise_error(NameError)
+  end
+end
+
+describe "Global variable $<" do
+  it "is read-only" do
+    lambda {
+      $< = nil
+    }.should raise_error(NameError)
+  end
+end
+
+describe "Global variable $FILENAME" do
+  it "is read-only" do
+    lambda {
+      $FILENAME = "-"
+    }.should raise_error(NameError)
+  end
+end
+
+describe "Global variable $?" do
+  it "is read-only" do
+    lambda {
+      $? = nil
+    }.should raise_error(NameError)
+  end
+end
+
+describe "Global variable $-a" do
+  it "is read-only" do
+    lambda { $-a = true }.should raise_error(NameError)
+  end
+end
+
+describe "Global variable $-l" do
+  it "is read-only" do
+    lambda { $-l = true }.should raise_error(NameError)
+  end
+end
+
+describe "Global variable $-p" do
+  it "is read-only" do
+    lambda { $-p = true }.should raise_error(NameError)
+  end
+end
+
 =begin
 Standard Objects 
 ---------------------------------------------------------------------------------------------------
@@ -394,30 +467,36 @@ describe "The predefined standard object nil" do
   it "is an instance of NilClass" do
     nil.should be_kind_of(NilClass)
   end
-  
-  # this needs to be tested with a subprocess because
-  # MRI aborts reading in the file
-  it "raises a SyntaxError if assigned to"
+
+  it "raises a SyntaxError if assigned to" do
+    lambda { eval("nil = true") }.should raise_error(SyntaxError)
+  end
 end
 
 describe "The predefined standard object true" do
   it "is an instance of TrueClass" do
     true.should be_kind_of(TrueClass)
   end
-  
-  # this needs to be tested with a subprocess because
-  # MRI aborts reading in the file
-  it "raises a SyntaxError if assigned to"
+
+  it "raises a SyntaxError if assigned to" do
+    lambda { eval("true = false") }.should raise_error(SyntaxError)
+  end
 end
 
 describe "The predefined standard object false" do
   it "is an instance of FalseClass" do
     false.should be_kind_of(FalseClass)
   end
-  
-  # this needs to be tested with a subprocess because
-  # MRI aborts reading in the file
-  it "raises a SyntaxError if assigned to"
+
+  it "raises a SyntaxError if assigned to" do
+    lambda { eval("false = nil") }.should raise_error(SyntaxError)
+  end
+end
+
+describe "The self pseudo-variable" do
+  it "raises a SyntaxError if assigned to" do
+    lambda { eval("self = 1") }.should raise_error(SyntaxError)
+  end
 end
 
 =begin

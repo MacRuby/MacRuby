@@ -1,6 +1,8 @@
 require File.expand_path('../../../spec_helper', __FILE__)
 require File.expand_path('../fixtures/classes', __FILE__)
 
+require 'fcntl'
+
 describe "IO#reopen" do
   before :each do
     @name = tmp("io_reopen.txt")
@@ -63,11 +65,13 @@ describe "IO#reopen with a String" do
     @other_name = tmp("io_reopen.txt")
     touch @other_name
     @io = IOSpecs.io_fixture "lines.txt"
+
+    @tmp_file = tmp("reopen")
   end
 
   after :each do
     @io.close unless @io.closed?
-    rm_r @other_name
+    rm_r @other_name, @tmp_file
   end
 
   it "does not raise an exception when called on a closed stream with a path" do
@@ -92,6 +96,18 @@ describe "IO#reopen with a String" do
     @io.gets.should == "Line 1: One\n"
   end
 
+  platform_is_not :windows do
+    it "passes all mode flags through" do
+      @io.reopen(@name, "ab")
+      (@io.fcntl(Fcntl::F_GETFL) & File::APPEND).should == File::APPEND
+    end
+  end
+
+  it "effects exec/system/fork performed after it" do
+    ruby_exe fixture(__FILE__, "reopen_stdout.rb"), :args => @tmp_file
+    @tmp_file.should have_data("from system\nfrom exec", "r")
+  end
+
   ruby_version_is "1.9" do
     it "calls #to_path on non-String arguments" do
       obj = mock('path')
@@ -106,7 +122,7 @@ describe "IO#reopen with a String" do
     @name = tmp("io_reopen.txt")
     @other_name = tmp("io_reopen_other.txt")
 
-    @io = new_io @name, "w"
+    rm_r @other_name
   end
 
   after :each do
@@ -115,13 +131,50 @@ describe "IO#reopen with a String" do
   end
 
   it "opens a path after writing to the original file descriptor" do
+    @io = new_io @name, "w"
+
     @io.print "original data"
-    @io.reopen @other_name, "w"
+    @io.reopen @other_name
     @io.print "new data"
     @io.flush
 
     @name.should have_data("original data")
     @other_name.should have_data("new data")
+  end
+
+  it "creates the file if it doesn't exist if the IO is opened in write mode" do
+    @io = new_io @name, "w"
+
+    @io.reopen(@other_name)
+    File.exists?(@other_name).should be_true
+  end
+
+  it "creates the file if it doesn't exist if the IO is opened in write mode" do
+    @io = new_io @name, "a"
+
+    @io.reopen(@other_name)
+    File.exists?(@other_name).should be_true
+  end
+end
+
+describe "IO#reopen with a String" do
+  before :each do
+    @name = tmp("io_reopen.txt")
+    @other_name = tmp("io_reopen_other.txt")
+
+    touch @name
+    rm_r @other_name
+  end
+
+  after :each do
+    # Do not close @io, the exception leaves MRI with an invalid
+    # IO and an Errno::EBADF will be raised on #close.
+    rm_r @name, @other_name
+  end
+
+  it "raises an Errno::ENOENT if the file does not exist and the IO is not opened in write mode" do
+    @io = new_io @name, "r"
+    lambda { @io.reopen(@other_name) }.should raise_error(Errno::ENOENT)
   end
 end
 
@@ -197,5 +250,10 @@ describe "IO#reopen with an IO" do
   it "may change the class of the instance" do
     @io.reopen @other_io
     @io.should be_an_instance_of(File)
+  end
+
+  it "sets path equals to the other IO's path if other IO is File" do
+    @io.reopen @other_io
+    @io.path.should == @other_io.path
   end
 end
