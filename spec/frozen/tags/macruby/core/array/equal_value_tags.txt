@@ -1,2 +1,2 @@
 critical:Array#== handles well recursive arrays
-fails:Array#== compares with an equivalent Array-like object using #to_ary
+critical:Array#== compares with an equivalent Array-like object using #to_ary
