@@ -116,8 +116,6 @@ class Object
     end
   end
 
-  RUBY_EXE = './miniruby'
-
   unless Object.const_defined?(:RUBY_EXE) and RUBY_EXE
     require 'rbconfig'
 

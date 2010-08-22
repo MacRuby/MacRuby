@@ -276,8 +276,6 @@ class MSpecOptions
         config[:formatter] = MethodFormatter
       when 'y', 'yaml'
         config[:formatter] = YamlFormatter
-      when 'mr', 'macruby'
-        config[:formatter] = MacRubyFormatter
       else
         puts "Unknown format: #{o}"
         puts @parser
@@ -295,7 +293,6 @@ class MSpecOptions
     doc "       a, *, spin               SpinnerFormatter"
     doc "       t, method                MethodFormatter"
     doc "       y, yaml                  YamlFormatter\n"
-    doc "       mr, macruby              MacRubyFormatter\n"
 
     on("-o", "--output", "FILE",
        "Write formatter output to FILE") do |f|

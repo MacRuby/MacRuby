@@ -1,11 +1,7 @@
 class MatchFilter
   def initialize(what, *strings)
     @what = what
-    
-    # MR Hack: roxor does not work nicely with encodings yet,
-    # until it does let's assume that no regexps are used in the tags.
-    #@descriptions = to_regexp(*strings)
-    @descriptions = strings
+    @descriptions = to_regexp(*strings)
   end
 
   def to_regexp(*strings)

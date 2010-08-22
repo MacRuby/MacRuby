@@ -278,20 +278,13 @@ module MSpec
     tags = []
     file = tags_file
     if File.exist? file
-      # TODO: roxor workaround, or should mspec just use File.read anyways?
-      # File.open(file, "rb") do |f|
-      #   f.each_line do |line|
-      #     line.chomp!
-      #     next if line.empty?
-      #     tag = SpecTag.new line.chomp
-      #     tags << tag if keys.include? tag.tag
-      #   end
-      # end
-      File.read(file).each_line do |line|
-        line.chomp!
-        next if line.empty?
-        tag = SpecTag.new line.chomp
-        tags << tag if keys.include? tag.tag
+      File.open(file, "rb") do |f|
+        f.each_line do |line|
+          line.chomp!
+          next if line.empty?
+          tag = SpecTag.new line.chomp
+          tags << tag if keys.include? tag.tag
+        end
       end
     end
     tags
@@ -335,9 +328,7 @@ module MSpec
       lines = IO.readlines(file)
       File.open(file, "wb") do |f|
         lines.each do |line|
-          # unless pattern =~ line.chomp
-          # FIXME: This is temporary until the regexp specs are passing
-          unless "#{tag.tag}:#{tag.description}" == line.chomp
+          unless pattern =~ line.chomp
             f.puts line unless line.empty?
           else
             deleted = true
