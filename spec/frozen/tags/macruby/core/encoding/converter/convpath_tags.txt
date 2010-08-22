@@ -1,2 +1,1 @@
-fails:Encoding::Converter#convpath returns multiple encoding pairs when direct conversion is impossible
 fails:Encoding::Converter#convpath indicates if crlf_newline conversion would occur

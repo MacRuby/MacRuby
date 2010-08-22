@@ -1,4 +1,0 @@
-fails:REXML::Text#indent_text indents a string with default parameters
-fails:REXML::Text#indent_text accepts a custom indentation level as second argument
-fails:REXML::Text#indent_text accepts a custom separator as third argument
-fails:REXML::Text#indent_text accepts a fourth parameter to skip the first line

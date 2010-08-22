@@ -1,3 +1,1 @@
-fails:ConditionVariable#broadcast should return self if nothing to broadcast to
-fails:ConditionVariable#broadcast should return self if something is waiting for a broadcast
 fails:ConditionVariable#broadcast releases all threads waiting in line for this resource

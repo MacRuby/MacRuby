@@ -1,2 +1,1 @@
-fails:Encoding::Converter#convert allows Strings of different encodings to the source encoding
 

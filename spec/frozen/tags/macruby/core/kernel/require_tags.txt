@@ -5,7 +5,6 @@ fails:Kernel#require ($LOAD_FEATURES) does not load a non-canonical path that is
 fails:Kernel#require ($LOAD_FEATURES) stores ./ relative paths as passed in
 fails:Kernel#require ($LOAD_FEATURES) stores ../ relative paths as passed in
 fails:Kernel#require ($LOAD_FEATURES) does not collapse duplicate path separators
-fails:Kernel#require ($LOAD_FEATURES) adds the suffix of the resolved filename
 fails:Kernel#require ($LOAD_FEATURES) loads a ./ relative path for a file already loaded
 fails:Kernel#require ($LOAD_FEATURES) loads a ../ relative path for a file already loaded
 fails:Kernel#require ($LOAD_FEATURES) does not load a non-canonical path for a file already loaded
@@ -18,7 +17,6 @@ fails:Kernel.require ($LOAD_FEATURES) does not load a non-canonical path that is
 fails:Kernel.require ($LOAD_FEATURES) stores ./ relative paths as passed in
 fails:Kernel.require ($LOAD_FEATURES) stores ../ relative paths as passed in
 fails:Kernel.require ($LOAD_FEATURES) does not collapse duplicate path separators
-fails:Kernel.require ($LOAD_FEATURES) adds the suffix of the resolved filename
 fails:Kernel.require ($LOAD_FEATURES) loads a ./ relative path for a file already loaded
 fails:Kernel.require ($LOAD_FEATURES) loads a ../ relative path for a file already loaded
 fails:Kernel.require ($LOAD_FEATURES) does not load a non-canonical path for a file already loaded

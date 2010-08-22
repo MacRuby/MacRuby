@@ -1,1 +1,0 @@
-fails:REXML::Text.new expects escaped text if raw is true

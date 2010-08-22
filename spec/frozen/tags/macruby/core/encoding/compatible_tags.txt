@@ -1,2 +1,1 @@
-fails:Encoding.compatible? returns the encoding of the string that would result from concatenating the arguments
 fails:Encoding.compatible? returns nil unless both arguments are Strings
