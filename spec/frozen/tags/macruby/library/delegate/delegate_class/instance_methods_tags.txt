@@ -1,0 +1,2 @@
+fails:DelegateClass.instance_methods includes all protected methods of the delegated class
+fails:DelegateClass.instance_methods does not include private methods

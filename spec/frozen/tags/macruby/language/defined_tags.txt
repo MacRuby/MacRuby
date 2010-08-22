@@ -46,3 +46,15 @@ fails:The defined? keyword for yield returns 'yield' if a block is passed to a m
 fails:The defined? keyword for yield returns 'yield' if a block is passed to a method taking a block parameter
 fails:The defined? keyword for super returns nil when a superclass undef's the method
 fails:The defined? keyword when called with a method name having a module as receiver returns nil if the method is protected
+fails:The defined? keyword for an expression with logical connectives returns nil for an expression with '!' and an unset global variable
+fails:The defined? keyword for an expression with logical connectives returns nil for an expression with '!' and an unset instance variable
+fails:The defined? keyword for an expression with logical connectives returns nil for an expression with 'not' and an unset global variable
+fails:The defined? keyword for an expression with logical connectives returns nil for an expression with 'not' and an unset instance variable
+fails:The defined? keyword for an expression with logical connectives returns 'expression' for an expression with '&&/and' and an undefined method
+fails:The defined? keyword for an expression with logical connectives returns 'expression' for an expression with '&&/and' and an unset class variable
+fails:The defined? keyword for an expression with logical connectives does not call a method in an '&&' expression and returns 'expression'
+fails:The defined? keyword for an expression with logical connectives does not call a method in an 'and' expression and returns 'expression'
+fails:The defined? keyword for an expression with logical connectives returns 'expression' for an expression with '||/or' and an undefined method
+fails:The defined? keyword for an expression with logical connectives returns 'expression' for an expression with '||/or' and an unset class variable
+fails:The defined? keyword for an expression with logical connectives does not call a method in an '||' expression and returns 'expression'
+fails:The defined? keyword for an expression with logical connectives does not call a method in an 'or' expression and returns 'expression'
