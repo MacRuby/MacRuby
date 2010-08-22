@@ -29,6 +29,11 @@ namespace :spec do
     mspec :ci, ":macruby"
   end
 
+  desc "Run all RubySpec-only specs"
+  task :rubyspec do
+    mspec :ci, ":rubyspec"
+  end
+
   desc "Run all Language-only specs"
   task :language do
     mspec :ci, ":language"
