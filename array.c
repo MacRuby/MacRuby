@@ -2998,6 +2998,9 @@ rary_flatten(VALUE ary, SEL sel, int argc, VALUE *argv)
     if (OBJ_TAINTED(ary)) {
 	OBJ_TAINT(result);
     }
+    if (OBJ_UNTRUSTED(ary)) {
+	OBJ_UNTRUST(result);
+    }
 
     return result;
 }
