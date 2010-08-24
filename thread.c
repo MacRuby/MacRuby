@@ -1248,6 +1248,10 @@ thgroup_unlock(rb_thread_group_t *tg)
 static VALUE
 thgroup_add(VALUE group, SEL sel, VALUE thread)
 {
+    if (OBJ_FROZEN(group)) {
+	rb_raise(rb_eThreadError, "can't move to the frozen thread group");
+    }
+
     rb_vm_thread_t *t = GetThreadPtr(thread);
 
     rb_thread_group_t *new_tg = GetThreadGroupPtr(group);
@@ -1256,6 +1260,10 @@ thgroup_add(VALUE group, SEL sel, VALUE thread)
     }
 
     if (t->group != Qnil) {
+	if (OBJ_FROZEN(t->group)) {
+	    rb_raise(rb_eThreadError,
+		    "can't move from the frozen thread group");
+	}
 	rb_thread_group_t *old_tg = GetThreadGroupPtr(t->group);
 	if (old_tg->enclosed) {
 	    rb_raise(rb_eThreadError,
