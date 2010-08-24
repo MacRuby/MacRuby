@@ -43,6 +43,7 @@ static VALUE
 thread_s_alloc(VALUE rcv, SEL sel)
 {
     rb_vm_thread_t *t = (rb_vm_thread_t *)xmalloc(sizeof(rb_vm_thread_t));
+    t->thread = 0;
     return Data_Wrap_Struct(rb_cThread, NULL, NULL, t);
 }
 
@@ -56,6 +57,9 @@ thread_initialize(VALUE thread, SEL sel, int argc, const VALUE *argv)
     assert(b != NULL);
 
     rb_vm_thread_t *t = GetThreadPtr(thread);
+    if (t->thread != 0) {
+	rb_raise(rb_eThreadError, "already initialized thread");
+    }
     rb_vm_thread_pre_init(t, b, argc, argv, rb_vm_create_vm());
 
     // The thread's group is always the parent's one.
