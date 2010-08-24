@@ -1115,6 +1115,9 @@ rhash_to_a(VALUE hash, SEL sel)
     if (OBJ_TAINTED(hash)) {
 	OBJ_TAINT(ary);
     }
+    if (OBJ_UNTRUSTED(hash)) {
+	OBJ_UNTRUST(ary);
+    }
     return ary;
 }
 
