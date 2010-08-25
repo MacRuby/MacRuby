@@ -84,6 +84,11 @@ RoxorInterpreter::interpret_call(CallInst *call)
 
 	return vm_dispatch(top, self, sel, block, opt, argc, argv);
     }
+    else if (called == RoxorCompiler::shared->singletonClassFunc) {
+	VALUE klass = value_as(call_arg(call, 0), VALUE);
+
+	return rb_singleton_class(klass);
+    }
 
     oops("unrecognized call instruction:", call);
 }
