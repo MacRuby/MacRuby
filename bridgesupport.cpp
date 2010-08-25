@@ -1007,8 +1007,8 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 			(const void *)name, NULL)) {
 
 		VALUE val = strchr(bs_enum->value, '.') != NULL
-		    ? rb_float_new(rb_cstr_to_dbl(bs_enum->value, 1))
-		    : rb_cstr_to_inum(bs_enum->value, 10, 1);
+		    ? rb_float_new(rb_cstr_to_dbl(bs_enum->value, 0))
+		    : rb_cstr_to_inum(bs_enum->value, 10, 0);
 		CFDictionarySetValue(rb_cObject_dict, (const void *)name, 
 			(const void *)val);
 	    }

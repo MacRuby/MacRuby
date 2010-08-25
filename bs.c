@@ -464,6 +464,8 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
     }
   }
 
+  CFArrayAppendValue(parser->loaded_paths, cf_path);
+
   //printf("parsing %s\n", path);
 
 #define BAIL(fmt, args...)                      \
@@ -556,6 +558,8 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
           
           depends_on_path = get_attribute(reader, "path");
           CHECK_ATTRIBUTE(depends_on_path, "path");
+
+//printf("depends of %s\n", depends_on_path);
           
           bs_path_found = bs_find_path(depends_on_path, bs_path, 
                                        sizeof bs_path);
@@ -734,7 +738,6 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
           bs_element_cftype_t *bs_cftype;
           char *cftype_name;
           char *cftype_type;
-          char *cftype_gettypeid_func_name;
 
           cftype_name = get_attribute(reader, "name");
           CHECK_ATTRIBUTE(cftype_name, "name");
@@ -748,6 +751,11 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
           bs_cftype->name = cftype_name;
           bs_cftype->type = cftype_type;
 
+#if 1
+          /* the type_id field isn't used in MacRuby */
+          bs_cftype->type_id = 0;
+#else
+          char *cftype_gettypeid_func_name;
           cftype_gettypeid_func_name = get_attribute(reader, "gettypeid_func");
           if (cftype_gettypeid_func_name != NULL) {
             void *sym;
@@ -765,6 +773,7 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
           else {
             bs_cftype->type_id = 0;
           }
+#endif
 
           bs_cftype->tollfree = get_attribute(reader, "tollfree");
 
@@ -1249,8 +1258,16 @@ bails:
 
   xmlFreeTextReader(reader);
 
-  if (success) {
-    CFArrayAppendValue(parser->loaded_paths, cf_path);
+  if (!success) {
+      for (unsigned i = 0, count = CFArrayGetCount(parser->loaded_paths);
+	      i < count; i++) {
+	  CFStringRef s = CFArrayGetValueAtIndex(parser->loaded_paths, i);
+	  if (CFStringCompare(cf_path, s, kCFCompareCaseInsensitive)
+		  == kCFCompareEqualTo) {
+	      CFArrayRemoveValueAtIndex(parser->loaded_paths, i);
+	      break;
+	  }
+      }
   }
   CFRelease(cf_path);
 
