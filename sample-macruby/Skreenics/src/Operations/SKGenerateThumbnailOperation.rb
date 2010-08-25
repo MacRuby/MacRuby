@@ -232,10 +232,11 @@ class SKGenerateThumbnailOperation < NSOperation
             repr.representationUsingType(imageFileType, properties: nil).writeToFile(savePath, atomically: true)
         end
 
-        # Release all our manually allocated data
-        thumbnailShadow.release
-        resultImage.release
-        movie.release
+        # Since the code is garbage collected, there is no need to release
+        # the allocated variables (unlike the Obj-C version)
+        # thumbnailShadow.release
+        # resultImage.release
+        # movie.release
 
         QTMovie.exitQTKitOnThread
 

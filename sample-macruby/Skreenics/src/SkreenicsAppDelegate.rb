@@ -12,10 +12,10 @@ require "SKRgbToNSColorTransformer.rb"
 # We want to be able to provide alpha colors
 NSColor.setIgnoresAlpha(false)
 # Set transformers for the prefs
-NSValueTransformer.setValueTransformer(ExpandedPathToIconTransformer.alloc.init.autorelease, forName: "ExpandedPathToIconTransformer")
-NSValueTransformer.setValueTransformer(ExpandedPathToPathTransformer.alloc.init.autorelease, forName: "ExpandedPathToPathTransformer")
+NSValueTransformer.setValueTransformer(ExpandedPathToIconTransformer.alloc.init, forName: "ExpandedPathToIconTransformer")
+NSValueTransformer.setValueTransformer(ExpandedPathToPathTransformer.alloc.init, forName: "ExpandedPathToPathTransformer")
 # Set the default RGB to NSColor transformer
-NSValueTransformer.setValueTransformer(SKRgbToNSColorTransformer.alloc.init.autorelease, forName: "SKRgbToNSColorTransformer")
+NSValueTransformer.setValueTransformer(SKRgbToNSColorTransformer.alloc.init, forName: "SKRgbToNSColorTransformer")
 # And now we can register our user defaults
 NSUserDefaults.standardUserDefaults.registerDefaults(NSDictionary.dictionaryWithContentsOfFile(NSBundle.mainBundle.pathForResource("UserDefaults", ofType: "plist")))
 
