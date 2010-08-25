@@ -80,6 +80,7 @@ class Compiler
   def run
     @uses_bs_flags = ''
     if @static
+      $stderr.puts "Warning: static compilation is currently a work in progress and provided for development only. The compilation process may simply fail or generate non-functional machine code objects. Use it at your own risk."
       # BridgeSupport compilation is only enabled during static compilation.
       @frameworks.each do |f|
         p =
