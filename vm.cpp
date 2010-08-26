@@ -5019,8 +5019,10 @@ rb_vm_aot_feature_load(const char *name)
 	return false;
     }
     void *init_func = iter->second;
-    ((void *(*)(void *, void *))init_func)((void *)rb_vm_top_self(), NULL);
-    aot_features.erase(iter);
+    if (init_func != NULL) {
+        ((void *(*)(void *, void *))init_func)((void *)rb_vm_top_self(), NULL);
+        iter->second = NULL;
+    }
     return true;
 }
 
