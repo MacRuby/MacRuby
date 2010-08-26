@@ -454,6 +454,7 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
   /* check if the given framework path has not been loaded already */
   cf_path = CFStringCreateWithFileSystemRepresentation(kCFAllocatorMalloc, 
     path);
+  CFMakeCollectable(cf_path);
   for (unsigned i = 0, count = CFArrayGetCount(parser->loaded_paths);
        i < count; i++) {
     CFStringRef s = CFArrayGetValueAtIndex(parser->loaded_paths, i);
@@ -1269,7 +1270,6 @@ bails:
 	  }
       }
   }
-  CFRelease(cf_path);
 
   if (success && options == BS_PARSE_OPTIONS_LOAD_DYLIBS && framework_path != NULL) {
     char buf[PATH_MAX];
