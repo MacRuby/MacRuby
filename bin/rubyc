@@ -16,6 +16,7 @@ class Compiler
     @archs = []
     @internal = argv.delete('--internal')
     @frameworks = %w{Foundation}
+    @linkf = []
 
     # Parse arguments.
     OptionParser.new do |opts|
@@ -26,6 +27,9 @@ class Compiler
       opts.on('--framework <name>', "Link standalone static executable with given framework") { |p| @frameworks << p }
       opts.on('--sdk <path>', "Use SDK when compiling standalone static executable") { |x| @sdk = x }
       opts.on('--dylib', "Create a dynamic library") { @dylib = true }
+      opts.on('--compatibility_version <VERSION>', "Compatibility Version for linking") { |ver| @linkf << "-compatibility_version #{ver}" }
+      opts.on('--current_version <VERSION>', "Current Version for linking") { |ver| @linkf << "-current_version #{ver}" }
+      opts.on('--install_name <NAME>', "Install Name for linking") { |name| @linkf << "-install_name #{name}" }
       opts.on('-C', 'Compile, assemble and link a loadable object file') { @bundle = true }
       opts.on('-a', '--arch <ARCH>', 'Compile for specified CPU architecture') { |arch| @archs << arch }
       opts.on('-v', '--version', 'Display the version') { puts RUBY_DESCRIPTION; exit 1 }
@@ -139,7 +143,7 @@ class Compiler
   end
 
   def cleanup
-    @tmpfiles.each { |x| File.delete(x) }
+    @tmpfiles.each { |x| File.delete(x) if File.exist?(x) }
   end
 
   private
@@ -224,9 +228,9 @@ EOS
     # Build.
     main = gen_tmpfile('main', 'c')
     File.open(main, 'w') { |io| io.write(main_txt) }
-    linkf = @internal ? "-L. -lmacruby" : "-L#{RbConfig::CONFIG['libdir']} -lmacruby"
+    @linkf << @internal ? "-L. -lmacruby" : "-L#{RbConfig::CONFIG['libdir']} -lmacruby"
     objs = objs_data.map { |obj, f| "\"#{obj}\"" }.join(' ') 
-    execute("#{@gcxx} \"#{main}\" -dynamiclib -dynamic -undefined suppress -flat_namespace #{arch_flags} #{linkf} #{objs} -o \"#{output}\"")
+    execute("#{@gcxx} \"#{main}\" -dynamiclib -dynamic -undefined suppress -flat_namespace #{arch_flags} #{@linkf.join(' ')} #{objs} -o \"#{output}\"")
     strip(output)
   end
 
