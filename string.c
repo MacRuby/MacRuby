@@ -5514,6 +5514,12 @@ rstr_tr_s(VALUE str, SEL sel, VALUE src, VALUE repl)
  *  checksum.
  */
 
+static inline VALUE
+rb_vm_call_simple(VALUE rcv, SEL sel, VALUE arg)
+{
+    return rb_vm_call(rcv, sel, 1, &arg);
+}
+
 static VALUE
 rstr_sum(VALUE str, SEL sel, int argc, VALUE *argv)
 {
@@ -5524,19 +5530,39 @@ rstr_sum(VALUE str, SEL sel, int argc, VALUE *argv)
 	bits = NUM2INT(vbits);
     }
 
-    if (bits >= sizeof(long) * CHAR_BIT) {
-	rb_raise(rb_eArgError, "bits argument too big");
-    }
-
-    unsigned long sum = 0;
+    VALUE sum = INT2FIX(0);
+    unsigned long sum0 = 0;
     for (long i = 0; i < RSTR(str)->length_in_bytes; i++) {
-	sum += (unsigned char)RSTR(str)->data.bytes[i];
+	if (FIXNUM_MAX - UCHAR_MAX < sum0) {
+	    sum = rb_vm_call_simple(sum, selPLUS, LONG2FIX(sum0));
+	    sum0 = 0;
+	}
+	sum0 += (unsigned char)RSTR(str)->data.bytes[i];
     }
-    if (bits != 0) {
-	sum &= (((unsigned long)1) << bits) - 1;
+    if (bits == 0) {
+	if (sum0 != 0) {
+	    sum = rb_vm_call_simple(sum, selPLUS, LONG2FIX(sum0));
+	}
+    }
+    else {
+        if (sum == INT2FIX(0)) {
+            if (bits < (int)sizeof(long) * CHAR_BIT) {
+                sum0 &= (((unsigned long)1) << bits) - 1;
+            }
+            sum = LONG2FIX(sum0);
+        }
+        else {
+            if (sum0 != 0) {
+                sum = rb_vm_call_simple(sum, selPLUS, LONG2FIX(sum0));
+            }
+
+            VALUE mod = rb_vm_call_simple(INT2FIX(1), selLTLT, INT2FIX(bits));
+            mod = rb_vm_call_simple(mod, selMINUS, INT2FIX(1));
+            sum = rb_vm_call_simple(sum, selAND, mod);
+	}
     }
 
-    return rb_int2inum(sum);
+    return sum;
 }
 
 /*

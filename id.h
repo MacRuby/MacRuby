@@ -58,6 +58,7 @@ extern SEL selMINUS;
 extern SEL selMULT;
 extern SEL selDIV;
 extern SEL selMOD;
+extern SEL selAND;
 extern SEL selEq;
 extern SEL selNeq;
 extern SEL selCmp;

@@ -48,6 +48,7 @@ Init_id(void)
     selMULT = sel_registerName("*:");
     selDIV = sel_registerName("/:");
     selMOD = sel_registerName("%:");
+    selAND = sel_registerName("&:");
     selEq = sel_registerName("==:");
     selNeq = sel_registerName("!=:");
     selCmp = sel_registerName("<=>:");
