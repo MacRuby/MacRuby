@@ -1050,6 +1050,61 @@ RoxorCompiler::compile_multiple_assignment(NODE *node, Value *val)
 }
 
 Value *
+RoxorCompiler::compile_multiple_assignment(NODE *node)
+{
+    assert(node->nd_value != NULL);
+
+    if (node->nd_next == NULL
+	    && node->nd_head != NULL
+	    && nd_type(node->nd_head) == NODE_ARRAY
+	    && nd_type(node->nd_value) == NODE_ARRAY
+	    && node->nd_head->nd_alen == node->nd_value->nd_alen) {
+
+	// Symetric multiple-assignment optimization.
+	// Grab all left operands in separate Allocas.
+	Instruction *first = bb->getParent()->getEntryBlock().getFirstNonPHI();
+	std::vector<Value *> tmp_rights;
+	NODE *right = node->nd_value;
+	for (int i = 0; i < node->nd_head->nd_alen; i++) {
+	    Value *slot = new AllocaInst(RubyObjTy, "", first);
+	    assert(right->nd_head != NULL);
+	    new StoreInst(compile_node(right->nd_head), slot, bb);
+	    tmp_rights.push_back(new LoadInst(slot, "", bb));
+	    right = right->nd_next;
+	}
+
+	// Compile assignments.
+	NODE *left = node->nd_head;
+	for (std::vector<Value *>::iterator i = tmp_rights.begin();
+		i != tmp_rights.end(); ++i) {
+	    assert(left->nd_head != NULL);
+	    compile_multiple_assignment_element(left->nd_head, *i);
+	    left = left->nd_next;
+	}
+
+	// Compile return value (a new Array) which is eliminated later if
+	// never used.
+	CallInst *ary = CallInst::Create(newArrayFunc,
+		ConstantInt::get(Int32Ty, tmp_rights.size()), "", bb);
+	RoxorCompiler::MAsgnValue val;
+	val.ary = ary;
+	for (unsigned int i = 0; i < tmp_rights.size(); i++) {
+	    Value *args[] = {
+		ary,
+		ConstantInt::get(Int32Ty, i),
+		tmp_rights[i]
+	    };
+	    CallInst *insn = CallInst::Create(asetArrayFunc, args, args + 3,
+		    "", bb);
+	    val.sets.push_back(insn);
+	}
+	masgn_values.push_back(val);
+	return ary;
+    }
+    return compile_multiple_assignment(node, compile_node(node->nd_value));
+}
+
+Value *
 RoxorCompiler::compile_prepare_block_args(Function *func, int *flags)
 {
     return compile_const_pointer(func);    
@@ -2610,6 +2665,9 @@ RoxorCompiler::compile_scope(NODE *node)
 
     std::map<ID, Value *> old_lvars = lvars;
     lvars.clear();
+    std::vector<MAsgnValue> old_masgn_values = masgn_values;
+    masgn_values.clear();
+
     Value *old_self = current_self;
 
     Function::arg_iterator arg;
@@ -2858,6 +2916,19 @@ RoxorCompiler::compile_scope(NODE *node)
 	}
     }
 
+    for (std::vector<MAsgnValue>::iterator i = masgn_values.begin();
+	    i != masgn_values.end(); ++i) {
+	MAsgnValue &v = *i;
+	if (v.ary->hasNUses(v.sets.size())) {
+	    for (std::vector<CallInst *>::iterator j = v.sets.begin();
+		    j != v.sets.end(); ++j) {
+		CallInst *insn = *j;
+		insn->eraseFromParent();
+	    }
+	    v.ary->eraseFromParent();
+	}
+    }
+
     rescue_rethrow_bb = old_rescue_rethrow_bb;
     rescue_invoke_bb = old_rescue_invoke_bb;
 
@@ -2865,6 +2936,7 @@ RoxorCompiler::compile_scope(NODE *node)
     bb = old_bb;
     entry_bb = old_entry_bb;
     lvars = old_lvars;
+    masgn_values = old_masgn_values;
     current_self = old_self;
     current_var_uses = old_current_var_uses;
     running_block = old_running_block;
@@ -3223,9 +3295,7 @@ RoxorCompiler::compile_node0(NODE *node)
 		    compile_node(node->nd_value));
 
 	case NODE_MASGN:
-	    assert(node->nd_value != NULL);
-	    return compile_multiple_assignment(node, 
-		    compile_node(node->nd_value));
+	    return compile_multiple_assignment(node);
 
 	case NODE_DASGN:
 	case NODE_DASGN_CURR:

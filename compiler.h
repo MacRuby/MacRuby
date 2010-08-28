@@ -93,6 +93,13 @@ class RoxorCompiler {
 	std::map<std::string, GlobalVariable *> static_strings;
 	std::map<CFHashCode, GlobalVariable *> static_ustrings;
 
+	class MAsgnValue {
+	    public:
+		CallInst *ary;
+		std::vector<CallInst *> sets;
+	};
+	std::vector<MAsgnValue> masgn_values;
+
 #if ROXOR_COMPILER_DEBUG
 	int level;
 # define DEBUG_LEVEL_INC() (level++)
@@ -355,6 +362,7 @@ class RoxorCompiler {
 	Value *compile_gvar_assignment(NODE *node, Value *val);
 	Value *compile_gvar_get(NODE *node);
 	Value *compile_constant_declaration(NODE *node, Value *val);
+	Value *compile_multiple_assignment(NODE *node);
 	Value *compile_multiple_assignment(NODE *node, Value *val);
 	void compile_multiple_assignment_element(NODE *node, Value *val);
 	Value *compile_current_class(void);
