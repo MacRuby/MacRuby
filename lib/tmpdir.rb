@@ -6,7 +6,7 @@
 
 require 'fileutils'
 begin
-  require 'etc.so'
+  require 'etc'
 rescue LoadError
 end
 
