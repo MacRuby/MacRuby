@@ -794,6 +794,11 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		tainted = true;
 	    }
 
+	    if (TYPE(arg) == T_SYMBOL) {
+		// Because symbols are not mutable and pad_format_value()
+		// mutates its first argument.
+		arg = rb_sym_to_s(arg);
+	    }
 	    pad_format_value(arg, minus_flag ? -1 : 0, width, rb_str_new2(" "));
 	    num = cstr_update(&format_str, &format_str_capa, start,
 		    i - start + 1, arg);
