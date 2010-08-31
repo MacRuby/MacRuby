@@ -102,7 +102,7 @@ class StringIO
     
     self
   end
-   
+
   #   strio.string = string  -> string
   #
   # Changes underlying String object, the subject of IO.
@@ -492,6 +492,10 @@ class StringIO
     if @append || (pos >= string.length)
       # add padding in case it's needed 
       str = str.rjust((pos + str.length) - string.length, "\000") if (pos > string.length)
+      enc1, enc2 = str.encoding, @string.encoding
+      if enc1 != enc2
+        str = str.dup.force_encoding(enc2)
+      end
       @string << str
       @pos = string.length
     else
