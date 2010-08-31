@@ -1011,16 +1011,26 @@ rb_io_read_internal(rb_io_t *io_struct, UInt8 *buffer, long len)
 static VALUE 
 rb_io_read_all(rb_io_t *io_struct, VALUE outbuf) 
 {
-    outbuf = rb_str_bstr(outbuf);
+    struct stat st;
+    long bufsize = 512;
+    if (fstat(io_struct->read_fd, &st) == 0 && S_ISREG(st.st_mode)) {
+	const off_t pos = lseek(io_struct->read_fd, 0, SEEK_CUR);
+	if (st.st_size >= pos && pos >= 0) {
+	    bufsize = st.st_size - pos;
+	    if (bufsize > LONG_MAX) {
+		rb_raise(rb_eIOError, "file too big for single read");
+	    }
+	}
+    }
 
-    const long BUFSIZE = 512;
+    outbuf = rb_str_bstr(outbuf);
     long bytes_read = 0;
     const long original_position = rb_bstr_length(outbuf);
 
     while (true) {
-	rb_bstr_resize(outbuf, original_position + bytes_read + BUFSIZE);
+	rb_bstr_resize(outbuf, original_position + bytes_read + bufsize);
 	uint8_t *bytes = rb_bstr_bytes(outbuf) + original_position + bytes_read;
-        const long last_read = rb_io_read_internal(io_struct, bytes, BUFSIZE);
+        const long last_read = rb_io_read_internal(io_struct, bytes, bufsize);
         bytes_read += last_read;
 	if (last_read == 0) {
 	    break;
