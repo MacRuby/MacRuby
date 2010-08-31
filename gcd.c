@@ -77,8 +77,8 @@ typedef enum SOURCE_TYPE_ENUM
 typedef struct {
     struct RBasic basic;
     int suspension_count;
-    source_enum_t source_enum;
     dispatch_source_t source;
+    source_enum_t source_enum;
     rb_vm_block_t *event_handler;
     VALUE handle;
 } rb_source_t;
@@ -87,6 +87,7 @@ typedef struct {
 
 typedef struct {
     struct RBasic basic;
+    int reserved;
     dispatch_semaphore_t sem;
     long count;
 } rb_semaphore_t;
