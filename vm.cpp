@@ -400,6 +400,7 @@ RoxorVM::RoxorVM(void)
     parse_in_eval = false;
     has_ensure = false;
     return_from_block = -1;
+    special_exc = NULL;
     current_super_class = NULL;
     current_super_sel = 0;
 
