@@ -718,8 +718,7 @@ rb_io_rewind(VALUE io, SEL sel)
  *  So <code>IO#sysread</code> doesn't work with <code>IO#eof?</code>.
  */
 
-static inline long rb_io_read_internal(rb_io_t *io_struct, UInt8 *buffer,
-	long len);
+static long rb_io_read_internal(rb_io_t *io_struct, UInt8 *buffer, long len);
 
 VALUE
 rb_io_eof(VALUE io, SEL sel)
@@ -970,7 +969,7 @@ rb_io_read_update(rb_io_t *io_struct, long len)
     }
 }
 
-static inline long
+static long
 rb_io_read_internal(rb_io_t *io_struct, UInt8 *buffer, long len)
 {
     assert(io_struct->read_fd != -1);
@@ -1376,10 +1375,12 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 	if (range.location != kCFNotFound) {
 	    rb_io_create_buf(io_struct);
 	    long rest_size = r - (range.location + 1);
-	    CFDataAppendBytes(io_struct->buf, bytes + range.location + 1, rest_size);
+	    CFDataAppendBytes(io_struct->buf, bytes + range.location + 1,
+		    rest_size);
 	    r = range.location + 1;
 	}
-	// Resize the buffer to whatever was actually read (can be different from asked size)
+	// Resize the buffer to whatever was actually read (can be different
+	// from asked size).
 	rb_bstr_resize(bstr, r);
     }
     else {
@@ -1387,7 +1388,6 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 	const long seplen = RSTRING_LEN(sep);
 	assert(seplen > 0);
 
-#if 0 // TODO
 	// Pre-cache if possible.
 	rb_io_read_internal(io_struct, NULL, 0);
 	if (io_struct->buf != NULL && CFDataGetLength(io_struct->buf) > 0) {
@@ -1414,12 +1414,11 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 	    if (data_read == 0) {
 		return Qnil;
 	    }
-	    CFDataAppendBytes(data, cache, data_read);
+
+	    rb_bstr_concat(bstr, cache, data_read);
 	    rb_io_read_update(io_struct, data_read);
 	}
-	else 
-#endif
-	{
+	else {
 	    // Read from IO (slow).
 	    long s = 512;
 	    long data_read = 0;
@@ -1553,13 +1552,15 @@ rb_io_readline(VALUE io, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_readlines(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-    VALUE array = rb_ary_new();
-    VALUE line = rb_io_gets_m(io, sel, argc, argv);
-    while (!NIL_P(line)) {
-	rb_ary_push(array, line);
-	line = rb_io_gets_m(io, sel, argc, argv);
+    VALUE lines = rb_ary_new();
+    while (true) {
+	VALUE line = rb_io_gets_m(io, 0, argc, argv);
+	if (NIL_P(line)) {
+	    break;
+	}
+	rb_ary_push(lines, line);
     }
-    return array;
+    return lines;
 }
 
 /*
@@ -1595,11 +1596,13 @@ rb_io_each_line(VALUE io, SEL sel, int argc, VALUE *argv)
 {
     RETURN_ENUMERATOR(io, argc, argv);
 
-    VALUE line = rb_io_gets_m(io, sel, argc, argv);
-    while (!NIL_P(line)) {
+    while (true) {
+	VALUE line = rb_io_gets_m(io, sel, argc, argv);
+	if (NIL_P(line)) {
+	    break;
+	}
 	rb_vm_yield(1, &line);
 	RETURN_IF_BROKEN();
-	line = rb_io_gets_m(io, sel, argc, argv);
     }
     return io;
 }
