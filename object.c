@@ -2814,7 +2814,7 @@ rb_Array(VALUE val)
     if (NIL_P(tmp)) {
 	tmp = rb_check_convert_type(val, T_ARRAY, "Array", "to_a");
 	if (NIL_P(tmp)) {
-	    return rb_ary_new3(1, val);
+	    return rb_ary_new4(1, &val);
 	}
     }
     return tmp;

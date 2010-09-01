@@ -229,7 +229,8 @@ rb_ary_new4(long n, const VALUE *elts)
 VALUE
 rb_assoc_new(VALUE car, VALUE cdr)
 {
-    return rb_ary_new3(2, car, cdr);
+    VALUE elems[] = { car, cdr };
+    return rb_ary_new4(2, elems);
 }
 
 VALUE
@@ -891,7 +892,7 @@ rb_ary_to_ary(VALUE obj)
     if (rb_respond_to(obj, rb_intern("to_ary"))) {
 	return to_ary(obj);
     }
-    return rb_ary_new3(1, obj);
+    return rb_ary_new4(1, &obj);
 }
 
 static void
@@ -3093,7 +3094,10 @@ rary_sample(VALUE ary, SEL sel, int argc, VALUE *argv)
 	    if (j >= i) {
 		j++;
 	    }
-	    return rb_ary_new3(2, RARRAY_AT(ary, i), RARRAY_AT(ary, j));
+	    {
+		VALUE elems[] = { RARRAY_AT(ary, i), RARRAY_AT(ary, j) };
+		return rb_ary_new4(2, elems);
+	    }
 
 	case 3:
 	    i = rb_genrand_real() * len;
@@ -3108,9 +3112,10 @@ rary_sample(VALUE ary, SEL sel, int argc, VALUE *argv)
 		if (k >= l && (++k >= g)) {
 		    ++k;
 		}
+		VALUE elems[] = { RARRAY_AT(ary, i), RARRAY_AT(ary, j),
+		    RARRAY_AT(ary, k) };
+		return rb_ary_new4(3, elems);
 	    }
-	    return rb_ary_new3(3, RARRAY_AT(ary, i), RARRAY_AT(ary, j),
-		    RARRAY_AT(ary, k));
     }
     if ((unsigned long)n < sizeof(idx) / sizeof(idx[0])) {
 	long sorted[sizeof(idx) / sizeof(idx[0])];
@@ -3277,7 +3282,8 @@ rary_permutation(VALUE ary, SEL sel, int argc, VALUE *argv)
     }
     else if (r == 1) { /* this is a special, easy case */
 	for (i = 0; i < n; i++) {
-	    rb_yield(rb_ary_new3(1, RARRAY_AT(ary, i)));
+	    VALUE elem = RARRAY_AT(ary, i);
+	    rb_yield(rb_ary_new4(1, &elem));
 	    RETURN_IF_BROKEN();
 	}
     }
@@ -3354,7 +3360,8 @@ rary_combination(VALUE ary, SEL sel, VALUE num)
     }
     else if (n == 1) {
 	for (i = 0; i < len; i++) {
-	    rb_yield(rb_ary_new3(1, RARRAY_AT(ary, i)));
+	    VALUE elem = RARRAY_AT(ary, i);
+	    rb_yield(rb_ary_new4(1, &elem));
 	    RETURN_IF_BROKEN();
 	}
     }

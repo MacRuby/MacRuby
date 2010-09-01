@@ -619,7 +619,7 @@ group_by_i(VALUE i, VALUE hash, int argc, VALUE *argv)
     group = rb_yield(i);
     values = rb_hash_aref(hash, group);
     if (NIL_P(values)) {
-	values = rb_ary_new3(1, i);
+	values = rb_ary_new4(1, &i);
 	rb_hash_aset(hash, group, values);
     }
     else {
@@ -1080,7 +1080,8 @@ enum_min(VALUE obj, SEL sel)
 
     result[0] = Qundef;
     if (rb_block_given_p()) {
-	result[1] = rb_ary_new3(2, Qnil, Qnil);
+	VALUE elems[] = { Qnil, Qnil };
+	result[1] = rb_ary_new4(2, elems);
 	rb_objc_block_call(obj, selEach, 0, 0, min_ii, (VALUE)result);
     }
     else {
@@ -1152,7 +1153,8 @@ enum_max(VALUE obj, SEL sel)
 
     result[0] = Qundef;
     if (rb_block_given_p()) {
-	result[1] = rb_ary_new3(2, Qnil, Qnil);
+	VALUE elems[] = { Qnil, Qnil };
+	result[1] = rb_ary_new4(2, elems);
 	rb_objc_block_call(obj, selEach, 0, 0, max_ii, (VALUE)result);
     }
     else {
@@ -1235,7 +1237,8 @@ static VALUE
 enum_minmax(VALUE obj, SEL sel)
 {
     VALUE result[3];
-    VALUE ary = rb_ary_new3(2, Qnil, Qnil);
+    VALUE elems[] = { Qnil, Qnil };
+    VALUE ary = rb_ary_new4(2, elems);
 
     result[0] = Qundef;
     if (rb_block_given_p()) {

@@ -3112,7 +3112,7 @@ rstr_split(VALUE str, SEL sel, int argc, VALUE *argv)
 	    if (len == 0) {
 		return rb_ary_new2(0);
 	    }
-	    return rb_ary_new3(1, str);
+	    return rb_ary_new4(1, &str);
 	}
     }
 
@@ -5596,7 +5596,10 @@ rstr_partition(VALUE str, SEL sel, VALUE sep)
     }
     if (pos < 0) {
 failed:
-	return rb_ary_new3(3, str, rb_str_new(NULL,0), rb_str_new(NULL,0));
+	{
+	    VALUE elems[] = { str, rb_str_new(NULL, 0), rb_str_new(NULL, 0) };
+	    return rb_ary_new4(3, elems);
+	}
     }
     if (regex) {
 	sep = rb_str_subpat(str, sep, 0);
@@ -5606,8 +5609,9 @@ failed:
 	}
     }
     const long len = rb_str_chars_len(str);
-    return rb_ary_new3(3, rstr_substr(str, 0, pos), sep,
-	    rstr_substr(str, pos + seplen, len - pos - seplen));
+    VALUE elems[] = { rstr_substr(str, 0, pos), sep,
+	rstr_substr(str, pos + seplen, len - pos - seplen) };
+    return rb_ary_new4(3, elems);
 }
 
 /*
@@ -5641,7 +5645,10 @@ rstr_rpartition(VALUE str, SEL sel, VALUE sep)
     }
     if (pos < 0) {
 failed:
-	return rb_ary_new3(3, rb_str_new(NULL, 0), rb_str_new(NULL,0), str);
+	{
+	    VALUE elems[] = { rb_str_new(NULL, 0), rb_str_new(NULL,0), str };
+	    return rb_ary_new4(3, elems);
+	}
     }
     if (regex) {
 	sep = rb_reg_nth_match(0, rb_backref_get());
@@ -5650,8 +5657,9 @@ failed:
 	}
     }
     const long seplen = rb_str_chars_len(sep);
-    return rb_ary_new3(3, rstr_substr(str, 0, pos), sep,
-	    rstr_substr(str, pos + seplen, len - pos - seplen));
+    VALUE elems[] = { rstr_substr(str, 0, pos), sep,
+	rstr_substr(str, pos + seplen, len - pos - seplen) };
+    return rb_ary_new4(3, elems);
 }
 
 /*

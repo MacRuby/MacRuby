@@ -187,7 +187,7 @@ vm_resolve_args(VALUE **pargv, size_t argv_size, int *pargc, VALUE *args)
 		VALUE ary = rb_check_convert_type(arg, T_ARRAY, "Array",
 			"to_a");
 		if (NIL_P(ary)) {
-		    ary = rb_ary_new3(1, arg);
+		    ary = rb_ary_new4(1, &arg);
 		}
 		int count = RARRAY_LEN(ary);
 		if (real_argc + count >= argv_size) {
@@ -591,7 +591,7 @@ vm_when_splat(unsigned char overriden, VALUE comparedTo, VALUE splat)
 {
     VALUE ary = rb_check_convert_type(splat, T_ARRAY, "Array", "to_a");
     if (NIL_P(ary)) {
-	ary = rb_ary_new3(1, splat);
+	ary = rb_ary_new4(1, &splat);
     }
     long i, count = RARRAY_LEN(ary);
     for (i = 0; i < count; i++) {
@@ -883,7 +883,7 @@ vm_to_a(VALUE obj)
 {
     VALUE ary = rb_check_convert_type(obj, T_ARRAY, "Array", "to_a");
     if (NIL_P(ary)) {
-	ary = rb_ary_new3(1, obj);
+	ary = rb_ary_new4(1, &obj);
     }
     return ary;
 }
@@ -893,7 +893,7 @@ vm_to_ary(VALUE obj)
 {
     VALUE ary = rb_check_convert_type(obj, T_ARRAY, "Array", "to_ary");
     if (NIL_P(ary)) {
-	ary = rb_ary_new3(1, obj);
+	ary = rb_ary_new4(1, &obj);
     }
     return ary;
 }
