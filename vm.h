@@ -556,6 +556,7 @@ struct mcache {
 	} rcall;
 	struct {
 	    IMP imp;
+	    int argc;
 	    bs_element_method_t *bs_method;	
 	    rb_vm_objc_stub_t *stub;
 	} ocall;

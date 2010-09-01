@@ -501,6 +501,7 @@ fill_ocache(struct mcache *cache, VALUE self, Class klass, IMP imp, SEL sel,
     cache->sel = sel;
     cache->klass = klass;
     cache->as.ocall.imp = imp;
+    cache->as.ocall.argc = argc;
     cache->as.ocall.bs_method = GET_CORE()->find_bs_method(klass, sel);
 
     char types[200];
@@ -829,6 +830,9 @@ dispatch:
 	return v;
     }
     else if (cache->flag & MCACHE_OCALL) {
+	if (cache->as.ocall.argc != argc) {
+	    goto recache;
+	}
 	if (!cache_method) {
 	    cache->flag = 0;
 	}
