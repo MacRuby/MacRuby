@@ -12,22 +12,28 @@ end
 
 class Dir
 
-  @@systmpdir ||= defined?(Etc.systmpdir) ? Etc.systmpdir : '/tmp'
+  def Dir::systmpdir
+    @@systmpdir ||= begin
+      framework 'Foundation' 
+      NSTemporaryDirectory()
+    end
+  end
 
   ##
   # Returns the operating system's temporary file path.
 
   def Dir::tmpdir
-    tmp = '.'
+    tmp = nil
     if $SAFE > 0
-      tmp = @@systmpdir
+      tmp = systmpdir
     else
-      for dir in [ENV['TMPDIR'], ENV['TMP'], ENV['TEMP'], @@systmpdir, '/tmp']
+      for dir in [ENV['TMPDIR'], ENV['TMP'], ENV['TEMP']]
 	if dir and stat = File.stat(dir) and stat.directory? and stat.writable?
 	  tmp = dir
 	  break
 	end rescue nil
       end
+      tmp ||= systmpdir
       File.expand_path(tmp)
     end
   end
