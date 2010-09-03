@@ -2875,6 +2875,8 @@ RoxorCore::gen_stub(std::string types, bool variadic, int min_argc,
 void *
 RoxorCore::gen_to_rval_convertor(std::string type)
 {
+    RoxorCoreLock lock;
+
     std::map<std::string, void *>::iterator iter =
 	to_rval_convertors.find(type);
     if (iter != to_rval_convertors.end()) {

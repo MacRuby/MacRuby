@@ -391,8 +391,10 @@ rb_vm_struct_fake_new(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     // Generate the real #new method.
     rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(rcv, true);
+    GET_CORE()->lock();
     Function *f = RoxorCompiler::shared->compile_bs_struct_new(bs_boxed);
     IMP imp = GET_CORE()->compile(f);
+    GET_CORE()->unlock();
 
     // Replace the fake method with the new one in the runtime.
     rb_objc_define_method(*(VALUE *)rcv, "new", (void *)imp, -1); 
@@ -425,9 +427,11 @@ rb_vm_struct_fake_set(VALUE rcv, SEL sel, VALUE val)
     assert(field != -1); 
 
     // Generate the new setter method.
+    GET_CORE()->lock();
     Function *f = RoxorCompiler::shared->compile_bs_struct_writer(
 	    bs_boxed, field);
     IMP imp = GET_CORE()->compile(f);
+    GET_CORE()->unlock();
 
     // Replace the fake method with the new one in the runtime.
     buf[s - 1] = '=';
