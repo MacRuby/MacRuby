@@ -597,12 +597,13 @@ rb_include_module2(VALUE klass, VALUE orig_klass, VALUE module, bool check,
 
     if (add_methods) {
 	// Copy methods. If original class has the basic -initialize and if the
-	// module has a customized -initialize, we must copy the customized version
-	// to the original class too.
+	// module has a customized -initialize, we must copy the customized
+	// version to the original class too.
 	rb_vm_copy_methods((Class)module, (Class)klass);
 
 	if (orig_klass != 0 && orig_klass != klass) {
-	    Method m = class_getInstanceMethod((Class)orig_klass, selInitialize);
+	    Method m = class_getInstanceMethod((Class)orig_klass,
+		    selInitialize);
 	    Method m2 = class_getInstanceMethod((Class)klass, selInitialize);
 	    if (m != NULL && m2 != NULL
 		&& method_getImplementation(m) == (IMP)rb_objc_init
@@ -618,7 +619,6 @@ rb_include_module(VALUE klass, VALUE module)
 {
     rb_include_module2(klass, 0, module, true, true);
 }
-
 
 /*
  *  call-seq:
