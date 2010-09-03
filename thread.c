@@ -10,6 +10,7 @@
 #include "ruby/macruby.h"
 #include "ruby/node.h"
 #include "vm.h"
+#include "objc.h"
 
 VALUE rb_cThread;
 VALUE rb_cThGroup;
@@ -45,6 +46,23 @@ thread_s_alloc(VALUE rcv, SEL sel)
     rb_vm_thread_t *t = (rb_vm_thread_t *)xmalloc(sizeof(rb_vm_thread_t));
     t->thread = 0;
     return Data_Wrap_Struct(rb_cThread, NULL, NULL, t);
+}
+
+static IMP
+thread_finalize_imp_super = NULL;
+
+static void
+thread_finalize_imp(void *rcv, SEL sel)
+{
+    rb_vm_thread_t *t = GetThreadPtr(rcv);
+    if (t->exception != Qnil && !t->joined_on_exception) {
+	fprintf(stderr, "*** Thread %p exited prematurely because of an uncaught exception:\n%s\n",
+		t->thread,
+		rb_str_cstr(rb_format_exception_message(t->exception)));
+    }
+    if (thread_finalize_imp_super != NULL) {
+        ((void(*)(void *, SEL))thread_finalize_imp_super)(rcv, sel);
+    }
 }
 
 static VALUE
@@ -215,9 +233,9 @@ dead:
     // If the thread was terminated because of an exception, we need to
     // propagate it.
     if (t->exception != Qnil) {
+	t->joined_on_exception = true;
 	rb_exc_raise(t->exception);
     }
-
     return self;
 }
 
@@ -1567,6 +1585,9 @@ Init_Thread(void)
 {
     rb_cThread = rb_define_class("Thread", rb_cObject);
     rb_objc_define_method(*(VALUE *)rb_cThread, "alloc", thread_s_alloc, 0);
+
+    thread_finalize_imp_super = rb_objc_install_method2((Class)rb_cThread,
+	    "finalize", (IMP)thread_finalize_imp);
 
     rb_objc_define_method(*(VALUE *)rb_cThread, "start", thread_start, -1);
     rb_objc_define_method(*(VALUE *)rb_cThread, "fork", thread_start, -1);

@@ -150,6 +150,7 @@ typedef struct rb_vm_thread {
     rb_vm_thread_status_t status;
     bool in_cond_wait;
     bool abort_on_exception;	// per-local state, global one is in RoxorCore
+    bool joined_on_exception;
     VALUE locals;	// a Hash object or Qnil
     VALUE exception;	// killed-by exception or Qnil 
     VALUE group;	// always a ThreadGroup object
