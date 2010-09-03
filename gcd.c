@@ -28,8 +28,6 @@
 // variable to a queue. (Not that that is a good idea.)
 
 static SEL selClose;
-static aslmsg gcd_msg = NULL;
-#define GCD_DEBUG(text) asl_log(NULL, gcd_msg, ASL_LEVEL_DEBUG, "%s", text)
 
 // TODO: Make Queue and Source inherit from Dispatch::Base
 // so they can use a common definition of suspend/resume
@@ -326,7 +324,6 @@ rb_queue_finalize(void *rcv, SEL sel)
     {
         OSSpinLockLock(&_suspensionLock);
         while (queue->suspension_count > 0) {
-            GCD_DEBUG("Finalizing a suspended queue.");
             queue->suspension_count--;
             dispatch_resume(queue->queue);
         }
@@ -342,10 +339,9 @@ rb_queue_finalize(void *rcv, SEL sel)
 }
 
 static VALUE
-rb_block_rescue(VALUE data)
+rb_block_rescue(VALUE data, VALUE exc)
 {
-    char *text = (char *)data;
-    GCD_DEBUG(text);
+    fprintf(stderr, "*** Dispatch block exited prematurely because of an uncaught exception:\n%s\n", rb_str_cstr(rb_format_exception_message(exc)));
     return Qnil;
 }
 
@@ -361,7 +357,7 @@ static void
 rb_block_dispatcher(void *data)
 {
     assert(data != NULL);
-    rb_rescue(rb_block_release_eval, (VALUE)data, rb_block_rescue, (VALUE)"gcd.c: Exception in rb_block_dispatcher");
+    rb_rescue(rb_block_release_eval, (VALUE)data, rb_block_rescue, Qnil);
 }
 
 static rb_vm_block_t *
@@ -1019,7 +1015,6 @@ rb_source_finalize(void *rcv, SEL sel)
     if (src->source != NULL) {
         OSSpinLockLock(&_suspensionLock);    
         while (src->suspension_count > 0) {
-            GCD_DEBUG("Finalizing a suspended source.");
             src->suspension_count--;
             dispatch_resume(src->source);
         }
@@ -1129,18 +1124,12 @@ static IMP rb_semaphore_finalize_super;
 static void
 rb_semaphore_finalize(void *rcv, SEL sel)
 {
-    BOOL is_unbalanced = false;
     if (RSemaphore(rcv)->sem != NULL) {
-    	while (dispatch_semaphore_signal(RSemaphore(rcv)->sem) != 0) {
-            is_unbalanced = true;
-    	}
-    	while (--RSemaphore(rcv)->count >= 0) {
-    	    dispatch_semaphore_signal(RSemaphore(rcv)->sem);
-    	}
-    	if (is_unbalanced == true) {
-            GCD_DEBUG("Finalizing a waiting Dispatch::Semaphore.");
-        }
-	    dispatch_release(RSemaphore(rcv)->sem);
+	while (dispatch_semaphore_signal(RSemaphore(rcv)->sem) != 0) {}
+	while (--RSemaphore(rcv)->count >= 0) {
+	    dispatch_semaphore_signal(RSemaphore(rcv)->sem);
+	}
+	dispatch_release(RSemaphore(rcv)->sem);
     }
     if (rb_semaphore_finalize_super != NULL) {
         ((void(*)(void *, SEL))rb_semaphore_finalize_super)(rcv, sel);
@@ -1366,10 +1355,7 @@ Init_Dispatch(void)
 /* Constants for future reference */
     selClose = sel_registerName("close");
     assert(selClose != NULL);
-    gcd_msg = asl_new(ASL_TYPE_MSG);
-    asl_set(gcd_msg, ASL_KEY_FACILITY, "org.macruby.gcd");
 }
-
 
 #else
 
