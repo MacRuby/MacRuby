@@ -246,7 +246,7 @@ range_hash(VALUE range, SEL sel)
     return LONG2FIX(hash);
 }
 
-static void
+static VALUE
 range_each_func(VALUE range, VALUE (*func) (VALUE, void *), void *arg)
 {
     int c;
@@ -257,17 +257,20 @@ range_each_func(VALUE range, VALUE (*func) (VALUE, void *), void *arg)
     if (EXCL(range)) {
 	while (r_lt(v, e)) {
 	    (*func) (v, arg);
+	    RETURN_IF_BROKEN();
 	    v = rb_vm_call(v, selSucc, 0, NULL);
 	}
     }
     else {
 	while (RTEST(c = r_le(v, e))) {
 	    (*func) (v, arg);
+	    RETURN_IF_BROKEN();
 	    if (c == INT2FIX(0))
 		break;
 	    v = rb_vm_call(v, selSucc, 0, NULL);
 	}
     }
+    return range;
 }
 
 static VALUE
@@ -420,7 +423,7 @@ range_step(VALUE range, SEL sel, int argc, VALUE *argv)
 	    }
 	    args[0] = INT2FIX(1);
 	    args[1] = step;
-	    range_each_func(range, step_i, args);
+	    return range_each_func(range, step_i, args);
 	}
     }
     return range;
@@ -498,7 +501,7 @@ range_each(VALUE range, SEL sel)
 	rb_objc_block_call(beg, selUpto, 2, args, rb_yield, 0);
     }
     else {
-	range_each_func(range, each_i, NULL);
+	return range_each_func(range, each_i, NULL);
     }
     return range;
 }
