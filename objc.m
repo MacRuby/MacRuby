@@ -580,36 +580,31 @@ rb_objc_numeric2nsnumber(VALUE obj)
     abort();
 }
 
-static inline bool
-rb_objc_obj_is_nsnumber(id obj)
+VALUE
+rb_objc_convert_immediate(id obj)
 {
     Class k = object_getClass(obj); // might be an immediate
     do {
 	if (k == (Class)rb_cNSNumber) {
-	    return true;
+	    // TODO: this could be optimized in case the object is an immediate.
+	    if (CFNumberIsFloatType((CFNumberRef)obj)) {
+		double v = 0;
+		assert(CFNumberGetValue((CFNumberRef)obj, kCFNumberDoubleType, &v));
+		return DOUBLE2NUM(v);
+	    }
+	    else {
+		long v = 0;
+		assert(CFNumberGetValue((CFNumberRef)obj, kCFNumberLongType, &v));
+		return LONG2FIX(v);
+	    }
+	}
+	else if (k == (Class)rb_cNSDate) {
+	    CFAbsoluteTime time = CFDateGetAbsoluteTime((CFDateRef)obj);
+	    return rb_funcall(rb_cTime, rb_intern("at"), 1, DBL2NUM(time + CF_REFERENCE_DATE));
 	}
 	k = class_getSuperclass(k);
     }
     while (k != NULL);
-    return false;
-}
-
-VALUE
-rb_objc_nsnumber2numeric(id obj)
-{
-    if (rb_objc_obj_is_nsnumber(obj)) {
-	// TODO: this could be optimized in case the object is an immediate.
-	if (CFNumberIsFloatType((CFNumberRef)obj)) {
-	    double v = 0;
-	    assert(CFNumberGetValue((CFNumberRef)obj, kCFNumberDoubleType, &v));
-	    return DOUBLE2NUM(v);
-	}
-	else {
-	    long v = 0;
-	    assert(CFNumberGetValue((CFNumberRef)obj, kCFNumberLongType, &v));
-	    return LONG2FIX(v);
-	}
-    }
 
     if (((unsigned long)obj & 0x1) == 0x1) {
 	rb_bug("unknown Objective-C immediate: %p\n", obj);

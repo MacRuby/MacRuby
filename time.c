@@ -2335,8 +2335,6 @@ time_load(VALUE klass, SEL sel, VALUE str)
  *  apparently equal when displayed may be different when compared.
  */
 
-#define SINCE_EPOCH 978307200.0
-
 static double
 imp_timeIntervalSinceReferenceDate(void *rcv, SEL sel)
 {

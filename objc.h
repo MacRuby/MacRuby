@@ -195,7 +195,7 @@ TypeArity(const char *type)
 }
 
 id rb_objc_numeric2nsnumber(VALUE obj);
-VALUE rb_objc_nsnumber2numeric(id obj);
+VALUE rb_objc_convert_immediate(id obj);
 
 static inline id
 rb_rval_to_ocid(VALUE obj)
@@ -229,7 +229,7 @@ rb_ocid_to_rval(id obj)
     if (obj == (id)kCFNull || obj == nil) {
 	return Qnil;
     }
-    return rb_objc_nsnumber2numeric(obj);
+    return rb_objc_convert_immediate(obj);
 }
 
 #define RB2OC(obj) (rb_rval_to_ocid((VALUE)obj))
@@ -249,6 +249,9 @@ void rb_vm_parse_bs_full_file(const char *path,
 	void (*add_stub_types_cb)(SEL, const char *, bool, void *),
 	void *ctx);
 #endif
+
+#define SINCE_EPOCH 978307200.0
+#define CF_REFERENCE_DATE SINCE_EPOCH
 
 #if defined(__cplusplus)
 }
