@@ -36,9 +36,15 @@ extern "C" {
 #include <CoreFoundation/CoreFoundation.h>
 #include <objc/runtime.h>
 
-/* Extend objc/runtime.h and add function pointers tokens */
-#define _MR_C_FPTR_B '<'
-#define _MR_C_FPTR_E '>'
+/* Extend objc/runtime.h and add function pointers and blocks tokens.
+ * A pointer to `void foo (int, char)' will be encoded as <^vic>.
+ * A `void (^)(int, char)' block will be encoded as <@vic>.
+ */
+
+#define _MR_C_LAMBDA_B		'<'
+#define _MR_C_LAMBDA_FUNCPTR  	'^'
+#define _MR_C_LAMBDA_BLOCK	'@'
+#define _MR_C_LAMBDA_E		'>'
 
 /* Attribute and element representations.
  * See BridgeSupport(5) for more information.

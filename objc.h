@@ -160,9 +160,9 @@ SkipFirstType(const char *type)
             case _C_UNION_B:
                 return type + SubtypeUntil (type, _C_UNION_E) + 1;
 
-                /* Function pointers */
-            case _MR_C_FPTR_B:
-                return type + SubtypeUntil (type, _MR_C_FPTR_E) + 1;
+                /* lambdas */
+            case _MR_C_LAMBDA_B:
+                return type + SubtypeUntil (type, _MR_C_LAMBDA_E) + 1;
 
                 /* basic types */
             default:

@@ -319,10 +319,10 @@ undecorate_struct_type(const char *src, char *dest, size_t dest_len,
       bool ok;
       int nested;
 
-	  opposite = 
-	    *p_src == '{' ? '}' :
-        *p_src == '(' ? ')' :
-        *p_src == '[' ? ']' : 0;
+      opposite = 
+	  *p_src == '{' ? '}' :
+	  *p_src == '(' ? ')' :
+	  *p_src == '[' ? ']' : 0;
 
       for (i = 0, ok = false, nested = 0;
            i < src_len - (p_src - src) && !ok; 
@@ -1100,23 +1100,18 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
 		  retval = func != NULL ? func->retval : method->retval;
 	      }
 	      else {
-		  args_count = func != NULL ? func->args_count : method->args_count;
+		  args_count = func != NULL ? func->args_count
+		      : method->args_count;
 		  arg = &args[args_count - 1];
 	      }
 
-	      // Let's get the old type to keep the number of pointers
-	      char *old_type = (retval ? retval->type : arg->type);
-	      int nb_ptr = 0;
+              // Determine if we deal with a block or a function pointer.
+	      const char *old_type = (retval ? retval->type : arg->type);
+              const char lambda_type = *old_type == '@'
+		? _MR_C_LAMBDA_BLOCK
+		: _MR_C_LAMBDA_FUNCPTR;
 
-	      while (old_type && *old_type == '^') {
-		  nb_ptr++;
-		  old_type++;
-	      }
-	      // Decrementing because if we have ^^?, the last ^ (along with ?)
-	      // is going to be replaced by <...>, so we don't want to keep it
-	      nb_ptr--;
-
-	      char tmp_type[1026]; // 2 less to fit <, and >
+	      char tmp_type[1025]; // 3 less to fit <, type and >
 	      char new_type[1028];
 
 	      // Function ptr return type
@@ -1127,13 +1122,9 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
 	      }
 	      // Clear the final type string
 	      memset(new_type, 0, sizeof(new_type));
-	      // Copy the number of pointers
-	      for (int i = 0; i < nb_ptr; i++) {
-		  strlcat(new_type, "^", sizeof(new_type));
-	      }
 	      // Append the function pointer type
-	      snprintf(new_type + nb_ptr, sizeof(new_type) - nb_ptr,
-		       "%c%s%c", _MR_C_FPTR_B, tmp_type, _MR_C_FPTR_E);
+	      snprintf(new_type, sizeof(new_type), "%c%c%s%c",
+		      _MR_C_LAMBDA_B, lambda_type, tmp_type, _MR_C_LAMBDA_E);
 
 	      // Free the old values
 	      if (retval) {

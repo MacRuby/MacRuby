@@ -254,6 +254,7 @@ class RoxorCompiler {
 	Function *rvalToDoubleFunc;
 	Function *rvalToSelFunc;
 	Function *rvalToCharPtrFunc;
+	Function *initBlockFunc;
 
 	Constant *zeroVal;
 	Constant *oneVal;
@@ -283,6 +284,7 @@ class RoxorCompiler {
 	const Type *IntTy;
 	const PointerType *Int32PtrTy;
 	const Type *BitTy;
+	const Type *BlockLiteralTy;
 
 	unsigned dbg_mdkind;
 
@@ -422,6 +424,8 @@ class RoxorCompiler {
 	void compile_set_struct(Value *rcv, int field, Value *val);
 	Value *compile_xmalloc(size_t len);
 
+	Value *compile_lambda_to_funcptr(const char *type, Value *val,
+		Value *slot, bool is_block);
 	Value *compile_conversion_to_c(const char *type, Value *val,
 		Value *slot);
 	Value *compile_conversion_to_ruby(const char *type,

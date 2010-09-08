@@ -744,7 +744,7 @@ describe "An Obj-C object" do
 end
 
 describe "A Proc object" do
-  it "can be used when a BridgeSupport Obj-C method takes a function pointer as an argument" do
+  it "can be used when an Objective-C method takes a function pointer as an argument" do
     framework 'Foundation'
 
     array = [1, 42, 6, 2, 3]
@@ -760,7 +760,7 @@ describe "A Proc object" do
     lambda { array.sortedArrayUsingFunction(too_many_args_proc, context:nil) }.should raise_error(ArgumentError)
   end
 
-  it "can be used when a BridgeSupport C function takes a function pointer as an argument" do
+  it "can be used when a C function takes a function pointer as an argument" do
     functionMultiplicatingByTwoViaFctPtr(42, Proc.new { |x| x * 2 }).should == 84
     functionMultiplicatingByTwoViaFctPtr(42, ->(x) { x * 2 }).should == 84
 
@@ -768,6 +768,16 @@ describe "A Proc object" do
 
     lambda { functionMultiplicatingByTwoViaFctPtr(42, Proc.new { 1 }) }.should raise_error(ArgumentError)
     lambda { functionMultiplicatingByTwoViaFctPtr(42, Proc.new { |x, y| x * y }) }.should raise_error(ArgumentError)
+  end
+
+  it "can be used when an Objective-C method takes a Block as argument" do
+    ary = ['zero', 'one', 'two', 'three', 'four']
+    res = []
+    ary.enumerateObjectsUsingBlock(Proc.new { |obj, idx, stop|
+      res << obj
+      stop.assign(true) if idx == 2
+    })
+    res.should == ['zero', 'one', 'two'] 
   end
 end
 

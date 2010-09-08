@@ -1012,3 +1012,34 @@ vm_get_special(char code)
     }
     return val;
 }
+
+// Support for C-level blocks.
+// Following the ABI specifications as documented in the
+// BlockImplementation.txt file of LLVM.
+
+struct ruby_block_descriptor {
+    unsigned long int reserved;
+    unsigned long int block_size;
+};
+
+struct ruby_block_literal {
+    void *isa;
+    int flags;
+    int reserved;
+    void *imp;
+    struct ruby_block_descriptor *descriptor;
+};
+
+static struct ruby_block_descriptor ruby_block_descriptor_value = {
+    0, sizeof(struct ruby_block_literal)
+};
+
+PRIMITIVE void
+vm_init_c_block(struct ruby_block_literal *b, void *imp)
+{
+    b->isa = &_NSConcreteStackBlock;
+    b->flags = (1 << 29);
+    b->reserved = 0;
+    b->imp = imp;
+    b->descriptor = &ruby_block_descriptor_value;
+}
