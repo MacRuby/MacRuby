@@ -1034,6 +1034,10 @@ static struct ruby_block_descriptor ruby_block_descriptor_value = {
     0, sizeof(struct ruby_block_literal)
 };
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
+extern void *_NSConcreteStackBlock[32];
+#endif
+
 PRIMITIVE void
 vm_init_c_block(struct ruby_block_literal *b, void *imp)
 {
