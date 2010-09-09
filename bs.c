@@ -447,6 +447,7 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
   bs_element_function_pointer_t *func_ptr;
   bool success;
   CFStringRef cf_path;
+  bool nested_func_ptr;
 
   if (callback == NULL)
     return false;
@@ -508,11 +509,11 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
 
   func = NULL;
   func_ptr = NULL;
+  func_ptr_arg_depth = -1;
+  nested_func_ptr = false;
   klass = NULL;
   method = NULL;
   protocol_name = NULL;
-
-  func_ptr_arg_depth = -1;
 
   while (true) {
     const char *name;
@@ -545,11 +546,21 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
 
     bs_element = NULL;
 
-    if (node_type == XML_READER_TYPE_ELEMENT) {
-      atom = bs_xml_element(name, namelen);
-      if (atom == NULL)
-        continue;
+    atom = bs_xml_element(name, namelen);
+    if (atom == NULL)
+      continue;
 
+    if (nested_func_ptr) {
+      // FIXME: elements nesting function_pointers aren't supported yet by the
+      // parser, so we just ignore them.
+      if (node_type == XML_READER_TYPE_END_ELEMENT
+          && (atom->val == BS_XML_FUNCTION || atom->val == BS_XML_METHOD)) {
+        nested_func_ptr = false;
+      }
+      continue;
+    }
+
+    if (node_type == XML_READER_TYPE_ELEMENT) {
       switch (atom->val) {
         case BS_XML_DEPENDS_ON:
         {
@@ -912,8 +923,11 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
             bs_arg->type = get_type_attribute(reader);
 
             if (get_boolean_attribute(reader, "function_pointer", false)) {
-              if (func_ptr != NULL) /* FIXME */
-                BAIL("internal error, nested function pointers detected");
+              if (func_ptr != NULL) {
+                func_ptr = NULL; 
+		nested_func_ptr = true;
+		break;
+	      }
               bs_arg->function_pointer = (bs_element_function_pointer_t *)
                 calloc(1, sizeof(bs_element_function_pointer_t));
               ASSERT_ALLOC(bs_arg->function_pointer);
@@ -995,8 +1009,11 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
             }
 
             if (get_boolean_attribute(reader, "function_pointer", false)) {
-              if (func_ptr != NULL) /* FIXME */
-                BAIL("internal error, nested function pointers detected");
+              if (func_ptr != NULL) {
+                func_ptr = NULL; 
+		nested_func_ptr = true;
+		break;
+              }
               bs_retval->function_pointer = (bs_element_function_pointer_t *)
                 calloc(1, sizeof(bs_element_function_pointer_t));
               ASSERT_ALLOC(bs_retval->function_pointer);
@@ -1075,10 +1092,6 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
       }
     }
     else if (node_type == XML_READER_TYPE_END_ELEMENT) {
-      atom = bs_xml_element(name, namelen);
-      if (atom == NULL)
-        continue;
-
       switch (atom->val) {
         case BS_XML_INFORMAL_PROTOCOL: 
         {
