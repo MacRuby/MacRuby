@@ -1357,16 +1357,6 @@ RoxorCompiler::compile_binding(void)
 	    "", bb);
 }
 
-extern "C"
-struct icache *
-rb_vm_ivar_slot_allocate(void)
-{
-    struct icache *icache = (struct icache *)malloc(sizeof(struct icache));
-    icache->klass = 0;
-    icache->slot = SLOT_CACHE_VIRGIN;
-    return icache;
-}
-
 Value *
 RoxorCompiler::compile_slot_cache(ID id)
 {

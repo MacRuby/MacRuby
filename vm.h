@@ -531,6 +531,8 @@ struct icache {
     int slot;
 };
 
+struct icache *rb_vm_ivar_slot_allocate(void);
+
 struct ccache {
     VALUE outer;
     VALUE val;

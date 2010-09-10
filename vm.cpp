@@ -1415,6 +1415,16 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
 }
 
 extern "C"
+struct icache *
+rb_vm_ivar_slot_allocate(void)
+{
+    struct icache *icache = (struct icache *)malloc(sizeof(struct icache));
+    icache->klass = 0;
+    icache->slot = SLOT_CACHE_VIRGIN;
+    return icache;
+}
+
+extern "C"
 int
 rb_vm_get_ivar_slot(VALUE obj, ID name, bool create)
 {
