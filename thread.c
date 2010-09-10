@@ -772,6 +772,12 @@ rb_thread_aref(VALUE thread, SEL sel, VALUE key)
     return Qnil;
 }
 
+VALUE
+rb_thread_local_aref(VALUE self, ID key)
+{
+    return rb_thread_aref(self, 0, ID2SYM(key));
+}
+
 /*
  *  call-seq:
  *      thr[sym] = obj   => obj
@@ -781,10 +787,16 @@ rb_thread_aref(VALUE thread, SEL sel, VALUE key)
  */
 
 static VALUE
-rb_thread_aset(VALUE self, SEL sel, ID key, VALUE val)
+rb_thread_aset(VALUE self, SEL sel, VALUE key, VALUE val)
 {
     key = ID2SYM(rb_to_id(key));
     return rb_hash_aset(rb_vm_thread_locals(self, true), key, val);
+}
+
+VALUE
+rb_thread_local_aset(VALUE self, ID key, VALUE val)
+{
+    return rb_thread_aset(self, 0, ID2SYM(key), val);
 }
 
 /*
