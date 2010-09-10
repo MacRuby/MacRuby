@@ -615,6 +615,8 @@ RoxorCore::delenda(Function *func)
     assert(func->use_empty());
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+    RoxorCoreLock lock;
+
     // Remove from cache.
     std::map<Function *, IMP>::iterator iter = JITcache.find(func);
     if (iter != JITcache.end()) {
@@ -3782,6 +3784,7 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 #else
     RoxorVM *vm = GET_VM();
     RoxorCompiler *compiler = RoxorCompiler::shared;
+    RoxorCoreLock lock;
 
     // Compile IR.
     if (binding != NULL) {
@@ -3804,6 +3807,7 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 //printf("interpret:\n");
 //func->dump();
 	// If the function can be interpreted, do it, then delete the IR.
+	lock.unlock();
 	ret = RoxorInterpreter::shared->interpret(func,
 		vm->get_current_top_object(), 0);
  	func->eraseFromParent();
@@ -3823,6 +3827,7 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 	mnode->flags = 0;
 
 	// Execute the function.
+	lock.unlock();
 	ret = ((VALUE(*)(VALUE, SEL))imp)(vm->get_current_top_object(), 0);
 
 	if (inside_eval) {
