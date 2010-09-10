@@ -170,7 +170,7 @@ ossl_bn_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
  * * * * 16 - hex
  */
 static VALUE
-ossl_bn_to_s(int argc, VALUE *argv, VALUE self)
+ossl_bn_to_s(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     BIGNUM *bn;
     VALUE str, bs;
@@ -238,11 +238,11 @@ ossl_bn_to_bn(VALUE self)
 }
 
 static VALUE
-ossl_bn_coerce(VALUE self, VALUE other)
+ossl_bn_coerce(VALUE self, SEL sel, VALUE other)
 {
     switch(TYPE(other)) {
     case T_STRING:
-	self = ossl_bn_to_s(0, NULL, self);
+	self = ossl_bn_to_s(self, 0, 0, NULL);
 	break;
     case T_FIXNUM:
     case T_BIGNUM:
