@@ -971,8 +971,9 @@ ossl_asn1cons_to_der(VALUE self, SEL sel)
 
     seq_len = ASN1_object_size(1, RSTRING_LEN(value), tag);
     length = ASN1_object_size(1, seq_len, tn);
-    str = rb_str_new(0, length);
-    p = (unsigned char *)RSTRING_PTR(str);
+    str = rb_bstr_new();
+    rb_bstr_resize(str, length);
+    p = (unsigned char *)rb_bstr_bytes(str);
     if(tc == V_ASN1_UNIVERSAL)
 	ASN1_put_object(&p, 1, RSTRING_LEN(value), tn, tc);
     else{
