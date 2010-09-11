@@ -139,7 +139,7 @@ ossl_x509name_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 	    VALUE str = ossl_to_der_if_possible(arg);
 	    X509_NAME *x;
 	    StringValue(str);
-	    p = (unsigned char *)RSTRING_PTR(str);
+	    p = (const unsigned char *)RSTRING_PTR(str);
 	    x = d2i_X509_NAME(&name, &p, RSTRING_LEN(str));
 	    DATA_PTR(self) = name;
 	    if(!x){
@@ -321,8 +321,9 @@ ossl_x509name_to_der(VALUE self)
     GetX509Name(self, name);
     if((len = i2d_X509_NAME(name, NULL)) <= 0)
 	ossl_raise(eX509NameError, NULL);
-    str = rb_str_new(0, len);
-    p = (unsigned char *)RSTRING_PTR(str);
+    str = rb_bstr_new();
+    rb_bstr_resize(str, len);
+    p = (unsigned char *)rb_bstr_bytes(str);
     if(i2d_X509_NAME(name, &p) <= 0)
 	ossl_raise(eX509NameError, NULL);
     ossl_str_adjust(str, p);

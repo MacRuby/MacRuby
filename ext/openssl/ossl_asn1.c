@@ -672,7 +672,7 @@ join_der_i(VALUE i, VALUE str)
 static VALUE
 join_der(VALUE enumerable)
 {
-    VALUE str = rb_str_new(0, 0);
+    VALUE str = rb_bstr_new();
     rb_block_call(enumerable, rb_intern("each"), 0, 0, join_der_i, str);
     return str;
 }
