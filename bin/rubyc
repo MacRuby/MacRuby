@@ -158,9 +158,18 @@ class Compiler
 
     tmp_objs = []
     @archs.each do |arch|
+      # Locate the kernel bitcode file if needed.
+      env = ''
+      if @sdk
+        kernel_path = File.join(@sdk, "usr/lib/libmacruby-kernel-#{arch}.bc")
+        if File.exist?(kernel_path)
+          env = "/usr/bin/env VM_KERNEL_PATH=\"#{kernel_path}\""
+        end
+      end
+
       # Compile the file into LLVM bitcode.
       bc = gen_tmpfile(base + arch, 'bc')
-      execute("arch -#{arch} #{@macruby} #{@uses_bs_flags} --emit-llvm \"#{bc}\" #{init_func} \"#{path}\"")
+      execute("#{env} arch -#{arch} #{@macruby} #{@uses_bs_flags} --emit-llvm \"#{bc}\" #{init_func} \"#{path}\"")
 
       # Compile the bitcode as assembly.
       asm = gen_tmpfile(base + arch, 's')
