@@ -266,8 +266,9 @@ ossl_ocspreq_to_der(VALUE self, SEL sel)
     GetOCSPReq(self, req);
     if((len = i2d_OCSP_REQUEST(req, NULL)) <= 0)
 	ossl_raise(eOCSPError, NULL);
-    str = rb_str_new(0, len);
-    p = (unsigned char *)RSTRING_PTR(str);
+    str = rb_bstr_new();
+    rb_bstr_resize(str, len);
+    p = (unsigned char *)rb_bstr_bytes(str);
     if(i2d_OCSP_REQUEST(req, &p) <= 0)
 	ossl_raise(eOCSPError, NULL);
     ossl_str_adjust(str, p);
@@ -380,8 +381,9 @@ ossl_ocspres_to_der(VALUE self, SEL sel)
     GetOCSPRes(self, res);
     if((len = i2d_OCSP_RESPONSE(res, NULL)) <= 0)
 	ossl_raise(eOCSPError, NULL);
-    str = rb_str_new(0, len);
-    p = (unsigned char *)RSTRING_PTR(str);
+    str = rb_bstr_new();
+    rb_bstr_resize(str, len);
+    p = (unsigned char *)rb_bstr_bytes(str);
     if(i2d_OCSP_RESPONSE(res, &p) <= 0)
 	ossl_raise(eOCSPError, NULL);
     ossl_str_adjust(str, p);

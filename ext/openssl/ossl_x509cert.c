@@ -191,8 +191,8 @@ ossl_x509_to_der(VALUE self)
     GetX509(self, x509);
     if ((len = i2d_X509(x509, NULL)) <= 0)
 	ossl_raise(eX509CertError, NULL);
-    str = rb_bstr_new_with_data(0, len);
-    rb_bstr_set_length(str, len);
+    str = rb_bstr_new();
+    rb_bstr_resize(str, len);
     p = (unsigned char *)rb_bstr_bytes(str);
     if (i2d_X509(x509, &p) <= 0)
 	ossl_raise(eX509CertError, NULL);

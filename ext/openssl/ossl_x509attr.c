@@ -212,16 +212,18 @@ ossl_x509attr_get_value(VALUE self)
     if(attr->value.ptr == NULL) return Qnil;
     if(OSSL_X509ATTR_IS_SINGLE(attr)){
 	length = i2d_ASN1_TYPE(attr->value.single, NULL);
-	str = rb_str_new(0, length);
-	p = (unsigned char *)RSTRING_PTR(str);
+	str = rb_bstr_new();
+	rb_bstr_resize(str, length);
+	p = (unsigned char *)rb_bstr_bytes(str);
 	i2d_ASN1_TYPE(attr->value.single, &p);
 	ossl_str_adjust(str, p);
     }
     else{
 	length = i2d_ASN1_SET_OF_ASN1_TYPE(attr->value.set, NULL,
 			i2d_ASN1_TYPE, V_ASN1_SET, V_ASN1_UNIVERSAL, 0);
-	str = rb_str_new(0, length);
-	p = (unsigned char *)RSTRING_PTR(str);
+	str = rb_bstr_new();
+	rb_bstr_resize(str, length);
+	p = (unsigned char *)rb_bstr_bytes(str);
 	i2d_ASN1_SET_OF_ASN1_TYPE(attr->value.set, &p,
 			i2d_ASN1_TYPE, V_ASN1_SET, V_ASN1_UNIVERSAL, 0);
 	ossl_str_adjust(str, p);

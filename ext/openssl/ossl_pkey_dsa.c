@@ -288,8 +288,9 @@ ossl_dsa_to_der(VALUE self)
 	i2d_func = i2d_DSA_PUBKEY;
     if((len = i2d_func(pkey->pkey.dsa, NULL)) <= 0)
 	ossl_raise(eDSAError, NULL);
-    str = rb_str_new(0, len);
-    p = (unsigned char *)RSTRING_PTR(str);
+    str = rb_bstr_new();
+    rb_bstr_resize(str, len);
+    p = (unsigned char *)rb_bstr_bytes(str);
     if(i2d_func(pkey->pkey.dsa, &p) < 0)
 	ossl_raise(eDSAError, NULL);
     ossl_str_adjust(str, p);

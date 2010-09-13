@@ -696,8 +696,9 @@ ossl_asn1data_to_der(VALUE self, SEL sel)
     tag_class = ossl_asn1_tag_class(self);
     if((length = ASN1_object_size(1, RSTRING_LEN(value), tag)) <= 0)
 	ossl_raise(eASN1Error, NULL);
-    der = rb_str_new(0, length);
-    p = (unsigned char *)RSTRING_PTR(der);
+    der = rb_bstr_new();
+    rb_bstr_resize(der, length);
+    p = (unsigned char *)rb_bstr_bytes(der);
     ASN1_put_object(&p, is_cons, RSTRING_LEN(value), tag, tag_class);
     memcpy(p, RSTRING_PTR(value), RSTRING_LEN(value));
     p += RSTRING_LEN(value);

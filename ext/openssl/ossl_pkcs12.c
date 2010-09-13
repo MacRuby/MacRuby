@@ -182,8 +182,9 @@ ossl_pkcs12_to_der(VALUE self, SEL sel)
     GetPKCS12(self, p12);
     if((len = i2d_PKCS12(p12, NULL)) <= 0)
 	ossl_raise(ePKCS12Error, NULL);
-    str = rb_str_new(0, len);
-    p = (unsigned char *)RSTRING_PTR(str);
+    str = rb_bstr_new();
+    rb_bstr_resize(str, len);
+    p = (unsigned char *)rb_bstr_bytes(str);
     if(i2d_PKCS12(p12, &p) <= 0)
 	ossl_raise(ePKCS12Error, NULL);
     ossl_str_adjust(str, p);
