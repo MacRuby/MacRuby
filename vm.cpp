@@ -1605,6 +1605,10 @@ rb_vm_defined(VALUE self, int type, VALUE what, VALUE what2)
 		if (type == DEFINED_SUPER) {
 		    klass = RCLASS_SUPER(klass);
 		}
+		if (what == 0) {
+		    rb_raise(rb_eRuntimeError,
+			    "defined?(super) out of a method block isn't supported");
+		}
 		const char *idname = rb_id2name((ID)what);
 		SEL sel = sel_registerName(idname);
 
