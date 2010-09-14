@@ -700,6 +700,9 @@ str_get_characters(rb_str_t *self, long first, long last, bool ucs2_mode)
 static void
 str_resize_bytes(rb_str_t *self, long new_capacity)
 {
+    if (new_capacity < 0) {
+	rb_raise(rb_eArgError, "negative string size (or size too big)");
+    }
     if (self->capacity_in_bytes < new_capacity) {
 	if (self->data.bytes == NULL) {
 	    GC_WB(&self->data.bytes, xmalloc(new_capacity));
