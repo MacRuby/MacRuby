@@ -485,6 +485,16 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
   }                                             \
   while (0)
 
+#if __LP64__
+# define CHECK_TYPE_ATTRIBUTE(var) CHECK_ATTRIBUTE(var, "type")
+#else
+# define CHECK_TYPE_ATTRIBUTE(var) \
+    if (var == NULL && get_type64_attribute(reader) != NULL) { \
+	break; \
+    } \
+    CHECK_ATTRIBUTE(var, "type")
+#endif
+
 #define CHECK_ATTRIBUTE_CAN_BE_EMPTY(a, name) \
   CHECK_ATTRIBUTE0(a, name, true)
 
@@ -595,7 +605,7 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
           const_name = get_attribute(reader, "name");
           CHECK_ATTRIBUTE(const_name, "name");
           const_type = get_type_attribute(reader);
-          CHECK_ATTRIBUTE(const_type, "type");
+          CHECK_TYPE_ATTRIBUTE(const_type);
 
           bs_const = (bs_element_constant_t *)
             malloc(sizeof(bs_element_constant_t));
@@ -688,7 +698,7 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
           int field_count;
 
           struct_decorated_type = get_type_attribute(reader);
-          CHECK_ATTRIBUTE(struct_decorated_type, "type");
+          CHECK_TYPE_ATTRIBUTE(struct_decorated_type);
           struct_name = get_attribute(reader, "name");
           CHECK_ATTRIBUTE(struct_name, "name");
 
@@ -731,7 +741,7 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
           opaque_name = get_attribute(reader, "name");
           CHECK_ATTRIBUTE(opaque_name, "name");
           opaque_type = get_type_attribute(reader);
-          CHECK_ATTRIBUTE(opaque_type, "type");
+          CHECK_TYPE_ATTRIBUTE(opaque_type);
 
           bs_opaque = 
             (bs_element_opaque_t *)malloc(sizeof(bs_element_opaque_t));
@@ -754,7 +764,7 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
           cftype_name = get_attribute(reader, "name");
           CHECK_ATTRIBUTE(cftype_name, "name");
           cftype_type = get_type_attribute(reader);
-          CHECK_ATTRIBUTE(cftype_type, "type");
+          CHECK_TYPE_ATTRIBUTE(cftype_type);
 
           bs_cftype = 
             (bs_element_cftype_t *)malloc(sizeof(bs_element_cftype_t));
@@ -1041,7 +1051,7 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
             CHECK_ATTRIBUTE(selector, "selector");
             
             method_type = get_type_attribute(reader);
-            CHECK_ATTRIBUTE(method_type, "type");
+            CHECK_TYPE_ATTRIBUTE(method_type);
 
             bs_informal_method = (bs_element_informal_protocol_method_t *)
               malloc(sizeof(bs_element_informal_protocol_method_t));
