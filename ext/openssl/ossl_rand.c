@@ -120,8 +120,9 @@ ossl_rand_pseudo_bytes(VALUE self, SEL sel, VALUE len)
     VALUE str;
     int n = NUM2INT(len);
 
-    str = rb_str_new(0, n);
-    if (!RAND_pseudo_bytes((unsigned char *)RSTRING_PTR(str), n)) {
+    str = rb_bstr_new();
+    rb_bstr_resize(str, n);
+    if (!RAND_pseudo_bytes((unsigned char *)rb_bstr_bytes(str), n)) {
 	ossl_raise(eRandomError, NULL);
     }
 
