@@ -325,13 +325,21 @@ class Gem::Installer
       # FileUtils.rm_f bin_script_path # prior install may have been --no-wrappers
 
       bin_script_exists = File.exists?(bin_script_path)
+      mode   = 'w' unless(bin_script_exists)
+      mode ||= 'r+'
       new_shebang = shebang(filename)
-      File.open bin_script_path, 'r+', 0755 do |file|
+      File.open bin_script_path, mode, 0755 do |file|
         if bin_script_exists
           # If the first line is different than the shebang we want to insert
           # we are probably overwriting a script installed by another ruby
           # implementation / version
-          if file.readline.chomp != new_shebang
+          begin
+            old_shebang = file.readline.chomp
+          rescue
+            old_shebang = ""
+          end
+
+          if old_shebang != new_shebang
             warn = <<-WARN_MESSAGE
 You are installing a new version of #{bin_script_path}.
 This file already exists with a different shebang, possibly from a different
