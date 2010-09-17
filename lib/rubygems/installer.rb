@@ -346,7 +346,7 @@ This file already exists with a different shebang, possibly from a different
 ruby implementation or version. This operation may break the script.
 WARN_MESSAGE
             alert_warning(warn)
-            if not ask_yes_no("Do you still wish to continue?")
+            if !@force && !ask_yes_no("Do you still wish to continue?")
               raise GenerateBinaryError, "Could not write #{bin_script_path}"
             end
             say "Overwrote #{bin_script_path}" if Gem.configuration.really_verbose
