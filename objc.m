@@ -580,10 +580,15 @@ rb_objc_numeric2nsnumber(VALUE obj)
     abort();
 }
 
+static SEL sel_at = 0;
+
 VALUE
 rb_objc_convert_immediate(id obj)
 {
-    Class k = object_getClass(obj); // might be an immediate
+    const bool is_immediate = ((unsigned long)obj & 0x1) == 0x1;
+
+    Class orig_k = object_getClass(obj); // might be an immediate
+    Class k = orig_k;
     do {
 	if (k == (Class)rb_cNSNumber) {
 	    // TODO: this could be optimized in case the object is an immediate.
@@ -599,17 +604,23 @@ rb_objc_convert_immediate(id obj)
 	    }
 	}
 	else if (k == (Class)rb_cNSDate) {
-	    CFAbsoluteTime time = CFDateGetAbsoluteTime((CFDateRef)obj);
-	    return rb_funcall(rb_cTime, rb_intern("at"), 1, DBL2NUM(time + CF_REFERENCE_DATE));
+	    @try {
+		CFAbsoluteTime time = CFDateGetAbsoluteTime((CFDateRef)obj);
+		VALUE arg = DBL2NUM(time + CF_REFERENCE_DATE);
+		return rb_vm_call(rb_cTime, sel_at, 1, &arg);
+	    }
+	    @catch (NSException *e) {
+		// Some NSDates might return an exception (example: uninitialized objects).
+		break;
+	    }
 	}
 	k = class_getSuperclass(k);
     }
     while (k != NULL);
 
-    if (((unsigned long)obj & 0x1) == 0x1) {
-	rb_bug("unknown Objective-C immediate: %p\n", obj);
+    if (is_immediate) {
+	rb_bug("unknown Objective-C immediate: %p (%s)\n", obj, class_getName(orig_k));
     }
-
     return (VALUE)obj;
 }
 
@@ -784,6 +795,8 @@ rb_objc_to_plist(VALUE recv, SEL sel)
 void
 Init_ObjC(void)
 {
+    sel_at = sel_registerName("at:");
+
     rb_objc_define_module_function(rb_mKernel, "load_bridge_support_file", rb_objc_load_bs, 1);
     rb_objc_define_module_function(rb_mKernel, "load_plist", rb_objc_load_plist, 1);
     
