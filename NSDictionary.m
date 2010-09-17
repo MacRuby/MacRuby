@@ -118,6 +118,9 @@ nshash_inspect(id rcv, SEL sel)
 static VALUE
 nshash_equal(id rcv, SEL sel, id other)
 {
+    if (![other isKindOfClass:(id)rb_cNSHash]) {
+	return Qfalse;
+    }
     return [rcv isEqualToDictionary:other] ? Qtrue : Qfalse;
 }
 
