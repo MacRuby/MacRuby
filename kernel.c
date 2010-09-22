@@ -25,6 +25,13 @@
 #endif
 
 PRIMITIVE VALUE
+vm_gc_wb(void *slot, void *val)
+{
+    GC_WB(slot, val);
+    return (VALUE)val;
+}
+
+PRIMITIVE VALUE
 vm_ivar_get(VALUE obj, ID name, void *cache_p)
 {
     struct icache *cache = (struct icache *)cache_p;

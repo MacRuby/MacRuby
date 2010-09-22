@@ -141,6 +141,7 @@ class RoxorCompiler {
 	bool block_declaration;
 	AllocaInst *dispatch_argv;
 
+	Function *writeBarrierFunc;
 	Function *dispatchFunc;
 	Function *fastPlusFunc;
 	Function *fastMinusFunc;
@@ -411,6 +412,7 @@ class RoxorCompiler {
 	void compile_rethrow_exception(void);
 	void compile_pop_exception(int pos=0);
 	Value *compile_lvar_slot(ID name);
+	Value *compile_lvar_slot(ID name, bool *need_wb);
 	bool compile_lvars(ID *tbl);
 	Value *compile_new_struct(Value *klass, std::vector<Value *> &fields);
 	Value *compile_new_opaque(Value *klass, Value *val);

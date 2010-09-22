@@ -154,6 +154,7 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
 
     reset_compiler_state();
 
+    writeBarrierFunc = get_function("vm_gc_wb");
     dispatchFunc = get_function("vm_dispatch");
     fastPlusFunc = get_function("vm_fast_plus");
     fastMinusFunc = get_function("vm_fast_minus");
@@ -6108,7 +6109,7 @@ RoxorCompiler::compile_lvars(ID *tbl)
 }
 
 Value *
-RoxorCompiler::compile_lvar_slot(ID name)
+RoxorCompiler::compile_lvar_slot(ID name, bool *need_wb)
 {
     std::map<ID, Value *>::iterator iter = lvars.find(name);
     if (iter != lvars.end()) {
@@ -6123,6 +6124,9 @@ RoxorCompiler::compile_lvar_slot(ID name)
 	printf("get_binding_lvar %s (%p)\n", rb_id2name(name), *(void **)var);
 #endif
 	Value *int_val = ConstantInt::get(IntTy, (long)var);
+	if (need_wb != NULL) {
+	    *need_wb = true;
+	}
 	return new IntToPtrInst(int_val, RubyObjPtrTy, "", bb);
     }
     assert(current_block);
@@ -6132,6 +6136,12 @@ RoxorCompiler::compile_lvar_slot(ID name)
     printf("get_dvar %s\n", rb_id2name(name));
 #endif
     return slot;
+}
+
+Value *
+RoxorCompiler::compile_lvar_slot(ID name)
+{
+    return compile_lvar_slot(name, NULL);
 }
 
 Value *
@@ -6162,14 +6172,21 @@ RoxorCompiler::compile_dvar_assignment(ID vid, Value *val)
 
 	bb = merge_bb;
     }
-
     return compile_lvar_assignment(vid, val);
 }
 
 Value *
 RoxorCompiler::compile_lvar_assignment(ID vid, Value *val)
 {
-    new StoreInst(val, compile_lvar_slot(vid), bb);
+    bool need_wb = false;
+    Value *slot = compile_lvar_slot(vid, &need_wb);
+    if (need_wb) {
+	Value *args[] = { slot, val };
+	return CallInst::Create(writeBarrierFunc, args, args + 2, "", bb);
+    }
+    else {
+	new StoreInst(val, slot, bb);
+    }
     return val;
 }
 
