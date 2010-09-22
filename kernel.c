@@ -25,10 +25,10 @@
 #endif
 
 PRIMITIVE VALUE
-vm_gc_wb(void *slot, void *val)
+vm_gc_wb(VALUE *slot, VALUE val)
 {
     GC_WB(slot, val);
-    return (VALUE)val;
+    return val;
 }
 
 PRIMITIVE VALUE
