@@ -87,7 +87,15 @@ rb_load(VALUE fname, int wrap)
     // Load it.
     const char *fname_str = RSTRING_PTR(fname);
 //printf("load %s\n", fname_str);
+
+    rb_vm_binding_t *b = rb_vm_current_binding();
+    if (b != NULL) {
+	rb_vm_pop_binding();
+    }
     NODE *node = (NODE *)rb_load_file(fname_str);
+    if (b != NULL) {
+	rb_vm_add_binding(b);
+    }
     if (node == NULL) {
 	rb_raise(rb_eSyntaxError, "compile error");
     }

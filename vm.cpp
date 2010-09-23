@@ -3734,7 +3734,7 @@ RoxorVM::get_binding_lvar(ID name, bool create)
 	if (create) {
 	    GC_WB(l, xmalloc(sizeof(rb_vm_local_t)));
 	    (*l)->name = name;
-	    GC_WB(&(*l)->value, xmalloc(sizeof(VALUE)));
+	    GC_WB(&(*l)->value, xmalloc(sizeof(VALUE *)));
 	    (*l)->next = NULL;
 	    return (*l)->value;
 	}
