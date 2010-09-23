@@ -282,13 +282,15 @@ rb_vm_super_lookup(Class klass, SEL sel, Class *super_class_p)
     const int count = RARRAY_LEN(ary);
     bool klass_located = false;
 #if ROXOR_VM_DEBUG
-    printf("locating super method %s of class %s in ancestor chain: ", 
-	    sel_getName(sel), rb_class2name((VALUE)klass));
+    printf("locating super method %s of class %s (%p) in ancestor chain: ", 
+	    sel_getName(sel), rb_class2name((VALUE)klass), klass);
     for (int i = 0; i < count; i++) {
-	printf("%s ", rb_class2name(RARRAY_AT(ary, i)));
+	VALUE sk = RARRAY_AT(ary, i);
+	printf("%s (%p) ", rb_class2name(sk), (void *)sk);
     }
     printf("\n");
 #endif
+try_again:
     for (int i = 0; i < count; i++) {
         if (!klass_located && RARRAY_AT(ary, i) == (VALUE)self_class) {
             klass_located = true;
@@ -296,6 +298,9 @@ rb_vm_super_lookup(Class klass, SEL sel, Class *super_class_p)
         if (klass_located) {
             if (i < count - 1) {
                 VALUE k = RARRAY_AT(ary, i + 1);
+#if ROXOR_VM_DEBUG
+		printf("looking in %s\n", rb_class2name((VALUE)k));
+#endif
 
 		Method method = class_getInstanceMethod((Class)k, sel);
 		if (method == NULL) {
@@ -322,6 +327,14 @@ rb_vm_super_lookup(Class klass, SEL sel, Class *super_class_p)
 		return method;
             }
         }
+    }
+    if (!klass_located) {
+	// Could not locate the receiver's class in the ancestors list.
+	// It probably means that the receiver has been extended somehow.
+	// We therefore assume that the super method will be in the direct
+	// superclass.
+	klass_located = true;
+	goto try_again;
     }
 
     *super_class_p = NULL;

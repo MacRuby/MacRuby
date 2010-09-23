@@ -714,8 +714,6 @@ rb_mod_include_p(VALUE mod, SEL sel, VALUE mod2)
  *     Math.ancestors   #=> [Math]
  */
 
-static void rb_mod_included_modules_nosuper(VALUE, VALUE);
-
 VALUE
 rb_mod_ancestors_nocopy(VALUE mod)
 {
