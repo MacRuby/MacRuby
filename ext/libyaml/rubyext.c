@@ -167,14 +167,14 @@ rb_yaml_parser_generate_error(yaml_parser_t *parser)
     if (parser->problem != NULL) {
 	if (parser->context != NULL) {
 	    asprintf(&msg,
-		    "%s error encountered during parsing: %s (line %d, column %d), context %s (line %d, column %d)",
+		    "%s error encountered during parsing: %s (line %ld, column %ld), context %s (line %ld, column %ld)",
 		    descriptor, parser->problem, parser->problem_mark.line,
 		    parser->problem_mark.column, parser->context,
 		    parser->context_mark.line, parser->context_mark.column);
 	}
 	else {
 	    asprintf(&msg,
-		    "%s error encountered during parsing: %s (line %d, column %d)",
+		    "%s error encountered during parsing: %s (line %ld, column %ld)",
 		    descriptor, parser->problem, parser->problem_mark.line,
 		    parser->problem_mark.column);
 	}
