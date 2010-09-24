@@ -10,7 +10,10 @@
 **********************************************************************/
 
 #include "ruby/macruby.h"
+#include "ruby/node.h"
+#include "vm.h"
 #include "dln.h"
+
 #include <stdlib.h>
 #include <alloca.h>
 #include <string.h>
@@ -73,6 +76,17 @@ dln_strerror(void)
 
 bool ruby_is_miniruby = false;
 
+// This function is called back from .rbo files' gcc constructors, passing a
+// pointer to their entry point function, during dlopen(). The entry point
+// function is called right after dlopen() directly. This is because C++
+// exceptions raised within a gcc constructor are not properly propagated.
+static void *__mrep__ = NULL;
+void
+rb_mrep_register(void *imp)
+{
+    __mrep__ = imp;
+}
+
 void*
 dln_load(const char *file, bool call_init)
 {
@@ -92,6 +106,7 @@ dln_load(const char *file, bool call_init)
 	void *handle;
 
 	/* Load file */
+	__mrep__ = NULL;
 	if ((handle = (void*)dlopen(file, RTLD_LAZY|RTLD_GLOBAL)) == NULL) {
 	    error = dln_strerror();
 	    goto failed;
@@ -107,6 +122,10 @@ dln_load(const char *file, bool call_init)
 	    }
 	    /* Call the init code */
 	    (*init_fct)();
+	}
+	else {
+	    assert(__mrep__ != NULL);
+	    ((IMP)__mrep__)((id)rb_vm_top_self(), 0);
 	}
 
 	return handle;

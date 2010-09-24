@@ -177,7 +177,7 @@ class Compiler
 
       # Compile the assembly.
       tmp_obj = gen_tmpfile(base + arch, 'o')
-      execute("#{@gcc} -c -arch #{arch} \"#{asm}\" -o \"#{tmp_obj}\"")
+      execute("#{@gcc} -fexceptions -c -arch #{arch} \"#{asm}\" -o \"#{tmp_obj}\"")
       tmp_objs << tmp_obj
     end
 
@@ -200,10 +200,10 @@ class Compiler
     # Generate main file.
     main_txt = <<EOS
 extern "C" {
+  void rb_mrep_register(void *);
   void *#{init_func}(void *, void *);
-  void *rb_vm_top_self(void);
   __attribute__((constructor)) static void __init__(void) {
-    #{init_func}(rb_vm_top_self(), 0);
+    rb_mrep_register((void *)#{init_func});
   }
 }
 EOS
@@ -212,7 +212,7 @@ EOS
     main = gen_tmpfile('main', 'c')
     File.open(main, 'w') { |io| io.write(main_txt) }
     linkf = @internal ? "-L. -lmacruby" : "-L#{RbConfig::CONFIG['libdir']} -lmacruby"
-    execute("#{@gcxx} \"#{main}\" -dynamic -bundle -undefined suppress -flat_namespace #{arch_flags} #{linkf} \"#{obj}\" -o \"#{output}\"")
+    execute("#{@gcxx} \"#{main}\" -fexceptions -dynamic -bundle -undefined suppress -flat_namespace #{arch_flags} #{linkf} \"#{obj}\" -o \"#{output}\"")
     strip(output)
   end
 
