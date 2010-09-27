@@ -1018,15 +1018,15 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 	ruby_imps[ruby_imp] = node;
     }
 
-    // Invalidate respond_to cache.
-    invalidate_respond_to_cache();
-
-    // Invalidate dispatch cache.
-    invalidate_method_cache(sel);
-
-    // Invalidate inline operations.
-#if !defined(MACRUBY_STATIC)
     if (running) {
+	// Invalidate respond_to cache.
+	invalidate_respond_to_cache();
+
+	// Invalidate dispatch cache.
+	invalidate_method_cache(sel);
+
+	// Invalidate inline operations.
+#if !defined(MACRUBY_STATIC)
 	GlobalVariable *gvar = redefined_op_gvar(sel, false);
 	if (gvar != NULL && should_invalidate_inline_op(sel, klass)) {
 	    void *val = ee->getOrEmitGlobalVariable(gvar);
@@ -1038,8 +1038,8 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 	    assert(val != NULL);
 	    *(unsigned char *)val = 1;
 	}
-    }
 #endif
+    }
 
     // If alloc is redefined, mark the class as such.
     if (sel == selAlloc
