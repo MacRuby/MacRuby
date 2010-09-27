@@ -27,7 +27,7 @@
 PRIMITIVE VALUE
 vm_gc_wb(VALUE *slot, VALUE val)
 {
-    GC_WB(slot, val);
+    GC_WB_0(slot, val, false);
     return val;
 }
 
