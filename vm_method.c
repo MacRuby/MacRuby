@@ -90,7 +90,7 @@ rb_export_method(VALUE klass, ID name, ID noex)
 		sel_getName(sel));
     }
 
-    long flags = 0;
+    long flags = (node->flags & ~VM_METHOD_PRIVATE) & ~VM_METHOD_PROTECTED;
     switch (noex) {
 	case NOEX_PRIVATE:
 	    flags |= VM_METHOD_PRIVATE;
@@ -125,7 +125,7 @@ rb_export_method(VALUE klass, ID name, ID noex)
 	}
     }
 
-    node->flags |= flags;
+    node->flags = flags;
 }
 
 void
