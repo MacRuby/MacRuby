@@ -135,18 +135,15 @@ rb_get_path(VALUE obj)
 }
 
 static long
-apply2files(void (*func)(const char *, void *), VALUE vargs, void *arg)
+apply2files(void (*func)(const char *, void *), long argc, VALUE *argv,
+	void *arg)
 {
-    long i;
-    volatile VALUE path;
-
     rb_secure(4);
-    for (i = 0; i < RARRAY_LEN(vargs); i++) {
-	path = rb_get_path(RARRAY_AT(vargs, i));
+    for (long i = 0; i < argc; i++) {
+	VALUE path = rb_get_path(argv[i]);
 	(*func)(StringValueCStr(path), arg);
     }
-
-    return RARRAY_LEN(vargs);
+    return argc;
 }
 
 /*
@@ -1758,20 +1755,18 @@ chmod_internal(const char *path, void *mode)
 static VALUE
 rb_file_s_chmod(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
-    VALUE vmode;
-    VALUE rest;
-    int mode;
-    long n;
-
     rb_secure(2);
-    rb_scan_args(argc, argv, "1*", &vmode, &rest);
+    if (argc < 1) {
+        rb_raise(rb_eArgError, "wrong number of arguments (%d for 1)", argc);
+    }
+    VALUE vmode = argv[0];
     vmode = rb_check_to_integer(vmode, "to_int");
     if (NIL_P(vmode)) {
 	rb_raise(rb_eTypeError, "chmod() takes a numeric argument");
     }
-    mode = NUM2INT(vmode);
+    int mode = NUM2INT(vmode);
 
-    n = apply2files(chmod_internal, rest, &mode);
+    long n = apply2files(chmod_internal, argc - 1, &argv[1], &mode);
     return LONG2FIX(n);
 }
 
@@ -1824,15 +1819,15 @@ lchmod_internal(const char *path, void *mode)
 static VALUE
 rb_file_s_lchmod(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
-    VALUE vmode;
-    VALUE rest;
-    long mode, n;
-
     rb_secure(2);
-    rb_scan_args(argc, argv, "1*", &vmode, &rest);
-    mode = NUM2INT(vmode);
+    if (argc < 1) {
+        rb_raise(rb_eArgError, "wrong number of arguments (%d for 1)", argc);
+    }
+    VALUE vmode = argv[0];
+    int mode = NUM2INT(vmode);
 
-    n = apply2files(lchmod_internal, rest, (void *)(long)mode);
+    long n = apply2files(lchmod_internal, argc - 1, &argv[1],
+	    (void *)(long)mode);
     return LONG2FIX(n);
 }
 #else
@@ -1870,12 +1865,13 @@ chown_internal(const char *path, void *arg)
 static VALUE
 rb_file_s_chown(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
-    VALUE o, g, rest;
-    struct chown_args arg;
-    long n;
-
     rb_secure(2);
-    rb_scan_args(argc, argv, "2*", &o, &g, &rest);
+    if (argc < 2) {
+        rb_raise(rb_eArgError, "wrong number of arguments (%d for 2)", argc);
+    }
+    VALUE o = argv[0];
+    VALUE g = argv[1];
+    struct chown_args arg;
     if (NIL_P(o)) {
 	arg.owner = -1;
     }
@@ -1889,7 +1885,7 @@ rb_file_s_chown(VALUE rcv, SEL sel, int argc, VALUE *argv)
 	arg.group = NUM2GIDT(g);
     }
 
-    n = apply2files(chown_internal, rest, &arg);
+    long n = apply2files(chown_internal, argc - 2, &argv[2], &arg);
     return LONG2FIX(n);
 }
 
@@ -1948,12 +1944,13 @@ lchown_internal(const char *path, void *arg)
 static VALUE
 rb_file_s_lchown(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
-    VALUE o, g, rest;
-    struct chown_args arg;
-    long n;
-
     rb_secure(2);
-    rb_scan_args(argc, argv, "2*", &o, &g, &rest);
+    if (argc < 2) {
+        rb_raise(rb_eArgError, "wrong number of arguments (%d for 2)", argc);
+    }
+    VALUE o = argv[0];
+    VALUE g = argv[1];
+    struct chown_args arg;
     if (NIL_P(o)) {
 	arg.owner = -1;
     }
@@ -1967,7 +1964,7 @@ rb_file_s_lchown(VALUE rcv, SEL sel, int argc, VALUE *argv)
 	arg.group = NUM2GIDT(g);
     }
 
-    n = apply2files(lchown_internal, rest, &arg);
+    long n = apply2files(lchown_internal, argc - 2, &argv[2], &arg);
     return LONG2FIX(n);
 }
 #else
@@ -2049,20 +2046,21 @@ utime_internal(const char *path, void *arg)
 static VALUE
 rb_file_s_utime(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
-    VALUE atime, mtime, rest;
-    struct timespec tss[2], *tsp = NULL;
-    long n;
-
     rb_secure(2);
-    rb_scan_args(argc, argv, "2*", &atime, &mtime, &rest);
+    if (argc < 2) {
+        rb_raise(rb_eArgError, "wrong number of arguments (%d for 2)", argc);
+    }
+    VALUE atime = argv[0];
+    VALUE mtime = argv[1];
 
+    struct timespec tss[2], *tsp = NULL;
     if (!NIL_P(atime) || !NIL_P(mtime)) {
 	tsp = tss;
 	tsp[0] = rb_time_timespec(atime);
 	tsp[1] = rb_time_timespec(mtime);
     }
 
-    n = apply2files(utime_internal, rest, tsp);
+    long n = apply2files(utime_internal, argc - 2, &argv[2], tsp);
     return LONG2FIX(n);
 }
 
@@ -2220,12 +2218,12 @@ unlink_internal(const char *path, void *arg)
  */
 
 static VALUE
-rb_file_s_unlink(VALUE klass, SEL sel, VALUE args)
+rb_file_s_unlink(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     long n;
 
     rb_secure(2);
-    n = apply2files(unlink_internal, args, 0);
+    n = apply2files(unlink_internal, argc, argv, 0);
     return LONG2FIX(n);
 }
 
@@ -4253,8 +4251,8 @@ Init_File(void)
     rb_objc_define_method(rb_ccFile, "symlink", rb_file_s_symlink, 2);
     rb_objc_define_method(rb_ccFile, "readlink", rb_file_s_readlink, 1);
 
-    rb_objc_define_method(rb_ccFile, "unlink", rb_file_s_unlink, -2);
-    rb_objc_define_method(rb_ccFile, "delete", rb_file_s_unlink, -2);
+    rb_objc_define_method(rb_ccFile, "unlink", rb_file_s_unlink, -1);
+    rb_objc_define_method(rb_ccFile, "delete", rb_file_s_unlink, -1);
     rb_objc_define_method(rb_ccFile, "rename", rb_file_s_rename, 2);
     rb_objc_define_method(rb_ccFile, "umask", rb_file_s_umask, -1);
     rb_objc_define_method(rb_ccFile, "truncate", rb_file_s_truncate, 2);
