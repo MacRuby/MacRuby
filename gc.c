@@ -155,9 +155,6 @@ ruby_xcalloc(size_t n, size_t size)
 void *
 ruby_xrealloc(void *ptr, size_t size)
 {
-    if (size < 0) {
-	rb_raise(rb_eArgError, "negative re-allocation size");
-    }
     if (ptr == NULL) {
 	return ruby_xmalloc(size);
     }
