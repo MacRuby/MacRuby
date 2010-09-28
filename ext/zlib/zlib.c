@@ -502,7 +502,7 @@ zstream_shift_buffer(struct zstream *z, int len)
         return zstream_detach_buffer(z);
     }
 
-    dst = rb_str_subseq(z->buf, 0, len);
+    dst = rb_str_bstr(rb_str_subseq(z->buf, 0, len));
     z->buf_filled -= len;
     UInt8 *buf = BSTRING_PTR(z->buf);
     memmove(buf, buf + len, z->buf_filled);
