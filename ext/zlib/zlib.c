@@ -2379,7 +2379,8 @@ rb_gzfile_set_orig_name(VALUE obj, SEL sel, VALUE str)
     s = rb_str_dup(rb_str_to_str(str));
     p = memchr(RSTRING_PTR(s), '\0', RSTRING_LEN(s));
     if (p) {
-	rb_str_resize(s, p - RSTRING_PTR(s));
+	long beg = p - RSTRING_PTR(s);
+	rb_str_delete(s, beg, RSTRING_LEN(s) - beg);
     }
     gz->orig_name = s;
     return str;
@@ -2401,7 +2402,8 @@ rb_gzfile_set_comment(VALUE obj, SEL sel, VALUE str)
     s = rb_str_dup(rb_str_to_str(str));
     p = memchr(RSTRING_PTR(s), '\0', RSTRING_LEN(s));
     if (p) {
-	rb_str_resize(s, p - (char*)BSTRING_PTR(s));
+	long beg = p - RSTRING_PTR(s);
+	rb_str_delete(s, beg, RSTRING_LEN(s) - beg);
     }
     gz->comment = s;
     return str;
