@@ -848,13 +848,12 @@ class RoxorCore {
 	}
 #endif
 
-	bool symbolize_call_address(void *addr, void **startp,
-		char *path, size_t path_len, unsigned long *ln,
-		char *name, size_t name_len);
+	bool symbolize_call_address(void *addr, char *path, size_t path_len,
+		unsigned long *ln, char *name, size_t name_len,
+		unsigned int *interpreter_frame_idx);
 
-	void symbolize_backtrace_entry(int index, void **startp,
-		char *path, size_t path_len, unsigned long *ln,
-		char *name, size_t name_len);
+	void symbolize_backtrace_entry(int index, char *path, size_t path_len, 
+		unsigned long *ln, char *name, size_t name_len);
 
 	void invalidate_method_cache(SEL sel);
 	rb_vm_method_node_t *method_node_get(IMP imp, bool create=false);

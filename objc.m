@@ -109,26 +109,6 @@ rb_objc_supports_forwarding(VALUE recv, SEL sel)
     return false;
 }
 
-bool
-rb_objc_symbolize_address(void *addr, void **start, char *name,
-			  size_t name_len) 
-{
-    Dl_info info;
-    if (dladdr(addr, &info) != 0) {
-	if (info.dli_saddr != NULL) {
-	    if (start != NULL) {
-		*start = info.dli_saddr;
-	    }
-	    if (name != NULL) {
-		strncpy(name, info.dli_sname, name_len);
-	    }
-	    return true;
-	}
-    }
-
-    return false;
-}
-
 VALUE
 rb_home_dir(VALUE user_name)
 {

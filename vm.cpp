@@ -651,14 +651,13 @@ extern "C"
 void
 rb_symbolicate(void *addr)
 {
-    void *start = NULL;
     char path[1000];
     char name[100];
     unsigned long ln = 0;
-    if (GET_CORE()->symbolize_call_address(addr, &start, path, sizeof path,
-		&ln, name, sizeof name)) {
-	printf("addr %p start %p selector %s location %s:%ld\n",
-		addr, start, name, path, ln);
+    if (GET_CORE()->symbolize_call_address(addr, path, sizeof path,
+		&ln, name, sizeof name, NULL)) {
+	printf("addr %p selector %s location %s:%ld\n",
+		addr, name, path, ln);
     }
     else {
 	printf("addr %p unknown\n", addr);
@@ -666,8 +665,9 @@ rb_symbolicate(void *addr)
 }
 
 bool
-RoxorCore::symbolize_call_address(void *addr, void **startp, char *path,
-	size_t path_len, unsigned long *ln, char *name, size_t name_len)
+RoxorCore::symbolize_call_address(void *addr, char *path, size_t path_len,
+	unsigned long *ln, char *name, size_t name_len,
+	unsigned int *interpreter_frame_idx)
 {
 #if MACRUBY_STATIC
     return false;
@@ -676,23 +676,32 @@ RoxorCore::symbolize_call_address(void *addr, void **startp, char *path,
 	return false;
     }
 
-    void *start = NULL;
     RoxorFunction *f = jmm->find_function((unsigned char *)addr);
     if (f != NULL) {
 	if (f->imp == NULL) {
 	    f->imp = ee->getPointerToFunctionOrStub(f->f);
 	}
-	start = f->imp;
     }
     else {
-	if (!rb_objc_symbolize_address(addr, &start, NULL, 0)) {
+	std::string fr_name;
+	std::string fr_path;
+	unsigned int fr_line = 0;
+	if (interpreter_frame_idx == NULL
+		|| !RoxorInterpreter::shared->frame_at_index(*interpreter_frame_idx,
+		    addr, &fr_name, &fr_path, &fr_line)) {
 	    return false;
 	}
-    }
-
-    assert(start != NULL);
-    if (startp != NULL) {
-	*startp = start;
+	(*interpreter_frame_idx)++;
+	if (name != NULL) {
+	    strlcpy(name, fr_name.c_str(), name_len);
+	}
+	if (path != NULL) {
+	    strlcpy(path, fr_path.c_str(), path_len);
+	}
+	if (ln != NULL) {
+	    *ln = fr_line;
+	}
+	return true;
     }
 
     if (f != NULL) {
@@ -711,7 +720,7 @@ RoxorCore::symbolize_call_address(void *addr, void **startp, char *path,
 	}
 	if (name != NULL) {
 	    std::map<IMP, rb_vm_method_node_t *>::iterator iter = 
-		ruby_imps.find((IMP)start);
+		ruby_imps.find((IMP)f->imp);
 	    if (iter == ruby_imps.end()) {
 		strncpy(name, "block", name_len);
 	    }
@@ -737,8 +746,8 @@ RoxorCore::symbolize_call_address(void *addr, void **startp, char *path,
 }
 
 void
-RoxorCore::symbolize_backtrace_entry(int index, void **startp, char *path,
-	size_t path_len, unsigned long *ln, char *name, size_t name_len)
+RoxorCore::symbolize_backtrace_entry(int index, char *path, size_t path_len,
+	unsigned long *ln, char *name, size_t name_len)
 {
     void *callstack[10];
     const int callstack_n = backtrace(callstack, 10);
@@ -746,8 +755,8 @@ RoxorCore::symbolize_backtrace_entry(int index, void **startp, char *path,
     index++; // count us!
 
     if (callstack_n < index
-	|| !GET_CORE()->symbolize_call_address(callstack[index], startp,
-		path, path_len, ln, name, name_len)) {
+	    || !GET_CORE()->symbolize_call_address(callstack[index], path,
+		path_len, ln, name, name_len, NULL)) {
 	if (path != NULL) {
 	    strncpy(path, "core", path_len);
 	}
@@ -3330,8 +3339,8 @@ __vm_raise(void)
 	char *classname = (char *)rb_class2name(CLASS_OF(rb_exc));
 	char file[PATH_MAX];
 	unsigned long line = 0;
-	GET_CORE()->symbolize_backtrace_entry(2, NULL, file, sizeof file,
-		&line, NULL, 0);
+	GET_CORE()->symbolize_backtrace_entry(2, file, sizeof file, &line,
+		NULL, 0);
 	MACRUBY_RAISE(classname, file, line);
     } 
 #if __LP64__
@@ -3583,6 +3592,8 @@ rb_vm_backtrace(int skip)
 
     VALUE ary = rb_ary_new();
 
+    unsigned int interpreter_frame_idx = 0;
+
     for (int i = 0; i < callstack_n; i++) {
 	char path[PATH_MAX];
 	char name[100];
@@ -3590,8 +3601,8 @@ rb_vm_backtrace(int skip)
 
 	path[0] = name[0] = '\0';
 
-	if (GET_CORE()->symbolize_call_address(callstack[i], NULL,
-		    path, sizeof path, &ln, name, sizeof name)
+	if (GET_CORE()->symbolize_call_address(callstack[i], path, sizeof path,
+		    &ln, name, sizeof name, &interpreter_frame_idx)
 		&& name[0] != '\0' && path[0] != '\0') {
 	    char entry[PATH_MAX];
 	    if (ln == 0) {

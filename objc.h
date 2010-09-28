@@ -73,9 +73,6 @@ rb_objc_is_kind_of(id object, Class klass)
     return false;
 }
 
-bool rb_objc_symbolize_address(void *addr, void **start, char *name,
-	size_t name_len);
-
 id rb_rb2oc_exception(VALUE exc);
 VALUE rb_oc2rb_exception(id exc, bool *created);
 

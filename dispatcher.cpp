@@ -821,8 +821,8 @@ dispatch:
 	    char *method_name = (char *)sel_getName(sel);
 	    char file[PATH_MAX];
 	    unsigned long line = 0;
-	    GET_CORE()->symbolize_backtrace_entry(1, NULL, file, sizeof file,
-		    &line, NULL, 0);
+	    GET_CORE()->symbolize_backtrace_entry(1, file, sizeof file, &line,
+		    NULL, 0);
 	    MACRUBY_METHOD_ENTRY(class_name, method_name, file, line);
 	}
 
@@ -835,8 +835,8 @@ dispatch:
 	    char *method_name = (char *)sel_getName(sel);
 	    char file[PATH_MAX];
 	    unsigned long line = 0;
-	    GET_CORE()->symbolize_backtrace_entry(1, NULL, file, sizeof file,
-		    &line, NULL, 0);
+	    GET_CORE()->symbolize_backtrace_entry(1, file, sizeof file, &line,
+		    NULL, 0);
 	    MACRUBY_METHOD_RETURN(class_name, method_name, file, line);
 	}
 

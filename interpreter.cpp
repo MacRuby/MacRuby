@@ -82,6 +82,35 @@ RoxorInterpreter::interpret_call(CallInst *call)
 	int argc = value_as(call_arg(call, 5), int);
 	VALUE *argv = value_as(call_arg(call, 6), VALUE *);
 
+	MDNode *node = call->getMetadata(RoxorCompiler::shared->dbg_mdkind);
+	if (node != NULL) {
+	    DILocation loc(node);
+	    std::string path;
+	    path.append(loc.getDirectory());
+	    path.append("/");
+	    path.append(loc.getFilename());
+
+	    Frame frame;
+	    frame.name = (const char *)sel;
+	    frame.path = path;
+	    frame.line = loc.getLineNumber();
+	    frames.push_back(frame);
+	}
+
+	struct Finally {
+	    RoxorInterpreter *ir;
+	    bool pop;
+	    Finally(RoxorInterpreter *_ir, bool _pop) {
+		ir = _ir;
+		pop = _pop;	
+	    }
+	    ~Finally() { 
+		if (pop) {
+		    ir->frames.pop_back();
+		}
+	    }
+	} finalizer(this, node != NULL);
+
 	return vm_dispatch(top, self, sel, block, opt, argc, argv);
     }
     else if (called == RoxorCompiler::shared->singletonClassFunc) {
@@ -91,6 +120,27 @@ RoxorInterpreter::interpret_call(CallInst *call)
     }
 
     oops("unrecognized call instruction:", call);
+}
+
+bool
+RoxorInterpreter::frame_at_index(unsigned int idx, void *addr,
+	std::string *name, std::string *path, unsigned int *line)
+{
+    if ((uintptr_t)addr < (uintptr_t)(void *)&vm_dispatch
+	    || (uintptr_t)addr > (uintptr_t)(void *)&vm_dispatch + 5000) {
+	// Likely not an interpreted dispatch call.
+	return false;
+    }
+    if (idx >= frames.size()) {
+	// Not enough frames!
+	return false;
+    }
+
+    Frame &frame = frames[idx];
+    *name = frame.name;
+    *path = frame.path;
+    *line = frame.line;
+    return true;
 }
 
 #define return_if_cached(__insn) \

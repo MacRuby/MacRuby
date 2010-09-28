@@ -22,6 +22,9 @@ class RoxorInterpreter {
 
 	VALUE interpret(Function *func, VALUE self, SEL sel);
 
+	bool frame_at_index(unsigned int idx, void *addr, std::string *name,
+		std::string *path, unsigned int *line);	
+
     private:
 	VALUE self_arg;
 	SEL sel_arg;
@@ -29,6 +32,13 @@ class RoxorInterpreter {
 	unsigned int stack_p;
 #define INTERPRETER_STACK_SIZE	1000
 	std::map<Instruction *, VALUE> insns;
+	class Frame {
+	    public:
+		std::string name;
+		std::string path;
+		unsigned int line;
+	};
+	std::vector<Frame> frames;
 
 	VALUE interpret_basicblock(BasicBlock *bb);
 	VALUE interpret_instruction(Instruction *insn);
