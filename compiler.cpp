@@ -832,6 +832,19 @@ RoxorCompiler::attach_current_line_metadata(Instruction *insn)
     }
 }
 
+void
+RoxorCompiler::generate_location_path(std::string &path, DILocation loc)
+{
+    if (loc.getFilename() == "-e") {
+	path.append(loc.getFilename());
+    }
+    else {
+	path.append(loc.getDirectory());
+	path.append("/");
+	path.append(loc.getFilename());
+    }
+}
+
 Value *
 RoxorCompiler::recompile_dispatch_argv(std::vector<Value *> &params, int offset)
 {

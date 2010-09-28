@@ -265,14 +265,11 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 	    std::string path;
 	    for (std::vector<EmittedFunctionDetails::LineStart>::const_iterator iter = Details.LineStarts.begin(); iter != Details.LineStarts.end(); ++iter) {
 		MDNode *scope = iter->Loc.getAsMDNode(F.getContext());
-		DILocation dil = DILocation(scope);
+		DILocation loc = DILocation(scope);
 		if (path.size() == 0) {
-		    DIScope scope = dil.getScope();
-		    path.append(scope.getDirectory());
-		    path.append("/");
-		    path.append(scope.getFilename());
+		    RoxorCompiler::shared->generate_location_path(path, loc);
 		}
-		RoxorFunction::Line line(iter->Address, dil.getLineNumber());
+		RoxorFunction::Line line(iter->Address, loc.getLineNumber());
 		function->lines.push_back(line);
 	    }
 

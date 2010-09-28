@@ -76,6 +76,8 @@ class RoxorCompiler {
 	bool is_dynamic_class(void) { return dynamic_class; }
 	void set_dynamic_class(bool flag) { dynamic_class = flag; }
 
+	void generate_location_path(std::string &path, DILocation loc);
+
     protected:
 	DIFactory *debug_info;
 	DICompileUnit debug_compile_unit;

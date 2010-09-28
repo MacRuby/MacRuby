@@ -84,11 +84,9 @@ RoxorInterpreter::interpret_call(CallInst *call)
 
 	MDNode *node = call->getMetadata(RoxorCompiler::shared->dbg_mdkind);
 	if (node != NULL) {
-	    DILocation loc(node);
 	    std::string path;
-	    path.append(loc.getDirectory());
-	    path.append("/");
-	    path.append(loc.getFilename());
+	    DILocation loc(node);
+	    RoxorCompiler::shared->generate_location_path(path, loc);
 
 	    Frame frame;
 	    frame.name = (const char *)sel;
