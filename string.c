@@ -1760,10 +1760,12 @@ rstr_getbyte(VALUE self, SEL sel, VALUE index)
  */
 
 static VALUE
-rstr_setbyte(VALUE self, SEL sel, VALUE index, VALUE value)
+rstr_setbyte(VALUE self, SEL sel, VALUE idx, VALUE value)
 {
     rstr_modify(self);
     str_make_data_binary(RSTR(self));
+
+    long index = NUM2LONG(idx);
     if ((index < -RSTR(self)->length_in_bytes)
 	    || (index >= RSTR(self)->length_in_bytes)) {
 	rb_raise(rb_eIndexError, "index %ld out of string", index);
