@@ -2888,14 +2888,59 @@ rb_gzreader_readchar(VALUE obj, SEL sel)
  * See Zlib::GzipReader documentation for a description.
  */
 static VALUE
-rb_gzreader_each_byte(VALUE obj, SEL sel)
+rb_gzreader_getbyte(VALUE obj, SEL sel)
+{
+    struct gzfile *gz = get_gzfile(obj);
+    VALUE dst;
+
+    dst = gzfile_read(gz, 1);
+    if (!NIL_P(dst)) {
+	dst = INT2FIX((unsigned int)(BSTRING_PTR(dst)[0]) & 0xff);
+    }
+    return dst;
+}
+
+/*
+ * See Zlib::GzipReader documentation for a description.
+ */
+static VALUE
+rb_gzreader_readbyte(VALUE obj, SEL sel)
+{
+    VALUE dst;
+    dst = rb_gzreader_getbyte(obj, 0);
+    if (NIL_P(dst)) {
+        rb_raise(rb_eEOFError, "end of file reached");
+    }
+    return dst;
+}
+
+/*
+ * See Zlib::GzipReader documentation for a description.
+ */
+static VALUE
+rb_gzreader_each_char(VALUE obj, SEL sel)
 {
     VALUE c;
 
     RETURN_ENUMERATOR(obj, 0, 0);
 
     while (!NIL_P(c = rb_gzreader_getc(obj, 0))) {
-	c = INT2FIX((unsigned int)(BSTRING_PTR(c)[0]) & 0xff);
+        rb_yield(c);
+    }
+    return Qnil;
+}
+
+/*
+ * See Zlib::GzipReader documentation for a description.
+ */
+static VALUE
+rb_gzreader_each_byte(VALUE obj, SEL sel)
+{
+    VALUE c;
+
+    RETURN_ENUMERATOR(obj, 0, 0);
+
+    while (!NIL_P(c = rb_gzreader_getbyte(obj, 0))) {
 	rb_yield(c);
     }
     return Qnil;
@@ -3323,8 +3368,11 @@ void Init_zlib()
     rb_objc_define_method(cGzipReader, "read", rb_gzreader_read, -1);
     rb_objc_define_method(cGzipReader, "readpartial", rb_gzreader_readpartial, -1);
     rb_objc_define_method(cGzipReader, "getc", rb_gzreader_getc, 0);
+    rb_objc_define_method(cGzipReader, "getbyte", rb_gzreader_getbyte, 0);
     rb_objc_define_method(cGzipReader, "readchar", rb_gzreader_readchar, 0);
+    rb_objc_define_method(cGzipReader, "readbyte", rb_gzreader_readbyte, 0);
     rb_objc_define_method(cGzipReader, "each_byte", rb_gzreader_each_byte, 0);
+    rb_objc_define_method(cGzipReader, "each_char", rb_gzreader_each_char, 0);
     rb_objc_define_method(cGzipReader, "bytes", rb_gzreader_each_byte, 0);
     rb_objc_define_method(cGzipReader, "ungetc", rb_gzreader_ungetc, 1);
     rb_objc_define_method(cGzipReader, "gets", rb_gzreader_gets, -1);
