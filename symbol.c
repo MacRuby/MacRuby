@@ -843,3 +843,12 @@ rb_sym_str(VALUE sym)
 {
     return RSYM(sym)->str;
 }
+
+VALUE
+rb_sel_to_sym(SEL sel)
+{
+    if (sel == 0) {
+	return Qnil;
+    }
+    return ID2SYM(rb_intern(sel_getName(sel)));
+}

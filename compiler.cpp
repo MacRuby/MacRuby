@@ -208,6 +208,7 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     newRangeFunc = NULL;
     newRegexpFunc = NULL;
     strInternFunc = NULL;
+    selToSymFunc = NULL;
     keepVarsFunc = NULL;
     masgnGetElemBeforeSplatFunc =
 	get_function("vm_masgn_get_elem_before_splat");
@@ -2366,6 +2367,26 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	pn->addIncoming(elseVal, elseBB);
 
 	return pn;
+    }
+    // __method__ or __callee__
+    else if (sel == sel__method__ || sel == sel__callee__) {
+
+	if (current_block_func != NULL || argc != 0) {
+	    return NULL;
+	}
+
+	Function *f = bb->getParent();
+	Function::arg_iterator arg = f->arg_begin();
+	arg++; // skip self
+	Value *callee_sel = arg;
+
+	if (selToSymFunc == NULL) {
+	    // VALUE rb_sel_to_sym(SEL sel);
+	    selToSymFunc = cast<Function>(
+		    module->getOrInsertFunction("rb_sel_to_sym",
+			RubyObjTy, PtrTy, NULL));
+	}
+	return CallInst::Create(selToSymFunc, callee_sel, "", bb);
     }
     return NULL;
 }

@@ -805,14 +805,7 @@ rb_f_local_variables(VALUE rcv, SEL sel)
 static VALUE
 rb_f_method_name(VALUE rcv, SEL sel)
 {
-    ID fname = rb_frame_callee();
-
-    if (fname) {
-	return ID2SYM(fname);
-    }
-    else {
-	return Qnil;
-    }
+    return Qnil;
 }
 
 void Init_vm_eval(void);

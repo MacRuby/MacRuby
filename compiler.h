@@ -198,6 +198,7 @@ class RoxorCompiler {
 	Function *newRangeFunc;
 	Function *newRegexpFunc;
 	Function *strInternFunc;
+	Function *selToSymFunc;
 	Function *keepVarsFunc;
 	Function *masgnGetElemBeforeSplatFunc;
 	Function *masgnGetElemAfterSplatFunc;

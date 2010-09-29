@@ -107,6 +107,9 @@ Init_id(void)
     selLambda = sel_registerName("lambda");
     selObjectForKey = sel_registerName("objectForKey:");
     selSetObjectForKey = sel_registerName("setObject:forKey:");
+
+    sel__method__= sel_registerName("__method__");
+    sel__callee__ = sel_registerName("__callee__");
 #endif
 
     idAREF = rb_intern("[]");
