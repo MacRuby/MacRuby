@@ -2866,13 +2866,8 @@ static VALUE
 rb_gzreader_getc(VALUE obj, SEL sel)
 {
     struct gzfile *gz = get_gzfile(obj);
-    VALUE dst;
 
-    dst = gzfile_read(gz, 1);
-    if (!NIL_P(dst)) {
-	dst = INT2FIX((unsigned int)(BSTRING_PTR(dst)[0]) & 0xff);
-    }
-    return dst;
+    return gzfile_read(gz, 1);
 }
 
 /*
@@ -2900,6 +2895,7 @@ rb_gzreader_each_byte(VALUE obj, SEL sel)
     RETURN_ENUMERATOR(obj, 0, 0);
 
     while (!NIL_P(c = rb_gzreader_getc(obj, 0))) {
+	c = INT2FIX((unsigned int)(BSTRING_PTR(c)[0]) & 0xff);
 	rb_yield(c);
     }
     return Qnil;
