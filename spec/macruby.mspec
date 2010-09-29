@@ -32,7 +32,6 @@ class MSpecScript
     '^library/continuation',
 
     # Tons of IO issues
-    '^library/net/http', # due to '/fixtures/http_server' loaded in net/http/http/active_spec.rb  (webrick)
     '^library/net/ftp', # exists the specs when running using rake spec:library and reaching net/ftp/chdir_spec.rb
     # Currently not working on MacRuby
     '^library/cgi/htmlextension', # runs fine when run separately, it seems another spec brings IO in a wrong state
