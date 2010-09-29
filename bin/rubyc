@@ -73,7 +73,7 @@ class Compiler
     @tmpdir = (ENV['TMPDIR'] or '/tmp')
     @tmpfiles = []
 
-    @llc_flags = '-relocation-model=pic '
+    @llc_flags = '-relocation-model=pic -disable-fp-elim '
     if system("#{@llc} -help | grep jit-enable-eh >& /dev/null")
       @llc_flags << '-jit-enable-eh'
     else
