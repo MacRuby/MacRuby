@@ -1,4 +1,6 @@
-MacRuby is a free software project covered by the Ruby license.
+MacRuby is copyrighted free software by Apple Inc.
+MacRuby contains code from the Ruby project, copyrighted free software by
+Yukihiro Matsumoto <matz@netlab.jp>.
 
 You can redistribute it and/or modify it under either the terms of the GPL
 version 2 (see the file GPL), or the conditions below:
