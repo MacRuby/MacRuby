@@ -2625,7 +2625,7 @@ rb_vm_define_method3(Class klass, ID mid, rb_vm_block_t *block)
     SEL sel;
     const int arity = rb_vm_arity_n(block->arity);
     const char *mid_name = rb_id2name(mid);
-    if (arity > 0) {
+    if (arity > 0 && mid_name[strlen(mid_name) - 1] != ':') {
 	char buf[100];
 	snprintf(buf, sizeof buf, "%s:", mid_name);
 	sel = sel_registerName(buf);
