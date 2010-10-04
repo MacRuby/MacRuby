@@ -6633,3 +6633,14 @@ rb_str_export_to_enc(VALUE str, rb_encoding *enc)
     }
     return (VALUE)str_simple_transcode(RSTR(str), enc);
 }
+
+void
+rb_str_modify(VALUE obj)
+{
+    if (IS_RSTR(obj)) {
+	rstr_modify(obj);
+    }
+    else {
+	rb_raise(rb_eArgError, "can't modify NSString");
+    }
+}
