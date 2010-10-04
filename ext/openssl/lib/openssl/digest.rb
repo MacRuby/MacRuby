@@ -33,11 +33,11 @@ module OpenSSL
     class Stub < Digest
       class << self
         def digest(data)
-          Digest.digest(name, data)
+          Digest.digest(@name, data)
         end
 
         def hexdigest(data)
-          Digest.hexdigest(name, data)
+          Digest.hexdigest(@name, data)
         end
       end
 
