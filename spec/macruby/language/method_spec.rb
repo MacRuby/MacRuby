@@ -87,4 +87,13 @@ describe "A pure MacRuby method" do
     def @o.isFoo; end
     @o.should_not have_method(:'foo?')
   end
+
+  it "can be defined with keyword arguments via #define_method" do
+    class << @o
+      define_method(:'foo:bar:') do |a, b|
+        a + b
+      end
+    end
+    @o.foo(40, bar: 2).should == 42
+  end
 end
