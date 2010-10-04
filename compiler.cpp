@@ -2928,6 +2928,12 @@ RoxorCompiler::compile_scope(NODE *node)
 		    "",
 		    invoke);
 
+	    // Transfer the debugging metadata if any.
+	    MDNode *node = invoke->getMetadata(dbg_mdkind);
+	    if (node !=NULL) {
+		call_inst->setMetadata(dbg_mdkind, node);
+	    }
+
 	    invoke->replaceAllUsesWith(call_inst);
 	    BasicBlock *normal_bb = dyn_cast<BasicBlock>(invoke->getNormalDest());
 	    assert(normal_bb != NULL);
