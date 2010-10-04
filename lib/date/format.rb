@@ -1182,7 +1182,7 @@ class Date
 	\d{2}:\d{2}(:\d{2})?\s*
 	(?:[-+]\d{4}|ut|gmt|e[sd]t|c[sd]t|m[sd]t|p[sd]t|[a-ik-z])\s*\z/iox =~ str
       e = _parse(str, false)
-      if $1.size < 4
+      if (($1.nil?) || ($1.size < 4))
 	if e[:year] < 50
 	  e[:year] += 2000
 	elsif e[:year] < 1000
