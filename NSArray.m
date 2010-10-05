@@ -91,7 +91,10 @@ nsary_to_a(id rcv, SEL sel)
 static VALUE
 nsary_equal(id rcv, SEL sel, id other)
 {
-     return [rcv isEqualToArray:other] ? Qtrue : Qfalse;
+    if (![other isKindOfClass:(id)rb_cNSArray]) {
+	return Qfalse;
+    }
+    return [rcv isEqualToArray:other] ? Qtrue : Qfalse;
 }
 
 static VALUE
