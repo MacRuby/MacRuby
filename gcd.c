@@ -23,15 +23,7 @@
 #include <libkern/OSAtomic.h>
 #include <asl.h>
 
-// TODO: These structures need to be wrapped in a Data struct,
-// otherwise there are crashes when one tries to add an instance
-// variable to a queue. (Not that that is a good idea.)
-
 static SEL selClose;
-
-// TODO: Make Queue and Source inherit from Dispatch::Base
-// so they can use a common definition of suspend/resume
-// and also implement target queues
 
 typedef struct {
     struct RBasic basic;
@@ -95,6 +87,14 @@ typedef struct {
 static OSSpinLock _suspensionLock = 0;
 
 static VALUE mDispatch;
+static VALUE cObject;
+
+static void *
+dispatch_object_imp(void *rcv, SEL sel)
+{
+    rb_dispatch_obj_t *obj = RDispatch(rcv);
+    return (void *)obj->obj._do;
+}
 
 // queue stuff
 static VALUE cQueue;
@@ -336,12 +336,6 @@ rb_queue_finalize(void *rcv, SEL sel)
     if (rb_queue_finalize_super != NULL) {
         ((void(*)(void *, SEL))rb_queue_finalize_super)(rcv, sel);
     }
-}
-
-static void *
-rb_queue_dispatch_queue_imp(void *rcv, SEL sel)
-{
-    return RQueue(rcv)->queue;
 }
 
 static VALUE
@@ -1216,6 +1210,16 @@ Init_Dispatch(void)
  */
     mDispatch = rb_define_module("Dispatch");
 
+    cObject = rb_define_class_under(mDispatch, "Object", rb_cObject);
+    rb_objc_define_method(cObject, "resume!", rb_dispatch_resume, 0);
+    rb_objc_define_method(cObject, "suspend!", rb_dispatch_suspend, 0);
+    rb_objc_define_method(cObject, "suspended?", rb_dispatch_suspended_p, 0);
+
+    // This API allows Ruby code to pass the internal dispatch_queue_t object
+    // to C/Objective-C APIs.
+    class_replaceMethod((Class)cObject, sel_registerName("dispatch_object"),
+	    (IMP)dispatch_object_imp, "^v@:");
+
 /*
  * A Dispatch::Queue is the fundamental mechanism for scheduling blocks for
  * execution, either synchronously or asychronously.
@@ -1231,7 +1235,7 @@ Init_Dispatch(void)
  * submitted to independent queues may execute concurrently.
  */ 
  
-    cQueue = rb_define_class_under(mDispatch, "Queue", rb_cObject);    
+    cQueue = rb_define_class_under(mDispatch, "Queue", cObject);    
     rb_objc_define_method(*(VALUE *)cQueue, "alloc", rb_queue_alloc, 0);
     rb_objc_define_method(*(VALUE *)cQueue, "concurrent",
 	    rb_queue_get_concurrent, -1);
@@ -1245,18 +1249,10 @@ Init_Dispatch(void)
     rb_objc_define_method(cQueue, "after", rb_queue_dispatch_after, 1);
     rb_objc_define_method(cQueue, "label", rb_queue_label, 0); // deprecated
     rb_objc_define_method(cQueue, "to_s", rb_queue_label, 0);
-    rb_objc_define_method(cQueue, "resume!", rb_dispatch_resume, 0);
-    rb_objc_define_method(cQueue, "suspend!", rb_dispatch_suspend, 0);
-    rb_objc_define_method(cQueue, "suspended?", rb_dispatch_suspended_p, 0);
     
     rb_queue_finalize_super = rb_objc_install_method2((Class)cQueue,
 	    "finalize", (IMP)rb_queue_finalize);
 
-    // This API allows Ruby code to pass the internal dispatch_queue_t object
-    // to C/Objective-C APIs.
-    class_replaceMethod((Class)cQueue, sel_registerName("dispatch_queue"),
-	    (IMP)rb_queue_dispatch_queue_imp, "^v@:");
- 
     qHighPriority = rb_queue_from_dispatch(dispatch_get_global_queue(
 		DISPATCH_QUEUE_PRIORITY_HIGH, 0), true);
     qDefaultPriority = rb_queue_from_dispatch(dispatch_get_global_queue(
@@ -1274,7 +1270,7 @@ Init_Dispatch(void)
  * This lets you ensure they have all completed before beginning
  * or submitting additional work.
  */ 
-    cGroup = rb_define_class_under(mDispatch, "Group", rb_cObject);
+    cGroup = rb_define_class_under(mDispatch, "Group", cObject);
     rb_objc_define_method(*(VALUE *)cGroup, "alloc", rb_group_alloc, 0);
     rb_objc_define_method(cGroup, "initialize", rb_group_init, 0);
     rb_objc_define_method(cGroup, "notify", rb_group_notify, 1);
@@ -1303,7 +1299,7 @@ Init_Dispatch(void)
  *     src.merge(0)
  *     gcdq.sync { } #=> Fired!
  */
-    cSource = rb_define_class_under(mDispatch, "Source", rb_cObject);
+    cSource = rb_define_class_under(mDispatch, "Source", cObject);
     rb_define_const(cSource, "DATA_ADD", INT2NUM(SOURCE_TYPE_DATA_ADD));
     rb_define_const(cSource, "DATA_OR", INT2NUM(SOURCE_TYPE_DATA_OR));
     rb_define_const(cSource, "PROC", INT2NUM(SOURCE_TYPE_PROC));
@@ -1331,13 +1327,11 @@ Init_Dispatch(void)
     rb_objc_define_method(cSource, "initialize", rb_raise_init, 0);
     rb_objc_define_method(cSource, "cancelled?", rb_source_cancelled_p, 0);
     rb_objc_define_method(cSource, "cancel!", rb_source_cancel, 0);
-    rb_objc_define_method(cSource, "resume!", rb_dispatch_resume, 0);
-    rb_objc_define_method(cSource, "suspend!", rb_dispatch_suspend, 0);
-    rb_objc_define_method(cSource, "suspended?", rb_dispatch_suspended_p, 0);
     rb_objc_define_method(cSource, "handle", rb_source_get_handle, 0);
     rb_objc_define_method(cSource, "mask", rb_source_get_mask, 0);
     rb_objc_define_method(cSource, "data", rb_source_get_data, 0);
-    rb_objc_define_method(cSource, "<<", rb_source_merge, 1);    
+    rb_objc_define_method(cSource, "<<", rb_source_merge, 1);
+
     rb_source_finalize_super = rb_objc_install_method2((Class)cSource,
 	    "finalize", (IMP)rb_source_finalize);
 
@@ -1346,12 +1340,13 @@ Init_Dispatch(void)
  * via a combination of waiting and signalling.
  * This is especially useful for controlling access to limited resources.
  */
-    cSemaphore = rb_define_class_under(mDispatch, "Semaphore", rb_cObject);
+    cSemaphore = rb_define_class_under(mDispatch, "Semaphore", cObject);
     rb_objc_define_method(*(VALUE *)cSemaphore, "alloc", rb_semaphore_alloc, 0);
     rb_objc_define_method(cSemaphore, "initialize", rb_semaphore_init, 1);
     rb_objc_define_method(cSemaphore, "initialize", rb_raise_init, 0);
     rb_objc_define_method(cSemaphore, "wait", rb_semaphore_wait, -1);
     rb_objc_define_method(cSemaphore, "signal", rb_semaphore_signal, 0);
+
     rb_semaphore_finalize_super = rb_objc_install_method2((Class)cSemaphore,
 	    "finalize", (IMP)rb_semaphore_finalize);
 
