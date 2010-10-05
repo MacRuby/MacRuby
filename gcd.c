@@ -338,6 +338,12 @@ rb_queue_finalize(void *rcv, SEL sel)
     }
 }
 
+static void *
+rb_queue_dispatch_queue_imp(void *rcv, SEL sel)
+{
+    return RQueue(rcv)->queue;
+}
+
 static VALUE
 rb_block_rescue(VALUE data, VALUE exc)
 {
@@ -1245,7 +1251,12 @@ Init_Dispatch(void)
     
     rb_queue_finalize_super = rb_objc_install_method2((Class)cQueue,
 	    "finalize", (IMP)rb_queue_finalize);
-    
+
+    // This API allows Ruby code to pass the internal dispatch_queue_t object
+    // to C/Objective-C APIs.
+    class_replaceMethod((Class)cQueue, sel_registerName("dispatch_queue"),
+	    (IMP)rb_queue_dispatch_queue_imp, "^v@:");
+ 
     qHighPriority = rb_queue_from_dispatch(dispatch_get_global_queue(
 		DISPATCH_QUEUE_PRIORITY_HIGH, 0), true);
     qDefaultPriority = rb_queue_from_dispatch(dispatch_get_global_queue(
