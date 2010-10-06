@@ -46,6 +46,16 @@ describe "A method written for the MRI ABI" do
     @o.test_arity5(arg1, arg2, arg3, arg4, arg5).should == @helper[@o, arg1, arg2, arg3, arg4, arg5]
   end
 
+  it "with arity 6 can be called" do
+    arg1 = Object.new
+    arg2 = Object.new
+    arg3 = Object.new
+    arg4 = Object.new
+    arg5 = Object.new
+    arg6 = Object.new
+    @o.test_arity6(arg1, arg2, arg3, arg4, arg5, arg6).should == @helper[@o, arg1, arg2, arg3, arg4, arg5, arg6]
+  end
+
   it "with arity -1 can be called" do
     arg1 = Object.new
     arg2 = Object.new

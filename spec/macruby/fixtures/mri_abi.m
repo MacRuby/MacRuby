@@ -65,6 +65,19 @@ test_arity5(VALUE rcv, VALUE arg1, VALUE arg2, VALUE arg3, VALUE arg4, VALUE arg
 }
 
 static VALUE
+test_arity6(VALUE rcv, VALUE arg1, VALUE arg2, VALUE arg3, VALUE arg4, VALUE arg5, VALUE arg6)
+{
+    VALUE str = ocid_str(rcv);
+    rb_str_concat(str, ocid_str(arg1));
+    rb_str_concat(str, ocid_str(arg2));
+    rb_str_concat(str, ocid_str(arg3));
+    rb_str_concat(str, ocid_str(arg4));
+    rb_str_concat(str, ocid_str(arg5));
+    rb_str_concat(str, ocid_str(arg6));
+    return str;
+}
+
+static VALUE
 test_arity_m1(int argc, VALUE *argv, VALUE rcv)
 {
     VALUE str = ocid_str(rcv);
@@ -96,6 +109,7 @@ Init_mri_abi(void)
     rb_define_method(klass, "test_arity3", test_arity3, 3);
     rb_define_method(klass, "test_arity4", test_arity4, 4);
     rb_define_method(klass, "test_arity5", test_arity5, 5);
+    rb_define_method(klass, "test_arity6", test_arity6, 6);
     rb_define_method(klass, "test_arity_m1", test_arity_m1, -1);
     rb_define_method(klass, "test_arity_m2", test_arity_m2, -2);
 }
