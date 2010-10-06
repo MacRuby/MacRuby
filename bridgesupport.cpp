@@ -1532,13 +1532,18 @@ rb_pointer_get_data(VALUE rcv, const char *type)
 
     rb_vm_pointer_t *ptr;
     Data_Get_Struct(rcv, rb_vm_pointer_t, ptr);
+    const char *ptr_type = RSTRING_PTR(ptr->type);
 
     assert(type[0] == _C_PTR);
-    if (type[1] != _C_VOID && strcmp(RSTRING_PTR(ptr->type), &type[1]) != 0) {
+    // Sanity pointer type comparison check, unless the given pointer type
+    // is 'C' (which means converted from void*) or the target argument pointer
+    // type is void*.
+    if (type[1] != _C_VOID && ptr_type[0] != _C_UCHR
+	    && strcmp(ptr_type, &type[1]) != 0) {
 	rb_raise(rb_eTypeError,
 		"expected instance of Pointer of type `%s', got `%s'",
 		type + 1,
-		RSTRING_PTR(ptr->type));
+		ptr_type);
     }
 
     return ptr->val;
