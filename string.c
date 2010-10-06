@@ -3167,9 +3167,10 @@ fs_set:
 		    rb_ary_push(result, substr); 
 		}
 		beg = i + 1;
-	    }
-	    if (limit != Qnil && --lim <= 0) {
-		break;
+
+		if (limit != Qnil && --lim <= 1) {
+		    break;
+		}
 	    }
 	}
 
