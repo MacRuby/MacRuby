@@ -425,4 +425,5 @@ Init_NSString(void)
     rb_objc_define_method(rb_cString, "bytes", rstr_only, 0);
     rb_objc_define_method(rb_cString, "each_byte", rstr_only, 0);
     rb_objc_define_method(rb_cString, "to_data", rstr_only, 0);
+    rb_objc_define_method(rb_cString, "pointer", rstr_only, 0);
 }
