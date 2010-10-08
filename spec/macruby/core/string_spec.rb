@@ -82,6 +82,17 @@ describe "A String object" do
       i += 1000
     end
   end
+
+  it "responds to #pointer which returns a Pointer wrapping the internal storage" do
+    s = 'hey'
+    ptr = s.pointer
+    3.times do |i|
+      ptr[i].chr.should == s[i]
+    end
+    ptr.class.should == Pointer
+    s2 = NSString.alloc.initWithBytes(ptr, length: 3, encoding: NSASCIIStringEncoding)
+    s2.should == s
+  end
 end
 
 describe "An NSString object" do
@@ -115,7 +126,8 @@ describe "An NSString object" do
    [:ascii_only?, []],
    [:bytes, []],
    [:each_byte, []],
-   [:to_data, []]].each do |msg, args|
+   [:to_data, []],
+   [:pointer, []]].each do |msg, args|
     it "responds to ##{msg} but raises an exception" do
       lambda { NSString.stringWithString('test').send(msg, *args) }.should raise_error(ArgumentError)
     end
