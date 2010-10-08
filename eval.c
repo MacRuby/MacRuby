@@ -485,13 +485,12 @@ rb_rescue(VALUE (* b_proc)(ANYARGS), VALUE data1,
 }
 
 VALUE
-rb_protect(VALUE (* proc) (VALUE), VALUE data, int * state)
+rb_protect(VALUE (* proc) (VALUE), VALUE data, int *state)
 {
-    // TODO
     if (state != NULL) {
 	*state = 0;
     }
-    return (*proc)(data);
+    return rb_rescue2(proc, data, NULL, 0, rb_eStandardError, (VALUE)0);
 }
 
 ID

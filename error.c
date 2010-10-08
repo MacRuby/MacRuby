@@ -773,6 +773,21 @@ name_err_mesg_equal(VALUE obj1, SEL sel, VALUE obj2)
     return Qtrue;
 }
 
+static VALUE
+inspect_exec(VALUE obj, VALUE data, int recur)
+{
+    if (recur) {
+	return Qnil;
+    }
+    return rb_inspect(obj);
+}
+
+static VALUE
+safe_inspect(VALUE obj)
+{
+    return rb_exec_recursive(inspect_exec, obj, 0);
+}
+
 /* :nodoc: */
 static VALUE
 name_err_mesg_to_str(VALUE obj, SEL sel)
@@ -800,7 +815,7 @@ name_err_mesg_to_str(VALUE obj, SEL sel)
 	    desc = "false";
 	    break;
 	  default:
-	    d = rb_protect(rb_inspect, obj, 0);
+	    d = rb_protect(safe_inspect, obj, 0);
 	    if (NIL_P(d) || RSTRING_LEN(d) > 65) {
 		d = rb_any_to_s(obj);
 	    }
