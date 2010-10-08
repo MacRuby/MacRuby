@@ -1782,7 +1782,7 @@ resolve_method_type(char *buf, const size_t buflen, Class klass, Method m,
     }
     else {
 	assert(strlen(buf) >= 3);
-	for (unsigned int i = method_getNumberOfArguments(m) + 1;
+	for (unsigned int i = rb_method_getNumberOfArguments(m) + 1;
 		i < types_count; i++) {
 	    strlcat(buf, "@", buflen);
 	}

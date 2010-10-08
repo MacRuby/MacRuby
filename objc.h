@@ -145,6 +145,12 @@ SkipFirstType(const char *type)
             case 'V':   /* oneway */
                 break;
 
+	    case _C_ID:
+		if (*type == _C_UNDEF) {
+		    type++;  /* Blocks */
+		}
+		return type;
+
                 /* arrays */
             case _C_ARY_B:
                 return type + SubtypeUntil (type, _C_ARY_E) + 1;
@@ -189,6 +195,16 @@ TypeArity(const char *type)
 	arity++;
     }
     return arity;
+}
+
+// We do not use method_getNumberOfArguments since it's broken on 
+// SnowLeopard for signatures containing Block objects.
+static inline unsigned int
+rb_method_getNumberOfArguments(Method m)
+{
+    const unsigned int arity = TypeArity(method_getTypeEncoding(m));
+    assert(arity >= 2);
+    return arity - 1; // Skip return type.
 }
 
 id rb_objc_numeric2nsnumber(VALUE obj);

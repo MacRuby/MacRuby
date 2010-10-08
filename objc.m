@@ -33,6 +33,8 @@ rb_objc_get_types(VALUE recv, Class klass, SEL sel, Method method,
     const char *type;
     unsigned i;
 
+    memset(buf, 0, buflen);
+
     if (method != NULL) {
 	if (bs_method == NULL) {
 	    type = method_getTypeEncoding(method);
@@ -44,8 +46,6 @@ rb_objc_get_types(VALUE recv, Class klass, SEL sel, Method method,
 		type = SkipStackSize(type2);
 	    }
 	    while (*type != '\0');
-	    //strlcpy(buf, method_getTypeEncoding(method), buflen);
-	    //sig->argc = method_getNumberOfArguments(method);
 	}
 	else {
 	    char buf2[100];
@@ -58,8 +58,7 @@ rb_objc_get_types(VALUE recv, Class klass, SEL sel, Method method,
 		strlcpy(buf, buf2, buflen);
 	    }
 
-	    //sig->argc = method_getNumberOfArguments(method);
-	    int argc = method_getNumberOfArguments(method);
+	    const unsigned int argc = rb_method_getNumberOfArguments(method);
 	    for (i = 0; i < argc; i++) {
 		if (i >= 2 && (type = rb_get_bs_method_type(bs_method, i - 2))
 			!= NULL) {
@@ -84,8 +83,7 @@ rb_objc_get_types(VALUE recv, Class klass, SEL sel, Method method,
 	    }
 	    strlcpy(buf, type, buflen);
 
-	    //sig->argc = [msig numberOfArguments];
-	    int argc = [msig numberOfArguments];
+	    const int argc = [msig numberOfArguments];
 	    for (i = 0; i < argc; i++) {
 		if (i < 2 || (type = rb_get_bs_method_type(bs_method, i - 2))
 			== NULL) {
