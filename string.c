@@ -1782,6 +1782,7 @@ rstr_setbyte(VALUE self, SEL sel, VALUE idx, VALUE value)
  *     str.to_data => NSData
  *
  *  returns an NSData object wrapping the receiver's internal storage.
+ *  
  */
 
 static VALUE
@@ -1792,6 +1793,23 @@ rstr_to_data(VALUE self, SEL sel)
 	    RSTR(self)->length_in_bytes); 
     CFMakeCollectable(data);
     return (VALUE)data;
+}
+
+/*
+ *  call-seq:
+ *     str.pointer => Pointer
+ *
+ *  returns a Pointer object wrapping the receiver's internal storage (be
+ *  very careful, changing the pointer will change the original string's
+ *  content!).
+ */
+
+static VALUE
+rstr_pointer(VALUE self, SEL sel)
+{
+    str_make_data_binary(RSTR(self));
+    return rb_pointer_new("C", RSTR(self)->data.bytes,
+	    RSTR(self)->length_in_bytes); 
 }
 
 /*
@@ -5793,6 +5811,7 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "getbyte", rstr_getbyte, 1);
     rb_objc_define_method(rb_cRubyString, "setbyte", rstr_setbyte, 2);
     rb_objc_define_method(rb_cRubyString, "to_data", rstr_to_data, 0);
+    rb_objc_define_method(rb_cRubyString, "pointer", rstr_pointer, 0);
     rb_objc_define_method(rb_cRubyString, "force_encoding",
 	    rstr_force_encoding, 1);
     rb_objc_define_method(rb_cRubyString, "valid_encoding?",
