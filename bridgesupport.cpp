@@ -1114,7 +1114,7 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 		: bs_informal_protocol_imethods;
 
 	    char *type;
-#if __LP64__ && MAC_OS_X_VERSION_MAX_ALLOWED < 1070
+#if !defined(BS_TOT) && __LP64__
 	    // XXX workaround <rdar://problem/7318177> 64-bit informal protocol annotations are missing
 	    // Manually converting some 32-bit types to 64-bit...
 	    const size_t typelen = strlen(bs_inf_prot_method->type) + 1;
@@ -1221,7 +1221,7 @@ RoxorCore::load_bridge_support(const char *path, const char *framework_path,
     if (!ok) {
 	rb_raise(rb_eRuntimeError, "%s", error);
     }
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
+#if !defined(BS_TOT)
 # if defined(__LP64__)
     static bool R6399046_fixed = false;
     // XXX work around for
@@ -1238,29 +1238,7 @@ RoxorCore::load_bridge_support(const char *path, const char *framework_path,
     }
 # endif
 #endif
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-    static bool R6401816_fixed = false;
-    // XXX work around for
-    // <rdar://problem/6401816> -[NSObject performSelector:withObject:] has wrong sel_of_type attributes
-    if (!R6401816_fixed) {
-	bs_element_method_t *bs_method = GET_CORE()->find_bs_method((Class)rb_cNSObject,
-		sel_registerName("performSelector:withObject:"));
-	if (bs_method != NULL) {
-	    bs_element_arg_t *arg = bs_method->args;
-	    while (arg != NULL) {
-		if (arg->index == 0
-		    && arg->sel_of_type != NULL
-		    && arg->sel_of_type[0] != '@') {
-		    arg->sel_of_type[0] = '@';
-		    R6401816_fixed = true;
-		    break;
-		}
-		arg++;
-	    }
-	}
-    }
-#endif
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
+#if !defined(BS_TOT)
     static bool R7281806fixed = false;
     // XXX work around for
     // <rdar://problem/7281806> -[NSObject performSelector:] has wrong sel_of_type attributes
