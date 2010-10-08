@@ -303,6 +303,7 @@ bsock_close_read(VALUE sock)
 	return rb_io_close(sock);
     }
     fptr->mode &= ~FMODE_READABLE;
+    fptr->read_fd = -1; 
 
     return Qnil;
 }
@@ -321,6 +322,7 @@ bsock_close_write(VALUE sock)
     }
     shutdown(fptr->fd, 1);
     fptr->mode &= ~FMODE_WRITABLE;
+    fptr->write_fd = -1; 
 
     return Qnil;
 }
