@@ -707,7 +707,7 @@ RoxorCore::symbolize_call_address(void *addr, char *path, size_t path_len,
 	    for (std::vector<RoxorFunction::Line>::iterator iter =
 		    f->lines.begin(); iter != f->lines.end(); ++iter) {
 		*ln = (*iter).line;
-		if ((*iter).address <= (uintptr_t)addr) {
+		if ((uintptr_t)addr < (*iter).address) {
 		    break;
 		}
 	    }
