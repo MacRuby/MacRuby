@@ -407,6 +407,7 @@ bsock_setsockopt(VALUE sock, SEL sel, VALUE lev, VALUE optname, VALUE val)
     }
 
     GetOpenFile(sock, fptr);
+    rb_io_check_closed(fptr);
     if (setsockopt(fptr->fd, level, option, v, vlen) < 0)
 	rb_sys_fail(fptr->path == 0 ? NULL : RSTRING_PTR(fptr->path));
 
@@ -2668,6 +2669,7 @@ sock_listen(VALUE sock, SEL sel, VALUE log)
     rb_secure(4);
     backlog = NUM2INT(log);
     GetOpenFile(sock, fptr);
+    rb_io_check_closed(fptr);    
     if (listen(fptr->fd, backlog) < 0)
 	rb_sys_fail("listen(2)");
 
