@@ -132,7 +132,9 @@ class StringIO
     raise TypeError unless buffer.respond_to?(:to_str)
     buffer = buffer.to_str      
  
-    if length == nil
+    if length == 0
+      buffer.replace("")
+    elsif length == nil
       return "" if self.eof?
       buffer.replace(@string[@pos..-1])
       @pos = string.size
