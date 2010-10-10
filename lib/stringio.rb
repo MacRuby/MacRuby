@@ -135,11 +135,14 @@ class StringIO
     if length == 0
       buffer.replace("")
     elsif length == nil
-      return "" if self.eof?
+      return buffer.replace("") if self.eof?
       buffer.replace(@string[@pos..-1])
       @pos = string.size
     else
-      return nil if self.eof?
+      if self.eof?
+        buffer.replace("")
+        return nil
+      end
       raise TypeError unless length.respond_to?(:to_int)
       length = length.to_int       
       raise ArgumentError if length < 0
