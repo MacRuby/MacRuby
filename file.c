@@ -1529,6 +1529,7 @@ rb_file_size(VALUE obj, SEL sel)
 {
     struct stat st;
     struct rb_io_t *io = ExtractIOStruct(obj);
+    rb_io_check_closed(io);
     if (fstat(io->fd, &st) == -1) {
 	rb_sys_fail(RSTRING_PTR(io->path));
     }
