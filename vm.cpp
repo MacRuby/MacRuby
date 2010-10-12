@@ -269,6 +269,7 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 		if (path.size() == 0) {
 		    RoxorCompiler::shared->generate_location_path(path, loc);
 		}
+//printf("%p -> %d\n", (void*)iter->Address, loc.getLineNumber());
 		RoxorFunction::Line line(iter->Address, loc.getLineNumber());
 		function->lines.push_back(line);
 	    }
@@ -706,10 +707,10 @@ RoxorCore::symbolize_call_address(void *addr, char *path, size_t path_len,
 	    *ln = 0;
 	    for (std::vector<RoxorFunction::Line>::iterator iter =
 		    f->lines.begin(); iter != f->lines.end(); ++iter) {
-		*ln = (*iter).line;
-		if ((uintptr_t)addr < (*iter).address) {
+		if ((uintptr_t)addr <= (*iter).address) {
 		    break;
 		}
+		*ln = (*iter).line;
 	    }
 	}
 	if (path != NULL) {
