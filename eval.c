@@ -777,16 +777,15 @@ errat_setter(VALUE val, ID id, VALUE *var)
 static VALUE
 rb_f_local_variables(VALUE rcv, SEL sel)
 {
-    rb_vm_binding_t *binding = rb_vm_current_binding();
-    assert(binding != NULL);
-
+    rb_vm_binding_t *b = rb_vm_current_binding();
     VALUE ary = rb_ary_new();
-    rb_vm_local_t *l;
-   
-    for (l = binding->locals; l != NULL; l = l->next) {
-	rb_ary_push(ary, ID2SYM(l->name));
+    while (b != NULL) {
+	rb_vm_local_t *l;
+	for (l = b->locals; l != NULL; l = l->next) {
+	    rb_ary_push(ary, ID2SYM(l->name));
+	}
+	b = b->next;
     }
-
     return ary;
 }
 

@@ -340,6 +340,8 @@ rb_vm_eval_string(VALUE self, VALUE klass, VALUE src, rb_vm_binding_t *binding,
 #endif
 }
 
+#define GetBindingPtr(obj) ((rb_vm_binding_t *)DATA_PTR(obj))
+
 static VALUE
 eval_string(VALUE self, VALUE klass, VALUE src, VALUE scope, const char *file,
 	    const int line)
@@ -350,7 +352,7 @@ eval_string(VALUE self, VALUE klass, VALUE src, VALUE scope, const char *file,
 	    rb_raise(rb_eTypeError, "wrong argument type %s (expected Binding)",
 		     rb_obj_classname(scope));
 	}
-	binding = (rb_vm_binding_t *)DATA_PTR(scope);
+	binding = GetBindingPtr(scope);
     }
     return rb_vm_eval_string(self, klass, src, binding, file, line);
 }
@@ -461,6 +463,16 @@ rb_f_eval(VALUE self, SEL sel, int argc, VALUE *argv)
 	    klass = 0;
 	    break;
     }
+#if 0
+    if (!NIL_P(scope)) {
+	rb_vm_binding_t *t = rb_vm_current_binding();
+	assert(t != NULL);
+	rb_vm_binding_t *tmp = rb_vm_create_binding(t->self,
+		t->block, GetBindingPtr(scope), 0, NULL, false);
+	GC_WB(&tmp->locals, t->locals);
+	scope = rb_binding_new_from_binding(tmp);
+    }
+#endif
     return eval_string(self, klass, src, scope, file, line);
 }
 

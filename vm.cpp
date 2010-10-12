@@ -3093,12 +3093,14 @@ push_local(rb_vm_local_t **l, ID name, VALUE *value)
 
 extern "C"
 rb_vm_binding_t *
-rb_vm_create_binding(VALUE self, rb_vm_block_t *current_block, int lvars_size,
-	va_list lvars, bool vm_push)
+rb_vm_create_binding(VALUE self, rb_vm_block_t *current_block,
+	rb_vm_binding_t *top_binding, int lvars_size, va_list lvars,
+	bool vm_push)
 {
     rb_vm_binding_t *binding =
 	(rb_vm_binding_t *)xmalloc(sizeof(rb_vm_binding_t));
     GC_WB(&binding->self, self);
+    GC_WB(&binding->next, top_binding);
 
     rb_vm_local_t **l = &binding->locals;
 
@@ -3126,12 +3128,13 @@ rb_vm_create_binding(VALUE self, rb_vm_block_t *current_block, int lvars_size,
 extern "C"
 void
 rb_vm_push_binding(VALUE self, rb_vm_block_t *current_block,
-	rb_vm_var_uses **parent_var_uses, int lvars_size, ...)
+	rb_vm_binding_t *top_binding, rb_vm_var_uses **parent_var_uses,
+	int lvars_size, ...)
 {
     va_list lvars;
     va_start(lvars, lvars_size);
     rb_vm_binding_t *binding = rb_vm_create_binding(self, current_block,
-	    lvars_size, lvars, true);
+	    top_binding, lvars_size, lvars, true);
     va_end(lvars);
 
     rb_vm_add_binding_lvar_use(binding, current_block, parent_var_uses);
@@ -3731,8 +3734,9 @@ rb_parse_in_eval(void)
 VALUE *
 RoxorVM::get_binding_lvar(ID name, bool create)
 {
-    if (!bindings.empty()) {
-	rb_vm_binding_t *b = bindings.back();
+    rb_vm_binding_t *current_b = current_binding();
+    rb_vm_binding_t *b = current_b;
+    while (b != NULL) {
 	rb_vm_local_t **l = &b->locals;
 	while (*l != NULL) {
 	    if ((*l)->name == name) {
@@ -3740,13 +3744,19 @@ RoxorVM::get_binding_lvar(ID name, bool create)
 	    }
 	    l = &(*l)->next;
 	}
-	if (create) {
-	    GC_WB(l, xmalloc(sizeof(rb_vm_local_t)));
-	    (*l)->name = name;
-	    GC_WB(&(*l)->value, xmalloc(sizeof(VALUE *)));
-	    (*l)->next = NULL;
-	    return (*l)->value;
+	b = b->next;
+    }
+    if (create && current_b != NULL) {
+	rb_vm_binding_t *b = current_b;
+	rb_vm_local_t **l = &b->locals;
+	while (*l != NULL) {
+	    l = &(*l)->next;
 	}
+	GC_WB(l, xmalloc(sizeof(rb_vm_local_t)));
+	(*l)->name = name;
+	GC_WB(&(*l)->value, xmalloc(sizeof(VALUE *)));
+	(*l)->next = NULL;
+	return (*l)->value;
     }
     return NULL;
 }

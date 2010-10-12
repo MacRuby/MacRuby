@@ -56,10 +56,11 @@ typedef struct rb_vm_block {
     VALUE *dvars[1];
 } rb_vm_block_t;
 
-typedef struct {
+typedef struct rb_vm_binding {
     VALUE self;
     rb_vm_block_t *block;
     rb_vm_local_t *locals;
+    struct rb_vm_binding *next;
 } rb_vm_binding_t;
 
 #define VM_METHOD_EMPTY		1 // method has an empty body (compilation)
@@ -438,10 +439,12 @@ rb_vm_block_make_detachable_proc(rb_vm_block_t *b)
 }
 
 rb_vm_binding_t *rb_vm_create_binding(VALUE self, rb_vm_block_t *current_block,
-	int lvars_size, va_list lvars, bool vm_push);
+	rb_vm_binding_t *top_binding, int lvars_size, va_list lvars,
+	bool vm_push);
 rb_vm_binding_t *rb_vm_current_binding(void);
 void rb_vm_add_binding(rb_vm_binding_t *binding);
 void rb_vm_pop_binding();
+VALUE rb_binding_new_from_binding(rb_vm_binding_t *binding);
 
 void rb_vm_thread_pre_init(rb_vm_thread_t *t, rb_vm_block_t *body, int argc,
 	const VALUE *argv, void *vm);

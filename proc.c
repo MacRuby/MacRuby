@@ -230,7 +230,7 @@ rb_binding_new(void)
     return Data_Wrap_Struct(rb_cBinding, NULL, NULL, bind);
 }
 
-static VALUE
+VALUE
 rb_binding_new_from_binding(rb_vm_binding_t *bind)
 {
     return Data_Wrap_Struct(rb_cBinding, NULL, NULL, bind);
