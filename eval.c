@@ -484,13 +484,38 @@ rb_rescue(VALUE (* b_proc)(ANYARGS), VALUE data1,
 		      (VALUE)0);
 }
 
+// XXX not thread-safe, but it doesn't matter, since clients are C extensions
+// which are not reentrant anyways.
+static VALUE protect_exc = Qnil;
+
+static VALUE
+protect_rescue(VALUE obj, VALUE exc)
+{
+    *(int *)obj = 1;
+    GC_RETAIN(exc);
+    protect_exc = exc;
+    return Qnil;
+}
+
 VALUE
-rb_protect(VALUE (* proc) (VALUE), VALUE data, int *state)
+rb_protect(VALUE (*proc) (VALUE), VALUE data, int *state)
 {
     if (state != NULL) {
 	*state = 0;
     }
-    return rb_rescue2(proc, data, NULL, 0, rb_eStandardError, (VALUE)0);
+    return rb_rescue2(proc, data, protect_rescue, (VALUE)state,
+	    rb_eStandardError, (VALUE)0);
+}
+
+void
+rb_jump_tag(int state)
+{
+    assert(state > 0);
+    VALUE exc = protect_exc;
+    assert(exc != Qnil);
+    protect_exc = Qnil;
+    GC_RELEASE(exc);
+    rb_exc_raise(exc);
 }
 
 ID
