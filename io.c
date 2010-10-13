@@ -1156,7 +1156,11 @@ rb_io_sysread(VALUE self, SEL sel, int argc, VALUE *argv)
     }
     // Resize the buffer to whatever was read
     rb_bstr_resize(buffer, r);
-    
+
+    if (r == 0 && count > 0) {
+	rb_eof_error();
+    }
+
     return buffer;
 }
 
