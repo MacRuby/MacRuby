@@ -1135,10 +1135,6 @@ rb_io_sysread(VALUE self, SEL sel, int argc, VALUE *argv)
 
     // TODO: throw error if the buffer is not empty;
 
-    if (to_read == 0) {
-	return INT2FIX(0);
-    }
-
     if (!NIL_P(buffer)) {
 	// TODO: throw an error if the provided string can't be modified in place
 	buffer = rb_str_bstr(rb_obj_as_string(buffer));
@@ -1146,10 +1142,14 @@ rb_io_sysread(VALUE self, SEL sel, int argc, VALUE *argv)
     else {
 	buffer = rb_bstr_new();
     }
-    rb_bstr_resize(buffer, to_read);	
-    
+    rb_bstr_resize(buffer, to_read);
+
+    if (to_read == 0) {
+	return buffer;
+    }
+
     uint8_t *bytes = rb_bstr_bytes(buffer);
-    
+
     const long r = read(io->read_fd, bytes, (size_t)to_read);
     if (r == -1) {
 	rb_sys_fail("read(2) failed.");
