@@ -38,4 +38,6 @@ rubyspec_temp
 spec/frozen/optional/ffi/fixtures/build
 spec/frozen/upstream_patches
 spec/ruby
+test/test-mri/result
+test/test-mri/test/csv/temp.gz
 y.tab.c
