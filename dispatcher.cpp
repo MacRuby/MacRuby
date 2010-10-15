@@ -530,7 +530,7 @@ fill_ocache(struct mcache *cache, VALUE self, Class klass, IMP imp, SEL sel,
     if (cache->as.ocall.bs_method != NULL
 	    && cache->as.ocall.bs_method->variadic && method != NULL) {
 	// TODO honor printf_format
-	const int real_argc = method_getNumberOfArguments(method) - 2;
+	const int real_argc = rb_method_getNumberOfArguments(method) - 2;
 	if (real_argc < argc) {
 	    const size_t s = strlen(types);
 	    assert(s + argc - real_argc < sizeof types);
@@ -986,7 +986,7 @@ call_method_missing:
 		    expected_argc = node->arity.min;
 		}
 		else {
-		    expected_argc = method_getNumberOfArguments(m);
+		    expected_argc = rb_method_getNumberOfArguments(m);
 		    expected_argc -= 2; // removing receiver and selector
 		}
 		rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
@@ -1434,7 +1434,7 @@ rb_vm_get_method(VALUE klass, VALUE obj, ID mid, int scope)
     int arity;
     rb_vm_method_node_t *new_node;
     if (node == NULL) {
-	arity = method_getNumberOfArguments(method) - 2;
+	arity = rb_method_getNumberOfArguments(method) - 2;
 	new_node = NULL;
     }
     else {
