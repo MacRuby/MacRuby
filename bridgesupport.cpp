@@ -34,7 +34,9 @@ using namespace llvm;
 
 #include <execinfo.h>
 #include <dlfcn.h>
+#include <sys/stat.h>
 
+static bool bridgesupport_tot = false;
 static ID boxed_ivar_type = 0;
 static VALUE bs_const_magic_cookie = Qnil;
 
@@ -1114,49 +1116,54 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 		: bs_informal_protocol_imethods;
 
 	    char *type;
-#if !defined(BS_TOT) && __LP64__
-	    // XXX workaround <rdar://problem/7318177> 64-bit informal protocol annotations are missing
-	    // Manually converting some 32-bit types to 64-bit...
-	    const size_t typelen = strlen(bs_inf_prot_method->type) + 1;
-	    type = (char *)alloca(typelen);
-	    *type = '\0';
-	    const char *p = bs_inf_prot_method->type;
-	    do {
-		const char *p2 = (char *)SkipFirstType(p);
-		size_t len = p2 - p;
-		if (*p == _C_PTR && len > 1) {
-		    strlcat(type, "^", typelen);
-		    p++;
-		    len--;
-		}
-		if (len == 1 && *p == _C_FLT) {
-		    // float -> double
-		    strlcat(type, "d", typelen);
-		}
-		else if (strncmp(p, "{_NSPoint=", 10) == 0) {
-		    strlcat(type, "{CGPoint=dd}", typelen);
-		}
-		else if (strncmp(p, "{_NSSize=", 9) == 0) {
-		    strlcat(type, "{CGSize=dd}", typelen);
-		}
-		else if (strncmp(p, "{_NSRect=", 9) == 0) {
-		    strlcat(type, "{CGRect={CGPoint=dd}{CGSize=dd}}", typelen);
-		}
-		else if (strncmp(p, "{_NSRange=", 10) == 0) {
-		    strlcat(type, "{_NSRange=QQ}", typelen);
-		} 
-		else {
-		    char buf[100];
-		    strncpy(buf, p, len);
-		    buf[len] = '\0';
-		    strlcat(type, buf, typelen);
-		}
-		p = SkipStackSize(p2);
+	    if (bridgesupport_tot) {
+		type = bs_inf_prot_method->type;
 	    }
-	    while (*p != '\0');
+	    else {
+#if __LP64__
+		// XXX workaround <rdar://problem/7318177> 64-bit informal protocol annotations are missing
+		// Manually converting some 32-bit types to 64-bit...
+		const size_t typelen = strlen(bs_inf_prot_method->type) + 1;
+		type = (char *)alloca(typelen);
+		*type = '\0';
+		const char *p = bs_inf_prot_method->type;
+		do {
+		    const char *p2 = (char *)SkipFirstType(p);
+		    size_t len = p2 - p;
+		    if (*p == _C_PTR && len > 1) {
+			strlcat(type, "^", typelen);
+			p++;
+			len--;
+		    }
+		    if (len == 1 && *p == _C_FLT) {
+			// float -> double
+			strlcat(type, "d", typelen);
+		    }
+		    else if (strncmp(p, "{_NSPoint=", 10) == 0) {
+			strlcat(type, "{CGPoint=dd}", typelen);
+		    }
+		    else if (strncmp(p, "{_NSSize=", 9) == 0) {
+			strlcat(type, "{CGSize=dd}", typelen);
+		    }
+		    else if (strncmp(p, "{_NSRect=", 9) == 0) {
+			strlcat(type, "{CGRect={CGPoint=dd}{CGSize=dd}}", typelen);
+		    }
+		    else if (strncmp(p, "{_NSRange=", 10) == 0) {
+			strlcat(type, "{_NSRange=QQ}", typelen);
+		    } 
+		    else {
+			char buf[100];
+			strncpy(buf, p, len);
+			buf[len] = '\0';
+			strlcat(type, buf, typelen);
+		    }
+		    p = SkipStackSize(p2);
+		}
+		while (*p != '\0');
 #else
-	    type = bs_inf_prot_method->type;
+		type = bs_inf_prot_method->type;
 #endif
+	    }
 	    map[bs_inf_prot_method->name] = new std::string(type);
 	    break;
 	}
@@ -1221,45 +1228,43 @@ RoxorCore::load_bridge_support(const char *path, const char *framework_path,
     if (!ok) {
 	rb_raise(rb_eRuntimeError, "%s", error);
     }
-#if !defined(BS_TOT)
-# if defined(__LP64__)
-    static bool R6399046_fixed = false;
-    // XXX work around for
-    // <rdar://problem/6399046> NSNotFound 64-bit value is incorrect
-    if (!R6399046_fixed) {
-	const void *key = (const void *)rb_intern("NSNotFound");
-	const void *real_val = (const void *)ULL2NUM(LONG_MAX);
+    if (!bridgesupport_tot) {
+#if defined(__LP64__)
+	static bool R6399046_fixed = false;
+	// XXX work around for
+	// <rdar://problem/6399046> NSNotFound 64-bit value is incorrect
+	if (!R6399046_fixed) {
+	    const void *key = (const void *)rb_intern("NSNotFound");
+	    const void *real_val = (const void *)ULL2NUM(LONG_MAX);
 
-	const void *val = CFDictionaryGetValue(rb_cObject_dict, key);
-	if (val != real_val) {
-	    CFDictionarySetValue(rb_cObject_dict, key, real_val);
-	    R6399046_fixed = true;
+	    const void *val = CFDictionaryGetValue(rb_cObject_dict, key);
+	    if (val != real_val) {
+		CFDictionarySetValue(rb_cObject_dict, key, real_val);
+		R6399046_fixed = true;
+	    }
+	}
+#endif
+	static bool R7281806fixed = false;
+	// XXX work around for
+	// <rdar://problem/7281806> -[NSObject performSelector:] has wrong sel_of_type attributes
+	if (!R7281806fixed) {
+	    bs_element_method_t *bs_method = GET_CORE()->find_bs_method((Class)rb_cNSObject,
+		    sel_registerName("performSelector:"));
+	    if (bs_method != NULL) {
+		bs_element_arg_t *arg = bs_method->args;
+		while (arg != NULL) {
+		    if (arg->index == 0 
+			    && arg->sel_of_type != NULL
+			    && arg->sel_of_type[0] != '@') {
+			arg->sel_of_type[0] = '@';
+			R7281806fixed = true;
+			break;
+		    }
+		    arg++;
+		}
+	    }	
 	}
     }
-# endif
-#endif
-#if !defined(BS_TOT)
-    static bool R7281806fixed = false;
-    // XXX work around for
-    // <rdar://problem/7281806> -[NSObject performSelector:] has wrong sel_of_type attributes
-    if (!R7281806fixed) {
-	bs_element_method_t *bs_method = GET_CORE()->find_bs_method((Class)rb_cNSObject,
-		sel_registerName("performSelector:"));
-	if (bs_method != NULL) {
-	    bs_element_arg_t *arg = bs_method->args;
-	    while (arg != NULL) {
-		if (arg->index == 0 
-		    && arg->sel_of_type != NULL
-		    && arg->sel_of_type[0] != '@') {
-		    arg->sel_of_type[0] = '@';
-		    R7281806fixed = true;
-		    break;
-		}
-		arg++;
-	    }
-	}	
-    }
-#endif
 }
 
 // FFI
@@ -1452,6 +1457,11 @@ extern "C"
 void
 Init_BridgeSupport(void)
 {
+    struct stat s;
+    bridgesupport_tot =
+	stat("/System/Library/BridgeSupport/ruby-1.8/bridgesupportparser.bundle",
+		&s) == 0;
+
     // Boxed
     rb_cBoxed = rb_define_class("Boxed", rb_cObject);
     rb_objc_define_method(*(VALUE *)rb_cBoxed, "type",

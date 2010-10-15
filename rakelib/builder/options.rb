@@ -35,8 +35,6 @@ if `sw_vers -productVersion`.strip.to_f >= 10.7 and File.exist?('/AppleInternal'
   ENV['LLVM_TOT'] = '1'
 end
 
-BS_TOT = File.exist?('/System/Library/BridgeSupport/ruby-1.8/bridgesupportparser.bundle')
-
 RUBY_INSTALL_NAME = b.option('ruby_install_name', 'macruby')
 RUBY_SO_NAME = b.option('ruby_so_name', RUBY_INSTALL_NAME)
 LLVM_PATH = b.option('llvm_path', llvm_default_path)
@@ -170,10 +168,6 @@ class BuilderConfig
     unless has_libauto
       @cflags << ' -DNO_LIBAUTO'
       @cxxflags << ' -DNO_LIBAUTO'
-    end
-    if BS_TOT
-      @cflags << ' -DBS_TOT'
-      @cxxflags << ' -DBS_TOT'
     end
     @cxxflags << " -fno-rtti" unless @cxxflags.index("-fno-rtti")
     @dldflags = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION} -exported_symbols_list #{EXPORTED_SYMBOLS_LIST}"
