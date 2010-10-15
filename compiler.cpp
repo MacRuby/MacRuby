@@ -5483,7 +5483,7 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 		    funcptr
 		};
 		CallInst::Create(initBlockFunc, args, args + 2, "", bb);
-		return block_lit;
+		return new BitCastInst(block_lit, PtrTy, "", bb);
 	    }
 	    break;
 
@@ -5493,7 +5493,6 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 		if (bs_boxed != NULL) {
 		    return compile_get_opaque_data(val, bs_boxed, slot);
 		}
-
 		return compile_get_cptr(val, type, slot);
 	    }
 	    break;
