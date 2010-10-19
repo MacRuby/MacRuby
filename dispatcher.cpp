@@ -608,6 +608,25 @@ recache:
 		current_super_sel = sel;
 		current_super_class = klass;
 	    }
+	    else {
+		// Let's make sure the current_super_class is valid before
+		// using it; we check this by verifying that it's a real
+		// super class of the current class, as we may be calling
+		// a super method of the same name but on a totally different
+		// class hierarchy.
+		Class k = klass;
+		bool current_super_class_ok = false;
+		while (k != NULL) {
+		    if (k == current_super_class) {
+			current_super_class_ok = true;
+			break;
+		    }
+		    k = class_getSuperclass(k);
+		}
+		if (!current_super_class_ok) {
+		    current_super_class = klass;
+		}
+	    }
 	    method = rb_vm_super_lookup(current_super_class, sel,
 		    &current_super_class);
 	}
