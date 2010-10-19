@@ -511,3 +511,36 @@ assert '', %{
   s="omg"
   s.freeze
 }
+
+assert ":X2_foo\n:X_foo\n:Y2_foo\n:Y_foo\n:Y2_foo\n:Y_foo\n:Y2_foo\n:Y_foo\n:X2_foo\n:X_foo\n:Y2_foo\n:Y_foo\n:Y2_foo\n:Y_foo\n:Y2_foo\n:Y_foo", %{
+  class X
+    def initialize
+      @children = []
+      3.times { @children << Y::Y2.new }    
+    end
+    def foo
+      p :X_foo
+      @children.each { |o| o.foo }
+    end
+    class X2 < X
+      def foo
+        p :X2_foo
+        super
+      end
+    end
+  end
+  class Y
+    def foo
+      p :Y_foo
+    end
+    class Y2 < Y
+      def foo
+        p :Y2_foo
+        super
+      end
+    end
+  end
+  o = X::X2.new
+  o.foo
+  o.foo
+}
