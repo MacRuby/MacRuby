@@ -31,6 +31,7 @@ extern bool ruby_initialized;
 	    ruby_init_loadpath();
 	    rb_vm_init_compiler();
 	    rb_vm_init_jit();
+	    rb_objc_fix_relocatable_load_path();
 	}
     }
     return runtime;
