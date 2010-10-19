@@ -35,3 +35,15 @@ end
 a = A.new
 puts a.g
 }
+
+assert "9\n6\n8", %{
+  def foo
+    puts caller.join('').scan(/(\\d+):/)
+  end
+  def bar
+    yield
+  end
+  bar do
+    foo
+  end
+}
