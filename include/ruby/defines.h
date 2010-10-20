@@ -291,6 +291,8 @@ void rb_ia64_flushrs(void);
 
 #define force_inline __attribute__((always_inline))
 
+#define __MACRUBY__ 1
+
 #if defined(__cplusplus)
 #if 0
 { /* satisfy cc-mode */
