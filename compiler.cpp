@@ -3283,7 +3283,8 @@ RoxorCompiler::compile_yield(NODE *node)
     params.push_back(ConstantInt::get(Int8Ty, opt));
     params.push_back(argv);    
 
-    Value *val = compile_protected_call(yieldFunc, params);
+    Instruction *val = compile_protected_call(yieldFunc, params);
+    attach_current_line_metadata(val);
 
     Value *broken = CallInst::Create(getBrokenFunc, "", bb);
     Value *is_broken = new ICmpInst(*bb, ICmpInst::ICMP_NE, broken, undefVal);
