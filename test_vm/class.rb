@@ -38,6 +38,20 @@ assert "42", %{
   p X.new.foo
 }
 
+assert "42", %{
+  class Module
+    m = method(:method_added)
+    define_method(:method_added) do |name|
+      p 42 if name == :test
+      m.call(name)
+    end
+  end
+  
+  class Foo
+    def test; end
+  end
+}
+
 assert "true", %{
   class X
     define_singleton_method(:foo, method(:constants))
