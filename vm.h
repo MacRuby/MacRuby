@@ -628,6 +628,15 @@ rb_vm_call2(rb_vm_block_t *block, VALUE self, VALUE klass, SEL sel, int argc,
 	    DISPATCH_FCALL, argc, argv);
 }
 
+static inline VALUE
+rb_vm_method_call(rb_vm_method_t *m, rb_vm_block_t *block, int argc,
+	const VALUE *argv)
+{
+    return rb_vm_dispatch(rb_vm_current_vm(), (struct mcache *)m->cache, 0,
+	    m->recv, (Class)m->oclass, m->sel, block, DISPATCH_FCALL,
+	    argc, argv);
+}
+
 VALUE rb_vm_yield_args(void *vm, int argc, const VALUE *argv);
 
 static inline VALUE
