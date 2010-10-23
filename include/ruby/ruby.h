@@ -536,6 +536,7 @@ long rb_str_clen(VALUE);
 const VALUE *rb_ary_ptr(VALUE);
 #define RARRAY_PTR(a) (rb_ary_ptr((VALUE)a)) 
 
+#define RHASH_TBL(h) rb_hash_tbl(h)
 #define RHASH_SIZE(h) rb_hash_size(h)
 #define RHASH_EMPTY_P(h) (RHASH_SIZE(h) == 0)
 

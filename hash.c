@@ -219,6 +219,15 @@ rb_hash_new_fast(int argc, ...)
     return hash;
 }
 
+struct st_table *
+rb_hash_tbl(VALUE hash)
+{
+    if (!RHASH(hash)->tbl) {
+        RHASH(hash)->tbl = st_init_table(&objhash);
+    }
+    return RHASH(hash)->tbl;
+}
+
 /*
  *  call-seq:
  *     Hash.new                          => hash
