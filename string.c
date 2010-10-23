@@ -3315,16 +3315,6 @@ again:
     return result;
 }
 
-VALUE
-rb_str_split(VALUE str, const char *sep0)
-{
-    VALUE sep;
-
-    StringValue(str);
-    sep = rb_str_new2(sep0);
-    return rstr_split(str, 0, 1, &sep);
-}
-
 /*
  *  call-seq:
  *     str.to_i(base=10)   => integer
@@ -6662,6 +6652,14 @@ rb_str_export_to_enc(VALUE str, rb_encoding *enc)
 	rb_raise(rb_eArgError, "cannot transcode NSString");
     }
     return (VALUE)str_simple_transcode(RSTR(str), enc);
+}
+
+VALUE
+rb_str_split(VALUE str, const char *sep0)
+{
+    str = (VALUE)str_need_string(str);
+    VALUE sep = rb_str_new2(sep0);
+    return rstr_split(str, 0, 1, &sep);
 }
 
 void
