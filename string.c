@@ -3315,6 +3315,16 @@ again:
     return result;
 }
 
+VALUE
+rb_str_split(VALUE str, const char *sep0)
+{
+    VALUE sep;
+
+    StringValue(str);
+    sep = rb_str_new2(sep0);
+    return rstr_split(str, 0, 1, &sep);
+}
+
 /*
  *  call-seq:
  *     str.to_i(base=10)   => integer
