@@ -222,10 +222,11 @@ rb_hash_new_fast(int argc, ...)
 struct st_table *
 rb_hash_tbl(VALUE hash)
 {
-    if (!RHASH(hash)->tbl) {
-        RHASH(hash)->tbl = st_init_table(&objhash);
+    if (IS_RHASH(hash)) {
+	return RHASH(hash)->tbl;
     }
-    return RHASH(hash)->tbl;
+    rb_raise(rb_eRuntimeError,
+	    "rb_hash_tbl() won't work on pure NSDictionaries");
 }
 
 /*
