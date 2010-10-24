@@ -1059,3 +1059,9 @@ Init_GC(void)
 	rb_objc_install_method2((Class)rb_cFinalizer,
 		"finalize", (IMP)rb_objc_finalizer_finalize);
 }
+
+void
+rb_global_variable(VALUE *slot)
+{
+    auto_zone_add_root(__auto_zone, (void *)slot, *(void **)slot);
+}
