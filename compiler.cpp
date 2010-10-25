@@ -5808,7 +5808,10 @@ RoxorCompiler::convert_type(const char *type)
 	    {
 		// Syntax is `b3' for `unsigned foo:3'. 
 		const long size = atol(type + 1);
-		assert(size > 0);
+		if (size <= 0) {
+		    rb_raise(rb_eTypeError, "invalid bitfield type: %s",
+			    type);	
+		}
 		return ArrayType::get(BitTy, size);
 	    }
 	    break;
