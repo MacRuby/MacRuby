@@ -1328,6 +1328,9 @@ convert_ffi_type(VALUE type, bool raise_exception_if_unknown)
     if (strcmp(typestr, "object") == 0 || strcmp(typestr, "id") == 0) {
 	return "@";
     }
+    if (strcmp(typestr, "boolean") == 0 || strcmp(typestr, "bool") == 0) {
+	return "B";
+    }
 
     if (raise_exception_if_unknown) {
 	rb_raise(rb_eTypeError, "unrecognized string `%s' given as FFI type",
