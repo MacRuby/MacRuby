@@ -4,6 +4,9 @@ describe "A Pointer object, when initializing" do
   before :all do
     @types = {
       :object     => '@',
+      :id         => '@',
+      :boolean    => 'B',
+      :bool       => 'B',
       :char       => 'c',
       :uchar      => 'C',
       :short      => 's',
