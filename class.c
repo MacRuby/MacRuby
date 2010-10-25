@@ -1339,7 +1339,9 @@ done:
     return BUILTIN_TYPE(obj);
 }
 
-bool
+// Note: not returning 'bool' because the function is exported in ruby.h
+// and MRI does not include stdbool.
+int
 rb_obj_is_native(VALUE obj)
 {
     Class k = *(Class *)obj;
