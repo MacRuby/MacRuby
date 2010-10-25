@@ -950,6 +950,38 @@ rb_pointer_cast(VALUE rcv, SEL sel, VALUE type)
     return rcv;
 }
 
+static VALUE
+rb_pointer_offset(VALUE rcv, long off)
+{
+    rb_vm_pointer_t *ptr;
+    Data_Get_Struct(rcv, rb_vm_pointer_t, ptr);
+
+    size_t new_len = 0;
+    if (ptr->len > 0) {
+	if (off > 0 && (size_t)off >= ptr->len) {
+	    rb_raise(rb_eArgError, "offset %ld out of bounds (%ld)", off,
+		    ptr->len);
+	}
+	new_len = ptr->len - off;
+    }
+
+    const char *type_str = StringValuePtr(ptr->type);
+    const size_t delta = off * ptr->type_size;
+    return rb_pointer_new(type_str, (char *)ptr->val + delta, new_len);
+}
+
+static VALUE
+rb_pointer_plus(VALUE rcv, SEL sel, VALUE offset)
+{
+    return rb_pointer_offset(rcv, NUM2LONG(offset));
+}
+
+static VALUE
+rb_pointer_minus(VALUE rcv, SEL sel, VALUE offset)
+{
+    return rb_pointer_offset(rcv, -NUM2LONG(offset));
+}
+
 static void
 index_bs_class_methods(const char *name,
 	std::map<std::string, std::map<SEL, bs_element_method_t *> *> &map,
@@ -1480,16 +1512,13 @@ Init_BridgeSupport(void)
 	    (void *)rb_pointer_s_new, -1);
     rb_objc_define_method(*(VALUE *)rb_cPointer, "new_with_type",
 	    (void *)rb_pointer_s_new, -1);
-    rb_objc_define_method(rb_cPointer, "[]",
-	    (void *)rb_pointer_aref, 1);
-    rb_objc_define_method(rb_cPointer, "[]=",
-	    (void *)rb_pointer_aset, 2);
-    rb_objc_define_method(rb_cPointer, "assign",
-	    (void *)rb_pointer_assign, 1);
-    rb_objc_define_method(rb_cPointer, "type",
-	    (void *)rb_pointer_type, 0);
-    rb_objc_define_method(rb_cPointer, "cast!",
-	    (void *)rb_pointer_cast, 1);
+    rb_objc_define_method(rb_cPointer, "[]", (void *)rb_pointer_aref, 1);
+    rb_objc_define_method(rb_cPointer, "[]=", (void *)rb_pointer_aset, 2);
+    rb_objc_define_method(rb_cPointer, "assign", (void *)rb_pointer_assign, 1);
+    rb_objc_define_method(rb_cPointer, "type", (void *)rb_pointer_type, 0);
+    rb_objc_define_method(rb_cPointer, "cast!", (void *)rb_pointer_cast, 1);
+    rb_objc_define_method(rb_cPointer, "+", (void *)rb_pointer_plus, 1);
+    rb_objc_define_method(rb_cPointer, "-", (void *)rb_pointer_minus, 1);
 #endif
 
     bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie");
