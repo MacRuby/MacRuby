@@ -8,8 +8,6 @@
 
 #include "ruby/macruby.h"
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-
 #define GCD_BLOCKS_COPY_DVARS 1
 
 #include <dispatch/dispatch.h>
@@ -1362,19 +1360,3 @@ Init_Dispatch(void)
     selClose = sel_registerName("close");
     assert(selClose != NULL);
 }
-
-#else
-
-void
-Init_PreGCD(void)
-{
-    // Do nothing...
-}
-
-void
-Init_Dispatch(void)
-{
-    // Do nothing...
-}
-
-#endif

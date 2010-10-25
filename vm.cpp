@@ -612,7 +612,6 @@ RoxorCore::delenda(Function *func)
 {
     assert(func->use_empty());
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
     RoxorCoreLock lock;
 
     // Remove from cache.
@@ -640,7 +639,6 @@ RoxorCore::delenda(Function *func)
 
     // Delete IR.
     func->eraseFromParent();
-#endif
 }
 #endif
 
@@ -3335,7 +3333,7 @@ rb_iterate(VALUE (*it_proc) (VALUE), VALUE data1, VALUE (*bl_proc) (ANYARGS),
     b->arity.real = 1;
     b->flags = VM_BLOCK_PROC;
     b->imp = (IMP)rb_vm_iterate_block;
-    GC_WB(&b->dvars[0], (VALUE *)bl_proc);
+    b->dvars[0] =(VALUE *)bl_proc;
     GC_WB(&b->dvars[1], (VALUE *)data2);
 
     RoxorVM *vm = GET_VM();
@@ -3353,11 +3351,6 @@ rb_iterate(VALUE (*it_proc) (VALUE), VALUE data1, VALUE (*bl_proc) (ANYARGS),
 
     return (*it_proc)(data1);
 }
-
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-// the function is available on Leopard but it's not declared
-extern "C" id _objc_msgForward(id receiver, SEL sel, ...);
-#endif
 
 #if 0
 static inline IMP
