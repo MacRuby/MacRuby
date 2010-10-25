@@ -1050,3 +1050,9 @@ rb_global_variable(VALUE *slot)
 {
     auto_zone_add_root(__auto_zone, (void *)slot, *(void **)slot);
 }
+
+void
+rb_gc_register_address(VALUE *slot)
+{
+    rb_global_variable(slot);
+}
