@@ -691,6 +691,9 @@ struct RBignum {
 
 #define SPECIAL_CONST_P(x) (IMMEDIATE_P(x) || !RTEST(x))
 
+int rb_obj_is_native(VALUE obj);
+#define NATIVE(obj) (rb_obj_is_native((VALUE)obj))
+
 #define FL_ABLE(x) (!SPECIAL_CONST_P(x) && !NATIVE(x) && BUILTIN_TYPE(x) != T_NODE)
 #define FL_TEST(x,f) (FL_ABLE(x)?(RBASIC(x)->flags&(f)):0)
 #define FL_ANY(x,f) FL_TEST(x,f)
@@ -1027,7 +1030,6 @@ rb_type(VALUE obj)
     return rb_objc_type(obj);
 }
 
-// static inline bool
 static inline int
 rb_special_const_p(VALUE obj)
 {

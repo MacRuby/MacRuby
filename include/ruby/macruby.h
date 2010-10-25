@@ -18,9 +18,6 @@ extern "C" {
 #include <assert.h>
 #include <CoreFoundation/CoreFoundation.h>
 
-bool rb_obj_is_native(VALUE obj);
-#define NATIVE(obj) (rb_obj_is_native((VALUE)obj))
-
 void rb_include_module2(VALUE klass, VALUE orig_klass, VALUE module, bool check,
 	bool add_methods);
 
