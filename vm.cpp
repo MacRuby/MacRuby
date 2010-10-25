@@ -3308,6 +3308,52 @@ rb_vm_make_curry_proc(VALUE proc, VALUE passed, VALUE arity)
     return rb_proc_alloc_with_block(rb_cProc, b);
 }
 
+static VALUE
+rb_vm_iterate_block(VALUE rcv, SEL sel, VALUE **dvars, rb_vm_block_t *b,
+	VALUE args)
+{
+    VALUE (*bl_proc) (ANYARGS) = (VALUE (*) (ANYARGS))dvars[0];
+    VALUE data2 = (VALUE)dvars[1];
+
+    return (*bl_proc)(args, data2, rcv);
+}
+
+extern "C"
+VALUE
+rb_iterate(VALUE (*it_proc) (VALUE), VALUE data1, VALUE (*bl_proc) (ANYARGS),
+	VALUE data2)
+{
+    // Proc.new { |*args| curry... }
+    rb_vm_block_t *b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t)
+	    + (2 * sizeof(VALUE *)));
+
+    b->klass = 0;
+    b->proc = Qnil;
+    b->arity.min = 0;
+    b->arity.max = -1;
+    b->arity.left_req = 0;
+    b->arity.real = 1;
+    b->flags = VM_BLOCK_PROC;
+    b->imp = (IMP)rb_vm_iterate_block;
+    GC_WB(&b->dvars[0], (VALUE *)bl_proc);
+    GC_WB(&b->dvars[1], (VALUE *)data2);
+
+    RoxorVM *vm = GET_VM();
+    vm->add_current_block(b);
+
+    struct Finally {
+	RoxorVM *vm;
+	Finally(RoxorVM *_vm) {
+	    vm = _vm;
+	}
+	~Finally() {
+	    vm->pop_current_block();
+	}
+    } finalizer(vm);
+
+    return (*it_proc)(data1);
+}
+
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
 // the function is available on Leopard but it's not declared
 extern "C" id _objc_msgForward(id receiver, SEL sel, ...);
