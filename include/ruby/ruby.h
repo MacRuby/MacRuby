@@ -527,6 +527,8 @@ long rb_str_clen(VALUE);
 #define RSTRING_LEN(str) (rb_str_clen((VALUE)str))
 #define RSTRING_END(str) (RSTRING_PTR(str)+RSTRING_LEN(str))
 
+long rb_ary_len(VALUE);
+VALUE rb_ary_elt(VALUE, long);
 #define RARRAY_LEN(a) (rb_ary_len((VALUE)a))
 #define RARRAY_AT(a,i) (rb_ary_elt((VALUE)a, (long)i))
 /* IMPORTANT: try to avoid using RARRAY_PTR if necessary, because it's

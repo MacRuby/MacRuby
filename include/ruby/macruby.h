@@ -77,9 +77,6 @@ rb_objc_release(void *addr)
 bool rb_objc_hash_is_pure(VALUE);
 bool rb_objc_str_is_pure(VALUE);
 bool rb_objc_ary_is_pure(VALUE);
-long rb_ary_len(VALUE);
-VALUE rb_ary_elt(VALUE, long);
-VALUE rb_ary_aref(VALUE ary, SEL sel, int argc, VALUE *argv);
 
 VALUE rb_objc_create_class(const char *name, VALUE super);
 void rb_objc_class_sync_version(Class klass, Class super_class);

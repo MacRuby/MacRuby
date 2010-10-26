@@ -1313,7 +1313,7 @@ rb_ary_entry(VALUE ary, long offset)
 }
 
 VALUE
-rb_ary_aref(VALUE ary, SEL sel, int argc, VALUE *argv)
+rb_ary_aref(int argc, VALUE *argv, VALUE ary)
 {
     if (IS_RARY(ary)) {
 	return rary_aref(ary, 0, argc, argv);

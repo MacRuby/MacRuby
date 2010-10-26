@@ -1707,7 +1707,7 @@ match_aref(VALUE rcv, SEL sel, int argc, VALUE *argv)
 		}
 	}
     }
-    return rb_ary_aref(match_to_a(rcv, 0), 0, argc, argv);
+    return rb_ary_aref(argc, argv, match_to_a(rcv, 0));
 }
 
 /*
