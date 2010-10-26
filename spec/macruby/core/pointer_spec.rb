@@ -198,4 +198,21 @@ describe "A Pointer object" do
     ptr[2].should == 111
     ptr[3].should == 0
   end
+
+  it "respond to #+ and #- which will respectively return a new Pointer object based on the appropriate offset" do
+    ptr = Pointer.new(:long, 10)
+    10.times { |i| ptr[i] = i }
+    ptr2 = ptr + 5;
+    ptr2.class.should == Pointer
+    ptr2[0].should == 5
+    ptr2[1].should == 6
+    ptr2[2].should == 7
+    ptr2[3].should == 8
+    ptr2[4].should == 9
+    lambda { ptr2[5] }.should raise_error(ArgumentError)
+    lambda { ptr2 + 6 }.should raise_error(ArgumentError)
+    ptr3 = ptr2 - 5
+    ptr3.class.should == Pointer
+    10.times { |i| ptr3[i].should == i }
+  end
 end
