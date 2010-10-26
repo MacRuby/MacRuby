@@ -1301,74 +1301,59 @@ RoxorCore::load_bridge_support(const char *path, const char *framework_path,
 
 // FFI
 
+static std::map<ID, std::string> ffi_type_shortcuts;
+
+static void
+init_ffi_type_shortcuts(void)
+{
+#define SHORTCUT(name, type) \
+    ffi_type_shortcuts.insert(std::make_pair(rb_intern(name), type))
+
+    // Ruby-FFI types.
+    SHORTCUT("char", "c");
+    SHORTCUT("uchar", "C");
+    SHORTCUT("short", "s");
+    SHORTCUT("ushort", "S");
+    SHORTCUT("int", "i");
+    SHORTCUT("uint", "I");
+    SHORTCUT("long", "l");
+    SHORTCUT("ulong", "L");
+    SHORTCUT("long_long", "q");
+    SHORTCUT("ulong_long", "Q");
+    SHORTCUT("float", "f");
+    SHORTCUT("double", "d");
+    SHORTCUT("string", "*");
+    SHORTCUT("pointer", "^");
+
+    // MacRuby extensions.
+    SHORTCUT("object", "@");
+    SHORTCUT("id", "@");
+    SHORTCUT("class", "#");
+    SHORTCUT("boolean", "B");
+    SHORTCUT("bool", "B");
+    SHORTCUT("selector", ":");
+    SHORTCUT("sel", ":");
+
+#undef SHORTCUT
+}
+
 static const char *
 convert_ffi_type(VALUE type, bool raise_exception_if_unknown)
 {
-    const char *typestr = TYPE(type) == T_SYMBOL
-	? rb_sym2name(type)
-	: StringValueCStr(type);
-
-    assert(typestr != NULL);
-
-    // Ruby-FFI types.
-
-    if (strcmp(typestr, "char") == 0) {
-	return "c";
-    }
-    if (strcmp(typestr, "uchar") == 0) {
-	return "C";
-    }
-    if (strcmp(typestr, "short") == 0) {
-	return "s";
-    }
-    if (strcmp(typestr, "ushort") == 0) {
-	return "S";
-    }
-    if (strcmp(typestr, "int") == 0) {
-	return "i";
-    }
-    if (strcmp(typestr, "uint") == 0) {
-	return "I";
-    }
-    if (strcmp(typestr, "long") == 0) {
-	return "l";
-    }
-    if (strcmp(typestr, "ulong") == 0) {
-	return "L";
-    }
-    if (strcmp(typestr, "long_long") == 0) {
-	return "q";
-    }
-    if (strcmp(typestr, "ulong_long") == 0) {
-	return "Q";
-    }
-    if (strcmp(typestr, "float") == 0) {
-	return "f";
-    }
-    if (strcmp(typestr, "double") == 0) {
-	return "d";
-    }
-    if (strcmp(typestr, "string") == 0) {
-	return "*";
-    }
-    if (strcmp(typestr, "pointer") == 0) {
-	return "^";
+    // Only accept symbols as type shortcuts.
+    if (TYPE(type) != T_SYMBOL) {
+	return StringValueCStr(type);
     }
 
-    // MacRuby extensions.
+    std::map<ID, std::string>::iterator iter =
+	ffi_type_shortcuts.find(SYM2ID(type));
 
-    if (strcmp(typestr, "object") == 0 || strcmp(typestr, "id") == 0) {
-	return "@";
-    }
-    if (strcmp(typestr, "boolean") == 0 || strcmp(typestr, "bool") == 0) {
-	return "B";
-    }
-
-    if (raise_exception_if_unknown) {
+    if (iter == ffi_type_shortcuts.end()) {
 	rb_raise(rb_eTypeError, "unrecognized string `%s' given as FFI type",
-		typestr);
+		rb_id2name(SYM2ID(type)));
     }
-    return typestr;
+
+    return iter->second.c_str();
 }
 
 Function *
@@ -1534,6 +1519,8 @@ Init_FFI(void)
     VALUE mFFILib = rb_define_module_under(mFFI, "Library");
     rb_objc_define_method(mFFILib, "attach_function",
 	    (void *)rb_ffi_attach_function, 3);
+
+    init_ffi_type_shortcuts();
 #endif
 }
 
