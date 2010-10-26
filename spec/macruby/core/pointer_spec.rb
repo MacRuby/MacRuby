@@ -5,8 +5,11 @@ describe "A Pointer object, when initializing" do
     @types = {
       :object     => '@',
       :id         => '@',
+      :class      => '#',
       :boolean    => 'B',
       :bool       => 'B',
+      :selector   => ':',
+      :sel        => ':',
       :char       => 'c',
       :uchar      => 'C',
       :short      => 's',
@@ -29,7 +32,7 @@ describe "A Pointer object, when initializing" do
     end
   end
 
-  it "accepts a Symbol argument which responds to a valid Objective-C type" do
+  it "accepts a Symbol argument as a type shortcut" do
     @types.each do |symbol, type|
       lambda { @pointer = Pointer.new(symbol) }.should_not raise_error
       @pointer.type.should == type
@@ -38,6 +41,9 @@ describe "A Pointer object, when initializing" do
 
   it "raises an ArgumentError when no argument is given" do
     lambda { Pointer.new }.should raise_error(ArgumentError)
+  end
+
+  it "raises an ArgumentError when a given Symbol is an invalid type shortcut" do    lambda { Pointer.new(:foo) }.should raise_error(TypeError)
   end
 
   it "raises a TypeError when a incompatible object is given" do
@@ -61,15 +67,15 @@ describe "A Pointer object, when initializing" do
 end
 
 describe "Pointer, through #[] and #[]=" do
-  integer_types = %w{ char uchar short ushort int uint long ulong long_long ulong_long }
-  float_types   = %w{ float double }
+  integer_types = %w{ char uchar short ushort int uint long ulong long_long ulong_long }.map { |x| x.intern }
+  float_types   = %w{ float double }.map { |x| x.intern }
 
   structs       = [NSPoint.new(1, 2), NSSize.new(3, 4), NSRect.new(NSPoint.new(1, 2), NSSize.new(3, 4))]
   struct_types  = structs.map { |x| x.class.type }
   structs       = structs.zip(struct_types)
 
   it "can assign and retrieve any object with type `object'" do
-    pointer = Pointer.new('object')
+    pointer = Pointer.new(:object)
     [Object.new, 123].each do |object|
       pointer[0] = object
       pointer[0].should == object
