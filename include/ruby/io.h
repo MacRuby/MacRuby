@@ -23,7 +23,6 @@ extern "C" {
 #include <errno.h>
 #include <spawn.h>
 #include <fcntl.h>
-#include <CoreFoundation/CoreFoundation.h>
 #include "ruby/encoding.h"
 
 typedef struct rb_io_t {
@@ -36,7 +35,11 @@ typedef struct rb_io_t {
     int lineno;
     int mode;
 
+#if defined(__COREFOUNDATION__)
     CFMutableDataRef buf;
+#else
+    void *buf;
+#endif
     unsigned long buf_offset;
 } rb_io_t;
 
@@ -68,10 +71,11 @@ typedef struct rb_io_t {
 VALUE rb_io_taint_check(VALUE);
 NORETURN(void rb_eof_error(void));
 
-long rb_io_primitive_read(struct rb_io_t *io_struct, UInt8 *buffer, long len);
+long rb_io_primitive_read(struct rb_io_t *io_struct, char *buffer, long len);
 
-bool rb_io_wait_readable(int fd);
-bool rb_io_wait_writable(int fd);
+int rb_io_wait_readable(int fd);
+int rb_io_wait_writable(int fd);
+int rb_io_read_pending(rb_io_t *io_struct);
 
 static inline void
 rb_io_check_initialized(rb_io_t *fptr)
@@ -88,12 +92,6 @@ rb_io_check_closed(rb_io_t *io_struct)
     if (io_struct->fd == -1) {
 	rb_raise(rb_eIOError, "closed stream");
     }
-}
-
-static inline bool
-rb_io_read_pending(rb_io_t *io_struct)
-{
-    return io_struct->buf != NULL && CFDataGetLength(io_struct->buf) > 0;
 }
 
 static inline void 

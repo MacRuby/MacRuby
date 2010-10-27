@@ -917,17 +917,29 @@ __rb_io_wait_readable(int fd)
     return false;
 }
 
-bool
+// Note: not bool since it's exported in a public header which does not
+// include stdbool.
+int
 rb_io_wait_readable(int fd)
 {
     return __rb_io_wait_readable(fd);
 }
 
-bool
+// Note: not bool since it's exported in a public header which does not
+// include stdbool.
+int
 rb_io_wait_writable(int fd)
 {
     // TODO
     return false;
+}
+
+// Note: not bool since it's exported in a public header which does not
+// include stdbool.
+int
+rb_io_read_pending(rb_io_t *io_struct)
+{
+    return io_struct->buf != NULL && CFDataGetLength(io_struct->buf) > 0;
 }
 
 static inline long
@@ -1041,9 +1053,9 @@ rb_io_read_all(rb_io_t *io_struct, VALUE outbuf)
 }
 
 long
-rb_io_primitive_read(rb_io_t *io_struct, UInt8 *buffer, long len)
+rb_io_primitive_read(rb_io_t *io_struct, char *buffer, long len)
 {
-    return rb_io_read_internal(io_struct, buffer, len);
+    return rb_io_read_internal(io_struct, (UInt8 *)buffer, len);
 }
 
 /*
