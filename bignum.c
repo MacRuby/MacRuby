@@ -1103,10 +1103,15 @@ rb_big2ll(VALUE x)
 {
     unsigned LONG_LONG num = big2ull(x, "long long");
 
+    // This check is disabled because this function might be called from
+    // compiler stubs which will pass negative values as long long times
+    // for certain Cocoa APIs (generally fixed values like -1 or -2).
+#if 0
     if ((LONG_LONG)num < 0 && (RBIGNUM_SIGN(x)
 			       || (LONG_LONG)num != LLONG_MIN)) {
 	rb_raise(rb_eRangeError, "bignum too big to convert into `long long'");
     }
+#endif
     if (!RBIGNUM_SIGN(x)) return -(LONG_LONG)num;
     return num;
 }
