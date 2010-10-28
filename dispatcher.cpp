@@ -1586,4 +1586,28 @@ rb_vm_respond_to2(VALUE obj, VALUE klass, SEL sel, bool priv,
 	bool check_override)
 {
     return respond_to(obj, klass, sel, priv, check_override);
+}
+
+// Note: rb_call_super() MUST always be called from methods registered using
+// the MRI API (such as rb_define_method() & friends). It must NEVER be used
+// internally inside MacRuby core.
+extern "C"
+VALUE
+rb_call_super(int argc, const VALUE *argv)
+{
+    RoxorVM *vm = GET_VM();
+    VALUE self = vm->get_current_mri_method_self();
+    SEL sel = vm->get_current_mri_method_sel();
+    assert(self != 0 && sel != 0);
+
+    return rb_vm_call_super(self, sel, argc, argv);
+}
+
+extern "C"
+void
+rb_vm_set_current_mri_method_context(VALUE self, SEL sel)
+{
+    RoxorVM *vm = GET_VM();
+    vm->set_current_mri_method_self(self);
+    vm->set_current_mri_method_sel(sel);
 } 

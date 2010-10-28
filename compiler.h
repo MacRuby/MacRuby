@@ -259,6 +259,7 @@ class RoxorCompiler {
 	Function *rvalToSelFunc;
 	Function *rvalToCharPtrFunc;
 	Function *initBlockFunc;
+	Function *setCurrentMRIMethodContext;
 
 	Constant *zeroVal;
 	Constant *oneVal;

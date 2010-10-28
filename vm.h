@@ -1033,7 +1033,9 @@ class RoxorVM {
 	bool has_ensure;
 	int return_from_block;
 	Class current_super_class;
-	SEL current_super_sel;	
+	SEL current_super_sel;
+	VALUE current_mri_method_self;
+	SEL current_mri_method_sel;
 
 	RoxorSpecialException *special_exc;
 
@@ -1061,6 +1063,8 @@ class RoxorVM {
 	ACCESSOR(current_super_class, Class);
 	ACCESSOR(current_super_sel, SEL);
 	READER(mcache, struct mcache *);
+	ACCESSOR(current_mri_method_self, VALUE);
+	ACCESSOR(current_mri_method_sel, SEL);
 
 	std::string debug_blocks(void);
 

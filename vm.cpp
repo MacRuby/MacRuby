@@ -401,6 +401,8 @@ RoxorVM::RoxorVM(void)
     special_exc = NULL;
     current_super_class = NULL;
     current_super_sel = 0;
+    current_mri_method_self = Qnil;
+    current_mri_method_sel = 0;
 
     mcache = (struct mcache *)calloc(VM_MCACHE_SIZE, sizeof(struct mcache));
     assert(mcache != NULL);

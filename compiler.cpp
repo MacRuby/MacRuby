@@ -270,6 +270,7 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     rvalToSelFunc = get_function("vm_rval_to_sel");
     rvalToCharPtrFunc = get_function("vm_rval_to_charptr");
     initBlockFunc = get_function("vm_init_c_block");
+    setCurrentMRIMethodContext = NULL;
 
     VoidTy = Type::getVoidTy(context);
     Int1Ty = Type::getInt1Ty(context);
@@ -6569,7 +6570,19 @@ RoxorCompiler::compile_mri_stub(void *imp, const int arity)
     bb = BasicBlock::Create(context, "EntryBlock", f);
     Function::arg_iterator arg = f->arg_begin();
     Value *rcv = arg++;
-    arg++; // skip SEL
+    Value *sel = arg++;
+
+    // Register the receiver and selector to the VM (for rb_call_super()).
+    if (setCurrentMRIMethodContext == NULL) {
+	// void rb_vm_prepare_method(Class klass, unsigned char dynamic_class,
+	//	SEL sel, Function *func, rb_vm_arity_t arity, int flags)
+	setCurrentMRIMethodContext = 
+	    cast<Function>(module->getOrInsertFunction(
+			"rb_vm_set_current_mri_method_context",
+			VoidTy, RubyObjTy, Int8Ty, NULL));
+    }
+    Value *args[2] = { rcv, sel };
+    CallInst::Create(setCurrentMRIMethodContext, args, args + 2, "", bb);
 
     // Prepare function types for the MRI implementation and arguments.
     std::vector<const Type *> imp_types;
