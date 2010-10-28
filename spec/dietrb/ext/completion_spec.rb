@@ -248,4 +248,9 @@ describe "IRB::Completion" do
       complete(word[0..-2]).should include(word)
     end
   end
+
+  it "does not crash when trying to complete garbage" do
+    complete("/").should == nil
+    complete("./Rake").should == nil
+  end
 end

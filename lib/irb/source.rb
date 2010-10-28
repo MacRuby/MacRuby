@@ -220,7 +220,8 @@ module IRB
       end
 
       def on_regexp_end(token)
-        if tokens_match?(@in_regexp, token)
+        token_without_regexp_options = token[0,1]
+        if tokens_match?(@in_regexp, token_without_regexp_options)
           @in_regexp = false
           @level -= 1
         end

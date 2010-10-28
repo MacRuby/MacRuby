@@ -1,2 +1,0 @@
-fails:IRB::Formatter does not filter the backtrace if $DEBUG is true
-fails:IRB::Formatter returns a formatted exception message, with the lines, regarding dietrb, filtered out of the backtrace

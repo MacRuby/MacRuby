@@ -89,4 +89,4 @@ end
 
 IRB::History.file = File.expand_path("~/.irb_history")
 IRB::History.max_entries_in_overview = 50
-IRB::History.setup
+IRB::History.setup if defined?(Readline)

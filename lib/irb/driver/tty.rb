@@ -34,13 +34,11 @@ module IRB
       # subclass thereof.
       def run(context)
         @context_stack << context
-        before, $stdout = $stdout, OutputRedirector.new unless $stdout.is_a?(OutputRedirector)
         while line = consume
           break unless context.process_line(line)
         end
       ensure
         @context_stack.pop
-        $stdout = before if before
       end
     end
   end

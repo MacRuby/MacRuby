@@ -1,16 +1,11 @@
 require File.expand_path('../spec_helper', __FILE__)
 require 'tempfile'
 
-class TestProcessor
-  def input(s)
-    s * 2
-  end
-end
-
 main = self
 
 describe "IRB::Context" do
   before do
+    @output = setup_current_driver.output
     @context = IRB::Context.new(main)
     @context.extend(OutputStubMixin)
   end
@@ -38,12 +33,25 @@ describe "IRB::Context" do
   it "does not use the same binding copy of the top level object" do
     lambda { eval("x", @context.binding) }.should raise_error(NameError)
   end
+  
+  it "prints to the output object of the current driver" do
+    @context.output("croque monsieur")
+    @output.printed.should == "croque monsieur\n"
+    @context.printed.should == ""
+  end
+
+  it "prints as normal when no current driver is available" do
+    IRB::Driver.current = nil
+    @context.output("croque monsieur")
+    @output.printed.should == ""
+    @context.printed.should == "croque monsieur\n"
+  end
 end
 
 describe "IRB::Context, when evaluating source" do
   before do
+    @output = setup_current_driver.output
     @context = IRB::Context.new(main)
-    @context.extend(OutputStubMixin)
     IRB.formatter = IRB::Formatter.new
   end
   
@@ -53,7 +61,7 @@ describe "IRB::Context, when evaluating source" do
   
   it "prints the result" do
     @context.evaluate("Hash[:foo, :foo]")
-    @context.printed.should == "=> {:foo=>:foo}\n"
+    @output.printed.should == "=> {:foo=>:foo}\n"
   end
   
   it "assigns the result to the local variable `_'" do
@@ -84,31 +92,31 @@ describe "IRB::Context, when evaluating source" do
   
   it "prints the exception that occurs" do
     @context.evaluate("DoesNotExist")
-    @context.printed.should =~ /^NameError:.+DoesNotExist/
+    @output.printed.should =~ /^NameError:.+DoesNotExist/
   end
   
   it "uses the line number of the *first* line in the buffer, for the line parameter of eval" do
     @context.process_line("DoesNotExist")
-    @context.printed.should =~ /\(irb\):1:in/
+    @output.printed.should =~ /\(irb\):1:in/
     @context.process_line("class A")
     @context.process_line("DoesNotExist")
     @context.process_line("end")
-    @context.printed.should =~ /\(irb\):3:in.+\(irb\):2:in/m
+    @output.printed.should =~ /\(irb\):3:in.+\(irb\):2:in/m
   end
   
   it "ignores the result if it's IRB::Context::IGNORE_RESULT" do
     @context.evaluate(":bananas")
     @context.evaluate("IRB::Context::IGNORE_RESULT").should == nil
-    @context.printed.should == "=> :bananas\n"
+    @output.printed.should == "=> :bananas\n"
     @context.evaluate("_").should == :bananas
   end
 end
 
 describe "IRB::Context, when receiving input" do
   before do
+    @output = setup_current_driver.output
     @context = IRB::Context.new(main)
     @context.extend(InputStubMixin)
-    @context.extend(OutputStubMixin)
   end
   
   it "adds the received code to the source buffer" do
@@ -147,7 +155,7 @@ describe "IRB::Context, when receiving input" do
     @context.process_line("  };")
     
     @context.source.to_s.should == "def foo"
-    @context.printed.should == "SyntaxError: compile error\n(irb):2: syntax error, unexpected '}'\n"
+    @output.printed.should == "SyntaxError: compile error\n(irb):2: syntax error, unexpected '}'\n"
   end
   
   it "returns whether or not the runloop should continue, but only if the level is 0" do
@@ -161,6 +169,6 @@ describe "IRB::Context, when receiving input" do
   it "inputs a line to be processed" do
     expected = "#{@context.formatter.prompt(@context)}2 * 21\n=> 42\n"
     @context.input_line("2 * 21")
-    @context.printed.should == expected
+    @output.printed.should == expected
   end
 end

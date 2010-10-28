@@ -89,11 +89,10 @@ module IRB
       call = (source[-1,1] == '.')
       receiver = source = source[0..-2] if call
       
-      if sexp = Ripper::SexpBuilder.new(source).parse
-        # [:program, [:stmts_add, [:stmts_new], [x, …]]]
-        #                                        ^
-        root = sexp[1][2]
-        
+      # root node:
+      # [:program, [:stmts_add, [:stmts_new], [x, …]]]
+      #                                        ^
+      if (sexp = Ripper::SexpBuilder.new(source).parse) && root = sexp[1][2]
         # [:call, [:hash, nil], :".", [:@ident, x, …]]
         if root[TYPE] == :call
           call  = true
@@ -113,17 +112,14 @@ module IRB
           end
         end
         
-        if call
-          if results = (methods || methods_of_object(root))
-            format_methods(receiver, results, filter)
-          else
-            # this is mainly because MacRuby currently has a problem with local_variables,
-            # normally I'd prefer to let the program die so the user might report it
-            []
-          end
-        else
-          match_methods_vars_or_consts_in_scope(root)
-        end.sort.uniq
+        result = if call
+                   if m = (methods || methods_of_object(root))
+                     format_methods(receiver, m, filter)
+                   end
+                 else
+                   match_methods_vars_or_consts_in_scope(root)
+                 end
+        result.sort.uniq if result
       end
     end
     
@@ -140,7 +136,7 @@ module IRB
     def match_methods_vars_or_consts_in_scope(symbol)
       var    = symbol[VALUE]
       filter = var[VALUE]
-      case var[TYPE]
+      result = case var[TYPE]
       when :@ident
         local_variables + instance_methods + RESERVED_DOWNCASE_WORDS
       when :@ivar
@@ -154,7 +150,8 @@ module IRB
         else
           constants + RESERVED_UPCASE_WORDS
         end
-      end.grep(/^#{Regexp.quote(filter)}/)
+      end
+      (result && filter) ? result.grep(/^#{Regexp.quote(filter)}/) : result
     end
     
     def format_methods(receiver, methods, filter)

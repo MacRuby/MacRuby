@@ -72,4 +72,14 @@ class StubDriver
   def output
     @output || $stdout
   end
+
+  def printed
+    @output.printed
+  end
+end
+
+def setup_current_driver
+  driver = StubDriver.new
+  driver.output = OutputStub.new
+  IRB::Driver.current = driver
 end

@@ -1,5 +1,0 @@
-fails:IRB::Completion when *not* doing a method call on an explicit receiver matches local variables and instance method of the context object
-fails:IRB::Completion when *not* doing a method call on an explicit receiver matches local variables
-fails:IRB::Completion when doing a method call on an explicit receiver, and the source does *not* end with a period, filters the methods, of the variable receiver, by the given method name
-fails:IRB::Completion when doing a method call on an explicit receiver, and the source ends with a period, returns *all* public instance methods of the class (the receiver) that matches as a lambda literal
-fails:IRB::Completion when doing a method call on an explicit receiver, and the source ends with a period, returns *all* public methods of the receiver that matches as a local variable

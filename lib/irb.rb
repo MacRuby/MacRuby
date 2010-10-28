@@ -5,6 +5,7 @@
 # Copyright (C) 2009-2010, Eloy Duran <eloy.de.enige@gmail.com>
 
 require 'irb/context'
+require 'irb/driver'
 require 'irb/source'
 require 'irb/version'
 

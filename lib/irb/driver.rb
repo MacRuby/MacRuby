@@ -18,6 +18,13 @@ module IRB
           end
         end
       end
+
+      def redirect_output!(redirector = OutputRedirector.new)
+        before, $stdout = $stdout, redirector unless $stdout.is_a?(redirector.class)
+        yield
+      ensure
+        $stdout = before if before
+      end
     end
     
     class OutputRedirector

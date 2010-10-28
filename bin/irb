@@ -39,14 +39,21 @@ module IRB
     IRB.formatter.filter_from_backtrace << /^#{__FILE__}/
     
     if ARGV.empty?
-      driver ||= begin
-        require 'readline'
-        'readline'
-      rescue LoadError
-        'tty'
+      if driver == 'socket'
+        require "irb/driver/socket"
+        IRB::Driver.redirect_output! do
+          irb(*IRB_CONTEXT_TOPLEVEL_ARGS)
+        end
+      else
+        driver ||= begin
+          require 'readline'
+          'readline'
+        rescue LoadError
+          'tty'
+        end
+        require "irb/driver/#{driver}"
+        irb(*IRB_CONTEXT_TOPLEVEL_ARGS)
       end
-      require "irb/driver/#{driver}"
-      irb(*IRB_CONTEXT_TOPLEVEL_ARGS)
     else
       path = ARGV.shift
       context = IRB::Context.new(*IRB_CONTEXT_TOPLEVEL_ARGS)
