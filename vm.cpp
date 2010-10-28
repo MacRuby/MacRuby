@@ -2267,6 +2267,9 @@ RoxorCore::get_methods(VALUE ary, Class klass, bool include_objc_methods,
     if (methods != NULL) {
 	for (unsigned int i = 0; i < count; i++) {
 	    Method m = methods[i];
+	    if (UNAVAILABLE_IMP(method_getImplementation(m))) {
+		continue;
+	    }
 	    rb_vm_method_node_t *node = method_node_get(m);
 	    if (node == NULL && !include_objc_methods) {
 		continue;
