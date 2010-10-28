@@ -130,22 +130,25 @@ rb_home_dir(VALUE user_name)
     return rb_str_new2([home_dir fileSystemRepresentation]);
 }
 
-static BOOL
-is_absolute_path(NSString *path, int expand_tilde)
+static bool
+is_absolute_path(NSString *path, bool expand_tilde)
 {
     if (!expand_tilde && [path isAbsolutePath] && [path hasPrefix:@"~"]) {
-	return NO;
+	return false;
     }
     return [path isAbsolutePath];    
 }
 
 static VALUE
-file_expand_path(VALUE fname, VALUE dname, int absolute)
+file_expand_path(VALUE fname, VALUE dname, bool absolute)
 {
     NSString *res = (NSString *)FilePathValue(fname);
 
     if (is_absolute_path(res, !absolute)) {
-	NSString *tmp = [res stringByResolvingSymlinksInPath];
+	// Resolve symlinks only in absolute mode.
+	NSString *tmp = absolute
+	    ? [res stringByResolvingSymlinksInPath]
+	    : [[res stringByExpandingTildeInPath] stringByStandardizingPath];
 	// Make sure we don't have an invalid user path.
 	if ([res hasPrefix:@"~"] && [tmp isEqualToString:res]) {
 	    NSString *user = [[[res pathComponents] objectAtIndex:0]
