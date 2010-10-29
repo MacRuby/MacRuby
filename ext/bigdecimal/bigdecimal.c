@@ -716,7 +716,7 @@ BigDecimalCmp(VALUE self, VALUE r,char op)
 	  case 'L': f = rb_intern("<="); break;
 	  case '>': case '<': f = (ID)op; break;
 	}
-	return rb_num_coerce_cmp(self,r,f);
+	return rb_num_coerce_relop(self,r,f);
     }
     SAVE(b);
     e = VpComp(a, b);
