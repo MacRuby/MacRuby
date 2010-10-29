@@ -128,7 +128,7 @@ VALUE rb_io_print(VALUE, SEL, int, VALUE *);
 
 VALUE rb_objc_num_coerce_bin(VALUE x, VALUE Y, SEL sel);
 VALUE rb_objc_num_coerce_cmp(VALUE, VALUE, SEL sel);
-VALUE rb_num_coerce_relop(VALUE, VALUE, SEL);
+VALUE rb_objc_num_coerce_relop(VALUE, VALUE, SEL sel);
 
 VALUE rb_f_kill(VALUE, SEL, int, VALUE*);
 VALUE rb_struct_initialize(VALUE, SEL, VALUE);

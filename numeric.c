@@ -212,7 +212,20 @@ rb_objc_num_coerce_cmp(VALUE x, VALUE y, SEL sel)
 }
 
 VALUE
-rb_num_coerce_relop(VALUE x, VALUE y, SEL sel)
+rb_num_coerce_relop(VALUE x, VALUE y, ID func)
+{
+    VALUE c, x0 = x, y0 = y;
+
+    if (!do_coerce(&x, &y, FALSE) ||
+	NIL_P(c = rb_funcall(x, func, 1, y))) {
+	rb_cmperr(x0, y0);
+	return Qnil;		/* not reached */
+    }
+    return c;
+}
+
+VALUE
+rb_objc_num_coerce_relop(VALUE x, VALUE y, SEL sel)
 {
     VALUE c, x0 = x, y0 = y;
 
@@ -223,6 +236,7 @@ rb_num_coerce_relop(VALUE x, VALUE y, SEL sel)
     }
     return c;
 }
+
 
 /*
  * Trap attempts to add methods to <code>Numeric</code> objects. Always
@@ -1070,7 +1084,7 @@ flo_gt(VALUE x, SEL sel, VALUE y)
 	break;
 
       default:
-	return rb_num_coerce_relop(x, y, selGT);
+	return rb_objc_num_coerce_relop(x, y, selGT);
     }
     if (isnan(a)) return Qfalse;
     return (a > b)?Qtrue:Qfalse;
@@ -1105,7 +1119,7 @@ flo_ge(VALUE x, SEL sel, VALUE y)
 	break;
 
       default:
-	return rb_num_coerce_relop(x, y, selGE);
+	return rb_objc_num_coerce_relop(x, y, selGE);
     }
     if (isnan(a)) return Qfalse;
     return (a >= b)?Qtrue:Qfalse;
@@ -1139,7 +1153,7 @@ flo_lt(VALUE x, SEL sel, VALUE y)
 	break;
 
       default:
-	return rb_num_coerce_relop(x, y, selLT);
+	return rb_objc_num_coerce_relop(x, y, selLT);
     }
     if (isnan(a)) return Qfalse;
     return (a < b)?Qtrue:Qfalse;
@@ -1174,7 +1188,7 @@ flo_le(VALUE x, SEL sel, VALUE y)
 	break;
 
       default:
-	return rb_num_coerce_relop(x, y, selLE);
+	return rb_objc_num_coerce_relop(x, y, selLE);
     }
     if (isnan(a)) return Qfalse;
     return (a <= b)?Qtrue:Qfalse;
@@ -2780,7 +2794,7 @@ fix_gt(VALUE x, SEL sel, VALUE y)
       case T_FLOAT:
 	return (double)FIX2LONG(x) > RFLOAT_VALUE(y) ? Qtrue : Qfalse;
       default:
-	return rb_num_coerce_relop(x, y, selGT);
+	return rb_objc_num_coerce_relop(x, y, selGT);
     }
 }
 
@@ -2805,7 +2819,7 @@ fix_ge(VALUE x, SEL sel, VALUE y)
       case T_FLOAT:
 	return (double)FIX2LONG(x) >= RFLOAT_VALUE(y) ? Qtrue : Qfalse;
       default:
-	return rb_num_coerce_relop(x, y, selGE);
+	return rb_objc_num_coerce_relop(x, y, selGE);
     }
 }
 
@@ -2830,7 +2844,7 @@ fix_lt(VALUE x, SEL sel, VALUE y)
       case T_FLOAT:
 	return (double)FIX2LONG(x) < RFLOAT_VALUE(y) ? Qtrue : Qfalse;
       default:
-	return rb_num_coerce_relop(x, y, selLT);
+	return rb_objc_num_coerce_relop(x, y, selLT);
     }
 }
 
@@ -2855,7 +2869,7 @@ fix_le(VALUE x, SEL sel, VALUE y)
       case T_FLOAT:
 	return (double)FIX2LONG(x) <= RFLOAT_VALUE(y) ? Qtrue : Qfalse;
       default:
-	return rb_num_coerce_relop(x, y, selLE);
+	return rb_objc_num_coerce_relop(x, y, selLE);
     }
 }
 
