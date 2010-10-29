@@ -6574,12 +6574,11 @@ RoxorCompiler::compile_mri_stub(void *imp, const int arity)
 
     // Register the receiver and selector to the VM (for rb_call_super()).
     if (setCurrentMRIMethodContext == NULL) {
-	// void rb_vm_prepare_method(Class klass, unsigned char dynamic_class,
-	//	SEL sel, Function *func, rb_vm_arity_t arity, int flags)
+	// void rb_vm_set_current_mri_method_context(VALUE self, SEL sel)
 	setCurrentMRIMethodContext = 
 	    cast<Function>(module->getOrInsertFunction(
 			"rb_vm_set_current_mri_method_context",
-			VoidTy, RubyObjTy, Int8Ty, NULL));
+			VoidTy, RubyObjTy, PtrTy, NULL));
     }
     Value *args[2] = { rcv, sel };
     CallInst::Create(setCurrentMRIMethodContext, args, args + 2, "", bb);
