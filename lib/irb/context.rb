@@ -11,13 +11,14 @@ module IRB
   class Context
     IGNORE_RESULT = :irb_ignore_result
     
-    attr_reader :object, :binding, :line, :source
+    attr_reader :object, :binding, :line, :level, :source
     attr_accessor :formatter
     
     def initialize(object, explicit_binding = nil)
       @object  = object
       @binding = explicit_binding || object.instance_eval { binding }
       @line    = 1
+      @level   = 0
       clear_buffer
       
       @last_result_assigner = __evaluate__("_ = nil; proc { |val| _ = val }")
@@ -59,10 +60,17 @@ module IRB
     # But at code block indentation level 0, `quit' means exit the runloop:
     #
     #   process_line("quit") # => false
+    #
+    # If re-indenting the line results in a new line, the reformatted line and
+    # prompt are yielded to the optional block. This happens *before* the line
+    # is actually processed, so the caller (driver) has the opportunity to
+    # update the last printed line.
     def process_line(line)
-      @source << line
+      prompt_and_line = formatter.reindent_last_line(self) { @source << line }
+      yield(*prompt_and_line) if prompt_and_line && block_given?
+
       return false if @source.terminate?
-      
+
       if @source.syntax_error?
         output(formatter.syntax_error(@line, @source.syntax_error))
         @source.pop
@@ -71,22 +79,27 @@ module IRB
         clear_buffer
       end
       @line += 1
+      @level = source.level
       
       true
     end
     
+    def driver
+      IRB::Driver.current
+    end
+
     # Output is directed to the IRB::Driver.current driver’s output if a
     # current driver is available. Otherwise it’s simply printed to $stdout.
     def output(string)
-      if driver = IRB::Driver.current
+      if driver = self.driver
         driver.output.puts(string)
       else
         puts(string)
       end
     end
     
-    def prompt
-      formatter.prompt(self)
+    def prompt(ignore_auto_indent = false)
+      formatter.prompt(self, ignore_auto_indent)
     end
     
     def input_line(line)

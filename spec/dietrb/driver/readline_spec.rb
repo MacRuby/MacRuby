@@ -41,6 +41,11 @@ describe "IRB::Driver::Readline" do
     @driver = IRB::Driver::Readline.new(InputStub.new, OutputStub.new)
     @context = IRB::Context.new(Object.new)
     @driver.context_stack << @context
+    Readline.clear_printed!
+  end
+
+  after do
+    @context.formatter.auto_indent = false
   end
 
   it "is a subclass of IRB::Driver::TTY" do
@@ -57,8 +62,23 @@ describe "IRB::Driver::Readline" do
   end
 
   it "reads a line through the Readline module" do
-    Readline.stub_input "nom nom nom"
+    Readline.stub_input("nom nom nom")
     @driver.readline.should == "nom nom nom"
+  end
+
+  it "prints a prompt" do
+    @context.process_line("def foo")
+    Readline.stub_input("nom nom nom")
+    @driver.readline
+    Readline.printed.should == @context.prompt
+  end
+
+  it "prints a prompt with indentation if it's configured" do
+    @context.formatter.auto_indent = true
+    @context.process_line("def foo")
+    Readline.stub_input("nom nom nom")
+    @driver.readline
+    Readline.printed[-2,2].should == "  "
   end
 
   it "tells the Readline module to use the history" do

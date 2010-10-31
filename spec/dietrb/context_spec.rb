@@ -117,26 +117,41 @@ describe "IRB::Context, when receiving input" do
     @output = setup_current_driver.output
     @context = IRB::Context.new(main)
     @context.extend(InputStubMixin)
+    @context.formatter.auto_indent = true
+  end
+
+  after do
+    @context.formatter.auto_indent = false
   end
   
   it "adds the received code to the source buffer" do
     @context.process_line("def foo")
     @context.process_line("p :ok")
-    @context.source.to_s.should == "def foo\np :ok"
+    @context.source.to_s.should == "def foo\n  p :ok"
   end
   
-  it "clears the source buffer" do
-    @context.process_line("def foo")
-    @context.clear_buffer
-    @context.source.to_s.should == ""
+  it "yields the line if it changed, *after* reindenting" do
+    prompt_and_line = nil
+    @context.process_line("def foo") { |p, l| prompt_and_line = [p, l] }
+    prompt_and_line.should == nil
+    @context.process_line("p :ok") { |p, l| prompt_and_line = [p, l] }
+    prompt_and_line.should == ["irb(main):002:1> ", "  p :ok"]
   end
-  
-  it "increases the current line number" do
+
+  it "increases the current line number, *after* yielding the new re-indented line" do
     @context.line.should == 1
     @context.process_line("def foo")
     @context.line.should == 2
-    @context.process_line("p :ok")
+    @context.process_line("p :ok") 
     @context.line.should == 3
+  end
+  
+  it "increases the current source level, *after* yielding the new re-indented line" do
+    @context.level.should == 0
+    @context.process_line("def foo")
+    @context.level.should == 1
+    @context.process_line("end") { |_| @context.level.should == 1 }
+    @context.level.should == 0
   end
   
   it "evaluates the buffered source once it's a valid code block" do
@@ -147,7 +162,7 @@ describe "IRB::Context, when receiving input" do
     @context.process_line("end; p foo")
     
     source = @context.instance_variable_get(:@evaled)
-    source.to_s.should == "def foo\n:ok\nend; p foo"
+    source.to_s.should == "def foo\n  :ok\nend; p foo"
   end
   
   it "prints that a syntax error occurred on the last line and reset the buffer to the previous line" do

@@ -16,7 +16,7 @@ module IRB
     
     # Adds a source line to the buffer and flushes the cached reflection.
     def <<(source)
-      source = source.strip
+      source = source.rstrip
       unless source.empty?
         @reflection = nil
         @buffer << source

@@ -1,5 +1,6 @@
 module IRB
   def self.deprecated(message, caller)
+    return unless $DEBUG
     caller = caller.first.split(':')[0..-2].join(':')
     warn "[!] Deprecation warning from #{caller}: #{message}"
   end
@@ -31,6 +32,9 @@ module IRB
       when :PROMPT_MODE
         message = "use `IRB.formatter.prompt = :#{value.downcase}'"
         IRB.formatter.prompt = "#{value.to_s.downcase}".to_sym
+      when :AUTO_INDENT
+        message = "use `IRB.formatter.auto_indent = #{value}'"
+        IRB.formatter.auto_indent = value
       when :USE_READLINE
         message = "for now DietRB only has a readline module"
       when :SAVE_HISTORY

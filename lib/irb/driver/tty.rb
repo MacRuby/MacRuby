@@ -3,6 +3,11 @@ require 'irb/driver'
 module IRB
   module Driver
     class TTY
+      move_one_line_up      = "\e[1A"
+      move_to_begin_of_line = "\r"
+      clear_to_end_of_line  = "\e[0K"
+      CLEAR_LAST_LINE       = move_one_line_up + move_to_begin_of_line + clear_to_end_of_line
+
       attr_reader :input, :output, :context_stack
       
       def initialize(input = $stdin, output = $stdout)
@@ -14,7 +19,7 @@ module IRB
       def context
         @context_stack.last
       end
-      
+
       def readline
         @output.print(context.prompt)
         @input.gets
@@ -27,6 +32,17 @@ module IRB
         context.clear_buffer
         ""
       end
+
+      def update_last_line(prompt, reformatted_line)
+        @output.print CLEAR_LAST_LINE
+        @output.puts("#{prompt}#{reformatted_line}")
+      end
+
+      def process_input(line)
+        context.process_line(line) do |prompt, line|
+          update_last_line(prompt, line)
+        end
+      end
       
       # Feeds input into a given context.
       #
@@ -35,7 +51,8 @@ module IRB
       def run(context)
         @context_stack << context
         while line = consume
-          break unless context.process_line(line)
+          continue = process_input(line)
+          break unless continue
         end
       ensure
         @context_stack.pop
