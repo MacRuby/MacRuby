@@ -1366,8 +1366,10 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
     if (NIL_P(sep)) {
 	// no arguments were passed at all.
 	// FIXME: if you pass nil, it's suppose to read everything. that sucks.
-	sep = rb_rs;
-	limit = Qnil;
+	if (argc == 0) {
+	    sep = rb_rs;
+	    limit = Qnil;
+	}
     } 
     else {
 	if (TYPE(sep) != T_STRING) {
@@ -1382,7 +1384,13 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
     const long line_limit = NIL_P(limit) ? -1 : FIX2LONG(limit);
 
     VALUE bstr = rb_bstr_new();
-    if (line_limit != -1) {
+    if (NIL_P(sep)) {
+	rb_io_read_all(io_struct, bstr);
+	if (rb_bstr_length(bstr) == 0) {
+	    return Qnil;
+	}
+    }
+    else if (line_limit != -1) {
 	rb_bstr_resize(bstr, line_limit);
 	uint8_t *bytes = rb_bstr_bytes(bstr);
 	long r = rb_io_read_internal(io_struct, bytes, line_limit);
