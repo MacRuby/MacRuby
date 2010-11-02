@@ -4626,6 +4626,14 @@ stdout_setter(VALUE val, ID id, VALUE *variable)
     }
 }
 
+static VALUE
+rb_getpass(VALUE self, SEL sel, VALUE prompt)
+{
+    StringValue(prompt);
+    char *pwd = getpass(RSTRING_PTR(prompt));
+    return rb_str_new2(pwd);
+}
+
 void
 Init_IO(void)
 {
@@ -4882,4 +4890,7 @@ Init_IO(void)
     sel_each_byte = sel_registerName("each_byte");
     sel_each_char = sel_registerName("each_char");
     sel_each_line = sel_registerName("each_line");
+
+    // MacRuby extensions:
+    rb_objc_define_module_function(rb_mKernel, "getpass", rb_getpass, 1);
 }
