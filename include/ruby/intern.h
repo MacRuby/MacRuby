@@ -248,6 +248,7 @@ void rb_interrupt(void);
 VALUE rb_apply(VALUE, ID, VALUE);
 void rb_backtrace(void);
 ID rb_frame_this_func(void);
+VALUE rb_obj_instance_eval(int, VALUE*, VALUE);
 void rb_load(VALUE, int);
 NORETURN(void rb_jump_tag(int));
 int rb_provided(const char*);
