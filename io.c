@@ -1386,8 +1386,13 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
     VALUE bstr = rb_bstr_new();
     if (NIL_P(sep)) {
 	rb_io_read_all(io_struct, bstr);
-	if (rb_bstr_length(bstr) == 0) {
+
+	long length = rb_bstr_length(bstr);
+	if (length == 0) {
 	    return Qnil;
+	}
+	if (line_limit >= 0 && line_limit < length) {
+	    rb_bstr_set_length(bstr, line_limit);
 	}
     }
     else if (line_limit != -1) {
