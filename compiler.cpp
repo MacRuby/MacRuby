@@ -6164,6 +6164,15 @@ RoxorCompiler::compile_lvar_slot(ID name, bool *need_wb)
 #endif
 	return iter->second;
     }
+    if (current_block) {
+	Value *slot = compile_dvar_slot(name);
+	if (slot != NULL) {	
+#if ROXOR_COMPILER_DEBUG
+	    printf("get_dvar %s\n", rb_id2name(name));
+#endif
+	    return slot;
+	}
+    }
     VALUE *var = GET_VM()->get_binding_lvar(name, false);
     if (var != NULL) {
 #if ROXOR_COMPILER_DEBUG
@@ -6175,13 +6184,8 @@ RoxorCompiler::compile_lvar_slot(ID name, bool *need_wb)
 	}
 	return new IntToPtrInst(int_val, RubyObjPtrTy, "", bb);
     }
-    assert(current_block);
-    Value *slot = compile_dvar_slot(name);
-    assert(slot != NULL);
-#if ROXOR_COMPILER_DEBUG
-    printf("get_dvar %s\n", rb_id2name(name));
-#endif
-    return slot;
+    fprintf(stderr, "can't find slot for variable %s\n", rb_id2name(name));
+    abort();
 }
 
 Value *
