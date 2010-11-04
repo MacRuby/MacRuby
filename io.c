@@ -1394,7 +1394,7 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 	else {
 	    rb_io_read_all(io_struct, bstr);
 	}
-	if (rb_bstr_length(bstr) == 0) {
+	if (rb_bstr_length(bstr) == 0 && line_limit != 0) {
 	    return Qnil;
 	}
     }
