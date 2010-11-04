@@ -1402,7 +1402,7 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 	rb_bstr_resize(bstr, line_limit);
 	uint8_t *bytes = rb_bstr_bytes(bstr);
 	long r = rb_io_read_internal(io_struct, bytes, line_limit);
-	if (r == 0) {
+	if (r == 0 && line_limit != 0) {
 	    return Qnil;
 	}
 
