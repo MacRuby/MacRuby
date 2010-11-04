@@ -113,14 +113,27 @@ module IRB
         end
         
         result = if call
-                   if m = (methods || methods_of_object(root))
-                     format_methods(receiver, m, filter)
-                   end
-                 else
-                   match_methods_vars_or_consts_in_scope(root)
-                 end
+          if m = (methods || methods_of_object(root))
+            format_methods(receiver, m, filter)
+          end
+        elsif root[TYPE] == :string_literal && root[VALUE][TYPE] == :string_content
+          # in the form of: "~/code/
+          expand_path(source)
+        else
+          match_methods_vars_or_consts_in_scope(root)
+        end
         result.sort.uniq if result
       end
+    end
+
+    def expand_path(source)
+      tokens         = Ripper.lex(source)
+      path           = tokens[0][2]
+      string_open    = tokens[1][2]
+      end_with_slash = path.length > 1 && path.end_with?('/')
+      path           = File.expand_path(path)
+      path          << '/' if end_with_slash
+      Dir.glob("#{path}*", File::FNM_CASEFOLD).map { |f| "#{string_open}#{f}" }
     end
     
     def unwind_callstack(root, stack = [])

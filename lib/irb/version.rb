@@ -8,8 +8,8 @@ module IRB
   module VERSION #:nodoc:
     NAME  = 'DietRB'
     MAJOR = 0
-    MINOR = 5
-    TINY  = 2
+    MINOR = 6
+    TINY  = 0
     
     STRING = [MAJOR, MINOR, TINY].join('.')
     DESCRIPTION = "#{NAME} (#{STRING})"

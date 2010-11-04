@@ -249,6 +249,13 @@ describe "IRB::Completion" do
     end
   end
 
+  it "completes file paths" do
+    complete("'/").should == Dir.glob('/*').sort.map { |f| "'#{f}" }
+    complete("'#{ROOT}/lib/../Ra").should == ["'#{File.join(ROOT, "Rakefile")}"]
+    complete("%{#{ROOT}/li").should == ['LICENSE', 'lib'].map { |f| "%{#{File.join(ROOT, f)}" }
+    complete("\"#{ROOT}/lib/").should == ['irb', 'irb.rb'].map { |f| "\"#{File.join(ROOT, 'lib', f)}" }
+  end
+
   it "does not crash when trying to complete garbage" do
     complete("/").should == nil
     complete("./Rake").should == nil
