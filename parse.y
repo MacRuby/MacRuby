@@ -1999,14 +1999,7 @@ arg		: lhs '=' arg
 		    /*%%%*/
 			value_expr($1);
 			value_expr($3);
-			if (nd_type($1) == NODE_LIT && FIXNUM_P($1->nd_lit) &&
-			    nd_type($3) == NODE_LIT && FIXNUM_P($3->nd_lit)) {
-			    GC_WB(&$1->nd_lit, GC_RETAIN(rb_range_new($1->nd_lit, $3->nd_lit, Qfalse)));
-			    $$ = $1;
-			}
-			else {
-			    $$ = NEW_DOT2($1, $3);
-			}
+			$$ = NEW_DOT2($1, $3);
 		    /*%
 			$$ = dispatch2(dot2, $1, $3);
 		    %*/
@@ -2016,14 +2009,7 @@ arg		: lhs '=' arg
 		    /*%%%*/
 			value_expr($1);
 			value_expr($3);
-			if (nd_type($1) == NODE_LIT && FIXNUM_P($1->nd_lit) &&
-			    nd_type($3) == NODE_LIT && FIXNUM_P($3->nd_lit)) {
-			    GC_WB(&$1->nd_lit, GC_RETAIN(rb_range_new($1->nd_lit, $3->nd_lit, Qtrue)));
-			    $$ = $1;
-			}
-			else {
-			    $$ = NEW_DOT3($1, $3);
-			}
+			$$ = NEW_DOT3($1, $3);
 		    /*%
 			$$ = dispatch2(dot3, $1, $3);
 		    %*/
