@@ -1410,8 +1410,13 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 	if (range.location != kCFNotFound) {
 	    rb_io_create_buf(io_struct);
 	    long rest_size = r - (range.location + 1);
-	    CFDataAppendBytes(io_struct->buf, bytes + range.location + 1,
-		    rest_size);
+	    if (rest_size > 0 && line_limit > r) {
+		CFDataAppendBytes(io_struct->buf, bytes + range.location + 1,
+				  rest_size);
+	    }
+	    else {
+		io_struct->buf_offset -= rest_size;
+	    }
 	    r = range.location + 1;
 	}
 	// Resize the buffer to whatever was actually read (can be different
