@@ -196,6 +196,8 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     dupArrayFunc = get_function("vm_ary_dup");
     newArrayFunc = get_function("vm_rary_new");
     asetArrayFunc = get_function("vm_rary_aset");
+    entryArrayFunc = get_function("vm_ary_entry");
+    checkArrayFunc = get_function("vm_ary_check");
     newStructFunc = NULL;
     newOpaqueFunc = NULL;
     newPointerFunc = NULL;
@@ -5336,6 +5338,42 @@ RoxorCompiler::compile_lambda_to_funcptr(const char *type,
     return new BitCastInst(f, PtrTy, "", bb);
 }
 
+static void
+decompose_ary_type(const char *type, long *size_p, char *elem_type_p, 
+	const size_t elem_type_len)
+{
+    // Syntax is [8S] for `short foo[8]'.
+    // First, let's grab the size.
+    char buf[100];
+    unsigned int n = 0;
+    const char *p = type + 1;
+    while (isdigit(*p)) {
+	assert(n < (sizeof buf) - 1);
+	buf[n++] = *p;
+	p++;
+    }
+    assert(n > 0);
+    buf[n] = '\0';
+    const long size = atol(buf);
+    assert(size > 0);
+    if (size_p != NULL) {
+	*size_p = size;
+    }
+
+    // Second, the element type.
+    n = 0;
+    while (*p != _C_ARY_E) {
+	assert(n < (sizeof buf) - 1);
+	buf[n++] = *p;
+	p++;
+    }
+    assert(n > 0);
+    buf[n] = '\0';
+    if (elem_type_p != NULL) {
+	strlcpy(elem_type_p, buf, elem_type_len);
+    }
+}
+
 Value *
 RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 	Value *slot)
@@ -5504,6 +5542,40 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 		    return compile_get_opaque_data(val, bs_boxed, slot);
 		}
 		return compile_get_cptr(val, type, slot);
+	    }
+	    break;
+
+	case _C_ARY_B:
+	    {
+		const ArrayType *ary_type = cast<ArrayType>(convert_type(type));
+		const Type *elem_type = ary_type->getElementType();
+		const unsigned elem_count = ary_type->getNumElements();
+
+		char elem_c_type[100];
+		decompose_ary_type(type, NULL, elem_c_type,
+			sizeof elem_c_type);
+
+		Value *elem_count_val = ConstantInt::get(Int32Ty, elem_count);
+		Value *args[] = {
+		    val,
+		    elem_count_val	
+		};
+		val = CallInst::Create(checkArrayFunc, args, args + 2, "", bb); 	
+		Value *ary = new AllocaInst(elem_type, elem_count_val, "", bb);
+		for (unsigned i = 0; i < elem_count; i++) {
+		    Value *idx = ConstantInt::get(Int32Ty, i);
+		    Value *args[] = {
+			val,
+			idx	
+		    };
+		    Value *elem = CallInst::Create(entryArrayFunc,
+			    args, args + 2, "", bb);
+		    Value *slot = GetElementPtrInst::Create(ary, idx, "", bb);
+		    compile_conversion_to_c(elem_c_type, elem, slot);
+		}
+
+		return new BitCastInst(ary, PointerType::getUnqual(ary_type),
+			"", bb);
 	    }
 	    break;
     }
@@ -5745,7 +5817,35 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 
 		return compile_new_pointer(type + 1, val);
 	    }
-	    break; 
+	    break;
+
+	case _C_ARY_B:
+	    {
+		long elem_count = 0;
+		char elem_c_type[100];
+		decompose_ary_type(type, &elem_count, elem_c_type,
+			sizeof elem_c_type);
+		const Type *elem_type = convert_type(elem_c_type);
+
+		val = new BitCastInst(val, PointerType::getUnqual(elem_type),
+			"", bb);
+
+		Value *ary = CallInst::Create(newArrayFunc,
+			ConstantInt::get(Int32Ty, elem_count), "", bb);
+		for (long i = 0; i < elem_count; i++) {
+		    Value *idx = ConstantInt::get(Int32Ty, i);
+		    Value *slot = GetElementPtrInst::Create(val, idx, "", bb);
+		    Value *elem = new LoadInst(slot, "", bb);
+		    Value *args[] = {
+			ary,
+			idx,
+			compile_conversion_to_ruby(elem_c_type, elem_type, elem)
+		    };
+		    CallInst::Create(asetArrayFunc, args, args + 3, "", bb);
+		}
+		return ary;
+	    }
+	    break;
     }
 
     if (func == NULL) {
@@ -5819,29 +5919,9 @@ RoxorCompiler::convert_type(const char *type)
 
 	case _C_ARY_B:
 	    {
-		// Syntax is [8S] for `short foo[8]'.
-		// First, let's grab the size.
 		char buf[100];
-		unsigned int n = 0;
-		const char *p = type + 1;
-		while (isdigit(*p)) {
-		    assert(n < (sizeof buf) - 1);
-		    buf[n++] = *p;
-		    p++;
-		}
-		assert(n > 0);
-		buf[n] = '\0';
-		const long size = atol(buf);
-		assert(size > 0);
-		// Second, the element type.
-		n = 0;
-		while (*p != _C_ARY_E) {
-		    assert(n < (sizeof buf) - 1);
-		    buf[n++] = *p;
-		    p++;
-		}
-		assert(n > 0);
-		buf[n] = '\0';
+		long size = 0;
+		decompose_ary_type(type, &size, buf, sizeof buf);
 		const Type *type = convert_type(buf);
 		// Now, we can return the array type.
 		return ArrayType::get(type, size);
@@ -5968,6 +6048,10 @@ RoxorCompiler::compile_stub(const char *types, bool variadic, int min_argc,
 	    // ABI.
 	    f_type = PointerType::getUnqual(llvm_type);
 	    byval_args.push_back(f_types.size() + 1 /* retval */);
+	}
+	else if (ArrayType::classof(llvm_type)) {
+	    // Vectors are passed by reference.
+	    f_type = PointerType::getUnqual(llvm_type);
 	}
 
 	if (!stop_arg_type) {
@@ -6352,6 +6436,10 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
 	    // call to pass a pointer to the structure, to conform to the ABI.
 	    t = PointerType::getUnqual(t);
 	    byval_args.push_back(f_types.size() + 1 /* retval */);
+	}
+	else if (ArrayType::classof(t)) {
+	    // Vectors are passed by reference.
+	    t = PointerType::getUnqual(t);
 	}
 	f_types.push_back(t);
 	arg_types.push_back(buf);

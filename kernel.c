@@ -925,6 +925,26 @@ vm_ary_dup(VALUE ary)
 }
 
 PRIMITIVE VALUE
+vm_ary_check(VALUE obj, int size)
+{
+    VALUE ary = rb_check_convert_type(obj, T_ARRAY, "Array", "to_ary");
+    if (NIL_P(ary)) {
+	rb_raise(rb_eTypeError, "expected Array");
+    }
+    if (RARRAY_LEN(ary) != size) {
+	rb_raise(rb_eArgError, "expected Array of size %d, got %ld",
+		size, RARRAY_LEN(ary));
+    }
+    return ary;
+}
+
+PRIMITIVE VALUE
+vm_ary_entry(VALUE ary, int i)
+{
+    return rb_ary_entry(ary, i);
+}
+
+PRIMITIVE VALUE
 vm_rary_new(int len)
 {
     VALUE ary = rb_ary_new2(len);
