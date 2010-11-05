@@ -82,6 +82,8 @@ module IRB
     end
     
     def results
+      return if @source.strip.empty?
+
       source = @source
       filter = nil
       

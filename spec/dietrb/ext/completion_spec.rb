@@ -46,6 +46,26 @@ describe "IRB::Completion" do
   it "quacks like a Proc" do
     @completion.call('//.').should == imethods(Regexp, '//')
   end
+
+  it "completes reserved words as variables or constants" do
+    (IRB::Completion::RESERVED_DOWNCASE_WORDS +
+      IRB::Completion::RESERVED_UPCASE_WORDS).each do |word|
+      complete(word[0..-2]).should include(word)
+    end
+  end
+
+  it "completes file paths" do
+    complete("'/").should == Dir.glob('/*').sort.map { |f| "'#{f}" }
+    complete("'#{ROOT}/lib/../Ra").should == ["'#{File.join(ROOT, "Rakefile")}"]
+    complete("%{#{ROOT}/li").should == ['LICENSE', 'lib'].map { |f| "%{#{File.join(ROOT, f)}" }
+    complete("\"#{ROOT}/lib/").should == ['irb', 'irb.rb'].map { |f| "\"#{File.join(ROOT, 'lib', f)}" }
+  end
+
+  it "does not crash when trying to complete garbage" do
+    complete("").should == nil
+    complete("/").should == nil
+    complete("./Rake").should == nil
+  end
   
   describe "when doing a method call on an explicit receiver," do
     describe "and the source ends with a period," do
@@ -240,24 +260,5 @@ describe "IRB::Completion" do
     it "matches top level constants" do
       complete("::CompletionSt").should == %w{ ::CompletionStub }
     end
-  end
-  
-  it "completes reserved words as variables or constants" do
-    (IRB::Completion::RESERVED_DOWNCASE_WORDS +
-      IRB::Completion::RESERVED_UPCASE_WORDS).each do |word|
-      complete(word[0..-2]).should include(word)
-    end
-  end
-
-  it "completes file paths" do
-    complete("'/").should == Dir.glob('/*').sort.map { |f| "'#{f}" }
-    complete("'#{ROOT}/lib/../Ra").should == ["'#{File.join(ROOT, "Rakefile")}"]
-    complete("%{#{ROOT}/li").should == ['LICENSE', 'lib'].map { |f| "%{#{File.join(ROOT, f)}" }
-    complete("\"#{ROOT}/lib/").should == ['irb', 'irb.rb'].map { |f| "\"#{File.join(ROOT, 'lib', f)}" }
-  end
-
-  it "does not crash when trying to complete garbage" do
-    complete("/").should == nil
-    complete("./Rake").should == nil
   end
 end
