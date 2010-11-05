@@ -4038,6 +4038,9 @@ rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
 	    rb_ary_push(ary, rb_str_new((char *)&bytes[pos], s));
 	    pos += s; 
 	}
+	if (pos < length) {
+	    rb_ary_push(ary, rb_str_new((char *)&bytes[pos], length - pos));
+	}
     }
     else {
 	// TODO
