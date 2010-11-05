@@ -385,6 +385,29 @@
     return NSEqualRanges([o methodReturningNSRange], NSMakeRange(0, 42));
 }
 
+#if 0
+// Apparently the current objc compiler doesn't like methods returning arrays.
+- (int[10])methodReturningAry
+{
+    int i, buf[10];
+    for (i = 0; i < 10; i++) {
+	buf[i] = i + 100;
+    }
+    return buf;
+}
+
++ (BOOL)testMethodReturningAry:(TestMethod *)o
+{
+    int i, buf[10] = [o methodReturningAry];
+    for (i = 0; i < 10; o++) {
+	if (buf[i] != i + 100) {
+	    return NO;
+	}
+    }
+    return YES;
+}
+#endif
+
 - (BOOL)methodAcceptingSelf:(id)obj
 {
     return obj == self;
@@ -718,6 +741,26 @@
 - (BOOL)methodAcceptingNSRectPtr2:(NSRect *)ptr
 {
     return ptr == NULL;
+}
+
+- (BOOL)methodAcceptingAry:(int[10])ary
+{
+    int i;
+    for (i = 0; i < 10; i++) {
+	if (ary[i] != i + 100) {
+	    return NO;
+	}
+    }
+    return YES;
+}
+
++ (BOOL)testMethodAcceptingAry:(TestMethod *)o
+{
+    int i, ary[10];
+    for (i = 0; i < 10; i++) {
+	ary[i] = i + 100;
+    }    
+    return [o methodAcceptingAry:ary];
 }
 
 typedef struct {

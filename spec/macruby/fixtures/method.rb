@@ -59,6 +59,7 @@ class TestMethodOverride < TestMethod
   def methodAcceptingObjPtr2(a); super; end
   def methodAcceptingInt(a, float:a2, double:a3, short:a4, NSPoint:a5,
                          NSRect:a6, char:a7); super; end
+  def methodAcceptingAry(a); super; end
 end
 
 class TestInformalProtocolMethod

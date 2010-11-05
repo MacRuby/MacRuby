@@ -443,6 +443,30 @@ describe "A pure Objective-C method" do
     lambda { @o.methodAcceptingAnonymousStructure(NSRange.new(42, 4200)) }.should raise_error(TypeError)
   end
 
+  it "accepting C arrays should be given an Array" do
+    a = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    @o.methodAcceptingAry(a).should == 0
+    a.map! { |x| 100 + x }
+    @o.methodAcceptingAry(a).should == 1
+    a[0] = 42
+    @o.methodAcceptingAry(a).should == 0
+
+    a[0] = 'booh'
+    lambda { @o.methodAcceptingAry(a) }.should raise_error(ArgumentError)
+
+    lambda { @o.methodAcceptingAry([1, 2, 3]) }.should raise_error(ArgumentError)
+    lambda { @o.methodAcceptingAry([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]) }.should raise_error(ArgumentError)
+    lambda { @o.methodAcceptingAry(nil) }.should raise_error(TypeError)
+    lambda { @o.methodAcceptingAry(42) }.should raise_error(TypeError)
+    lambda { @o.methodAcceptingAry("foo") }.should raise_error(TypeError)
+
+    o = Object.new
+    def o.to_ary
+      [100, 101, 102, 103, 104, 105, 106, 107, 108, 109]
+    end
+    @o.methodAcceptingAry(o).should == 1
+  end
+
   it "can be retrieved as a Method object" do
     o = NSString.method(:hash)
     o.class.should == Method
@@ -686,6 +710,11 @@ describe "A pure MacRuby method" do
   it "can overwrite a complex Objective-C method" do
     @o.methodAcceptingInt(42, float:42, double:42, short:42, NSPoint:NSPoint.new(42, 42), NSRect:NSRect.new(NSPoint.new(42, 42), NSSize.new(42, 42)), char:42).should == 1
     TestMethodOverride.testMethodAcceptingComplexTypes(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method accepting a C array" do
+    @o.methodAcceptingAry([100, 101, 102, 103, 104, 105, 106, 107, 108, 109]).should == 1
+    TestMethodOverride.testMethodAcceptingAry(@o).should == 1
   end
 end
 
