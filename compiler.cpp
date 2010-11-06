@@ -5560,8 +5560,11 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 		    val,
 		    elem_count_val	
 		};
-		val = CallInst::Create(checkArrayFunc, args, args + 2, "", bb); 	
-		Value *ary = new AllocaInst(elem_type, elem_count_val, "", bb);
+		val = CallInst::Create(checkArrayFunc, args, args + 2, "", bb);
+
+		slot = new BitCastInst(slot, PointerType::getUnqual(elem_type),
+			"", bb);
+
 		for (unsigned i = 0; i < elem_count; i++) {
 		    Value *idx = ConstantInt::get(Int32Ty, i);
 		    Value *args[] = {
@@ -5570,11 +5573,12 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 		    };
 		    Value *elem = CallInst::Create(entryArrayFunc,
 			    args, args + 2, "", bb);
-		    Value *slot = GetElementPtrInst::Create(ary, idx, "", bb);
-		    compile_conversion_to_c(elem_c_type, elem, slot);
+		    Value *elem_slot = GetElementPtrInst::Create(slot, idx,
+			    "", bb);
+		    compile_conversion_to_c(elem_c_type, elem, elem_slot);
 		}
 
-		return new BitCastInst(ary, PointerType::getUnqual(ary_type),
+		return new BitCastInst(slot, PointerType::getUnqual(ary_type),
 			"", bb);
 	    }
 	    break;
@@ -5827,15 +5831,25 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 			sizeof elem_c_type);
 		const Type *elem_type = convert_type(elem_c_type);
 
-		val = new BitCastInst(val, PointerType::getUnqual(elem_type),
-			"", bb);
+		const bool is_ary = ArrayType::classof(val->getType());
+		if (!is_ary) {
+		    val = new BitCastInst(val,
+			    PointerType::getUnqual(elem_type), "", bb);
+		}
 
 		Value *ary = CallInst::Create(newArrayFunc,
 			ConstantInt::get(Int32Ty, elem_count), "", bb);
 		for (long i = 0; i < elem_count; i++) {
 		    Value *idx = ConstantInt::get(Int32Ty, i);
-		    Value *slot = GetElementPtrInst::Create(val, idx, "", bb);
-		    Value *elem = new LoadInst(slot, "", bb);
+		    Value *elem;
+		    if (is_ary) {
+			elem = ExtractValueInst::Create(val, i, "", bb);
+		    }
+		    else {
+			Value *slot = GetElementPtrInst::Create(val, idx, "",
+				bb);
+			elem = new LoadInst(slot, "", bb);
+		    }
 		    Value *args[] = {
 			ary,
 			idx,
