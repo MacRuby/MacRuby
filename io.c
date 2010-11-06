@@ -2140,6 +2140,8 @@ VALUE
 rb_io_binmode(VALUE io, SEL sel)
 {
     // binmode does nothing on Mac OS X
+    rb_io_t *io_struct = ExtractIOStruct(io);
+    rb_io_check_closed(io_struct);
     return io;
 }
 
@@ -2650,6 +2652,7 @@ rb_io_init_copy(VALUE dest, SEL sel, VALUE origin)
     rb_io_t *dest_io = ExtractIOStruct(dest);
     rb_io_t *origin_io = ExtractIOStruct(origin);
 
+    rb_io_check_closed(origin_io);
     if (dest_io == origin_io) {
 	return dest;
     }
