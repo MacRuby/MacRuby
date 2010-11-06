@@ -67,6 +67,12 @@ struct argf {
     rb_encoding *enc, *enc2;
 };
 
+struct foreach_arg {
+    int argc;
+    VALUE *argv;
+    VALUE io;
+};
+
 #define argf_of(obj) (*(struct argf *)DATA_PTR(obj))
 #define ARGF argf_of(argf)
 
@@ -3969,6 +3975,12 @@ rb_io_s_read(VALUE recv, SEL sel, int argc, VALUE *argv)
     return result;
 }
 
+static VALUE
+io_s_readlines(struct foreach_arg *arg)
+{
+    return rb_io_readlines(arg->io, 0, arg->argc, arg->argv);
+}
+
 /*
  *  call-seq:
  *     IO.readlines(name, sep=$/)     => array
@@ -3990,65 +4002,24 @@ rb_io_s_read(VALUE recv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-    VALUE fname, arg2, arg3, opt;
+    // TODO handle optional hash
+    /*VALUE opt =*/ pop_last_hash(&argc, argv);
 
-    rb_scan_args(argc, argv, "13", &fname, &arg2, &arg3, &opt);
+    VALUE fname;
+    rb_scan_args(argc, argv, "13", &fname, NULL, NULL, NULL);
 
-    // Read everything.
-    VALUE io_s_read_args[] = { fname, Qnil, Qnil, opt };
-    VALUE outbuf = rb_io_s_read(recv, 0, 4, io_s_read_args);
-
-    // Prepare arguments.
-    VALUE rs, limit;
-    if (argc == 1) {
-	rs = rb_rs;
-	limit = Qnil;
+    struct foreach_arg arg;
+    FilePathValue(fname);
+    VALUE cmd = check_pipe_command(fname);
+    if (cmd != Qnil) {
+	// TODO: pipe not support yet.
+	rb_notimplement();
     }
-    else {
-	if (!NIL_P(arg2) && NIL_P(arg3)) {
-	    if (TYPE(arg2) == T_STRING) {
-		rs = arg2;
-		limit = Qnil;
-	    }
-	    else {
-		limit = arg2;
-		rs = rb_rs;
-	    }
-	}
-	else {
-	    StringValue(arg2);
-	    rs = arg2;
-	    limit = arg3;
-	}
-    }
+    arg.io = rb_file_open(io_alloc(recv, 0), 1, &fname);
+    arg.argc = argc - 1;
+    arg.argv = argv + 1;
 
-    outbuf = rb_str_bstr(outbuf);
-    uint8_t *bytes = rb_bstr_bytes(outbuf);
-    const long length = rb_bstr_length(outbuf);
-
-    VALUE ary = rb_ary_new();
-
-    if (RSTRING_LEN(rs) == 1) {
-	UInt8 byte = RSTRING_PTR(rs)[0];
-
-	long pos = 0;
-	void *ptr;
-	while ((ptr = memchr(&bytes[pos], byte, length - pos)) != NULL) {
-	    const long s = (long)ptr - (long)&bytes[pos] + 1;
-	    rb_ary_push(ary, rb_str_new((char *)&bytes[pos], s));
-	    pos += s; 
-	}
-	if (pos < length) {
-	    rb_ary_push(ary, rb_str_new((char *)&bytes[pos], length - pos));
-	}
-    }
-    else {
-	// TODO
-	rb_raise(rb_eIOError,
-		"multi-character separators aren't supported yet.");
-    }	
-
-    return ary;
+    return rb_ensure(io_s_readlines, (VALUE)&arg, rb_io_close, arg.io);
 }
 
 /*
