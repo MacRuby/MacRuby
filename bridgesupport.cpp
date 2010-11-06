@@ -1524,6 +1524,31 @@ Init_FFI(void)
 #endif
 }
 
+// Comparing types by making sure '=' characters are ignored, since these
+// may be sometimes present, sometimes not present in signatures returned by
+// the runtime or BridgeSupport files.
+static bool
+compare_types(const char *t1, const char *t2)
+{
+    while (true) {
+	if (*t1 == '=') {
+	    t1++;
+	}
+	if (*t2 == '=') {
+	    t2++;
+	}
+	if (*t1 != *t2) {
+	    return false;
+	}
+	if (*t1 == '\0') {
+	    break;
+	}
+	t1++;
+	t2++;
+    }
+    return true;
+}
+
 // Called by the kernel:
 
 extern "C"
@@ -1546,7 +1571,7 @@ rb_pointer_get_data(VALUE rcv, const char *type)
     // is 'C' (which means converted from void*) or the target argument pointer
     // type is void*.
     if (type[1] != _C_VOID && ptr_type[0] != _C_UCHR
-	    && strcmp(ptr_type, &type[1]) != 0) {
+	    && !compare_types(ptr_type, &type[1])) {
 	rb_raise(rb_eTypeError,
 		"expected instance of Pointer of type `%s', got `%s'",
 		type + 1,
