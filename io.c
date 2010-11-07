@@ -737,10 +737,12 @@ rb_io_eof(VALUE io, SEL sel)
     }
 
     UInt8 c;
+    const off_t pos = lseek(io_struct->fd, 0, SEEK_CUR);
     if (rb_io_read_internal(io_struct, &c, 1) != 1) {
 	return Qtrue;
     }
 
+    lseek(io_struct->fd, pos, SEEK_SET);
     if (io_struct->buf != NULL) {
 	io_struct->buf_offset--;
     }
