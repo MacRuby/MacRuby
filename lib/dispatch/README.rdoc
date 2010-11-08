@@ -22,11 +22,10 @@ Dispatch::Source:: Monitors and coalesces low-level system events so that they c
 
 Dispatch::Semaphore:: Synchronizes threads via a combination of waiting and signalling.
 
-In addition, MacRuby 0.6 provides additional, higher-level abstractions and convenience APIs such as +Job+ and +Proxy+ via the "dispatch" library (i.e., +require 'dispatch'+). As the MacRuby 0.6 features help reduce the learning curve for GCD, we will assume those for the remainder of this article.
 
 === What You Need
 
-Note that MacRuby 0.6 is currently (as of March 2010) only available as source[http://www.macruby.org/source.html] or via the {nightly builds}[http://www.icoretech.org/2009/09/macruby-nightlies/]. The examples all assume you run the latest macirb and require the +dispatch+ library:
+The examples all assume you run the latest macirb and require the +dispatch+ library:
 
 	$ macirb
 	require 'dispatch'	
@@ -92,7 +91,7 @@ Note that unlike +value+ this will not by itself first +join+ the job, and thus 
 
 == Dispatch::Proxy: Protecting Shared Data
 
-Concurrency would be easy if everything was {embarrassingly parallel}[http://en.wikipedia.org/wiki/Embarrassingly_parallel], but it becomes tricky when we need to share data between threads. If two threads try to modify the same object at the same time, it could lead to inconsistent (read: _corrupt_) data.  There are well-known techniques for preventing this sort of data corruption (e.g. locks[http://en.wikipedia.org/wiki/Lock_(computer_science)] andmutexes[http://en.wikipedia.org/wiki/Mutual%20eclusion]), but these have their own well-known problems (e.g., deadlock[http://en.wikipedia.org/wiki/Deadlock], and {priority inversion}[http://en.wikipedia.org/wiki/Priority_inversion]).
+Concurrency would be easy if everything was {embarrassingly parallel}[http://en.wikipedia.org/wiki/Embarrassingly_parallel], but it becomes tricky when we need to share data between threads. If two threads try to modify the same object at the same time, it could lead to inconsistent (read: _corrupt_) data.  There are well-known techniques for preventing this sort of data corruption (e.g. locks[http://en.wikipedia.org/wiki/Lock_(computer_science)] and mutexes[http://en.wikipedia.org/wiki/Mutual%20eclusion]), but these have their own well-known problems (e.g., deadlock[http://en.wikipedia.org/wiki/Deadlock], and {priority inversion}[http://en.wikipedia.org/wiki/Priority_inversion]).
 
 Because Ruby traditionally had a global VM lock (or GIL[http://en.wikipedia.org/wiki/Global_Interpreter_Lock]), only one thread could modify data at a time, so developers never had to worry about these issues; then again, this also meant they didn't get much benefit from additional threads.
 
@@ -660,7 +659,8 @@ In this case we play it safe by only writing out a single character each time we
 
 = What's Next?
 
-This concludes our introduction to the high-level wrappers available as part of +require 'dispatch'+ in MacRuby 0.6.  These allow you to easily write concurrent, asynchronous code using simple Ruby idioms. For additional performance and fine-grained control, you may want to dive down into directly using Queues, Groups, and Semaphores. At the moment, this is best done by reading the {existing C documentation for GCD}[http://developer.apple.com/mac/articles/cocoa/introblocksgcd.html] and comparing to the relevant RubyDoc
+This concludes our introduction to the high-level wrappers available when using +require 'dispatch'+.  These allow you to easily write concurrent, asynchronous code using simple Ruby idioms. For additional performance and fine-grained control, you may want to dive down into directly using Queues, Groups, and Semaphores. 
+At the moment, this is best done by reading the {existing C documentation for GCD}[http://developer.apple.com/mac/articles/cocoa/introblocksgcd.html] and comparing to the relevant RubyDoc.
 
 	$ macri Dispatch
 	$ macri Dispatch::Queue
