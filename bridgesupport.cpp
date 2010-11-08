@@ -212,7 +212,7 @@ RoxorCore::find_bs_function(std::string &name)
 static rb_vm_bs_boxed_t *
 locate_bs_boxed(VALUE klass, const bool struct_only=false)
 {
-    VALUE type = rb_ivar_get(klass, boxed_ivar_type);
+    VALUE type = rb_attr_get(klass, boxed_ivar_type);
     assert(type != Qnil);
     rb_vm_bs_boxed_t *bs_boxed = GET_CORE()->find_bs_boxed(RSTRING_PTR(type));
     assert(bs_boxed != NULL);
@@ -1349,7 +1349,7 @@ convert_ffi_type(VALUE type, bool raise_exception_if_unknown)
 	ffi_type_shortcuts.find(SYM2ID(type));
 
     if (iter == ffi_type_shortcuts.end()) {
-	rb_raise(rb_eTypeError, "unrecognized string `%s' given as FFI type",
+	rb_raise(rb_eTypeError, "unrecognized symbol :%s given as FFI type",
 		rb_id2name(SYM2ID(type)));
     }
 
@@ -1463,7 +1463,7 @@ rb_ffi_attach_function(VALUE rcv, SEL sel, VALUE name, VALUE args, VALUE ret)
 static VALUE
 rb_boxed_objc_type(VALUE rcv, SEL sel)
 {
-    return rb_ivar_get(rcv, boxed_ivar_type);
+    return rb_attr_get(rcv, boxed_ivar_type);
 }
 
 static VALUE
