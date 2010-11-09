@@ -1334,31 +1334,11 @@ io_readpartial(VALUE io, SEL sel, int argc, VALUE *argv)
     return read_data;
 }
 
-/*
- *  call-seq:
- *     ios.gets(sep=$/)     => string or nil
- *     ios.gets(limit)      => string or nil
- *     ios.gets(sep, limit) => string or nil
- *
- *  Reads the next ``line'' from the I/O stream; lines are separated by
- *  <i>sep</i>. A separator of <code>nil</code> reads the entire
- *  contents, and a zero-length separator reads the input a paragraph at
- *  a time (two successive newlines in the input separate paragraphs).
- *  The stream must be opened for reading or an <code>IOError</code>
- *  will be raised. The line read in will be returned and also assigned
- *  to <code>$_</code>. Returns <code>nil</code> if called at end of
- *  file.  If the first argument is an integer, or optional second
- *  argument is given, the returning string would not be longer than the
- *  given value.
- *
- *     File.new("testfile").gets   #=> "This is line one\n"
- *     $_                          #=> "This is line one\n"
- */
-
-static VALUE
-rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
+static void
+prepare_getline_args(int argc, VALUE *argv, VALUE *rsp, long *lim, VALUE io)
 {
     VALUE sep, limit;
+
     sep = limit = Qnil;
     if (argc != 0) {
 	rb_scan_args(argc, argv, "02", &sep, &limit);
@@ -1378,20 +1358,28 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 	    sep = rb_rs;
 	    limit = Qnil;
 	}
-    } 
+    }
     else {
 	if (TYPE(sep) != T_STRING) {
 	    // sep wasn't given, limit was.
 	    limit = sep;
 	    sep = rb_rs;
-	} 
+	}
 	else if (RSTRING_LEN(sep) == 0) {
 	    sep = (VALUE)CFSTR("\n\n");
 	}
     }
-    const long line_limit = NIL_P(limit) ? -1 : FIX2LONG(limit);
 
+    *rsp = sep;
+    *lim = NIL_P(limit) ? -1 : FIX2LONG(limit);
+}
+
+static VALUE
+rb_io_getline_1(VALUE sep, long line_limit, VALUE io)
+{
+    rb_io_t *io_struct = ExtractIOStruct(io);
     VALUE bstr = rb_bstr_new();
+
     if (NIL_P(sep)) {
 	if (line_limit != -1) {
 	    rb_bstr_resize(bstr, line_limit);
@@ -1503,7 +1491,49 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
     io_struct->lineno += 1;
     ARGF.lineno = INT2FIX(io_struct->lineno);
     rb_str_force_encoding(bstr, rb_encodings[ENCODING_UTF8]);
-    return bstr; 
+    return bstr;
+}
+
+static VALUE
+rb_io_getline(int argc, VALUE *argv, VALUE io)
+{
+    VALUE rs;
+    long limit;
+
+    prepare_getline_args(argc, argv, &rs, &limit, io);
+    return rb_io_getline_1(rs, limit, io);
+}
+
+/*
+ *  call-seq:
+ *     ios.gets(sep=$/)     => string or nil
+ *     ios.gets(limit)      => string or nil
+ *     ios.gets(sep, limit) => string or nil
+ *
+ *  Reads the next ``line'' from the I/O stream; lines are separated by
+ *  <i>sep</i>. A separator of <code>nil</code> reads the entire
+ *  contents, and a zero-length separator reads the input a paragraph at
+ *  a time (two successive newlines in the input separate paragraphs).
+ *  The stream must be opened for reading or an <code>IOError</code>
+ *  will be raised. The line read in will be returned and also assigned
+ *  to <code>$_</code>. Returns <code>nil</code> if called at end of
+ *  file.  If the first argument is an integer, or optional second
+ *  argument is given, the returning string would not be longer than the
+ *  given value.
+ *
+ *     File.new("testfile").gets   #=> "This is line one\n"
+ *     $_                          #=> "This is line one\n"
+ */
+
+static VALUE
+rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
+{
+    VALUE str;
+
+    str = rb_io_getline(argc, argv, io);
+    rb_lastline_set(str);
+
+    return str;
 }
 
 /* 
@@ -1600,9 +1630,14 @@ rb_io_readline(VALUE io, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_readlines(VALUE io, SEL sel, int argc, VALUE *argv)
 {
+    VALUE rs;
+    long limit;
+
+    prepare_getline_args(argc, argv, &rs, &limit, io);
+
     VALUE lines = rb_ary_new();
     while (true) {
-	VALUE line = rb_io_gets_m(io, 0, argc, argv);
+	VALUE line = rb_io_getline_1(rs, limit, io);
 	if (NIL_P(line)) {
 	    break;
 	}
@@ -1642,10 +1677,14 @@ static SEL sel_each_char = 0;
 static VALUE
 rb_io_each_line(VALUE io, SEL sel, int argc, VALUE *argv)
 {
+    VALUE rs;
+    long limit;
+
     RETURN_ENUMERATOR(io, argc, argv);
+    prepare_getline_args(argc, argv, &rs, &limit, io);
 
     while (true) {
-	VALUE line = rb_io_gets_m(io, sel, argc, argv);
+	VALUE line = rb_io_getline_1(rs, limit, io);
 	if (NIL_P(line)) {
 	    break;
 	}
@@ -2119,23 +2158,10 @@ rb_io_fdopen(int fd, int mode, const char *path)
     return prep_io(fd, convert_oflags_to_fmode(mode), klass);
 }
 
-static VALUE
-rb_io_getline(int argc, VALUE *argv, VALUE io)
-{
-#if 0 // TODO
-    VALUE rs;
-    long limit;
-
-    prepare_getline_args(argc, argv, &rs, &limit, io);
-    return rb_io_getline_1(rs, limit, io);
-#endif
-    rb_notimplement();
-}
-
 VALUE
 rb_io_gets(VALUE io, SEL sel)
 {
-    return rb_io_gets_m(io, 0, 0, NULL);
+    return rb_io_getline_1(rb_default_rs, -1, io);
 }
 
 VALUE
