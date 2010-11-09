@@ -1634,6 +1634,9 @@ rb_io_readlines(VALUE io, SEL sel, int argc, VALUE *argv)
     long limit;
 
     prepare_getline_args(argc, argv, &rs, &limit, io);
+    if (limit == 0) {
+	rb_raise(rb_eArgError, "invalid limit: 0 for readlines");
+    }
 
     VALUE lines = rb_ary_new();
     while (true) {
@@ -1682,6 +1685,9 @@ rb_io_each_line(VALUE io, SEL sel, int argc, VALUE *argv)
 
     RETURN_ENUMERATOR(io, argc, argv);
     prepare_getline_args(argc, argv, &rs, &limit, io);
+    if (limit == 0) {
+	rb_raise(rb_eArgError, "invalid limit: 0 for each_line");
+    }
 
     while (true) {
 	VALUE line = rb_io_getline_1(rs, limit, io);
