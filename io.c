@@ -1343,8 +1343,6 @@ prepare_getline_args(int argc, VALUE *argv, VALUE *rsp, long *lim, VALUE io)
     if (argc != 0) {
 	rb_scan_args(argc, argv, "02", &sep, &limit);
     }
-    rb_io_t *io_struct = ExtractIOStruct(io);
-    rb_io_assert_readable(io_struct);
 
     if (NIL_P(rb_rs)) {
 	// TODO: Get rid of this when the fix comes in for the $\ variable.
@@ -1380,6 +1378,7 @@ rb_io_getline_1(VALUE sep, long line_limit, VALUE io)
     rb_io_t *io_struct = ExtractIOStruct(io);
     VALUE bstr = rb_bstr_new();
 
+    rb_io_assert_readable(io_struct);
     if (NIL_P(sep)) {
 	if (line_limit != -1) {
 	    rb_bstr_resize(bstr, line_limit);
