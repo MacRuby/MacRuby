@@ -360,9 +360,11 @@ io_close(rb_io_t *io_struct, bool close_read, bool close_write)
 	io_struct->write_fd = -1;
     }
     if (io_struct->pid != -1) {
-	rb_last_status_set(0, io_struct->pid);
-	rb_syswait(io_struct->pid);
-	io_struct->pid = -1;
+	if (close_read && close_write) {
+	    rb_last_status_set(0, io_struct->pid);
+	    rb_syswait(io_struct->pid);
+	    io_struct->pid = -1;
+	}
     }
     if (io_struct->fd != -1 && io_struct->read_fd == -1
 	    && io_struct->write_fd == -1) {
