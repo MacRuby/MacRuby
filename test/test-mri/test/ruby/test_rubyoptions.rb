@@ -327,8 +327,6 @@ class TestRubyOptions < Test::Unit::TestCase
   end
 
   def test_program_name
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     ruby = EnvUtil.rubybin
     IO.popen([ruby, '-e', 'print $0']) {|f|
       assert_equal('-e', f.read)

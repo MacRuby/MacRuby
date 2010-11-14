@@ -43,8 +43,6 @@ class TestArgf < Test::Unit::TestCase
   end
 
   def ruby(*args)
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     args = ['-e', '$>.write($<.read)'] if args.empty?
     ruby = EnvUtil.rubybin
     f = IO.popen([ruby] + args, 'r+')

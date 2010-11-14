@@ -753,6 +753,7 @@ class TestIO < Test::Unit::TestCase
   def pipe(wp, rp)
     r, w = IO.pipe
     rt = Thread.new { rp.call(r) }
+    sleep 0.2
     wt = Thread.new { wp.call(w) }
     flunk("timeout") unless rt.join(10) && wt.join(10)
   ensure
@@ -798,8 +799,6 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_dup
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     ruby do |f|
       f2 = f.dup
       f.puts "foo"
@@ -812,8 +811,6 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_dup_many
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     ruby('-e', <<-'End') {|f|
       ok = 0
       a = []
@@ -956,8 +953,6 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_close_read
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     ruby do |f|
       f.close_read
       f.write "foobarbaz"
@@ -989,8 +984,6 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_close_write
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     ruby do |f|
       f.write "foobarbaz"
       f.close_write
@@ -1015,8 +1008,6 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_pid
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     r, w = IO.pipe
     assert_equal(nil, r.pid)
     assert_equal(nil, w.pid)
@@ -1043,8 +1034,6 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_set_lineno
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     t = make_tempfile
 
     ruby("-e", <<-SRC, t.path) do |f|
@@ -1190,8 +1179,6 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_close_on_exec
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     skip "IO\#close_on_exec is not implemented." unless have_close_on_exec?
     ruby do |f|
       assert_equal(false, f.close_on_exec?)
@@ -1531,7 +1518,7 @@ End
   end
 
   def test_display
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
+    skip("[BUG : #???] Assertion")
 
     pipe(proc do |w|
       "foo".display(w)
@@ -1575,8 +1562,6 @@ End
   end
 
   def test_new_with_block
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     assert_in_out_err([], "r, w = IO.pipe; IO.new(r) {}", [], /^.+$/)
   end
 
