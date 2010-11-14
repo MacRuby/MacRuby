@@ -2265,19 +2265,33 @@ io_from_spawning_new_process(VALUE prog, VALUE mode)
     rb_io_t *io_struct = ExtractIOStruct(io);
     posix_spawn_file_actions_t actions;
 
-    int fd[2];
-    if (pipe(fd) < 0) {
-	posix_spawn_file_actions_destroy(&actions);
+    int fd_r[2], fd_w[2];
+    if (pipe(fd_r) < 0) {
+	rb_sys_fail("pipe() failed");
+    }
+    if (pipe(fd_w) < 0) {
+	close(fd_r[0]);
+	close(fd_r[1]);
 	rb_sys_fail("pipe() failed");
     }
 
+    // MacRuby               child process
+    //  in  : fd_r[0]  -----  fd_r[1] : stdout
+    //  out : fd_w[1]  -----  fd_w[0] : stdin
     rb_sys_fail_unless(posix_spawn_file_actions_init(&actions),
 	    "could not init file actions");
-    rb_sys_fail_unless(posix_spawn_file_actions_adddup2(&actions, fd[1],
+    rb_sys_fail_unless(posix_spawn_file_actions_adddup2(&actions, fd_w[0],
+		STDIN_FILENO), "could not add dup2() to stdin");
+    rb_sys_fail_unless(posix_spawn_file_actions_addclose(&actions, fd_w[0]),
+	    "could not add a close() to stdin");
+    rb_sys_fail_unless(posix_spawn_file_actions_addclose(&actions, fd_w[1]),
+	    "could not add a close() to stdin");
+    rb_sys_fail_unless(posix_spawn_file_actions_adddup2(&actions, fd_r[1],
 		STDOUT_FILENO), "could not add dup2() to stdout");
-    rb_sys_fail_unless(posix_spawn_file_actions_addclose(&actions, fd[1]),
+    rb_sys_fail_unless(posix_spawn_file_actions_addclose(&actions, fd_r[0]),
 	    "could not add a close() to stdout");
-
+    rb_sys_fail_unless(posix_spawn_file_actions_addclose(&actions, fd_r[1]),
+	    "could not add a close() to stdout");
     pid_t pid;
 
     VALUE argArray = rb_check_array_type(prog);
@@ -2304,32 +2318,38 @@ io_from_spawning_new_process(VALUE prog, VALUE mode)
 	errno = posix_spawn(&pid, spawnedArgs[0], &actions, NULL, spawnedArgs,
 		*(_NSGetEnviron()));
     }
+
+    posix_spawn_file_actions_destroy(&actions);
     if (errno != 0) {
 	const int err = errno;
-	close(fd[0]);
-	close(fd[1]);
+	close(fd_r[0]);
+	close(fd_r[1]);
+	close(fd_w[0]);
+	close(fd_w[1]);
 	errno = err;
 	rb_sys_fail("posix_spawn() failed");
     }
-    posix_spawn_file_actions_destroy(&actions);
 
-    io_struct->fd = fd[0];
+    io_struct->fd = fd_r[0];
     io_struct->pid = pid;
     io_struct->mode = mode;
 
     const int fmode = convert_mode_string_to_fmode(mode);
     if (fmode & FMODE_READABLE) {
-	io_struct->read_fd = fd[0];
+	io_struct->read_fd = fd_r[0];
     }
     else {
-	close(fd[0]);
+	close(fd_r[0]);
     }
     if (fmode & FMODE_WRITABLE) {
-	io_struct->write_fd = fd[1];
+	io_struct->write_fd = fd_w[1];
     }
     else {
-	close(fd[1]);
+	close(fd_w[1]);
     }
+    close(fd_r[1]);
+    close(fd_w[0]);
+
     return io;
 }
 
