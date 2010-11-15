@@ -2354,14 +2354,21 @@ io_from_spawning_new_process(VALUE prog, VALUE mode)
 }
 
 static VALUE
+io_pipe_open(VALUE prog, VALUE mode)
+{
+    if (NIL_P(mode)) {
+	mode = (VALUE)CFSTR("r");
+    }
+    return io_from_spawning_new_process(prog, mode);
+}
+
+static VALUE
 rb_io_s_popen(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     VALUE process_name, mode;
     rb_scan_args(argc, argv, "11", &process_name, &mode);
-    if (NIL_P(mode)) {
-	mode = (VALUE)CFSTR("r");
-    }
-    VALUE io = io_from_spawning_new_process(process_name, mode);
+
+    VALUE io = io_pipe_open(process_name, mode);
     if (rb_block_given_p()) {
 	VALUE ret = rb_vm_yield(1, &io);
 	rb_io_close(io);
@@ -2529,7 +2536,8 @@ rb_file_open(VALUE io, int argc, VALUE *argv)
     if (argc >= 1) {
 	VALUE cmd = check_pipe_command(argv[0]);
 	if (cmd != Qnil) {
-	    return rb_io_s_popen(rb_cIO, 0, 1, &cmd);
+	    VALUE modes = (argc >= 2) ? argv[1] : Qnil;
+	    return io_pipe_open(cmd, modes);
 	}
     }
     VALUE path, modes, permissions;
@@ -4067,12 +4075,6 @@ rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "13", &fname, NULL, NULL, NULL);
 
     struct foreach_arg arg;
-    FilePathValue(fname);
-    VALUE cmd = check_pipe_command(fname);
-    if (cmd != Qnil) {
-	// TODO: pipe not support yet.
-	rb_notimplement();
-    }
     arg.io = rb_file_open(io_alloc(recv, 0), 1, &fname);
     arg.argc = argc - 1;
     arg.argv = argv + 1;
