@@ -3989,6 +3989,12 @@ rb_io_s_foreach(VALUE recv, SEL sel, int argc, VALUE *argv)
     return Qnil;
 }
 
+static VALUE
+io_s_read(struct foreach_arg *arg)
+{
+    return io_read(arg->io, 0, arg->argc, arg->argv);
+}
+
 /*
  *  call-seq:
  *     IO.read(name, [length [, offset]] )   => string
@@ -4031,14 +4037,15 @@ rb_io_s_read(VALUE recv, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "13", &fname, &length, &offset, NULL);
 
     SafeStringValue(fname);
-    VALUE io = rb_file_open(io_alloc(recv, 0), 1, &fname);
+    struct foreach_arg arg;
+    arg.io = rb_file_open(io_alloc(recv, 0), 1, &fname);
+    arg.argc = 1;
+    arg.argv = &length;
 
     if (!NIL_P(offset)) {
-	rb_io_seek(io, offset, 0);
+	rb_io_seek(arg.io, offset, 0);
     }
-    VALUE result = io_read(io, 0, 1, &length);
-    rb_io_close(io);
-    return result;
+    return rb_ensure(io_s_read, (VALUE)&arg, rb_io_close, arg.io);
 }
 
 static VALUE
