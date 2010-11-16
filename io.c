@@ -4463,11 +4463,16 @@ argf_readchar(VALUE argf, SEL sel)
 }
 
 static VALUE
-argf_readbyte(VALUE argf)
+argf_readbyte(VALUE argf, SEL sel)
 {
-    next_argv();
-    ARGF_FORWARD(0, 0);
-    return rb_io_readbyte(ARGF.current_file, 0);
+    VALUE c;
+
+    NEXT_ARGF_FORWARD(0, 0);
+    c = argf_getbyte(argf, sel);
+    if (NIL_P(c)) {
+	rb_eof_error();
+    }
+    return c;
 }
 
 static VALUE
