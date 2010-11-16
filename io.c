@@ -4318,9 +4318,51 @@ argf_eof(VALUE argf, SEL sel)
 static VALUE
 argf_read(VALUE argf, SEL sel, int argc, VALUE *argv)
 {
-    next_argv();
-    ARGF_FORWARD(0, 0);
-    return io_read(ARGF.current_file, sel, argc, argv);
+    VALUE tmp, str, length;
+    long len = 0;
+
+    rb_scan_args(argc, argv, "02", &length, &str);
+    if (!NIL_P(length)) {
+	len = NUM2LONG(argv[0]);
+    }
+    if (!NIL_P(str)) {
+	StringValue(str);
+	rb_str_resize(str,0);
+	argv[1] = Qnil;
+    }
+
+  retry:
+    if (!next_argv()) {
+	return str;
+    }
+    if (ARGF_GENERIC_INPUT_P()) {
+	tmp = argf_forward(argf, sel, argc, argv);
+    }
+    else {
+	tmp = io_read(ARGF.current_file, sel, argc, argv);
+    }
+    if (NIL_P(str)) {
+	str = tmp;
+    }
+    else if (!NIL_P(tmp)) {
+	rb_str_append(str, tmp);
+    }
+
+    if (NIL_P(tmp) || NIL_P(length)) {
+	if (ARGF.next_p != -1) {
+	    argf_close(ARGF.current_file, sel);
+	    ARGF.next_p = 1;
+	    goto retry;
+	}
+    }
+    else if (argc >= 1) {
+	if (RSTRING_LEN(str) < len) {
+	    len -= RSTRING_LEN(str);
+	    argv[0] = INT2NUM(len);
+	    goto retry;
+	}
+    }
+    return str;
 }
 
 struct argf_call_arg {
