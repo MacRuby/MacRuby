@@ -3513,9 +3513,18 @@ argf_gets(VALUE recv, SEL sel, int argc, VALUE *argv)
 static VALUE
 argf_readline(VALUE argf, SEL sel, int argc, VALUE *argv)
 {
-    next_argv();
-    ARGF_FORWARD(0, 0);
-    return rb_io_readline(ARGF.current_file, sel, argc, argv);
+    VALUE line;
+
+    if (!next_argv()) {
+	rb_eof_error();
+    }
+    ARGF_FORWARD(argc, argv);
+    line = argf_gets(argf, sel, argc, argv);
+    if (NIL_P(line)) {
+	rb_eof_error();
+    }
+
+    return line;
 }
 
 static VALUE
