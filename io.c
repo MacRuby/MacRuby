@@ -3539,9 +3539,16 @@ static VALUE rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv);
 static VALUE
 argf_readlines(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
-    next_argv();
-    ARGF_FORWARD(0, 0);
-    return rb_io_readlines(ARGF.current_file, sel, argc, argv);
+    VALUE lines = rb_ary_new();
+    while (true) {
+	VALUE line = argf_getline(argf, sel, argc, argv);
+	if (NIL_P(line)) {
+	    break;
+	}
+	rb_ary_push(lines, line);
+    }
+
+    return lines;
 }
 
 static VALUE
