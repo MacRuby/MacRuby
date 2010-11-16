@@ -4524,31 +4524,6 @@ argf_each_char(VALUE argf, SEL sel)
 }
 
 static VALUE
-argf_lines(VALUE argf, SEL sel, int argc, VALUE *argv)
-{
-    next_argv();
-    ARGF_FORWARD(0, 0);
-    return rb_io_lines(ARGF.current_file, sel, argc, argv);
-}
-
-static VALUE
-argf_chars(VALUE argf, SEL sel)
-{
-    next_argv();
-    ARGF_FORWARD(0, 0);
-    return rb_io_chars(ARGF.current_file, sel);
-}
-
-static VALUE
-argf_bytes(VALUE argf, SEL sel)
-{
-    next_argv();
-    ARGF_FORWARD(0, 0);
-    return rb_io_bytes(ARGF.current_file, sel);
-}
-
-
-static VALUE
 argf_filename(VALUE argf, SEL sel)
 {
     next_argv();
@@ -4994,9 +4969,9 @@ Init_IO(void)
     rb_objc_define_method(rb_cARGF, "each_line",  argf_each_line, -1);
     rb_objc_define_method(rb_cARGF, "each_byte",  argf_each_byte, 0);
     rb_objc_define_method(rb_cARGF, "each_char",  argf_each_char, 0);
-    rb_objc_define_method(rb_cARGF, "lines", argf_lines, -1);
-    rb_objc_define_method(rb_cARGF, "bytes", argf_bytes, 0);
-    rb_objc_define_method(rb_cARGF, "chars", argf_chars, 0);
+    rb_objc_define_method(rb_cARGF, "lines", argf_each_line, -1);
+    rb_objc_define_method(rb_cARGF, "bytes", argf_each_byte, 0);
+    rb_objc_define_method(rb_cARGF, "chars", argf_each_char, 0);
 
     rb_objc_define_method(rb_cARGF, "read",  argf_read, -1);
     rb_objc_define_method(rb_cARGF, "readpartial",  argf_readpartial, -1);
