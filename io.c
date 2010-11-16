@@ -4417,9 +4417,25 @@ argf_getc(VALUE argf, SEL sel)
 static VALUE
 argf_getbyte(VALUE argf, SEL sel)
 {
-    next_argv();
-    ARGF_FORWARD(0, 0);
-    return rb_io_getbyte(ARGF.current_file, 0);
+    VALUE ch;
+
+  retry:
+    if (!next_argv()) {
+	return Qnil;
+    }
+    if (TYPE(ARGF.current_file) != T_FILE) {
+	ch = rb_funcall3(ARGF.current_file, rb_intern("getbyte"), 0, 0);
+    }
+    else {
+	ch = rb_io_getbyte(ARGF.current_file, sel);
+    }
+    if (NIL_P(ch) && ARGF.next_p != -1) {
+	argf_close(ARGF.current_file, sel);
+	ARGF.next_p = 1;
+	goto retry;
+    }
+
+    return ch;
 }
 
 static VALUE
