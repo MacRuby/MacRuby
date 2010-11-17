@@ -502,7 +502,7 @@ io_write(VALUE io, SEL sel, VALUE data)
 VALUE
 rb_io_addstr(VALUE io, SEL sel, VALUE str)
 {
-    io_write(io, 0, str);
+    rb_io_write(io, str);
     return io;
 }
 
@@ -2803,7 +2803,6 @@ rb_f_printf(VALUE klass, SEL sel, int argc, VALUE *argv)
 VALUE
 rb_io_print(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-    rb_io_assert_writable(ExtractIOStruct(io));
     VALUE line;
     if (argc == 0) {
         argc = 1;
@@ -2983,8 +2982,7 @@ rb_p(VALUE obj) /* for debug print within C code */
 VALUE
 rb_io_write(VALUE v, VALUE i)
 {
-    io_write(v, 0, i);
-    return Qnil;
+    return rb_funcall(v, id_write, 1, i);
 }
 
 /*
