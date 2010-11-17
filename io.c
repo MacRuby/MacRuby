@@ -4270,7 +4270,9 @@ argf_internal_encoding(VALUE argf, SEL sel)
 static VALUE
 argf_set_encoding(VALUE id, SEL sel, int argc, VALUE *argv)
 {
-    next_argv();
+    if (!next_argv()) {
+	rb_raise(rb_eArgError, "no stream to set encoding");
+    }
     ARGF_FORWARD(0, 0);
     return rb_io_set_encoding(ARGF.current_file, sel, argc, argv);
 }
@@ -4278,7 +4280,9 @@ argf_set_encoding(VALUE id, SEL sel, int argc, VALUE *argv)
 static VALUE
 argf_tell(VALUE argf, SEL sel)
 {
-    next_argv();
+    if (!next_argv()) {
+	rb_raise(rb_eArgError, "no stream to tell");
+    }
     ARGF_FORWARD(0, 0);
     return rb_io_tell(ARGF.current_file, 0);
 }
@@ -4286,7 +4290,9 @@ argf_tell(VALUE argf, SEL sel)
 static VALUE
 argf_seek_m(VALUE argf, SEL sel, int argc, VALUE *argv)
 {
-    next_argv();
+    if (!next_argv()) {
+	rb_raise(rb_eArgError, "no stream to seek");
+    }
     ARGF_FORWARD(0, 0);
     return rb_io_seek_m(ARGF.current_file, sel, argc, argv);
 }
@@ -4294,7 +4300,9 @@ argf_seek_m(VALUE argf, SEL sel, int argc, VALUE *argv)
 static VALUE
 argf_set_pos(VALUE argf, SEL sel, VALUE offset)
 {
-    next_argv();
+    if (!next_argv()) {
+	rb_raise(rb_eArgError, "no stream to set position");
+    }
     ARGF_FORWARD(0, 0);
     return rb_io_set_pos(ARGF.current_file, sel, offset);
 }
@@ -4302,7 +4310,9 @@ argf_set_pos(VALUE argf, SEL sel, VALUE offset)
 static VALUE
 argf_rewind(VALUE argf, SEL sel)
 {
-    next_argv();
+    if (!next_argv()) {
+	rb_raise(rb_eArgError, "no stream to rewind");
+    }
     ARGF_FORWARD(0, 0);
     return rb_io_rewind(ARGF.current_file, 0);
 }
@@ -4310,7 +4320,9 @@ argf_rewind(VALUE argf, SEL sel)
 static VALUE
 argf_fileno(VALUE argf, SEL sel)
 {
-    next_argv();
+    if (!next_argv()) {
+	rb_raise(rb_eArgError, "no stream");
+    }
     ARGF_FORWARD(0, 0);
     return rb_io_fileno(ARGF.current_file, 0);
 }
