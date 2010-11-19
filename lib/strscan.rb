@@ -340,7 +340,7 @@ class StringScanner
   # If there is no more data (eos? = true), it returns <tt>""</tt>.
   #
   def rest
-    string[pos..-1]
+    string[pos..-1] || ""
   end
   
   # <tt>s.rest_size</tt> is equivalent to <tt>s.rest.size</tt>.
