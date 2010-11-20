@@ -3731,6 +3731,7 @@ rstr_sub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
     VALUE repl, hash = Qnil;
     bool block_given = false;
     bool tainted = false;
+    bool untrusted = false;
 
     if (argc == 1 && rb_block_given_p()) {
 	block_given = true;
@@ -3743,6 +3744,9 @@ rstr_sub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 	}
 	if (OBJ_TAINTED(repl)) {
 	    tainted = true;
+	}
+	if (OBJ_UNTRUSTED(repl)) {
+	    untrusted = true;
 	}
     }
     else {
@@ -3791,9 +3795,15 @@ rstr_sub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 	if (OBJ_TAINTED(repl)) {
 	    tainted = true;
 	}
+	if (OBJ_UNTRUSTED(repl)) {
+	    untrusted = true;
+	}
 
 	if (tainted) {
 	    OBJ_TAINT(str);
+	}
+	if (untrusted) {
+	    OBJ_UNTRUST(str);
 	}
 	return str;
     }
@@ -6144,6 +6154,9 @@ rb_str_new3(VALUE source)
     str_replace(str, source);
     if (OBJ_TAINTED(source)) {
 	OBJ_TAINT(str);
+    }
+    if (OBJ_UNTRUSTED(source)) {
+	OBJ_UNTRUST(str);
     }
     return (VALUE)str;
 }
