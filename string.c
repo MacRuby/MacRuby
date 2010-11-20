@@ -196,6 +196,17 @@ str_must_have_compatible_encoding(rb_str_t *str1, rb_str_t *str2)
     return new_encoding;
 }
 
+static void
+str_modifiable(VALUE str)
+{
+    if (OBJ_FROZEN(str)) {
+	rb_error_frozen("string");
+    }
+    if (!OBJ_UNTRUSTED(str) && rb_safe_level() >= 4) {
+	rb_raise(rb_eSecurityError, "Insecure: can't modify string");
+    }
+}
+
 static rb_str_t *
 str_alloc(VALUE klass)
 {
@@ -3759,6 +3770,7 @@ rstr_sub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
     }
 
     VALUE pat = get_pat(argv[0], true);
+    str_modifiable(str);
     if (rb_reg_search(pat, str, 0, false) >= 0) {
 	VALUE match = rb_backref_get();
 	int count = 0;
