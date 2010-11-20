@@ -1215,6 +1215,13 @@ rstr_substr(VALUE str, long beg, long len)
     }
 
     rb_str_t *substr = str_get_characters(RSTR(str), beg, beg + len - 1, true);
+    if (OBJ_TAINTED(str)) {
+	OBJ_TAINT((VALUE)substr);
+    }
+    if (OBJ_UNTRUSTED(str)) {
+	OBJ_UNTRUST((VALUE)substr);
+    }
+
     return substr == NULL ? Qnil : (VALUE)substr;
 }
 
