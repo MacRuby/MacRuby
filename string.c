@@ -2430,6 +2430,9 @@ rstr_times(VALUE self, SEL sel, VALUE times)
     if (OBJ_TAINTED(self)) {
 	OBJ_TAINT(new);
     }
+    if (OBJ_UNTRUSTED(self)) {
+	OBJ_UNTRUST(new);
+    }
     return new;
 }
 
