@@ -4864,6 +4864,14 @@ rstr_succ(VALUE str, SEL sel)
 
     VALUE newstr = rb_unicode_str_new(chars_ptr, len);
     free(chars_buf);
+
+    if (OBJ_TAINTED(str)) {
+	OBJ_TAINT(newstr);
+    }
+    if (OBJ_UNTRUSTED(str)) {
+	OBJ_UNTRUST(newstr);
+    }
+
     return newstr;
 }
 
