@@ -3875,6 +3875,7 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 {
     bool block_given = false;
     bool tainted = false;
+    bool untrusted = false;
     VALUE hash = Qnil, repl = Qnil;
  
     switch (argc) {
@@ -3891,6 +3892,9 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 	    }
 	    if (OBJ_TAINTED(repl)) {
 		tainted = true;
+	    }
+	    if (OBJ_UNTRUSTED(repl)) {
+		untrusted = true;
 	    }
 	    break;
 
@@ -3964,6 +3968,9 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 	if (OBJ_TAINTED(val)) {
 	    tainted = true;
 	}
+	if (OBJ_UNTRUSTED(val)) {
+	    untrusted = true;
+	}
 	changed = true;
 
 	offset = last = results[0].end;
@@ -3983,11 +3990,17 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
     	if (!tainted && OBJ_TAINTED(str)) {
 	    tainted = true;
 	}
+	if (!untrusted && OBJ_UNTRUSTED(str)) {
+	    untrusted = true;
+	}
 	str = dest;
     }
 
     if (tainted) {
 	OBJ_TAINT(str);
+    }
+    if (untrusted) {
+	OBJ_UNTRUST(str);
     }
     return str;
 }
