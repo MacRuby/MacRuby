@@ -5756,6 +5756,9 @@ rstr_crypt(VALUE str, SEL sel, VALUE salt)
     if (OBJ_TAINTED(str) || OBJ_TAINTED(salt)) {
 	OBJ_TAINT(crypted);
     }
+    if (OBJ_UNTRUSTED(str) || OBJ_UNTRUSTED(salt)) {
+	OBJ_UNTRUST(crypted);
+    }
     return crypted;
 }
 
