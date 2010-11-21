@@ -2879,6 +2879,9 @@ bail:
     if (OBJ_TAINTED(str)) {
 	OBJ_TAINT(result);
     }
+    if (OBJ_UNTRUSTED(str)) {
+	OBJ_UNTRUST(result);
+    }
     return result; 
 }
 
