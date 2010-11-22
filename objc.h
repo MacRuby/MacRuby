@@ -254,6 +254,7 @@ bool rb_objc_ignored_sel(SEL sel);
 bool rb_objc_isEqual(VALUE x, VALUE y); 
 void rb_objc_force_class_initialize(Class klass);
 void rb_objc_fix_relocatable_load_path(void);
+void rb_objc_load_loaded_frameworks_bridgesupport(void);
 
 extern bool rb_objc_enable_ivar_set_kvo_notifications;
 

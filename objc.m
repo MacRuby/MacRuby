@@ -687,6 +687,19 @@ rb_objc_fix_relocatable_load_path(void)
 }
 
 void
+rb_objc_load_loaded_frameworks_bridgesupport(void)
+{
+#if !defined(MACRUBY_STATIC)
+    for (NSBundle *b in [NSBundle allFrameworks]) {
+	if ([b isLoaded]) {
+	    NSString *path = [b bundlePath];
+	    rb_objc_search_and_load_bridge_support([path fileSystemRepresentation]);	
+	}
+    }
+#endif
+}
+
+void
 rb_objc_willChangeValueForKey(id obj, NSString *key)
 {
     [obj willChangeValueForKey:key];

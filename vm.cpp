@@ -4996,6 +4996,7 @@ macruby_main(const char *path, int argc, char **argv)
 	free(p1);
 	free(p2);
 	rb_objc_fix_relocatable_load_path();
+	rb_objc_load_loaded_frameworks_bridgesupport();
 	return ruby_run_node(tree);
     }
     catch (...) {
