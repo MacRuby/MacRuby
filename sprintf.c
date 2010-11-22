@@ -716,8 +716,23 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		    break;
 
 		default:
-		    rb_raise(rb_eArgError, "malformed format string - %%%c",
-			    format_str[i]);
+		    if (format_str[i - 1] == '%' &&
+			(format_str[i] == '\0' || format_str[i] == '\n')) {
+			if (format_str[i] == '\n') {
+			    arg = rb_str_new("%\n", 2);
+			}
+			else if (format_len > i) {
+			    arg = rb_str_new("%\0", 2);
+			}
+			else {
+			    arg = rb_str_new("%", 1);
+			}
+			complete = true;
+		    }
+		    else {
+			rb_raise(rb_eArgError, "malformed format string - %%%c",
+				 format_str[i]);
+		    }
 	    }
 	    if (!complete) {
 		continue;
