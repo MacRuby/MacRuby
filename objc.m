@@ -810,10 +810,10 @@ Init_ObjC(void)
 @end
 
 @implementation Protocol (MRFindProtocol)
-+(id)protocolWithName:(NSString *)name
++ (Protocol *)protocolWithName:(NSString *)name
 {
-    return (id)objc_getProtocol([name UTF8String]);
-} 
+    return (Protocol *)objc_getProtocol([name UTF8String]);
+}
 @end
 
 #if !defined(MACRUBY_STATIC)
