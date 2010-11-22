@@ -2853,6 +2853,91 @@ rb_class_is_meta(VALUE klass, SEL sel)
     return RCLASS_META(klass) ? Qtrue : Qfalse;
 }
 
+static bool
+implementsProtocolMethods(Protocol *p, Class klass, bool instanceMethods)
+{
+    unsigned int count = 0;
+    struct objc_method_description *list =
+	protocol_copyMethodDescriptionList(p, true, instanceMethods,
+	    &count);
+    if (list != NULL) {
+	bool success = true;
+	for (unsigned int i = 0; i < count; i++) {
+	    SEL msel = list[i].name;
+	    Method m;
+	    if (instanceMethods) {
+		m = class_getInstanceMethod(klass, msel);
+	    }
+	    else {
+		m = class_getClassMethod(klass, msel);
+	    }
+	    if (m == NULL) {
+		success = false;
+		break;
+	    }
+	}
+	free(list);
+	if (success) {
+		return true;
+	}
+    }
+    return false;
+}
+
+static bool
+conformsToProtocol(Class klass, Protocol *p)
+{
+    if (implementsProtocolMethods(p, klass, true)
+	&& implementsProtocolMethods(p, klass, false)) {
+	unsigned int count = 0;
+	Protocol **list = protocol_copyProtocolList(p, &count);
+	bool success = true;
+	for (unsigned int i = 0; i < count; i++) {
+	    if (!conformsToProtocol(klass, list[i])) {
+		success = false;
+		break;
+	    }
+	}
+	free(list);
+	return success;
+    }
+    return false;
+}
+
+static bool
+conformsToProtocolAndAncestors(void *self, SEL sel, Class klass,
+				void *protocol, IMP super)
+{
+    if (protocol != NULL) {
+	Protocol *p = (Protocol *)protocol;
+	if (conformsToProtocol(klass, p)) {
+	    return true;
+	}
+    }
+    if (super != NULL) {
+	return ((bool(*)(void *, SEL, Protocol *))super)(self, sel, protocol);
+    }
+    return false;
+}
+
+static IMP old_conformsToProtocol_imp = NULL;
+
+static bool
+robj_conformsToProtocol(void *self, SEL sel, void *protocol)
+{
+    return conformsToProtocolAndAncestors(self, sel, object_getClass(self),
+	protocol, old_conformsToProtocol_imp);
+}
+
+static IMP old_conformsToProtocol_mimp = NULL;
+
+static bool
+robj_conformsToProtocol_m(void *self, SEL sel, void *protocol)
+{
+    return conformsToProtocolAndAncestors(self, sel, (Class)self, protocol,
+	old_conformsToProtocol_mimp);
+}
+
 /*
  *  Document-class: Class
  *
@@ -2950,6 +3035,12 @@ Init_Object(void)
     RCLASS_SET_VERSION_FLAG(rb_cRubyObject, RCLASS_IS_SINGLETON);
     RCLASS_SET_VERSION_FLAG(rb_cRubyObject, RCLASS_IS_OBJECT_SUBCLASS);
     rb_define_object_special_methods(rb_cRubyObject);
+
+    SEL ctp = sel_registerName("conformsToProtocol:");
+    old_conformsToProtocol_imp = rb_objc_install_method((Class)rb_cRubyObject,
+	    ctp, (IMP)robj_conformsToProtocol);
+    old_conformsToProtocol_mimp = rb_objc_install_method(
+	    *(Class *)rb_cRubyObject, ctp, (IMP)robj_conformsToProtocol_m);
 
     eqlSel = sel_registerName("eql?:");
 

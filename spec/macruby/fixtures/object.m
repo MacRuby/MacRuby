@@ -60,4 +60,45 @@ static int res = 0;
 
 @end
 
+@protocol AnotherTestProtocol
+
++ (int)anotherClassMethod;
+- (int)anotherInstanceMethod;
+
+@optional
+
++ (int)anotherOptionalClassMethod;
+- (int)anotherOptionalInstanceMethod;
+
+@end
+
+@protocol TestProtocol <AnotherTestProtocol>
+
++ (int)aClassMethod;
++ (int)aClassMethodWithArg:(int)arg;
++ (int)aClassMethodWithArg:(int)arg1 anotherArg:(int)arg2;
+
+- (int)anInstanceMethod;
+- (int)anInstanceMethodWithArg:(int)arg;
+- (int)anInstanceMethodWithArg:(int)arg1 anotherArg:(int)arg2;
+
+@optional
+
++ (int)anOptionalClassMethod;
+- (int)anOptionalInstanceMethod;
+
+@end
+
+@interface TestProtocolConformance : NSObject
+@end
+
+@implementation TestProtocolConformance
+
++ (BOOL)checkIfObjectConformsToTestProtocol:(id)object
+{
+  return [object conformsToProtocol:@protocol(TestProtocol)];
+}
+
+@end
+
 void Init_object(void) {}

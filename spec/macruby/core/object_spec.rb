@@ -3,6 +3,7 @@ require File.expand_path('../../../frozen/core/object/shared/dup_clone', __FILE_
 
 FixtureCompiler.require! "object"
 TestObject # force dynamic load
+TestProtocolConformance
 require File.join(FIXTURES, 'object')
 
 describe "A pure MacRuby Class" do
@@ -24,6 +25,24 @@ describe "A pure MacRuby Class" do
     o = TestObject.testAllocWithZoneInitObject(TestObjectPureMacRuby)
     o.class.should == TestObjectPureMacRuby
     o.initialized?.should == true
+  end
+
+  it "returns whether or not it conforms to the given protocol" do
+    o = TestObjectThatDoesNotCompletelyConformToProtocol
+    conforms = TestProtocolConformance.checkIfObjectConformsToTestProtocol(o)
+    conforms.should == 0
+
+    o = TestObjectThatDoesNotCompletelyConformToProtocol.new
+    conforms = TestProtocolConformance.checkIfObjectConformsToTestProtocol(o)
+    conforms.should == 0
+
+    o = TestObjectThatConformsToProtocol
+    conforms = TestProtocolConformance.checkIfObjectConformsToTestProtocol(o)
+    conforms.should == 1
+
+    o = TestObjectThatConformsToProtocol.new
+    conforms = TestProtocolConformance.checkIfObjectConformsToTestProtocol(o)
+    conforms.should == 1
   end
 end
 
