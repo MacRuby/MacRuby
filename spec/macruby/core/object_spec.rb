@@ -43,6 +43,15 @@ describe "A pure MacRuby Class" do
     o = TestObjectThatConformsToProtocol.new
     conforms = TestProtocolConformance.checkIfObjectConformsToTestProtocol(o)
     conforms.should == 1
+
+    o = Class.new.new
+    prot = Protocol.protocolWithName(:NSCoding)
+    o.conformsToProtocol(prot).should == false
+    def o.initWithCoder(coder); nil; end
+    o.conformsToProtocol(prot).should == false
+    def o.encodeWithCoder(coder); nil; end
+    o.conformsToProtocol(prot).should == true
+    o.conformsToProtocol(prot).should == true # again, as it's now cached
   end
 end
 
