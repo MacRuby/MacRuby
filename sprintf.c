@@ -488,6 +488,9 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 			    j++;
 			}
 			else if (format_str[pos] == '$') {
+			    if (num == 0) {
+				rb_raise(rb_eArgError, "invalid absolute argument");
+			    }
 			    SET_REF_TYPE(ABS_REF);
 			    width = NUM2LONG(rb_Integer(GETNTHARG(num - 1)));
 			    i = pos;
@@ -574,6 +577,9 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 				j++;
 			    }
 			    else if (format_str[pos] == '$') {
+				if (num == 0) {
+				    rb_raise(rb_eArgError, "invalid absolute argument");
+				}
 				SET_REF_TYPE(ABS_REF);
 				precision = NUM2LONG(rb_Integer(GETNTHARG(
 					num - 1)));
