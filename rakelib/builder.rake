@@ -216,6 +216,7 @@ namespace :clean do
     list = []
     list.concat(Dir['*.rbo'])
     list.concat(Dir['lib/**/*.rbo'])
+    list.concat(Dir['ext/**/*.rbo'])
     list.each { |x| rm_f(x) }
   end
 
