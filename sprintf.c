@@ -549,6 +549,9 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		    break;
 
 		case '.':
+		    if (precision_flag) {
+			rb_raise(rb_eArgError, "precision given twice");
+		    }
 		    zero_flag = false;
 		    precision_flag = true;
 		    if (format_str[++i] == '*') {
