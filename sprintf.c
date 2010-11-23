@@ -445,6 +445,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 	bool plus_flag = false;
 	bool minus_flag = false;
 	bool zero_flag = false;
+	bool width_flag = false;
 	bool precision_flag = false;
 	bool complete = false;
 	VALUE arg = 0;
@@ -455,6 +456,11 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 	VALUE sharp_pad = rb_str_new2("");
 	const long start = i;
 
+#define CHECK_FOR_WIDTH()				 \
+	if (width_flag) {				 \
+	    rb_raise(rb_eArgError, "width given twice"); \
+	}
+
 	while (i++ < format_len) {
 	    switch (format_str[i]) {
 		case '#':
@@ -462,6 +468,8 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		    break;
 
 		case '*':
+		    CHECK_FOR_WIDTH();
+		    width_flag = true;
 		    if (format_str[++i] == '<' || format_str[i] == '{') {
 			SET_REF_TYPE(NAMED_REF);
 			width = NUM2LONG(rb_Integer(get_named_arg(format_str,
@@ -535,6 +543,8 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 			SET_REF_TYPE(REL_REF);
 			width = num;
 			i--;
+			CHECK_FOR_WIDTH();
+			width_flag = true;
 		    }
 		    break;
 
