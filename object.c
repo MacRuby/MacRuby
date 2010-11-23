@@ -2908,14 +2908,17 @@ static bool
 conformsToProtocolAndAncestors(void *self, SEL sel, Class klass,
 	void *protocol, IMP super)
 {
-    if (protocol != NULL) {
-	Protocol *p = (Protocol *)protocol;
-	if (conformsToProtocol(klass, p)) {
+    if (super != NULL) {
+	if (((bool(*)(void *, SEL, Protocol *))super)(self, sel, protocol)) {
 	    return true;
 	}
     }
-    if (super != NULL) {
-	return ((bool(*)(void *, SEL, Protocol *))super)(self, sel, protocol);
+    if (protocol != NULL) {
+	Protocol *p = (Protocol *)protocol;
+	if (conformsToProtocol(klass, p)) {
+	    class_addProtocol(klass, p);
+	    return true;
+	}
     }
     return false;
 }
