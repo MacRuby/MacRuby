@@ -539,6 +539,9 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 			if (num == 0) {
 			    rb_raise(rb_eArgError, "invalid absolute argument");
 			}
+			if (arg != 0) {
+			    rb_raise(rb_eArgError, "value given twice");
+			}
 			SET_REF_TYPE(ABS_REF);
 			arg = GETNTHARG(num - 1);
 		    }
