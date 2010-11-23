@@ -52,7 +52,9 @@ rb_objc_install_method(Class klass, SEL sel, IMP imp)
 		sel_getName(sel), klass);
 	abort();
     }
-    return class_replaceMethod(klass, sel, imp, method_getTypeEncoding(method));
+    IMP old = method_getImplementation(method);
+    class_replaceMethod(klass, sel, imp, method_getTypeEncoding(method));
+    return old;
 }
 
 static inline IMP
