@@ -2858,8 +2858,7 @@ implementsProtocolMethods(Protocol *p, Class klass, bool instanceMethods)
 {
     unsigned int count = 0;
     struct objc_method_description *list =
-	protocol_copyMethodDescriptionList(p, true, instanceMethods,
-	    &count);
+	protocol_copyMethodDescriptionList(p, true, instanceMethods, &count);
     if (list != NULL) {
 	bool success = true;
 	for (unsigned int i = 0; i < count; i++) {
@@ -2878,17 +2877,18 @@ implementsProtocolMethods(Protocol *p, Class klass, bool instanceMethods)
 	}
 	free(list);
 	if (success) {
-		return true;
+	    return true;
 	}
+	return false;
     }
-    return false;
+    return true;
 }
 
 static bool
 conformsToProtocol(Class klass, Protocol *p)
 {
     if (implementsProtocolMethods(p, klass, true)
-	&& implementsProtocolMethods(p, klass, false)) {
+	    && implementsProtocolMethods(p, klass, false)) {
 	unsigned int count = 0;
 	Protocol **list = protocol_copyProtocolList(p, &count);
 	bool success = true;
@@ -2906,7 +2906,7 @@ conformsToProtocol(Class klass, Protocol *p)
 
 static bool
 conformsToProtocolAndAncestors(void *self, SEL sel, Class klass,
-				void *protocol, IMP super)
+	void *protocol, IMP super)
 {
     if (protocol != NULL) {
 	Protocol *p = (Protocol *)protocol;
@@ -2926,7 +2926,7 @@ static bool
 robj_conformsToProtocol(void *self, SEL sel, void *protocol)
 {
     return conformsToProtocolAndAncestors(self, sel, object_getClass(self),
-	protocol, old_conformsToProtocol_imp);
+	    protocol, old_conformsToProtocol_imp);
 }
 
 static IMP old_conformsToProtocol_mimp = NULL;
@@ -2935,7 +2935,7 @@ static bool
 robj_conformsToProtocol_m(void *self, SEL sel, void *protocol)
 {
     return conformsToProtocolAndAncestors(self, sel, (Class)self, protocol,
-	old_conformsToProtocol_mimp);
+	    old_conformsToProtocol_mimp);
 }
 
 /*
