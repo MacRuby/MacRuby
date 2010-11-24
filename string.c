@@ -1226,13 +1226,7 @@ rstr_substr(VALUE str, long beg, long len)
     }
 
     rb_str_t *substr = str_get_characters(RSTR(str), beg, beg + len - 1, true);
-    if (OBJ_TAINTED(str)) {
-	OBJ_TAINT((VALUE)substr);
-    }
-    if (OBJ_UNTRUSTED(str)) {
-	OBJ_UNTRUST((VALUE)substr);
-    }
-
+    OBJ_INFECT(substr, str);
     return substr == NULL ? Qnil : (VALUE)substr;
 }
 
@@ -1614,12 +1608,7 @@ rstr_dup(VALUE str, SEL sel)
 
     VALUE dup = rstr_copy(str, klass);
 
-    if (OBJ_TAINTED(str)) {
-	OBJ_TAINT(dup);
-    }
-    if (OBJ_UNTRUSTED(str)) {
-	OBJ_UNTRUST(dup);
-    }
+    OBJ_INFECT(dup, str);
     return dup;
 }
 
@@ -1628,12 +1617,7 @@ rstr_clone(VALUE str, SEL sel)
 {
     VALUE clone = rstr_copy(str, CLASS_OF(str));
 
-    if (OBJ_TAINTED(str)) {
-	OBJ_TAINT(clone);
-    }
-    if (OBJ_UNTRUSTED(str)) {
-	OBJ_UNTRUST(clone);
-    }
+    OBJ_INFECT(clone, str);
     if (OBJ_FROZEN(str)) {
 	OBJ_FREEZE(clone);
     }
@@ -2427,12 +2411,7 @@ rstr_times(VALUE self, SEL sel, VALUE times)
     for (long i = 0; i < len; i++) {
 	str_concat_string(RSTR(new), RSTR(self));
     }
-    if (OBJ_TAINTED(self)) {
-	OBJ_TAINT(new);
-    }
-    if (OBJ_UNTRUSTED(self)) {
-	OBJ_UNTRUST(new);
-    }
+    OBJ_INFECT(new, self);
     return new;
 }
 
@@ -2876,12 +2855,7 @@ str_inspect(rb_str_t *str, bool dump)
 #undef GET_UCHAR
 
 bail:
-    if (OBJ_TAINTED(str)) {
-	OBJ_TAINT(result);
-    }
-    if (OBJ_UNTRUSTED(str)) {
-	OBJ_UNTRUST(result);
-    }
+    OBJ_INFECT(result, str);
     return result; 
 }
 
@@ -4864,13 +4838,7 @@ rstr_succ(VALUE str, SEL sel)
 
     VALUE newstr = rb_unicode_str_new(chars_ptr, len);
     free(chars_buf);
-
-    if (OBJ_TAINTED(str)) {
-	OBJ_TAINT(newstr);
-    }
-    if (OBJ_UNTRUSTED(str)) {
-	OBJ_UNTRUST(newstr);
-    }
+    OBJ_INFECT(newstr, str);
 
     return newstr;
 }
@@ -5761,12 +5729,8 @@ rstr_crypt(VALUE str, SEL sel, VALUE salt)
     }
 
     VALUE crypted = rb_str_new2(crypt(RSTRING_PTR(str), RSTRING_PTR(salt)));
-    if (OBJ_TAINTED(str) || OBJ_TAINTED(salt)) {
-	OBJ_TAINT(crypted);
-    }
-    if (OBJ_UNTRUSTED(str) || OBJ_UNTRUSTED(salt)) {
-	OBJ_UNTRUST(crypted);
-    }
+    OBJ_INFECT(crypted, str);
+    OBJ_INFECT(crypted, salt);
     return crypted;
 }
 
@@ -6194,12 +6158,7 @@ rb_str_new3(VALUE source)
 {
     rb_str_t *str = str_alloc(rb_obj_class(source));
     str_replace(str, source);
-    if (OBJ_TAINTED(source)) {
-	OBJ_TAINT(str);
-    }
-    if (OBJ_UNTRUSTED(source)) {
-	OBJ_UNTRUST(str);
-    }
+    OBJ_INFECT(str, source);
     return (VALUE)str;
 }
 
