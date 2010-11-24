@@ -710,7 +710,16 @@ int rb_obj_is_native(VALUE obj);
 #define OBJ_UNTRUSTED(x) (int)(SPECIAL_CONST_P(x) || NATIVE(x) ? rb_obj_untrusted((VALUE)x) == Qtrue : FL_TEST((x), FL_UNTRUSTED))
 #define OBJ_UNTRUST(x)	(rb_obj_untrust((VALUE)x))
 
-#define OBJ_INFECT(x,s) do {if (FL_ABLE(x) && FL_ABLE(s)) RBASIC(x)->flags |= RBASIC(s)->flags & FL_TAINT;} while (0)
+#define OBJ_INFECT(x,s) \
+    do { \
+        if (OBJ_TAINTED(s)) { \
+	    OBJ_TAINT(x); \
+	} \
+	if (OBJ_UNTRUSTED(s)) { \
+	    OBJ_UNTRUST(x); \
+	} \
+    } \
+    while (0)
 
 #define OBJ_FROZEN(x) (int)(SPECIAL_CONST_P(x) || NATIVE(x) ? rb_obj_frozen_p((VALUE)x) == Qtrue : FL_TEST((x), FL_FREEZE))
 #define OBJ_FREEZE(x) (rb_obj_freeze((VALUE)x))
