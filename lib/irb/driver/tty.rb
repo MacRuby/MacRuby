@@ -39,8 +39,8 @@ module IRB
       end
 
       def process_input(line)
-        context.process_line(line) do |prompt, line|
-          update_last_line(prompt, line)
+        context.process_line(line) do |prompt, updated_line|
+          update_last_line(prompt, updated_line)
         end
       end
       

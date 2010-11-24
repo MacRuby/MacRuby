@@ -71,6 +71,8 @@ module IRB
     class Reflector < Ripper::SexpBuilder
       def initialize(source)
         super
+        @code_block = @terminate = @syntax_error =  @in_string = @in_regexp = @in_array = nil
+        
         @level = 0
         @code_block = !parse.nil? && !@in_string && !@in_regexp && !@in_array
       end
