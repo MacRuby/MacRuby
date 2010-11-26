@@ -577,12 +577,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 
 			    num = rb_uchar_strtol(format_str, format_len,
 				    i, &pos);
-			    if (num == i--) {
-				SET_REF_TYPE(REL_REF);
-				precision = NUM2LONG(rb_Integer(GETNTHARG(j)));
-				j++;
-			    }
-			    else if (format_str[pos] == '$') {
+			    if (format_str[pos] == '$') {
 				if (num == 0) {
 				    rb_raise(rb_eArgError, "invalid absolute argument");
 				}
@@ -590,6 +585,12 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 				precision = NUM2LONG(rb_Integer(GETNTHARG(
 					num - 1)));
 				i = pos;
+			    }
+			    else {
+				SET_REF_TYPE(REL_REF);
+				precision = NUM2LONG(rb_Integer(GETNTHARG(j)));
+				j++;
+				i--;
 			    }
 			}
 		    }
