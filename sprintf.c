@@ -449,6 +449,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 	bool zero_flag = false;
 	bool width_flag = false;
 	bool precision_flag = false;
+	bool named_flag = false;
 	bool complete = false;
 	VALUE arg = 0;
 	long width = 0;
@@ -608,6 +609,10 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 
 		case '<':
 		case '{':
+		    if (named_flag) {
+			rb_raise(rb_eArgError, "named given twice");
+		    }
+		    named_flag = true;
 		    SET_REF_TYPE(NAMED_REF);
 		    arg = get_named_arg(format_str, format_len, &i,
 			    GETNTHARG(0));
