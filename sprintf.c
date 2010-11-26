@@ -393,14 +393,16 @@ get_named_arg(UChar *format_str, long format_len, long *i, VALUE hash)
     }
     UChar closing = format_str[(*i)++] + 2;
     UChar *str_ptr = &format_str[*i];
+    long  length = 0;
     while (*i < format_len && format_str[*i] != closing) {
 	(*i)++;
+	length++;
     }
     if (*i == format_len) {
 	rb_raise(rb_eArgError,
 		 "malformed name - unmatched parenthesis");
     }
-    VALUE substr = rb_unicode_str_new(str_ptr, str_ptr - format_str);
+    VALUE substr = rb_unicode_str_new(str_ptr, (size_t)length);
     hash = rb_hash_aref(hash, ID2SYM(rb_intern_str(substr)));
     return hash;
 }
