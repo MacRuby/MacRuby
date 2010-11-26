@@ -322,7 +322,7 @@ rb_sprintf(const char *format, ...)
     ((type) == REL_REF ? "relative" : (type) == ABS_REF ? "absolute" : "named")
 
 #define SET_REF_TYPE(type) \
-    if (ref_type != 0 && (type) != ref_type) { \
+    if (arg == 0 && ref_type != 0 && (type) != ref_type) { \
 	rb_raise(rb_eArgError, "can't mix %s references with %s references", \
 		REF_NAME(type), REF_NAME(ref_type)); \
     } \
@@ -614,6 +614,9 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 
 		    if (named_flag) {
 			rb_raise(rb_eArgError, "named given twice");
+		    }
+		    if (ref_type != 0) {
+			rb_raise(rb_eArgError, "named after numbered");
 		    }
 		    named_flag = true;
 		    SET_REF_TYPE(NAMED_REF);
