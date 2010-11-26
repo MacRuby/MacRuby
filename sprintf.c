@@ -609,6 +609,9 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 
 		case '<':
 		case '{':
+		{
+		    char term = (format_str[i] == '<') ? '>' : '}';
+
 		    if (named_flag) {
 			rb_raise(rb_eArgError, "named given twice");
 		    }
@@ -616,7 +619,14 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		    SET_REF_TYPE(NAMED_REF);
 		    arg = get_named_arg(format_str, format_len, &i,
 			    GETNTHARG(0));
+		    if (term == '}') {
+			if (TYPE(arg) != T_STRING) {
+			    arg = rb_obj_as_string(arg);
+			}
+			goto format_s;
+		    }
 		    break;
+		}
 
 		case 'd':
 		case 'D':
@@ -737,6 +747,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		    arg = (tolower(format_str[i]) != 's'
 			    ? rb_inspect(arg) : TYPE(arg) == T_STRING
 				? rb_str_new3(arg) : rb_obj_as_string(arg));
+		format_s:
 		    if (precision_flag && precision < rb_str_chars_len(arg)) {
 			CFStringPad((CFMutableStringRef)arg, NULL, precision,
 				0);
