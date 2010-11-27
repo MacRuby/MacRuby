@@ -6024,7 +6024,7 @@ RoxorCompiler::compile_stub(const char *types, bool variadic, int min_argc,
 	ret_type = VoidTy;
     }
 
-#if !__LP64__
+#if !defined(__LP64__)
     const Type *small_struct_type = NULL;
     if (ret_type->getTypeID() == Type::StructTyID
 	    && GET_CORE()->get_sizeof(ret_type) == 8) {
@@ -6121,17 +6121,18 @@ RoxorCompiler::compile_stub(const char *types, bool variadic, int min_argc,
     }
 
     GetFirstType(types, buf, buf_len);
+    ret_type = convert_type(buf);
     if (self_arg != NULL && ret_type == VoidTy) {
 	// If we are calling an Objective-C method that returns void, let's
 	// return the receiver instead of nil, for convenience purposes.
 	retval = self_arg;
     }
     else {
-#if !__LP64__
+#if !defined(__LP64__)
 	if (small_struct_type != NULL) {
 	    Value *slot = new AllocaInst(small_struct_type, "", bb);
 	    new StoreInst(retval,
-		    new BitCastInst(slot, PointerType::getUnqual(ret_type),
+		    new BitCastInst(slot, PointerType::getUnqual(Int64Ty),
 			"", bb),
 		    bb);
 	    retval = new LoadInst(slot, "", bb);
