@@ -747,8 +747,8 @@ rb_reg_matcher_destroy(VALUE matcher)
     xfree((void *)matcher);
 }
 
-int
-rb_reg_matcher_search(VALUE re, VALUE matcher, int pos, bool reverse)
+static int
+rb_reg_matcher_search_find(VALUE re, VALUE matcher, int pos, bool reverse, bool findFirst)
 {
     rb_regexp_matcher_t *re_matcher = (rb_regexp_matcher_t *)matcher;
 
@@ -763,7 +763,7 @@ rb_reg_matcher_search(VALUE re, VALUE matcher, int pos, bool reverse)
     if (chars_len < 0) {
 	chars_len = 0;
     }
- 
+
     if (pos > chars_len || pos < 0) {
 	rb_backref_set(Qnil);
 	return -1;
@@ -785,10 +785,15 @@ rb_reg_matcher_search(VALUE re, VALUE matcher, int pos, bool reverse)
 	    return -1;
 	}
     }
-    else if (!uregex_find(re_matcher->pattern, pos, &status)) {
-	// No match.
-	rb_backref_set(Qnil);
-	return -1;
+    else {
+	if (findFirst) {
+	    uregex_setRegion(re_matcher->pattern, pos, chars_len, &status);
+	}
+	if (!uregex_findNext(re_matcher->pattern, &status)) {
+	    // No match.
+	    rb_backref_set(Qnil);
+	    return -1;
+	}
     }
 
     // Match found.
@@ -837,6 +842,18 @@ rb_reg_matcher_search(VALUE re, VALUE matcher, int pos, bool reverse)
     }
 
     return res[0].beg;
+}
+
+int
+rb_reg_matcher_search_first(VALUE re, VALUE matcher, int pos, bool reverse)
+{
+    return rb_reg_matcher_search_find(re, matcher, pos, reverse, true);
+}
+
+int
+rb_reg_matcher_search_next(VALUE re, VALUE matcher, int pos, bool reverse)
+{
+    return rb_reg_matcher_search_find(re, matcher, pos, reverse, false);
 }
 
 static long
