@@ -537,6 +537,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		StringValue(from);
 		ptr = RSTRING_PTR(from);
 		plen = RSTRING_LEN(from);
+		OBJ_INFECT(data, from);
 	    }
 
 	    if (p[-1] == '*')
