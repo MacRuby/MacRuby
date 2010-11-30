@@ -1570,7 +1570,11 @@ rb_pointer_get_data(VALUE rcv, const char *type)
     // Sanity pointer type comparison check, unless the given pointer type
     // is 'C' (which means converted from void*) or the target argument pointer
     // type is void*.
-    if (type[1] != _C_VOID && ptr_type[0] != _C_UCHR
+    const char *p = &type[1];
+    while (*p == _C_PTR) {
+	p++;
+    }
+    if (*p != _C_VOID && ptr_type[0] != _C_UCHR
 	    && !compare_types(ptr_type, &type[1])) {
 	rb_raise(rb_eTypeError,
 		"expected instance of Pointer of type `%s', got `%s'",
