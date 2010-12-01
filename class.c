@@ -471,10 +471,14 @@ rb_define_class_under(VALUE outer, const char *name, VALUE super)
 	if (TYPE(klass) != T_CLASS) {
 	    rb_raise(rb_eTypeError, "%s is not a class", name);
 	}
-	if (rb_class_real(RCLASS_SUPER(klass), true) != super) {
-	    rb_name_error(id, "%s is already defined", name);
+	if (RCLASS_RUBY(klass)) {
+	    // Only for pure Ruby classes, as Objective-C classes
+	    // might be returned from the dynamic resolver.
+	    if (rb_class_real(RCLASS_SUPER(klass), true) != super) {
+		rb_name_error(id, "%s is already defined", name);
+	    }
+	    return klass;
 	}
-	return klass;
     }
     if (!super) {
 	rb_warn("no super class for `%s::%s', Object assumed",

@@ -1466,19 +1466,19 @@ rb_autoload_p(VALUE mod, ID id)
 static VALUE
 retrieve_dynamic_objc_class(VALUE klass, ID name)
 {
-    // Classes are typically pre-loaded by Kernel#framework but it is still
-    // useful to keep the dynamic import facility, because someone in the
-    // Objective-C world may dynamically define classes at runtime (like
-    // ScriptingBridge.framework).
-    if (klass == rb_cObject) {
-	VALUE k = (VALUE)objc_getClass(rb_id2name(name));
-	if (k != 0 && !RCLASS_RUBY(k)) {
-	     // Set the constant. Only if the returned class is a pure
-	     // Objective-C class, to avoid namespace conflicts in Ruby land.
-	    rb_objc_force_class_initialize((Class)k);
-	    rb_const_set(klass, name, k);
-	    return k;
+    // The Objective-C class dynamic resolver. By default, MacRuby doesn't
+    // know about native classes. They will be resolved and added into the
+    // NSObject dictionary on demand.
+    Class k = (Class)objc_getClass(rb_id2name(name));
+    if (k != NULL && !RCLASS_RUBY(k)) {
+	// Skip classes that aren't pure Objective-C, to avoid namespace
+	// conflicts in Ruby land.
+	CFMutableDictionaryRef dict = rb_class_ivar_dict_or_create(rb_cObject);
+	if (!CFDictionaryContainsKey(dict, (const void *)name)) {
+	    CFDictionarySetValue(dict, (const void *)name, (const void *)k);
+	    rb_objc_force_class_initialize(k);
 	}
+	return (VALUE)k;
     }
     return Qnil;
 }
@@ -1540,7 +1540,6 @@ retry:
     if (k != Qnil) {
 	return k;
     }
-
     return const_missing(klass, id);
 }
 
@@ -1773,7 +1772,7 @@ mod_av_set(VALUE klass, ID id, VALUE val, int isconst)
     const char *dest = isconst ? "constant" : "class variable";
 
     if (!OBJ_TAINTED(klass) && rb_safe_level() >= 4) {
-      rb_raise(rb_eSecurityError, "Insecure: can't set %s", dest);
+	rb_raise(rb_eSecurityError, "Insecure: can't set %s", dest);
     }
     if (OBJ_FROZEN(klass)) {
 	if (BUILTIN_TYPE(klass) == T_MODULE) {

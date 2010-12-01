@@ -215,37 +215,6 @@ rb_objc_search_and_load_bridge_support(const char *framework_path)
 }
 #endif
 
-static void
-reload_class_constants(void)
-{
-    static int class_count = 0;
-
-    const int count = objc_getClassList(NULL, 0);
-    if (count == class_count) {
-	return;
-    }
-
-    Class *buf = (Class *)malloc(sizeof(Class) * count);
-    objc_getClassList(buf, count);
-
-    for (int i = 0; i < count; i++) {
-	Class k = buf[i];
-	if (!RCLASS_RUBY(k)) {
-	    const char *name = class_getName(k);
-	    if (name[0] != '_') {
-		ID name_id = rb_intern(name);
-		if (!rb_const_defined(rb_cObject, name_id)) {
-		    rb_const_set(rb_cObject, name_id, (VALUE)k);
-		}
-	    }
-	}
-    }
-
-    class_count = count;
-
-    free(buf);
-}
-
 bool rb_objc_enable_ivar_set_kvo_notifications = false;
 
 VALUE
@@ -360,7 +329,6 @@ success:
     }
 
     rb_objc_search_and_load_bridge_support(cstr);
-    reload_class_constants();
 
     rb_objc_enable_ivar_set_kvo_notifications = true;
 
@@ -782,8 +750,6 @@ Init_ObjC(void)
     assert(m != NULL);
     old_imp_isaForAutonotifying = method_getImplementation(m);
     method_setImplementation(m, (IMP)rb_obj_imp_isaForAutonotifying);
-
-    reload_class_constants();
 }
 
 @interface Protocol

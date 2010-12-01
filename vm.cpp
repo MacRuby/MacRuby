@@ -1321,17 +1321,25 @@ rb_vm_get_outer(VALUE klass)
 static VALUE
 get_klass_const(VALUE outer, ID path, bool lexical)
 {
+    VALUE klass = Qundef;
     if (lexical) {
 	if (rb_vm_const_lookup(outer, path, true, true) == Qtrue) {
-	    return rb_vm_const_lookup(outer, path, true, false);
+	    klass = rb_vm_const_lookup(outer, path, true, false);
 	}
     }
     else {
 	if (rb_const_defined_at(outer, path)) {
-	    return rb_const_get_at(outer, path);
+	    klass = rb_const_get_at(outer, path);
 	}
     }
-    return Qundef;
+    if (klass != Qundef) {
+	rb_vm_check_if_module(klass);
+	if (outer != rb_cObject && !RCLASS_RUBY(klass)) {
+	    // Ignore classes retrived by the dynamic resolver.
+	    klass = Qundef;
+	}
+    }
+    return klass;
 }
 
 extern "C"
@@ -1352,7 +1360,6 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
     VALUE klass = get_klass_const(outer, path, dynamic_class);
     if (klass != Qundef) {
 	// Constant is already defined.
-	rb_vm_check_if_module(klass);
 	if (!(flags & DEFINE_MODULE) && super != 0) {
 	    if (rb_class_real(RCLASS_SUPER(klass), true) != super) {
 		rb_raise(rb_eTypeError, "superclass mismatch for class %s",
