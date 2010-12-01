@@ -284,7 +284,7 @@ rb_queue_get_main(VALUE klass, SEL sel)
  *  available system resources in a balanced fashion.
  *
  *  Use serial GCD queues to ensure that tasks execute in a predictable order.
- *  It’s a good practice to identify a specific purpose for each serial queue, 
+ *  It's a good practice to identify a specific purpose for each serial queue, 
  *  such as protecting a resource or synchronizing key processes.
  *  Create as many as you need - serial queues are extremely lightweight 
  *  (with a total memory footprint of less than 300 bytes); however, remember to 
