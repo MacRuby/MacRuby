@@ -668,6 +668,7 @@ typedef struct rb_regexp_matcher {
     URegularExpression *pattern;
     UChar *text_to_free;
     rb_encoding_t *encoding;
+    VALUE frozen_str;
 } rb_regexp_matcher_t;
 
 static void
@@ -732,6 +733,7 @@ rb_reg_matcher_new(VALUE re, VALUE str)
 
     matcher->pattern = match_pattern;
     matcher->encoding = rb_enc_get(str);
+    matcher->frozen_str = 0; // set lazily
 
     // Apparently uregex_setText doesn't copy the given string, so we need
     // to keep it around until we finally destroy the matcher object.
@@ -748,7 +750,8 @@ rb_reg_matcher_destroy(VALUE matcher)
 }
 
 static int
-rb_reg_matcher_search_find(VALUE re, VALUE matcher, int pos, bool reverse, bool findFirst)
+rb_reg_matcher_search_find(VALUE re, VALUE matcher, int pos, bool reverse,
+	bool findFirst)
 {
     rb_regexp_matcher_t *re_matcher = (rb_regexp_matcher_t *)matcher;
 
@@ -808,7 +811,6 @@ rb_reg_matcher_search_find(VALUE re, VALUE matcher, int pos, bool reverse, bool 
 	res = (rb_match_result_t *)xmalloc(sizeof(rb_match_result_t)
 		* res_count);
 	GC_WB(&RMATCH(match)->results, res);
-	GC_WB(&RMATCH(match)->str, rb_str_new(NULL, 0));
     }
     else {
 	// Reusing the previous Match object.
@@ -824,7 +826,6 @@ rb_reg_matcher_search_find(VALUE re, VALUE matcher, int pos, bool reverse, bool 
 	    res = RMATCH(match)->results;
 	    memset(res, 0, sizeof(rb_match_result_t) * res_count);
 	}
-	assert(RMATCH(match)->str != 0);
     }
 
     RMATCH(match)->results_count = res_count;
@@ -832,9 +833,14 @@ rb_reg_matcher_search_find(VALUE re, VALUE matcher, int pos, bool reverse, bool 
 	GC_WB(&RMATCH(match)->regexp, re);
     }
 
-    rb_str_set_len(RMATCH(match)->str, 0);
-    rb_str_force_encoding(RMATCH(match)->str, re_matcher->encoding);
-    rb_str_append_uchars(RMATCH(match)->str, chars, chars_len);
+    if (re_matcher->frozen_str == 0) {
+	// To reduce memory usage, the Match string is a singleton object.
+	GC_WB(&re_matcher->frozen_str, rb_str_new(NULL, 0));
+	rb_str_force_encoding(re_matcher->frozen_str, re_matcher->encoding);
+	rb_str_append_uchars(re_matcher->frozen_str, chars, chars_len);
+	OBJ_FREEZE(re_matcher->frozen_str);
+    }
+    GC_WB(&RMATCH(match)->str, re_matcher->frozen_str);
 
     for (int i = 0; i < res_count; i++) {
 	res[i].beg = uregex_start(re_matcher->pattern, i, &status);
@@ -1942,9 +1948,7 @@ static VALUE
 match_string(VALUE rcv, SEL sel)
 {
     assert(RMATCH(rcv)->str != 0);
-    VALUE str = rb_str_dup(RMATCH(rcv)->str);
-    OBJ_FREEZE(str);
-    return str;
+    return RMATCH(rcv)->str;
 }
 
 /*
