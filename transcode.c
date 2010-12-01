@@ -381,10 +381,6 @@ rstr_encode_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 void
 Init_Transcode(void)
 {
-    rb_eUndefinedConversionError = rb_define_class_under(rb_cEncoding, "UndefinedConversionError", rb_eEncodingError);
-    rb_eInvalidByteSequenceError = rb_define_class_under(rb_cEncoding, "InvalidByteSequenceError", rb_eEncodingError);
-    rb_eConverterNotFoundError = rb_define_class_under(rb_cEncoding, "ConverterNotFoundError", rb_eEncodingError);
-
     rb_objc_define_method(rb_cRubyString, "encode", rstr_encode, -1);
     rb_objc_define_method(rb_cRubyString, "encode!", rstr_encode_bang, -1);
 
