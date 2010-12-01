@@ -664,6 +664,13 @@ class StringIO
     nil
   end          
 
+  def external_encoding
+    @string ? @string.encoding : nil
+  end
+
+  def internal_encoding
+    nil
+  end
 
   protected
     
