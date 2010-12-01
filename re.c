@@ -1829,7 +1829,18 @@ rb_reg_match_last(VALUE rcv)
 	return Qnil;
     }
     assert(RMATCH(rcv)->results_count > 0);
-    return rb_reg_nth_match(RMATCH(rcv)->results_count - 1, rcv);
+
+    int nth = RMATCH(rcv)->results_count - 1;
+    while(nth > 0) {
+	if (RMATCH(rcv)->results[nth].beg != -1) {
+	    break;
+	}
+	nth--;
+    }
+    if (nth == 0) {
+	return Qnil;
+    }
+    return rb_reg_nth_match(nth, rcv);
 }
 
 /*
