@@ -1920,5 +1920,5 @@ Init_Dir(void)
     char buf[MAXPATHLEN];
     const size_t buflen = confstr(_CS_DARWIN_USER_TEMP_DIR, buf, sizeof buf);
     VALUE str = buflen > 0 ? rb_obj_freeze(rb_str_new2(buf)) : Qnil;
-    rb_define_const(rb_cDir, "NS_TMPDIR", rb_obj_freeze(str));
+    rb_define_const(rb_cDir, "NS_TMPDIR", str);
 }
