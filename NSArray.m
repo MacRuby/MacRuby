@@ -1188,7 +1188,20 @@ rb_ary_join(VALUE ary, VALUE sep)
 		}
 		break;
 	    default:
-		elem = rb_obj_as_string(elem);
+		{
+		    VALUE tmp = rb_check_string_type(elem);
+		    if (!NIL_P(tmp)) {
+			elem = tmp;
+			break;
+		    }
+		    tmp = rb_check_convert_type(elem, T_ARRAY, "Array", "to_ary");
+		    if (!NIL_P(tmp)) {
+			VALUE args[2] = {tmp, sep};
+			elem = rb_exec_recursive(recursive_join, elem, (VALUE)args);
+			break;
+		    }
+		    elem = rb_obj_as_string(elem);
+		}
 		break;
 	}
 	if (i > 0 && !NIL_P(sep)) {
