@@ -766,6 +766,7 @@ Init_Symbol(void)
     // Undefine methods defined on NSString.
     rb_undef_method(rb_cSymbol, "to_i");
     rb_undef_method(rb_cSymbol, "to_f");
+    rb_undef_method(rb_cSymbol, "to_str");
 
     rb_objc_define_method(rb_cSymbol, "==", rsym_equal, 1);
     rb_objc_define_method(rb_cSymbol, "<=>", rsym_cmp, 1);
