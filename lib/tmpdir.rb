@@ -14,9 +14,12 @@ class Dir
 
   def Dir::systmpdir
     @@systmpdir ||= begin
-      framework 'Foundation' 
-      NSTemporaryDirectory()
-    end
+      if Dir.const_defined?(:NS_TMPDIR)
+        Dir::NS_TMPDIR
+      else
+        nil
+      end
+    end 
   end
 
   ##
@@ -33,8 +36,7 @@ class Dir
 	  break
 	end rescue nil
       end
-      tmp ||= systmpdir
-      File.expand_path(tmp)
+      tmp ? File.expand_path(tmp) : systmpdir
     end
   end
 
