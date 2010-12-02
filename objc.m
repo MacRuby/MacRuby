@@ -750,6 +750,9 @@ Init_ObjC(void)
     assert(m != NULL);
     old_imp_isaForAutonotifying = method_getImplementation(m);
     method_setImplementation(m, (IMP)rb_obj_imp_isaForAutonotifying);
+
+    // Mark Foundation as multithreaded.
+    [NSThread detachNewThreadSelector:@selector(self) toTarget:[NSThread class] withObject:nil];
 }
 
 @interface Protocol
