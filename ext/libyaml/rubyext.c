@@ -290,6 +290,7 @@ is_numeric(const char *str, bool *has_point)
     }
     char c;
     bool point = false;
+    bool numeric = false;
     while ((c = *str++) != '\0') {
 	if (!isdigit(c)) {
 	    if (c == '.') {
@@ -302,9 +303,12 @@ is_numeric(const char *str, bool *has_point)
 		return false;
 	    }
 	}
+	else if (!point) {
+	    numeric = true;
+	}
     }
     *has_point = point;
-    return true;
+    return numeric;
 }
 
 static inline bool
