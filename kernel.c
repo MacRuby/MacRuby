@@ -1055,22 +1055,25 @@ struct ruby_block_literal {
     int reserved;
     void *imp;
     struct ruby_block_descriptor *descriptor;
+    VALUE ruby_proc;
 };
 
 static struct ruby_block_descriptor ruby_block_descriptor_value = {
     0, sizeof(struct ruby_block_literal)
 };
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-extern void *_NSConcreteStackBlock[32];
-#endif
+extern void *_NSConcreteAutoBlock[32];
+
+#define __MR_BLOCK_IS_GC		(1 << 27)
+#define __MR_BLOCK_HAS_DESCRIPTOR 	(1 << 29)
 
 PRIMITIVE void
-vm_init_c_block(struct ruby_block_literal *b, void *imp)
+vm_init_c_block(struct ruby_block_literal *b, void *imp, VALUE proc)
 {
-    b->isa = &_NSConcreteStackBlock;
-    b->flags = (1 << 29);
+    b->isa = &_NSConcreteAutoBlock;
+    b->flags = __MR_BLOCK_IS_GC | __MR_BLOCK_HAS_DESCRIPTOR;
     b->reserved = 0;
     b->imp = imp;
     b->descriptor = &ruby_block_descriptor_value;
+    GC_WB(&b->ruby_proc, proc);
 }

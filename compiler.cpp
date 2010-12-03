@@ -5522,15 +5522,16 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 		    return funcptr;
 		}
 
-		// A C-level block. We allocate on the stack the literal
+		// A C-level block. We allocate on the auto heap the literal
 		// structure following the ABI, initialize it then pass
 		// a pointer to it.
-		Value *block_lit = new AllocaInst(BlockLiteralTy, "", bb);
+		Value *block_lit = compile_xmalloc(GET_CORE()->get_sizeof(BlockLiteralTy));
 		Value *args[] = {
 		    block_lit,
-		    funcptr
+		    funcptr,
+		    val
 		};
-		CallInst::Create(initBlockFunc, args, args + 2, "", bb);
+		CallInst::Create(initBlockFunc, args, args + 3, "", bb);
 		return new BitCastInst(block_lit, PtrTy, "", bb);
 	    }
 	    break;
