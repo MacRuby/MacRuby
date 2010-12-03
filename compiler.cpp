@@ -5525,9 +5525,11 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 		// A C-level block. We allocate on the auto heap the literal
 		// structure following the ABI, initialize it then pass
 		// a pointer to it.
-		Value *block_lit = compile_xmalloc(GET_CORE()->get_sizeof(BlockLiteralTy));
+		Value *block_lit =
+		    compile_xmalloc(GET_CORE()->get_sizeof(BlockLiteralTy));
 		Value *args[] = {
-		    block_lit,
+		    new BitCastInst(block_lit,
+			    PointerType::getUnqual(BlockLiteralTy), "", bb),
 		    funcptr,
 		    val
 		};
