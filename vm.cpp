@@ -1335,7 +1335,7 @@ get_klass_const(VALUE outer, ID path, bool lexical)
     if (klass != Qundef) {
 	rb_vm_check_if_module(klass);
 	if (outer != rb_cObject && !RCLASS_RUBY(klass)) {
-	    // Ignore classes retrived by the dynamic resolver.
+	    // Ignore classes retrieved by the dynamic resolver.
 	    klass = Qundef;
 	}
     }
