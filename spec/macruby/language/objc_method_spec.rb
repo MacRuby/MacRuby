@@ -808,6 +808,16 @@ describe "A Proc object" do
     })
     res.should == ['zero', 'one', 'two'] 
   end
+
+  it "is properly retained/released when transformed as a Block" do
+    o = TestMethod.new
+    o.methodSavingBlockReference(Proc.new { |x, y| x * y })
+    10000.times { |i| i.to_s }; GC.start
+    o.callSavedBlockCopyWithArg(42, andArg:100).should == 4200
+    o.methodSavingBlockCopy(Proc.new { |x, y| x * y })
+    10000.times { |i| i.to_s }; GC.start
+    o.callSavedBlockCopyWithArg(42, andArg:100).should == 4200
+  end
 end
 
 describe "Ignored Obj-C selectors" do

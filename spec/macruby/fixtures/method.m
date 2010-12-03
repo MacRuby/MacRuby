@@ -11,6 +11,7 @@
 {
     id _foo;
     NSMutableDictionary *dic;
+    int (^_my_block)(int, int);
 }
 @end
 
@@ -28,6 +29,7 @@
 - (void)dealloc
 {
     [dic release];
+    [_my_block release];
     [super dealloc];
 }
 
@@ -789,6 +791,21 @@ extern id objc_msgSend(id self, SEL op, ...);
 + (BOOL)testInformalProtocolMethod2:(id)o
 {
     return [o informalProtocolMethod2:40 withValue:2];
+}
+
+- (void)methodSavingBlockReference:(int (^)(int, int))b
+{
+    _my_block = b;
+}
+
+- (void)methodSavingBlockCopy:(int (^)(int, int))b
+{
+    _my_block = [b copy];
+}
+
+- (int)callSavedBlockCopyWithArg:(int)x andArg:(int)y
+{
+    return _my_block(x, y);
 }
 
 @end

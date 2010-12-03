@@ -23,6 +23,20 @@
     <method selector='methodAcceptingSEL:target:'>
       <arg index='0' sel_of_type='v@:iBf'/>
     </method>
+    <method selector='methodSavingBlockReference:'>
+      <arg index='0' function_pointer='true' type='@?'>
+        <arg type='I'/>
+        <arg type='I'/>
+        <retval type='I'/>
+      </arg>
+    </method>
+    <method selector='methodSavingBlockCopy:'>
+      <arg index='0' function_pointer='true' type='@?'>
+        <arg type='I'/>
+        <arg type='I'/>
+        <retval type='I'/>
+      </arg>
+    </method>
   </class>
   <informal_protocol name='Foo'>
     <method type="i@:i" selector="informalProtocolMethod1:"/>
