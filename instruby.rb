@@ -465,10 +465,10 @@ if RUBY_FRAMEWORK
   base = File.join(CONFIG["prefix"], '..')
   resources = File.join(base, 'Resources')
   mkdir_p resources, :mode => 0755
-  install File.join('framework/Info.plist'), resources
+  install File.join('framework/Info.plist'), resources, :mode => 0644
   mkdir_p File.join(resources, 'English.lproj'), :mode => 0755
-  install File.join('framework/InfoPlist.strings'), 
-    File.join(resources, 'English.lproj')
+  install File.join('framework/InfoPlist.strings'),
+    File.join(resources, 'English.lproj'), :mode => 0644
   rm_f File.join(base, '..', 'Current') if 
     File.symlink?(with_destdir(File.join(base, '..', 'Current')))
   ln_sfh install_version.to_s, File.join(base, '..', 'Current')
