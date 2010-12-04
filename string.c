@@ -771,12 +771,10 @@ str_splice(rb_str_t *self, long pos, long len, rb_str_t *str, bool ucs2_mode)
 
 	// TODO: probably call str_cannot_cut_surrogate()
 	assert(beg.start_offset_in_bytes != -1);
-	assert(beg.end_offset_in_bytes != -1);
 
 	end = str_get_character_boundaries(self, pos + len - 1, ucs2_mode);
 
 	// TODO: probably call str_cannot_cut_surrogate()
-	assert(end.start_offset_in_bytes != -1);
 	assert(end.end_offset_in_bytes != -1);
     }
 
@@ -3564,9 +3562,18 @@ rstr_chop_bang(VALUE str, SEL sel)
     }
 
     long to_del = 1;
-    if (len >= 2 && rb_str_get_uchar(str, len - 1) == '\n'
-	    && rb_str_get_uchar(str, len - 2) == '\r') {
-	to_del++;
+    if (len >= 2) {
+	// if the string ends with \r\n we have to remove both \r and \n
+	// if the string ends with a character not in the BMP,
+	// we have to remove the whole character
+	UChar last_char = rb_str_get_uchar(str, len - 1);
+	if ((last_char == '\n') || U16_IS_TRAIL(last_char)) {
+	    UChar before_last = rb_str_get_uchar(str, len - 2);
+	    if (((before_last == '\r') && (last_char == '\n'))
+		    || (U16_IS_LEAD(before_last) && U16_IS_TRAIL(last_char))) {
+		to_del++;
+	    }
+	}
     }
 
     str_delete(RSTR(str), len - to_del, to_del, true);
@@ -5013,10 +5020,28 @@ rstr_reverse_bang(VALUE str, SEL sel)
 	if (len <= 1) {
 	    return str;
 	}
+	bool has_lead = false;
 	for (long i = 0; i < (len / 2); i++) {
 	    UChar c = RSTR(str)->data.uchars[i];
+	    if (U16_IS_LEAD(c)) {
+		has_lead = true;
+	    }
 	    RSTR(str)->data.uchars[i] = RSTR(str)->data.uchars[len - i - 1];
-	    RSTR(str)->data.uchars[len - i - 1] = c; 
+	    RSTR(str)->data.uchars[len - i - 1] = c;
+	}
+	if (has_lead) {
+	    // if the string contained surrogates,
+	    // we have to put them back in the correct order
+	    for (long i = 0; i < len - 1; ++i) {
+		UChar c = RSTR(str)->data.uchars[i];
+		if (U16_IS_TRAIL(c)) {
+		    UChar next = RSTR(str)->data.uchars[i+1];
+		    if (U16_IS_LEAD(next)) {
+			RSTR(str)->data.uchars[i] = next;
+			RSTR(str)->data.uchars[i+1] = c;
+		    }
+		}
+	    }
 	}
     }
     else {
@@ -5030,6 +5055,10 @@ rstr_reverse_bang(VALUE str, SEL sel)
 	    RSTR(str)->data.bytes[len - i - 1] = c; 
 	}
     }
+
+    // we modify it directly so the information stored
+    // in the facultative flags might be outdated
+    str_unset_facultative_flags(RSTR(str));
 
     return str;
 }
