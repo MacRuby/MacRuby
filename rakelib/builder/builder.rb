@@ -1,3 +1,6 @@
+# Make sure File.read will work as expected on any Ruby.
+Encoding.default_external = "UTF-8" if defined?(Encoding)
+
 require File.expand_path('../options', __FILE__)
 
 EXTENSIONS = %w{
