@@ -876,7 +876,12 @@ str_concat_string(rb_str_t *self, rb_str_t *str)
 
     str_concat_bytes(self, str->data.bytes, str->length_in_bytes);
 
-    self->encoding = enc;
+    if (enc != self->encoding) {
+	self->encoding = enc;
+	if (NATIVE_UTF16_ENC(enc)) {
+	    str_set_stored_in_uchars(self, true);
+	}
+    }
 }
 
 static int
