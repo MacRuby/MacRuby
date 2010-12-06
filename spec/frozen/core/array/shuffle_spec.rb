@@ -45,13 +45,15 @@ describe "Array#shuffle!" do
 
     ruby_version_is ""..."1.9" do
       it "raises a TypeError on a frozen array" do
-        lambda { ArraySpecs.frozen_array.reverse! }.should raise_error(TypeError)
+        lambda { ArraySpecs.frozen_array.shuffle! }.should raise_error(TypeError)
+        lambda { ArraySpecs.empty_frozen_array.shuffle! }.should raise_error(TypeError)
       end
     end
 
     ruby_version_is "1.9" do
       it "raises a RuntimeError on a frozen array" do
         lambda { ArraySpecs.frozen_array.shuffle! }.should raise_error(RuntimeError)
+        lambda { ArraySpecs.empty_frozen_array.shuffle! }.should raise_error(RuntimeError)
       end
     end
   end

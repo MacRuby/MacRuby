@@ -51,6 +51,21 @@ describe "C-API String function" do
     end
   end
 
+  describe "rb_str_buf_new" do
+    it "returns an empty string" do
+      @s.rb_str_buf_new(10).should == ""
+    end
+
+    ruby_version_is ""..."1.9" do
+      it "returns a string which can be assigned to from C" do
+        str = "hello"
+        buf = @s.rb_str_buf_new(str.size)
+        @s.rb_str_buf_RSTRING_ptr_write(buf, str)
+        buf.should == str
+      end
+    end
+  end
+
   describe "rb_str_dup" do
     it "returns a copy of the string" do
       str1 = "hi"

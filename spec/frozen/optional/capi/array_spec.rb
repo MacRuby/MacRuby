@@ -17,6 +17,26 @@ describe "C-API Array function" do
     it "returns an empty array" do
       @s.rb_ary_new2(5).should == []
     end
+
+    ruby_version_is ""..."1.9" do
+      it "returns an array which can be assigned to from C" do
+        ary = @s.rb_ary_new2(5)
+        @s.rb_ary_new2_assign(ary, :set, 5)
+        ary.should == [:set] * 5
+      end
+    end
+  end
+
+  describe "rb_ary_new3" do
+    it "returns an array with the passed cardinality and varargs" do
+      @s.rb_ary_new3(1,2,3).should == [1,2,3]
+    end
+  end
+
+  describe "rb_ary_new4" do
+    it "returns returns an array with the passed values" do
+      @s.rb_ary_new4(1,2,3).should == [1,2,3]
+    end
   end
 
   describe "rb_ary_push" do
@@ -255,6 +275,14 @@ describe "C-API Array function" do
       ary = [1, 2, 3, 4]
       @s.rb_ary_delete(ary, 5).should be_nil
       ary.should == [1, 2, 3, 4]
+    end
+  end
+
+  describe "rb_ary_delete_at" do
+    it "removes an element from an array at the specified index" do
+      ary = [1, 2, 3, 4]
+      @s.rb_ary_delete_at(ary, ary.size - 1).should == 4
+      ary.should == [1, 2, 3]
     end
   end
 end

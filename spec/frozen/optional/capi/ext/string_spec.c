@@ -120,6 +120,20 @@ VALUE string_spec_rb_str_new3(VALUE self, VALUE str) {
 }
 #endif
 
+#ifdef HAVE_RB_STR_BUF_NEW
+VALUE string_spec_rb_str_buf_new(VALUE self, VALUE capacity) {
+  return rb_str_buf_new(NUM2INT(capacity));
+}
+
+#ifdef HAVE_RSTRING
+VALUE string_spec_rb_str_buf_RSTRING_ptr_write(VALUE self, VALUE str, VALUE text) {
+  strcpy(RSTRING(str)->ptr, RSTRING_PTR(text));
+  RSTRING(str)->len = RSTRING_LEN(text);
+  return Qnil;
+}
+#endif
+#endif
+
 #ifdef HAVE_RB_STR_PLUS
 VALUE string_spec_rb_str_plus(VALUE self, VALUE str1, VALUE str2) {
   return rb_str_plus(str1, str2);
@@ -409,6 +423,14 @@ void Init_string_spec() {
 #ifdef HAVE_RB_STR_NEW3
   rb_define_method(cls, "rb_str_new3", string_spec_rb_str_new3, 1);
 #endif
+
+#ifdef HAVE_RB_STR_BUF_NEW
+  rb_define_method(cls, "rb_str_buf_new", string_spec_rb_str_buf_new, 1);
+#ifdef HAVE_RSTRING
+  rb_define_method(cls, "rb_str_buf_RSTRING_ptr_write", string_spec_rb_str_buf_RSTRING_ptr_write, 2);
+#endif
+#endif
+
 
 #ifdef HAVE_RB_STR_PLUS
   rb_define_method(cls, "rb_str_plus", string_spec_rb_str_plus, 2);

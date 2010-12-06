@@ -137,6 +137,11 @@ describe "Array#uniq!" do
     # see [ruby-core:23666]
     it "raises a RuntimeError on a frozen array when the array would not be modified" do
       lambda { ArraySpecs.frozen_array.uniq!}.should raise_error(RuntimeError)
+      lambda { ArraySpecs.empty_frozen_array.uniq!}.should raise_error(RuntimeError)
+    end
+
+    it "doesn't yield to the block on a frozen array" do
+      lambda { ArraySpecs.frozen_array.uniq!{ raise RangeError, "shouldn't yield"}}.should raise_error(RuntimeError)
     end
   end
 

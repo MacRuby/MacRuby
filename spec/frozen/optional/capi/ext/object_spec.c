@@ -226,6 +226,42 @@ static VALUE object_spec_rb_to_int(VALUE self, VALUE obj) {
 }
 #endif
 
+#ifdef HAVE_RB_OBJ_INSTANCE_EVAL
+static VALUE object_spec_rb_obj_instance_eval(VALUE self, VALUE obj) {
+  return rb_obj_instance_eval(0, NULL, obj);
+}
+#endif
+
+#ifdef HAVE_RB_IV_GET
+static VALUE object_spec_rb_iv_get(VALUE self, VALUE obj, VALUE name) {
+  return rb_iv_get(obj, RSTRING_PTR(name));
+}
+#endif
+
+#ifdef HAVE_RB_IV_SET
+static VALUE object_spec_rb_iv_set(VALUE self, VALUE obj, VALUE name, VALUE value) {
+  return rb_iv_set(obj, RSTRING_PTR(name), value);
+}
+#endif
+
+#ifdef HAVE_RB_IVAR_GET
+static VALUE object_spec_rb_ivar_get(VALUE self, VALUE obj, VALUE sym_name) {
+  return rb_ivar_get(obj, SYM2ID(sym_name));
+}
+#endif
+
+#ifdef HAVE_RB_IVAR_SET
+static VALUE object_spec_rb_ivar_set(VALUE self, VALUE obj, VALUE sym_name, VALUE value) {
+  return rb_ivar_set(obj, SYM2ID(sym_name), value);
+}
+#endif
+
+#ifdef HAVE_RB_IVAR_DEFINED
+static VALUE object_spec_rb_ivar_defined(VALUE self, VALUE obj, VALUE sym_name) {
+  return rb_ivar_defined(obj, SYM2ID(sym_name));
+}
+#endif
+
 void Init_object_spec() {
   VALUE cls;
   cls = rb_define_class("CApiObjectSpecs", rb_cObject);
@@ -349,6 +385,31 @@ void Init_object_spec() {
 #ifdef HAVE_RB_TO_INT
   rb_define_method(cls, "rb_to_int", object_spec_rb_to_int, 1);
 #endif
+
+#ifdef HAVE_RB_OBJ_INSTANCE_EVAL
+  rb_define_method(cls, "rb_obj_instance_eval", object_spec_rb_obj_instance_eval, 1);
+#endif
+
+#ifdef HAVE_RB_IV_GET
+  rb_define_method(cls, "rb_iv_get", object_spec_rb_iv_get, 2);
+#endif
+
+#ifdef HAVE_RB_IV_SET
+  rb_define_method(cls, "rb_iv_set", object_spec_rb_iv_set, 3);
+#endif
+
+#ifdef HAVE_RB_IVAR_GET
+  rb_define_method(cls, "rb_ivar_get", object_spec_rb_ivar_get, 2);
+#endif
+
+#ifdef HAVE_RB_IVAR_SET
+  rb_define_method(cls, "rb_ivar_set", object_spec_rb_ivar_set, 3);
+#endif
+
+#ifdef HAVE_RB_IVAR_DEFINED
+  rb_define_method(cls, "rb_ivar_defined", object_spec_rb_ivar_defined, 2);
+#endif
+
 }
 
 #ifdef __cplusplus

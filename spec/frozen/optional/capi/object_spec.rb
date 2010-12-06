@@ -250,6 +250,15 @@ describe "CApiObject" do
     end
   end
 
+  describe "rb_obj_instance_eval" do
+    it "evaluates the block in the object context, that includes private methods" do
+      obj = ObjectTest
+      lambda do
+        @o.rb_obj_instance_eval(obj) { include Kernel }
+      end.should_not raise_error(NoMethodError)
+    end
+  end
+
   extended_on :rubinius do
     describe "rb_obj_frozen_p" do
       it "returns true if object passed to it is frozen" do
@@ -352,6 +361,56 @@ describe "CApiObject" do
 
     it "raises a TypeError if called with a String" do
       lambda { @o.rb_to_int("1") }.should raise_error(TypeError)
+    end
+  end
+
+  describe "instance variable access" do
+    before do
+      @test = ObjectTest.new
+    end
+
+    describe "rb_iv_get" do
+      it "returns the instance variable on an object" do
+        @o.rb_iv_get(@test, "@foo").should == @test.instance_eval { @foo }
+      end
+
+      it "returns nil if the instance variable has not been initialized" do
+        @o.rb_iv_get(@test, "@bar").should == nil
+      end
+    end
+
+    describe "rb_iv_set" do
+      it "sets and returns the instance variable on an object" do
+        @o.rb_iv_set(@test, "@foo", 42).should == 42
+        @test.instance_eval { @foo }.should == 42
+      end
+    end
+
+    describe "rb_ivar_get" do
+      it "returns the instance variable on an object" do
+        @o.rb_ivar_get(@test, :@foo).should == @test.instance_eval { @foo }
+      end
+
+      it "returns nil if the instance variable has not been initialized" do
+        @o.rb_ivar_get(@test, :@bar).should == nil
+      end
+    end
+
+    describe "rb_ivar_set" do
+      it "sets and returns the instance variable on an object" do
+        @o.rb_ivar_set(@test, :@foo, 42).should == 42
+        @test.instance_eval { @foo }.should == 42
+      end
+    end
+
+    describe "rb_ivar_defined" do
+      it "returns true if the instance variable is defined" do
+        @o.rb_ivar_defined(@test, :@foo).should == true
+      end
+
+      it "returns false if the instance variable is not defined" do
+        @o.rb_ivar_defined(@test, :@bar).should == false
+      end
     end
   end
 end

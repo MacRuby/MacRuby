@@ -88,11 +88,9 @@ describe "C-API Kernel function" do
 
   describe "rb_sys_fail" do
     it "raises an exception from the value of errno" do
-      # If errno = 1 is no EPERM on a platform, we can change the
-      # expected exception class to be more generic
       lambda do
         @s.rb_sys_fail("additional info")
-      end.should raise_error(Errno::EPERM, /additional info/)
+      end.should raise_error(SystemCallError, /additional info/)
     end
   end
 
@@ -125,6 +123,22 @@ describe "C-API Kernel function" do
 
     it "raises LocalJumpError when no block is given" do
       lambda { @s.rb_yield_values(1, 2) }.should raise_error(LocalJumpError)
+    end
+  end
+
+  describe "rb_yield_splat" do
+    it "yields with passed array's contents" do
+      ret = nil
+      @s.rb_yield_splat([1, 2]) { |x, y| ret = x + y }
+      ret.should == 3
+    end
+
+    it "returns the result from block evaluation" do
+      @s.rb_yield_splat([1, 2]) { |x, y| x + y }.should == 3
+    end
+
+    it "raises LocalJumpError when no block is given" do
+      lambda { @s.rb_yield_splat([1, 2]) }.should raise_error(LocalJumpError)
     end
   end
 
