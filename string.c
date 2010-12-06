@@ -181,6 +181,9 @@ str_compatible_encoding(rb_str_t *str1, rb_str_t *str2)
     if (str_is_ruby_ascii_only(str2)) {
 	return str1->encoding;
     }
+    if (str_is_ruby_ascii_only(str1)) {
+	return str2->encoding;
+    }
     return NULL;
 }
 
@@ -863,7 +866,7 @@ str_concat_string(rb_str_t *self, rb_str_t *str)
 	return;
     }
 
-    str_must_have_compatible_encoding(self, str);
+    rb_encoding_t *enc = str_must_have_compatible_encoding(self, str);
     str_make_same_format(self, str);
 
     // TODO: we should maybe merge flags
@@ -872,6 +875,8 @@ str_concat_string(rb_str_t *self, rb_str_t *str)
     str_unset_facultative_flags(self);
 
     str_concat_bytes(self, str->data.bytes, str->length_in_bytes);
+
+    self->encoding = enc;
 }
 
 static int
@@ -2369,15 +2374,6 @@ rstr_plus(VALUE self, SEL sel, VALUE other)
 {
     rb_str_t *newstr = str_dup(RSTR(self));
     rb_str_t *otherstr = str_need_string(other);
-    // if other cannot be concatenated to self
-    // but self is ASCII-only and the encodings of both string are ASCII-compatible
-    // then the new string takes the encoding of other
-    if ((str_compatible_encoding(newstr, otherstr) == NULL)
-	    && newstr->encoding->ascii_compatible
-	    && otherstr->encoding->ascii_compatible
-	    && str_is_ruby_ascii_only(newstr)) {
-	newstr->encoding = otherstr->encoding;
-    }
     str_concat_string(newstr, otherstr);
     if (OBJ_TAINTED(self) || OBJ_TAINTED(other)) {
 	OBJ_TAINT(newstr);
