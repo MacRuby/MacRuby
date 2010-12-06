@@ -1025,6 +1025,7 @@ class RoxorVM {
 	VALUE current_top_object;
 	VALUE backref;
 	VALUE broken_with;
+	VALUE last_line;
 	VALUE last_status;
 	VALUE errinfo;
 	int safe_level;
@@ -1052,6 +1053,7 @@ class RoxorVM {
 	ACCESSOR(current_top_object, VALUE);
 	ACCESSOR(backref, VALUE);
 	ACCESSOR(broken_with, VALUE);
+	ACCESSOR(last_line, VALUE);
 	ACCESSOR(last_status, VALUE);
 	ACCESSOR(errinfo, VALUE);
 	ACCESSOR(safe_level, int);

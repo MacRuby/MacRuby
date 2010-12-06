@@ -393,6 +393,7 @@ RoxorVM::RoxorVM(void)
     safe_level = 0;
     backref = Qnil;
     broken_with = Qundef;
+    last_line = Qnil;
     last_status = Qnil;
     errinfo = Qnil;
     parse_in_eval = false;
@@ -459,6 +460,7 @@ RoxorVM::RoxorVM(const RoxorVM &vm)
 
     backref = Qnil;
     broken_with = Qundef;
+    last_line = Qnil;
     last_status = Qnil;
     errinfo = Qnil;
     parse_in_eval = false;
@@ -4146,15 +4148,19 @@ extern "C"
 VALUE
 rb_lastline_get(void)
 {
-    // TODO
-    return Qnil;
+    return GET_VM()->get_last_line();
 }
 
 extern "C"
 void
 rb_lastline_set(VALUE val)
 {
-    // TODO
+    VALUE old = GET_VM()->get_last_line();
+    if (old != val) {
+	GC_RELEASE(old);
+	GET_VM()->set_last_line(val);
+	GC_RETAIN(val);
+    }
 }
 
 extern "C"
