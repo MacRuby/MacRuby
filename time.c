@@ -17,6 +17,7 @@
 #include "ruby/encoding.h"
 #include "encoding.h"
 #include "objc.h"
+#include "class.h"
 
 VALUE rb_cTime;
 VALUE rb_cNSDate;

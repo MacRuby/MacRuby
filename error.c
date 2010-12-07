@@ -14,6 +14,7 @@
 #include "ruby/node.h"
 #include "vm.h"
 #include "id.h"
+#include "class.h"
 
 #include <stdio.h>
 #include <stdarg.h>

@@ -11,6 +11,16 @@
 extern "C" {
 #endif
 
+bool rb_objc_hash_is_pure(VALUE);
+bool rb_objc_str_is_pure(VALUE);
+bool rb_objc_ary_is_pure(VALUE);
+
+VALUE rb_objc_create_class(const char *name, VALUE super);
+void rb_objc_class_sync_version(Class klass, Class super_class);
+void rb_define_object_special_methods(VALUE klass);
+VALUE rb_class_new_instance_imp(VALUE, SEL, int, VALUE *);
+VALUE rb_make_singleton_class(VALUE super);
+
 #define RCLASS_IS_OBJECT_SUBCLASS    (1<<1)  /* class is a true RubyObject subclass */
 #define RCLASS_IS_RUBY_CLASS         (1<<2)  /* class was created from Ruby */
 #define RCLASS_IS_MODULE             (1<<3)  /* class represents a Ruby Module */

@@ -13,6 +13,7 @@
 #include "ruby/encoding.h"
 #include "encoding.h"
 #include "objc.h"
+#include "class.h"
 #include "re.h"
 
 VALUE rb_eRegexpError;
