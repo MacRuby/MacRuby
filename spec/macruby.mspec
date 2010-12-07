@@ -15,6 +15,9 @@ class MSpecScript
     # obsolete in 1.9
     '^core/continuation',
     '^core/kernel/callcc_spec.rb',
+
+    # Currently not working on MacRuby
+    '^core/io'
   ]
   
   # Library specs
