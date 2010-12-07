@@ -1,1 +1,0 @@
-critical:Numeric#eql? returns false if self's and other's types don't match

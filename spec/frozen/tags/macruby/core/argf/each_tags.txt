@@ -1,2 +1,0 @@
-fails:ARGF.each reads each line of files
-fails:ARGF.each returns self when passed a block

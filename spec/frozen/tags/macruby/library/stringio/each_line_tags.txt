@@ -1,2 +1,0 @@
-fails:StringIO#each_line when passed a separator does not change $_
-fails:StringIO#each_line when passed no arguments does not change $_

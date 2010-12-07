@@ -1,1 +1,0 @@
-fails:Tempfile#size returns 0 when self is closed

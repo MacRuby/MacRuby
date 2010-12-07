@@ -1,10 +1,7 @@
-critical:Module#autoload? returns the name of the file that will be autoloaded
-critical:Module#autoload? returns nil if no file has been registered for a constant
-critical:Module#autoload registers a file to load the first time the named constant is accessed
-critical:Module#autoload shares the autoload request across dup'ed copies of modules
 fails:Module#autoload does not remove the constant from the constant table if load fails
 fails:Module#autoload does not remove the constant from the constant table if the loaded files does not define it
 fails:Module#autoload does not load the file when refering to the constant in defined?
 fails:Module#autoload does NOT raise a NameError when the autoload file did not define the constant and a module is opened with the same name
 fails:Module#autoload calls #to_path on non-string filenames
+fails:Module#autoload shares the autoload request across dup'ed copies of modules
 fails:Module#autoload calls #to_path on non-String filename arguments

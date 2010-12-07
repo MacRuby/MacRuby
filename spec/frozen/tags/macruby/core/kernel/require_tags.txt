@@ -1,24 +1,12 @@
-fails:Kernel#require (path resolution) raises a TypeError if passed an object that has #to_path but not #to_str
 fails:Kernel#require ($LOAD_FEATURES) does not load a ./ relative path that is already stored
 fails:Kernel#require ($LOAD_FEATURES) does not load a ../ relative path that is already stored
 fails:Kernel#require ($LOAD_FEATURES) does not load a non-canonical path that is already stored
-fails:Kernel#require ($LOAD_FEATURES) stores ./ relative paths as passed in
-fails:Kernel#require ($LOAD_FEATURES) stores ../ relative paths as passed in
-fails:Kernel#require ($LOAD_FEATURES) does not collapse duplicate path separators
-fails:Kernel#require ($LOAD_FEATURES) loads a ./ relative path for a file already loaded
-fails:Kernel#require ($LOAD_FEATURES) loads a ../ relative path for a file already loaded
 fails:Kernel#require ($LOAD_FEATURES) does not load a non-canonical path for a file already loaded
 fails:Kernel#require (shell expansion) performs tilde expansion on a .rb file before storing paths in $LOADED_FEATURES
 fails:Kernel#require (shell expansion) performs tilde expansion on a non-extensioned file before storing paths in $LOADED_FEATURES
-fails:Kernel.require (path resolution) raises a TypeError if passed an object that has #to_path but not #to_str
 fails:Kernel.require ($LOAD_FEATURES) does not load a ./ relative path that is already stored
 fails:Kernel.require ($LOAD_FEATURES) does not load a ../ relative path that is already stored
 fails:Kernel.require ($LOAD_FEATURES) does not load a non-canonical path that is already stored
-fails:Kernel.require ($LOAD_FEATURES) stores ./ relative paths as passed in
-fails:Kernel.require ($LOAD_FEATURES) stores ../ relative paths as passed in
-fails:Kernel.require ($LOAD_FEATURES) does not collapse duplicate path separators
-fails:Kernel.require ($LOAD_FEATURES) loads a ./ relative path for a file already loaded
-fails:Kernel.require ($LOAD_FEATURES) loads a ../ relative path for a file already loaded
 fails:Kernel.require ($LOAD_FEATURES) does not load a non-canonical path for a file already loaded
 fails:Kernel.require (shell expansion) performs tilde expansion on a .rb file before storing paths in $LOADED_FEATURES
 fails:Kernel.require (shell expansion) performs tilde expansion on a non-extensioned file before storing paths in $LOADED_FEATURES

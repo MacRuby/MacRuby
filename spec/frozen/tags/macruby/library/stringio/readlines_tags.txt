@@ -1,2 +1,0 @@
-fails:StringIO#readlines when passed [separator] does not change $_
-fails:StringIO#readlines when passed no argument does not change $_

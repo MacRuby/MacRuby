@@ -1,1 +1,0 @@
-fails:ARGF.skip has no effect at end of stream

@@ -1,1 +1,0 @@
-fails:String#scan supports \G which matches the end of the previous match / string start for first match

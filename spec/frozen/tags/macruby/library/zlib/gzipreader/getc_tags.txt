@@ -1,2 +1,0 @@
-fails:GzipReader#getc returns the next character from the stream
-fails:GzipReader#getc increments position

@@ -1,2 +1,0 @@
-fails:ARGF.eof raises IOError when called on a closed stream
-fails:ARGF.eof? raises IOError when called on a closed stream

@@ -1,3 +1,0 @@
-critical:Regexp with character classes matches Unicode lowercase letter characters with [[:lower:]]
-critical:Regexp with character classes matches Unicode lowercase letter characters with [[:print:]]
-critical:Regexp with character classes matches Unicode lowercase characters with [[:word:]]

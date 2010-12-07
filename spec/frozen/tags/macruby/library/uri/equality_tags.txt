@@ -1,1 +1,0 @@
-critical:URI#== ignores capitalization of scheme

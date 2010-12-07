@@ -1,4 +1,0 @@
-critical:Kernel.spawn redirects STDERR to the given file descriptior if if :err => Fixnum
-critical:Kernel.spawn redirects STDERR to the given file if :err => String
-fails:Kernel.spawn redirects STDOUT to the given file if :err => IO
-fails:Kernel.spawn redirects both STDERR and STDOUT to the given file descriptior, name or IO

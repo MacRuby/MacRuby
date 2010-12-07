@@ -1,1 +1,0 @@
-critical:Zlib::GzipFile#orig_name returns the name

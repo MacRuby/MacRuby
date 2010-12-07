@@ -1,1 +1,0 @@
-critical:BasicObject#metaclass does the job of a metaclass

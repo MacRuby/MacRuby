@@ -1,3 +1,2 @@
-fails:A method definition inside an instance_eval creates a class method when the receiver is a class
 fails:A method definition in an eval creates an instance method
 fails:A method definition in an eval creates a class method

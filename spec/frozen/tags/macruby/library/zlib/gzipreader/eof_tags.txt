@@ -1,1 +1,0 @@
-fails:GzipReader#eof? does not affect the reading data

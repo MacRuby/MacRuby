@@ -1,7 +1,0 @@
-fails:String#gsub with pattern and replacement supports \G which matches at the beginning of the remaining (non-matched) string
-fails:String#gsub with pattern and replacement untrusts the result if the original string or replacement is untrusted
-fails:String#gsub with pattern and Hash untrusts the result if the original string is untrusted
-fails:String#gsub with pattern and Hash untrusts the result if a hash value is untrusted
-fails:String#gsub with pattern and block untrusts the result if the original string or replacement is untrusted
-fails:String#gsub! with pattern and replacement untrusts self if replacement is untrusted
-fails:String#gsub! with pattern and block untrusts self if block's result is untrusted

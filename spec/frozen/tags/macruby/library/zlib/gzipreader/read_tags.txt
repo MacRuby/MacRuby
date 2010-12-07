@@ -1,1 +1,0 @@
-fails:GzipReader#read reads the contents up to a certain size

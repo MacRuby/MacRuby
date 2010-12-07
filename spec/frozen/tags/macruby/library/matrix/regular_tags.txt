@@ -1,2 +1,0 @@
-critical:Matrix#regular? returns false unless rank(A) != n
-critical:Matrix#regular? returns false for singular matrices
