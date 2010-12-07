@@ -15,6 +15,7 @@
 #include "ruby/node.h"
 #include "ruby/util.h"
 #include "vm.h"
+#include "encoding.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -1391,7 +1392,9 @@ rb_glob(const char *path, void (*func)(const char *, VALUE), VALUE arg)
 static void
 push_pattern(const char *path, VALUE ary)
 {
-    rb_ary_push(ary, rb_tainted_str_new2(path));
+    VALUE str = rstr_new_path(path);
+    OBJ_TAINT(str);
+    rb_ary_push(ary, str);
 }
 
 int

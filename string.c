@@ -6724,3 +6724,22 @@ rb_str_modify(VALUE obj)
 	rb_raise(rb_eArgError, "can't modify NSString");
     }
 }
+
+VALUE
+rstr_new_path(const char *path)
+{
+    // XXX this should be rewritten using ICU (utrans.h?) to avoid creating
+    // these 2 temporary CFStrings.
+    CFStringRef tmp = CFStringCreateWithFileSystemRepresentation(NULL, path); 
+    assert(tmp != NULL);
+
+    CFMutableStringRef tmp2 = CFStringCreateMutableCopy(NULL, 0, tmp); 
+    assert(tmp2 != NULL); 
+    CFRelease(tmp); 
+    CFStringNormalize(tmp2, kCFStringNormalizationFormC); 
+
+    rb_str_t *str = str_new_from_cfstring(tmp2);
+    CFRelease(tmp2);
+ 
+    return (VALUE)str;
+}

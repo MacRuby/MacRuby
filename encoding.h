@@ -368,6 +368,8 @@ str_check_ascii_compatible(VALUE str)
     }
 }
 
+VALUE rstr_new_path(const char *path);
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
