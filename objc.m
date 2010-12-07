@@ -734,16 +734,172 @@ rb_objc_to_plist(VALUE recv, SEL sel)
     return rb_bstr_new_with_data(bytes, len);
 }
 
+static bool
+implementsProtocolMethods(Protocol *p, Class klass, bool instanceMethods)
+{
+    unsigned int count = 0;
+    struct objc_method_description *list =
+	protocol_copyMethodDescriptionList(p, true, instanceMethods, &count);
+    if (list != NULL) {
+	bool success = true;
+	for (unsigned int i = 0; i < count; i++) {
+	    SEL msel = list[i].name;
+	    Method m;
+	    if (instanceMethods) {
+		m = class_getInstanceMethod(klass, msel);
+	    }
+	    else {
+		m = class_getClassMethod(klass, msel);
+	    }
+	    if (m == NULL) {
+		success = false;
+		break;
+	    }
+	}
+	free(list);
+	if (success) {
+	    return true;
+	}
+	return false;
+    }
+    return true;
+}
+
+static bool
+conformsToProtocol(Class klass, Protocol *p)
+{
+    if (implementsProtocolMethods(p, klass, true)
+	    && implementsProtocolMethods(p, klass, false)) {
+	unsigned int count = 0;
+	Protocol **list = protocol_copyProtocolList(p, &count);
+	bool success = true;
+	for (unsigned int i = 0; i < count; i++) {
+	    if (!conformsToProtocol(klass, list[i])) {
+		success = false;
+		break;
+	    }
+	}
+	free(list);
+	return success;
+    }
+    return false;
+}
+
+static bool
+conformsToProtocolAndAncestors(void *self, SEL sel, Class klass,
+	void *protocol, IMP super)
+{
+    if (super != NULL) {
+	if (((bool(*)(void *, SEL, Protocol *))super)(self, sel, protocol)) {
+	    return true;
+	}
+    }
+    if (protocol != NULL) {
+	Protocol *p = (Protocol *)protocol;
+	if (conformsToProtocol(klass, p)) {
+	    class_addProtocol(klass, p);
+	    return true;
+	}
+    }
+    return false;
+}
+
+static IMP old_conformsToProtocol_imp = NULL;
+
+static bool
+robj_conformsToProtocol(void *self, SEL sel, void *protocol)
+{
+    return conformsToProtocolAndAncestors(self, sel, object_getClass(self),
+	    protocol, old_conformsToProtocol_imp);
+}
+
+static IMP old_conformsToProtocol_mimp = NULL;
+
+static bool
+robj_conformsToProtocol_m(void *self, SEL sel, void *protocol)
+{
+    return conformsToProtocolAndAncestors(self, sel, (Class)self, protocol,
+	    old_conformsToProtocol_mimp);
+}
+
+static bool
+performRubyOnlySelector(void *self, SEL msg, int argc, void **argv,
+	id *retval)
+{
+    Method m = class_getInstanceMethod(object_getClass((id)self), msg);
+    if (rb_vm_is_ruby_method(m)) {
+	VALUE rb_args[5];
+	assert(argc < 5);
+	for (int i = 0; i < argc; i++) {
+	    rb_args[i] = OC2RB(argv[i]);
+	}
+	*retval = RB2OC(rb_vm_call(OC2RB(self), msg, argc, rb_args));
+	return true;
+    }
+    return false;
+}
+
+static IMP old_performSelector_imp = NULL;
+
+static id
+robj_performSelector(void *self, SEL sel, SEL msg)
+{
+    id retval = NULL;
+    if (!performRubyOnlySelector(self, msg, 0, NULL, &retval)) {
+	if (old_performSelector_imp != NULL) {
+	    return ((id(*)(void *, SEL, SEL))
+		    old_performSelector_imp) (self, sel, msg);
+	}
+    }
+    return retval;
+}
+
+static IMP old_performSelectorWithObject_imp = NULL;
+
+static id
+robj_performSelectorWithObject(void *self, SEL sel, SEL msg, void *arg)
+{
+    id retval = NULL;
+    if (!performRubyOnlySelector(self, msg, 1, &arg, &retval)) {
+	if (old_performSelectorWithObject_imp != NULL) {
+	    return ((id(*)(void *, SEL, SEL, void *))
+		    old_performSelectorWithObject_imp) (self, sel, msg, arg);
+	}
+    }
+    return retval;
+}
+
+static IMP old_performSelectorWithObjectWithObject_imp = NULL;
+
+static id
+robj_performSelectorWithObjectWithObject(void *self, SEL sel, SEL msg,
+	void *arg1, void *arg2)
+{
+    id retval = NULL;
+    void *args[2] = { arg1, arg2 };
+    if (!performRubyOnlySelector(self, msg, 2, args, &retval)) {
+	if (old_performSelectorWithObjectWithObject_imp != NULL) {
+	    return ((id(*)(void *, SEL, SEL, void *, void *))
+		    old_performSelectorWithObjectWithObject_imp)
+		(self, sel, msg, arg1, arg2);
+	}
+    }
+    return retval;
+}
+
 void
 Init_ObjC(void)
 {
     sel_at = sel_registerName("at:");
 
-    rb_objc_define_module_function(rb_mKernel, "load_bridge_support_file", rb_objc_load_bs, 1);
-    rb_objc_define_module_function(rb_mKernel, "load_plist", rb_objc_load_plist, 1);
+    rb_objc_define_module_function(rb_mKernel, "load_bridge_support_file",
+	    rb_objc_load_bs, 1);
+    rb_objc_define_module_function(rb_mKernel, "load_plist",
+	    rb_objc_load_plist, 1);
     
     rb_objc_define_method(rb_cObject, "to_plist", rb_objc_to_plist, 0);
 
+    // Overwrite -[NSKeyValueUnnestedProperty isaForAutonotifying].
     Class k = objc_getClass("NSKeyValueUnnestedProperty");
     assert(k != NULL);
     Method m = class_getInstanceMethod(k, @selector(isaForAutonotifying));
@@ -751,8 +907,27 @@ Init_ObjC(void)
     old_imp_isaForAutonotifying = method_getImplementation(m);
     method_setImplementation(m, (IMP)rb_obj_imp_isaForAutonotifying);
 
+    // Overwrite NSObject's conformsToProtocol:.
+    k = (Class)[NSObject class];
+    SEL sel = sel_registerName("conformsToProtocol:");
+    old_conformsToProtocol_imp = rb_objc_install_method(k, sel,
+	    (IMP)robj_conformsToProtocol);
+    old_conformsToProtocol_mimp = rb_objc_install_method(
+	    *(Class *)k, sel, (IMP)robj_conformsToProtocol_m);
+
+    // Overwrite NSObject's performSelector: and friends.
+    old_performSelector_imp = rb_objc_install_method2(k,
+	    "performSelector:", (IMP)robj_performSelector);
+    old_performSelectorWithObject_imp = rb_objc_install_method2(k,
+	    "performSelector:withObject:",
+	    (IMP)robj_performSelectorWithObject);
+    old_performSelectorWithObjectWithObject_imp = rb_objc_install_method2(k,
+	    "performSelector:withObject:withObject:",
+	    (IMP)robj_performSelectorWithObjectWithObject);  
+
     // Mark Foundation as multithreaded.
-    [NSThread detachNewThreadSelector:@selector(self) toTarget:[NSThread class] withObject:nil];
+    [NSThread detachNewThreadSelector:@selector(self) toTarget:[NSThread class]
+	withObject:nil];
 }
 
 @interface Protocol
