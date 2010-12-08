@@ -1032,19 +1032,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 	}
     }
 
-    // Taint the ByteString accordingly.
-    if (OBJ_TAINTED(fmt)) {
-	OBJ_TAINT(data);
-    }
-    else {
-	for (long i = 0, count = RARRAY_LEN(ary); i < count; i++) {
-	    if (OBJ_TAINTED(RARRAY_AT(ary, i))) {
-		OBJ_TAINT(data);
-		break;
-	    }
-	}
-    }
-
+    OBJ_INFECT(data, fmt);
     switch (enc_info) {
       case 1:
 	// TODO
