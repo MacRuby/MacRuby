@@ -39,7 +39,11 @@ extern "C" void rb_vm_prepare_method(Class klass, unsigned char dynamic_class,
 static inline Value *
 call_arg(CallInst *insn, unsigned int i)
 {
+#if LLVM_TOT
     return insn->getOperand(i + 1);
+#else
+    return insn->getArgOperand(i);
+#endif
 }
 
 static inline uint64_t

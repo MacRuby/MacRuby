@@ -316,8 +316,12 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     level = 0;
 #endif
 
+#if LLVM_TOT
     dbg_mdkind = context.getMDKindID("dbg");
     assert(dbg_mdkind != 0);
+#else
+    dbg_mdkind = LLVMContext::MD_dbg;
+#endif
 }
 
 RoxorAOTCompiler::RoxorAOTCompiler(void)
@@ -2919,7 +2923,11 @@ RoxorCompiler::compile_scope(NODE *node)
 		new_rescue_invoke_bb->use_begin();
 		rescue_use_it != new_rescue_invoke_bb->use_end();
 		rescue_use_it = new_rescue_invoke_bb->use_begin()) {
-	    InvokeInst* invoke = dyn_cast<InvokeInst>(rescue_use_it);
+#if LLVM_TOT
+	    InvokeInst *invoke = dyn_cast<InvokeInst>(rescue_use_it);
+#else
+	    InvokeInst *invoke = dyn_cast<InvokeInst>(*rescue_use_it);
+#endif
 	    assert(invoke != NULL);
 
 	    // Transform the InvokeInst in CallInst.

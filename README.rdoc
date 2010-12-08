@@ -24,11 +24,11 @@ http://macruby.org
 * LLVM ToT, compiled for both i386 and x86_64.
 
   LLVM is a moving target and breaks periodically. We recommend to install
-  revision 106781, being sure to specify the correct C and C++ compilers through 
+  revision tag 2.8, being sure to specify the correct C and C++ compilers through 
   environment variables. 
 
-    $ svn co -r 106781 https://llvm.org/svn/llvm-project/llvm/trunk llvm-trunk
-    $ cd llvm-trunk
+    $ svn co https://llvm.org/svn/llvm-project/llvm/tags/RELEASE_28 llvm-2.8
+    $ cd llvm-2.8
     $ env UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" CC=/usr/bin/gcc CXX=/usr/bin/g++ ./configure --enable-bindings=none --enable-optimized --with-llvmgccdir=/tmp
     $ env UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" CC=/usr/bin/gcc CXX=/usr/bin/g++ make
     $ sudo env UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" CC=/usr/bin/gcc CXX=/usr/bin/g++ make install
