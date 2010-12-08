@@ -31,6 +31,15 @@
 #include <sys/syscall.h>
 #include <spawn.h>
 
+#define IS_FD_OF_STDIO(x) (x <= 2)
+#define CLOSE_FD(fd)					\
+    do {						\
+	if (!IS_FD_OF_STDIO(fd)) {			\
+	    close(fd);					\
+	}						\
+    }							\
+    while (0)
+
 char ***_NSGetEnviron();
 
 extern void Init_File(void);
@@ -343,7 +352,7 @@ io_close(rb_io_t *io_struct, bool close_read, bool close_write)
     // rb_sys_fail().
     if (close_read) {
 	if (io_struct->read_fd != io_struct->write_fd) {
-	    close(io_struct->read_fd);
+	    CLOSE_FD(io_struct->read_fd);
 	}
 	else {
 	    io_struct->fd = -1;
@@ -352,7 +361,7 @@ io_close(rb_io_t *io_struct, bool close_read, bool close_write)
     }
     if (close_write) {
 	if (io_struct->write_fd != io_struct->read_fd) {
-	    close(io_struct->write_fd);
+	    CLOSE_FD(io_struct->write_fd);
 	}
 	else {
 	    io_struct->fd = -1;
@@ -368,7 +377,7 @@ io_close(rb_io_t *io_struct, bool close_read, bool close_write)
     }
     if (io_struct->fd != -1 && io_struct->read_fd == -1
 	    && io_struct->write_fd == -1) {
-	close(io_struct->fd);
+	CLOSE_FD(io_struct->fd);
 	io_struct->fd = -1;
     }
 }
