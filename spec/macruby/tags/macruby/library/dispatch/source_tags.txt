@@ -1,7 +1,0 @@
-fails:Dispatch::Source PROC process fires with data on process event(s)
-fails:Dispatch::Source PROC signal fires with data on signal count
-fails:Dispatch::Source PROC process can use bitfields as well as arrays
-fails:Dispatch::Source add fires with data on summed inputs
-fails:Dispatch::Source VNODE file fires with data on file events
-fails:Dispatch::Source VNODE write fires with data on writable bytes
-fails:Dispatch::Source or fires with data on ORed inputs
