@@ -2734,24 +2734,29 @@ rary_or(VALUE ary1, SEL sel, VALUE ary2)
 static VALUE
 rary_uniq_bang(VALUE ary, SEL sel)
 {
+    VALUE hash, v;
+    long i, j;
+
     rary_modify(ary);
-    long n = RARY(ary)->len;
-    bool changed = false;
-
-    for (size_t i = 0; i < n; i++) {
-	VALUE item = rary_elt(ary, i);
-	size_t pos = i + 1;
-
-	while (pos < n && (pos = rary_index_of_item(ary, pos, item))
-		!= NOT_FOUND) {
-	    rary_erase(ary, pos, 1);
-	    n--;
-	    changed = true;
-	}
+    if (RARRAY_LEN(ary) <= 1) {
+        return Qnil;
     }
-
-    if (!changed) {
+    if (rb_block_given_p()) {
+	// TODO
 	return Qnil;
+    }
+    else {
+	hash = ary_make_hash(rb_ary_new(), ary);
+	if (RARRAY_LEN(ary) == (long)RHASH_SIZE(hash)) {
+	    return Qnil;
+	}
+	for (i=j=0; i<RARRAY_LEN(ary); i++) {
+	    st_data_t vv = (st_data_t)(v = rary_elt(ary, i));
+	    if (st_delete(RHASH_TBL(hash), &vv, 0)) {
+		rary_store(ary, j++, v);
+	    }
+	}
+	rary_resize(ary, j);
     }
     return ary;
 }
