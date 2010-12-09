@@ -2399,12 +2399,12 @@ rb_io_s_popen(VALUE klass, SEL sel, int argc, VALUE *argv)
  *
  */
 
-static VALUE rb_io_s_new(VALUE klass, SEL sel, int argc, VALUE *argv);
+static VALUE rb_io_s_new0(VALUE klass, int argc, VALUE *argv);
 
 static VALUE
 rb_io_s_open(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
-    VALUE io = rb_io_s_new(klass, sel, argc, argv);
+    VALUE io = rb_io_s_new0(klass, argc, argv);
     if (rb_block_given_p()) {
         VALUE ret = rb_vm_yield(1, &io);
         rb_io_close(io);
@@ -3201,6 +3201,12 @@ rb_file_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
  */
 
 static VALUE
+rb_io_s_new0(VALUE klass, int argc, VALUE *argv)
+{
+    return rb_class_new_instance(argc, argv, klass);
+}
+
+static VALUE
 rb_io_s_new(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     if (rb_block_given_p()) {
@@ -3220,7 +3226,7 @@ rb_io_s_new(VALUE klass, SEL sel, int argc, VALUE *argv)
 		    cname, cname);
 	}
     }
-    return rb_class_new_instance(argc, argv, klass);
+    return rb_io_s_new0(klass, argc, argv);
 }
 
 static inline void
