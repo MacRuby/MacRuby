@@ -154,7 +154,7 @@ class BuilderConfig
     archflags = archs.map { |x| "-arch #{x}" }.join(' ')
     @cflags = "-std=c99 -I. -I./include -fno-common -pipe -g -Wall -fexceptions -O#{OPTZ_LEVEL} -Wno-deprecated-declarations -Werror #{archflags}"
     @cxxflags = "-I. -I./include -g -Wall -Wno-deprecated-declarations -Werror #{archflags}"
-    @ldflags = '-lpthread -ldl -lxml2 -lobjc -licucore -framework Foundation'
+    @ldflags = '-lpthread -ldl -lxml2 -lobjc -framework Foundation'
     @ldflags << " -lauto" if has_libauto
     if opt.delete(:static)
       @cflags << ' -DMACRUBY_STATIC'
@@ -171,9 +171,11 @@ class BuilderConfig
     end
     @cxxflags << " -fno-rtti" unless @cxxflags.index("-fno-rtti")
     @dldflags = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION} -exported_symbols_list #{EXPORTED_SYMBOLS_LIST}"
-    if `sw_vers -productVersion`.to_f <= 10.6
-      @cflags << ' -I./icu-1060'
-      @cxxflags << ' -I./icu-1060'
+    unless opt.delete(:system_icu)
+      @ldflags << " -L./icu/source/lib -licudata -licui18n -licuio -licutu -licuuc"
+      icu_headers = ' -I./icu/source/common -I./icu/source/i18n'
+      @cflags << icu_headers
+      @cxxflags << icu_headers
     end
     if sdk
       sdk_flags = "--sysroot=#{sdk}"

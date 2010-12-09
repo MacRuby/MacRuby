@@ -70,7 +70,7 @@ def build_objects
 end
 
 desc "Create miniruby"
-task :miniruby => :files do
+task :miniruby => ['icu:build', :files] do
   $builder.config = FULL_CONFIG
   build_objects
   $builder.link_executable('miniruby', OBJS)
@@ -82,9 +82,35 @@ task :rbconfig => :miniruby do
   Builder.create_rbconfig
 end
 
+namespace :icu do
+  ICU_PKG = 'icu4c-4_4_2-src.tgz'
+
+  desc "Build ICU static libs"
+  task :build do
+    unless File.exists?('icu')
+      sh "/usr/bin/tar -xzf #{ICU_PKG}"
+#      Dir.chdir('icu/source') do
+#        sh "/usr/bin/patch -p0 <../../icu-patch.diff"
+#      end
+    end
+    Dir.chdir('icu/source') do
+      unless File.exist?('Makefile')
+        archf = ARCHS.map { |x| "-arch #{x}" }.join(' ')
+        sh "CC=\"#{CC}\" CXX=\"#{CXX}\" CFLAGS=\"#{archf}\" CXXFLAGS=\"#{archf}\" LDFLAGS=\"#{archf}\" ./runConfigureICU MacOSX --enable-static --disable-shared --disable-renaming --disable-extras --disable-layout --disable-samples"
+      end
+      sh "/usr/bin/make -j#{SIMULTANEOUS_JOBS}"
+    end
+  end
+
+  desc "Clean up ICU"
+  task :clean do
+    rm_rf 'icu'
+  end
+end
+
 namespace :macruby do
   desc "Build dynamic library"
-  task :dylib => [:rbconfig, :files] do
+  task :dylib => ['icu:build', :rbconfig, :files] do
     $builder.config = FULL_CONFIG
     build_objects
     dylib = "lib#{RUBY_SO_NAME}.#{NEW_RUBY_VERSION}.dylib"
@@ -99,7 +125,7 @@ namespace :macruby do
   end
 
   desc "Build static library"
-  task :static => :files do
+  task :static => ['icu:build', :files] do
     $builder.config = STATIC_CONFIG
     build_objects
     $builder.link_archive("lib#{RUBY_SO_NAME}-static.a", $builder.objs - ['main', 'gc-stub'])
