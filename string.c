@@ -4609,7 +4609,7 @@ rstr_each_line(VALUE str, SEL sel, int argc, VALUE *argv)
     do {
 	long off = str_index_for_string(RSTR(str), rs_str, pos, -1,
 		false, true);
-	if(paragraph && off > 0) {
+	if(paragraph && off >= 0) {
 	    int i;
 	    for(i = off + 1; i < len; i++) {
 		UChar c = str_get_uchar(RSTR(str), i, true);
