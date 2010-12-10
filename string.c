@@ -4596,8 +4596,10 @@ rstr_each_line(VALUE str, SEL sel, int argc, VALUE *argv)
     StringValue(rs);
 
     rb_str_t *rs_str = str_need_string(rs);
+    bool paragraph = false;
     if (rs_str->length_in_bytes == 0) {
-	rs_str = str_need_string(rb_default_rs);
+	rs_str = RSTR(rb_str_new("\n\n", 2));
+	paragraph = true;
     }
 
     const long len = str_length(RSTR(str), true);
@@ -4605,8 +4607,18 @@ rstr_each_line(VALUE str, SEL sel, int argc, VALUE *argv)
 
     long pos = 0;
     do {
-	const long off = str_index_for_string(RSTR(str), rs_str, pos, -1,
+	long off = str_index_for_string(RSTR(str), rs_str, pos, -1,
 		false, true);
+	if(paragraph && off > 0) {
+	    int i;
+	    for(i = off + 1; i < len; i++) {
+		UChar c = str_get_uchar(RSTR(str), i, true);
+		if (c != '\n') {
+		    break;
+		}
+	    }
+	    off = i - 1;
+	}
 
 	long substr_len = 0;
 	if (off < 0) {
