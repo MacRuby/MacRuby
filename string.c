@@ -5137,7 +5137,7 @@ fill_linear_charset_buffer(char *buf, long bufsize, long *lenp, bool *negatep,
     while (pos < chars_len) {
 	UChar c = chars[pos];
 
-	if (pos + 2 < chars_len && chars[pos + 1] == '-') {
+	if (pos + 2 < chars_len && c != '\\' && chars[pos + 1] == '-') {
 	    // Range
 	    UChar e = chars[pos + 2];
 	    if (c > e) {
