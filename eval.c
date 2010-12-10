@@ -239,7 +239,7 @@ rb_mod_nesting(VALUE rcv, SEL sel, VALUE top, int argc, VALUE *argv)
 	    return rb_vm_module_nesting(top);
 
 	default:
-	    return Qnil;
+	    return rb_ary_new();
     }
 }
 
