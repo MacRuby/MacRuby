@@ -8,9 +8,7 @@ fails:Array#pack with format 'a' cuts byte sequence even if it breaks a multibyt
 fails:Array#pack with format 'Z' treats a multibyte character just as a byte sequence
 fails:Array#pack with format 'Z' returns result in ASCII-8BIT
 fails:Array#pack with format 'Z' cuts byte sequence even if it breaks a multibyte character
-fails:Array#pack with format 'M' ignores star parameter
 fails:Array#pack with format 'M' returns an US-ASCII string
-fails:Array#pack with format 'm' ignores star parameter
 fails:Array#pack with format 'm' returns an US-ASCII string
 fails:Array#pack with format 'u' returns an US-ASCII string
 fails:Array#pack with format 'x' returns an US-ASCII string
