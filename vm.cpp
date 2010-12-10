@@ -1320,6 +1320,19 @@ rb_vm_get_outer(VALUE klass)
     return o == NULL ? Qundef : (VALUE)o->klass;
 }
 
+extern "C"
+VALUE
+rb_vm_module_nesting(VALUE mod)
+{
+    VALUE ary = rb_ary_new();
+    rb_vm_outer_t *o = GET_CORE()->get_outer((Class)mod);
+    while (o != NULL) {
+	rb_ary_push(ary, (VALUE)o->klass);
+	o = o->outer;
+    }
+    return ary;
+}
+
 static VALUE
 get_klass_const(VALUE outer, ID path, bool lexical)
 {

@@ -229,22 +229,18 @@ ruby_run_node(void *n)
  */
 
 static VALUE
-rb_mod_nesting(VALUE rcv, SEL sel)
+rb_mod_nesting(VALUE rcv, SEL sel, VALUE top, int argc, VALUE *argv)
 {
-#if 0 // TODO
-    VALUE ary = rb_ary_new();
-    const NODE *cref = vm_cref();
+    rb_scan_args(argc, argv, "00");
 
-    while (cref && cref->nd_next) {
-	VALUE klass = cref->nd_clss;
-	if (!NIL_P(klass)) {
-	    rb_ary_push(ary, klass);
-	}
-	cref = cref->nd_next;
+    switch (TYPE(top)) {
+	case T_CLASS:
+	case T_MODULE:
+	    return rb_vm_module_nesting(top);
+
+	default:
+	    return Qnil;
     }
-    return ary;
-#endif
-    return Qnil;
 }
 
 /*
@@ -870,7 +866,7 @@ Init_eval(void)
     Init_vm_eval();
     Init_eval_method();
 
-    rb_objc_define_method(*(VALUE *)rb_cModule, "nesting", rb_mod_nesting, 0);
+    rb_objc_define_method(*(VALUE *)rb_cModule, "nesting", rb_mod_nesting, -3);
     rb_objc_define_method(*(VALUE *)rb_cModule, "constants", rb_mod_s_constants, -1);
 
     VALUE cTopLevel = *(VALUE *)rb_vm_top_self();    

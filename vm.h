@@ -329,6 +329,7 @@ void rb_vm_push_methods(VALUE ary, VALUE mod, bool include_objc_methods,
 	int (*filter) (VALUE, ID, VALUE));
 void rb_vm_set_outer(VALUE klass, VALUE under);
 VALUE rb_vm_get_outer(VALUE klass);
+VALUE rb_vm_module_nesting(VALUE mod);
 VALUE rb_vm_catch(VALUE tag);
 VALUE rb_vm_throw(VALUE tag, VALUE value);
 
