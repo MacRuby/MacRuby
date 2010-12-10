@@ -494,7 +494,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 	    }
 	}
 	if (*p == '*') {	/* set data length */
-	    len =  strchr("@Xxu", type) ? 0
+	    len = strchr("@Xxu", type) ? 0
 		: strchr("PMm", type) ? 1
 		: items;
 	    p++;
