@@ -669,7 +669,9 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		case 'C':
 		    GET_ARG();
 		    if (TYPE(arg) == T_STRING) {
-			arg = rb_str_substr(arg, 0, 1);
+			if(RSTRING_LEN(arg) != 1) {
+			    rb_raise(rb_eArgError, "%%c requires a character");
+			}
 		    }
 		    else {
 			long num = NUM2LONG(arg);
