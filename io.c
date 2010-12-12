@@ -2062,6 +2062,9 @@ static VALUE
 rb_io_close_m(VALUE io, SEL sel)
 {
     rb_io_t *io_s = ExtractIOStruct(io);
+    if (rb_safe_level() >= 4 && !OBJ_UNTRUSTED(io)) {
+	rb_raise(rb_eSecurityError, "Insecure: can't close");
+    }
     rb_io_check_closed(io_s);
     io_close(io_s, true, true);
     return Qnil;
@@ -2116,6 +2119,9 @@ static VALUE
 rb_io_close_read(VALUE io, SEL sel)
 {
     rb_io_t *io_s = ExtractIOStruct(io);
+    if (rb_safe_level() >= 4 && !OBJ_UNTRUSTED(io)) {
+	rb_raise(rb_eSecurityError, "Insecure: can't close");
+    }
     rb_io_check_initialized(io_s);
     if (io_s->read_fd == -1) {
         rb_raise(rb_eIOError, "closed read stream");
@@ -2147,6 +2153,9 @@ static VALUE
 rb_io_close_write(VALUE io, SEL sel)
 {
     rb_io_t *io_s = ExtractIOStruct(io);
+    if (rb_safe_level() >= 4 && !OBJ_UNTRUSTED(io)) {
+	rb_raise(rb_eSecurityError, "Insecure: can't close");
+    }
     rb_io_check_initialized(io_s);
     if (io_s->write_fd == -1) {
         rb_raise(rb_eIOError, "closed write stream");
