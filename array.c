@@ -3431,7 +3431,12 @@ rary_product(VALUE ary, SEL sel, int argc, VALUE *argv)
     /* Compute the length of the result array; return [] if any is empty */
     for (i = 0; i < n; i++) {
 	long k = RARRAY_LEN(arrays[i]), l = resultlen;
-	if (k == 0) return rb_ary_new2(0);
+	if (k == 0) {
+	    if (rb_block_given_p()) {
+		return ary;
+	    }
+	    return rb_ary_new2(0);
+	}
 	resultlen *= k;
 	if (resultlen < k || resultlen < l || resultlen / k != l) {
 	    rb_raise(rb_eRangeError, "too big to product");
