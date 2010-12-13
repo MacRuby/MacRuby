@@ -3417,7 +3417,7 @@ rary_product(VALUE ary, SEL sel, int argc, VALUE *argv)
     int n = argc+1;    /* How many arrays we're operating on */
     VALUE *arrays = (VALUE *)alloca(n * sizeof(VALUE));; /* The arrays we're computing the product of */
     int *counters = (int *)alloca(n * sizeof(int)); /* The current position in each one */
-    VALUE result;      /* The array we'll be returning */
+    VALUE result = Qnil; /* The array we'll be returning */
     long i,j;
     long resultlen = 1;
 
@@ -3438,8 +3438,10 @@ rary_product(VALUE ary, SEL sel, int argc, VALUE *argv)
 	}
     }
 
-    /* Otherwise, allocate and fill in an array of results */
-    result = rb_ary_new2(resultlen);
+    if (!rb_block_given_p()) {
+	/* Otherwise, allocate and fill in an array of results */
+	result = rb_ary_new2(resultlen);
+    }
     for (i = 0; i < resultlen; i++) {
 	int m;
 	/* fill in one subarray */
@@ -3448,8 +3450,13 @@ rary_product(VALUE ary, SEL sel, int argc, VALUE *argv)
 	    rb_ary_push(subarray, rb_ary_entry(arrays[j], counters[j]));
 	}
 
-	/* put it on the result array */
-	rb_ary_push(result, subarray);
+	if (NIL_P(result)) {
+	    rb_yield(subarray);
+	}
+	else {
+	    /* put it on the result array */
+	    rb_ary_push(result, subarray);
+	}
 
 	/*
 	 * Increment the last counter.  If it overflows, reset to 0
@@ -3464,7 +3471,7 @@ rary_product(VALUE ary, SEL sel, int argc, VALUE *argv)
 	}
     }
 
-    return result;
+    return NIL_P(result) ? ary : result;
 }
 
 /*
