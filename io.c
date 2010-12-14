@@ -3188,6 +3188,14 @@ rb_objc_io_finalize(void *rcv, SEL sel)
 static VALUE
 rb_file_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
 {
+    if (0 < argc && argc < 3) {
+	VALUE fd = rb_check_convert_type(argv[0], T_FIXNUM, "Fixnum", "to_int");
+
+	if (!NIL_P(fd)) {
+	    argv[0] = fd;
+	    return rb_io_initialize(io, sel, argc, argv);
+	}
+    }
     return rb_file_open(io, argc, argv);
 }
 
