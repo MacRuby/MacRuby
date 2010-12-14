@@ -3144,8 +3144,16 @@ rb_io_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
 	rb_sys_fail(0);
     }
 
-    mode_flags = (NIL_P(mode) ? FMODE_READABLE
-	    : convert_mode_string_to_fmode(mode));
+    if (NIL_P(mode)) {
+	mode_flags = FMODE_READABLE;
+    }
+    else if (TYPE(mode) == T_STRING) {
+	mode_flags = convert_mode_string_to_fmode(mode);
+    }
+    else {
+	mode_flags = NUM2INT(mode);
+    }
+
     prepare_io_from_fd(io_struct, fd, mode_flags);
     return io;
 }
