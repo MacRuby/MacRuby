@@ -4090,7 +4090,7 @@ rb_io_s_read(VALUE recv, SEL sel, int argc, VALUE *argv)
     VALUE fname, length, offset;
     rb_scan_args(argc, argv, "13", &fname, &length, &offset, NULL);
 
-    SafeStringValue(fname);
+    FilePathValue(fname);
     struct foreach_arg arg;
     arg.io = rb_file_open(io_alloc(recv, 0), 1, &fname);
     arg.argc = 1;
