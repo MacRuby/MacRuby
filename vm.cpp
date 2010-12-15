@@ -1362,6 +1362,25 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
 	}
     }
 
+    // Prepare the constant outer.
+    VALUE const_outer;
+    if (flags & DEFINE_OUTER) {
+	const_outer = outer;
+    }
+    else if (flags & DEFINE_SUB_OUTER) {
+	// The Foo::Bar case, the outer here is the outer of the outer.
+	rb_vm_outer_t *o = GET_CORE()->get_outer((Class)outer);
+	if (o != NULL && o->outer != NULL) {
+	    const_outer = (VALUE)o->outer->klass;
+	}
+	else {
+	    const_outer = rb_cObject;
+	}
+    }
+    else {
+	const_outer = rb_cObject;
+    }
+
     VALUE klass = get_klass_const(outer, path, dynamic_class);
     if (klass != Qundef) {
 	// Constant is already defined.
@@ -1371,27 +1390,9 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
 			rb_class2name(klass));
 	    }
 	}
+	rb_vm_set_outer(klass, const_outer);
     }
     else {
-	// Prepare the constant outer.
-	VALUE const_outer;
-	if (flags & DEFINE_OUTER) {
-	    const_outer = outer;
-	}
-	else if (flags & DEFINE_SUB_OUTER) {
-	    // The Foo::Bar case, the outer here is the outer of the outer.
-	    rb_vm_outer_t *o = GET_CORE()->get_outer((Class)outer);
-	    if (o != NULL && o->outer != NULL) {
-		const_outer = (VALUE)o->outer->klass;
-	    }
-	    else {
-		const_outer = rb_cObject;
-	    }
-	}
-	else {
-	    const_outer = rb_cObject;
-	}
-
 	// Define the constant.
 	if (flags & DEFINE_MODULE) {
 	    assert(super == 0);
