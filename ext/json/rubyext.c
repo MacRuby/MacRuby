@@ -155,7 +155,9 @@ rb_json_parser_finalize(void* rcv, SEL sel)
 {
     // TODO: is this reentrant?
     rb_json_parser_t* parser = RJSONParser(rcv);
-    yajl_free(parser->parser);
+    if(parser->parser != NULL) {
+	yajl_free(parser->parser);
+    }
 
     if (rb_json_parser_finalize_super) {
         ((void(*)(void*, SEL))rb_json_parser_finalize_super)(rcv, sel);
