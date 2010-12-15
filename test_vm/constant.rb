@@ -147,3 +147,18 @@ assert '42', %{
     end
   end
 }
+
+assert '42', %{
+  module M
+    FOO=42
+  end
+  class M::C; end
+  module M
+    class C
+      def initialize
+        p FOO
+      end
+    end
+  end
+  M::C.new
+}
