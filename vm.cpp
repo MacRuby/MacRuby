@@ -2236,12 +2236,14 @@ push_method(VALUE ary, SEL sel, int flags, int (*filter) (VALUE, ID, VALUE))
 
     const char *selname = sel_getName(sel);
     const size_t len = strlen(selname);
-    char buf[100];
+    assert(len > 0);
+    char *buf = NULL;
 
     const char *p = strchr(selname, ':');
     if (p != NULL && strchr(p + 1, ':') == NULL) {
 	// remove trailing ':' for methods with arity 1
-	assert(len < sizeof(buf));
+	buf = (char *)malloc(len);
+	assert(buf != NULL);
 	strncpy(buf, selname, len);
 	buf[len - 1] = '\0';
 	selname = buf;
@@ -2249,6 +2251,11 @@ push_method(VALUE ary, SEL sel, int flags, int (*filter) (VALUE, ID, VALUE))
  
     ID mid = rb_intern(selname);
     VALUE sym = ID2SYM(mid);
+
+    if (buf != NULL) {
+	free(buf);
+	buf = NULL;
+    }
 
     if (rb_ary_includes(ary, sym) == Qfalse) {
 	int type = NOEX_PUBLIC;
