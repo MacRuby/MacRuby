@@ -493,48 +493,38 @@ RoxorVM::~RoxorVM(void)
     mcache = NULL;
 }
 
-static void
-append_ptr_address(std::string &s, void *ptr)
-{
-    char buf[100];
-    snprintf(buf, sizeof buf, "%p", ptr);
-    s.append(buf);
-}
-
-std::string
+void
 RoxorVM::debug_blocks(void)
 {
-    std::string s;
-    if (current_blocks.empty()) {
-	s.append("empty");
+    for (std::vector<rb_vm_block_t *>::iterator i = current_blocks.begin();
+	    i != current_blocks.end();
+	    ++i) {
+	printf("%p ", *i);
     }
-    else {
-	for (std::vector<rb_vm_block_t *>::iterator i = current_blocks.begin();
-	     i != current_blocks.end();
-	     ++i) {
-	    append_ptr_address(s, *i);
-	    s.append(" ");
-	}
-    }
-    return s;
+    printf("\n");
 }
 
-std::string
+void
 RoxorVM::debug_exceptions(void)
 {
+    for (std::vector<VALUE>::iterator i = current_exceptions.begin();
+	    i != current_exceptions.end();
+	    ++i) {
+	printf("%p ", (void *)*i);
+    }
+    printf("\n");
+}
+
+void
+RoxorCore::debug_outers(Class k)
+{
+    struct rb_vm_outer *o = get_outer(k);
     std::string s;
-    if (current_exceptions.empty()) {
-	s.append("empty");
+    while (o != NULL) {
+	printf("%p ", o->klass);
+	o = o->outer;
     }
-    else {
-	for (std::vector<VALUE>::iterator i = current_exceptions.begin();
-	     i != current_exceptions.end();
-	     ++i) {
-	    append_ptr_address(s, (void *)*i);
-	    s.append(" ");
-	}
-    }
-    return s;
+    printf("\n");
 }
 
 #if !defined(MACRUBY_STATIC)
@@ -1297,6 +1287,10 @@ RoxorCore::set_outer(Class klass, Class mod)
 	    class_outer->klass = klass;
 	    class_outer->outer = mod_outer;
 	    outers[klass] = class_outer;
+#if ROXOR_VM_DEBUG
+	    printf("set outer of %s to %s\n", class_getName(klass),
+		    class_getName(mod));
+#endif
 	}
     }
 }
@@ -1305,10 +1299,6 @@ extern "C"
 void
 rb_vm_set_outer(VALUE klass, VALUE under)
 {
-#if ROXOR_VM_DEBUG
-    printf("set outer of %s to %s\n", class_getName((Class)klass),
-	    class_getName((Class)under));
-#endif
     GET_CORE()->set_outer((Class)klass, (Class)under);
 }
 

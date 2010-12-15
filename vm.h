@@ -927,6 +927,8 @@ class RoxorCore {
 	bool respond_to(VALUE obj, VALUE klass, SEL sel, bool priv,
 		bool check_override);
 
+	void debug_outers(Class k);
+
     private:
 	bool register_bs_boxed(bs_element_type_t type, void *value);
 	void register_bs_class(bs_element_class_t *bs_class);
@@ -1069,7 +1071,7 @@ class RoxorVM {
 	ACCESSOR(current_mri_method_self, VALUE);
 	ACCESSOR(current_mri_method_sel, SEL);
 
-	std::string debug_blocks(void);
+	void debug_blocks(void);
 
 	bool is_block_current(rb_vm_block_t *b) {
 	    return b == NULL
@@ -1138,7 +1140,7 @@ class RoxorVM {
 	    }
 	}
 
-	std::string debug_exceptions(void);
+	void debug_exceptions(void);
 
 	VALUE current_exception(void) {
 	    return current_exceptions.empty()
