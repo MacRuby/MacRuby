@@ -1,5 +1,4 @@
 require 'socket'
-require 'dispatch'
 
 describe "Socket" do
   describe :sendfile do
