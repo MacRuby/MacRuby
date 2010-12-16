@@ -191,3 +191,10 @@ assert %{["-:7:in `<main>'"]}, %{
   end
   class Y < X; end
 }
+
+assert '[2, 3, 4, 5]', %{
+  class Foo
+    define_method(:foo) {|_, *a| p a }
+  end
+  Foo.new.foo(1,2,3,4,5)
+}
