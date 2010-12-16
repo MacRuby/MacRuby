@@ -174,8 +174,9 @@ ossl_pkey_sign(VALUE self, SEL sel, VALUE digest, VALUE data)
     EVP_SignInit(&ctx, GetDigestPtr(digest));
     StringValue(data);
     EVP_SignUpdate(&ctx, RSTRING_PTR(data), RSTRING_LEN(data));
-    str = rb_str_new(0, EVP_PKEY_size(pkey)+16);
-    if (!EVP_SignFinal(&ctx, (unsigned char *)RSTRING_PTR(str), &buf_len, pkey))
+    str = rb_bstr_new();
+    rb_bstr_resize(str, EVP_PKEY_size(pkey)+16);
+    if (!EVP_SignFinal(&ctx, (unsigned char *)rb_bstr_bytes(str), &buf_len, pkey))
 	ossl_raise(ePKeyError, NULL);
     assert((long)buf_len <= RSTRING_LEN(str));
     rb_str_set_len(str, buf_len);
