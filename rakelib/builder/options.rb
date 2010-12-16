@@ -41,7 +41,7 @@ LLVM_PATH = b.option('llvm_path', llvm_default_path)
 FRAMEWORK_NAME = b.option('framework_name', 'MacRuby')
 FRAMEWORK_INSTDIR = b.option('framework_instdir', '/Library/Frameworks')
 SYM_INSTDIR = b.option('sym_instdir', '/usr/local')
-ENABLE_STATIC_LIBRARY = b.option('enable_static_library', 'no') { 'yes' }
+ENABLE_STATIC_LIBRARY = b.option('enable_static_library', false) { |x| x == 'true' }
 ENABLE_DEBUG_LOGGING = b.option('enable_debug_logging', true) { |x| x == 'true' }
 SIMULTANEOUS_JOBS = b.option('jobs', 1) { |x| x.to_i }
 COMPILE_STDLIB = b.option('compile_stdlib', true) { |x| x == 'true' }

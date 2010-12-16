@@ -250,7 +250,9 @@ install?(:local, :arch, :bin, :'bin-arch') do
     install dll, bindir, :mode => $prog_mode
   end
   install lib, libdir, :mode => $prog_mode, :strip => true
-  install arc, libdir, :mode => $data_mode, :strip => true
+  if enable_static
+    install arc, libdir, :mode => $data_mode, :strip => true
+  end
   install "rbconfig.rb", archlibdir, :mode => $data_mode
   install "rbconfig.rbo", archlibdir, :mode => $data_mode
   if CONFIG["ARCHFILE"]

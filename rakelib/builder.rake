@@ -100,9 +100,11 @@ namespace :macruby do
 
   desc "Build static library"
   task :static => :files do
-    $builder.config = STATIC_CONFIG
-    build_objects
-    $builder.link_archive("lib#{RUBY_SO_NAME}-static.a", $builder.objs - ['main', 'gc-stub'])
+    if ENABLE_STATIC_LIBRARY
+      $builder.config = STATIC_CONFIG
+      build_objects
+      $builder.link_archive("lib#{RUBY_SO_NAME}-static.a", $builder.objs - ['main', 'gc-stub'])
+    end
   end
 
   desc "Build MacRuby"

@@ -52,6 +52,9 @@ class Compiler
       if @sdk and !File.exist?(@sdk)
         die "Given SDK path `#{@sdk}' doesn't exist."
       end
+      if @static and RbConfig::CONFIG['ENABLE_STATIC'] != 'yes'
+        die "This version of MacRuby does not support static compilation."
+      end
       @frameworks.uniq!
     end
 
