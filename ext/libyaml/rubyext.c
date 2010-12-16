@@ -83,7 +83,7 @@ rb_yaml_io_read_handler(void *io_ptr, unsigned char *buffer, size_t size,
 	size_t *size_read)
 {
     const long result = rb_io_primitive_read(ExtractIOStruct(io_ptr),
-	    (UInt8 *)buffer, size);
+	    (char *)buffer, size);
     *size_read = result;
     return result != -1;
 }
@@ -530,7 +530,7 @@ get_node(rb_yaml_parser_t *parser)
 	    break;
 
 	case YAML_ALIAS_EVENT:
-	    rb_warn("ignoring alias");
+	    // ignoring alias
 	    node = Qundef;
 	    break;
 
@@ -652,7 +652,7 @@ parse_node(rb_yaml_parser_t *parser)
 	    break;
 
 	case YAML_ALIAS_EVENT:
-	    rb_warn("ignoring alias");
+	    // ignoring alias
 	    node = Qundef;
 	    break;
 
