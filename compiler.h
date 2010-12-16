@@ -188,6 +188,8 @@ class RoxorCompiler {
 	Function *asetArrayFunc;
 	Function *entryArrayFunc;
 	Function *checkArrayFunc;
+	Function *lengthArrayFunc;
+	Function *ptrArrayFunc;
 	Function *newStructFunc;
 	Function *newOpaqueFunc;
 	Function *newPointerFunc;

@@ -944,6 +944,18 @@ vm_ary_entry(VALUE ary, int i)
     return rb_ary_entry(ary, i);
 }
 
+PRIMITIVE long
+vm_ary_length(VALUE ary)
+{
+    return RARRAY_LEN(ary);
+}
+
+PRIMITIVE const VALUE *
+vm_ary_ptr(VALUE ary)
+{
+    return RARRAY_PTR(ary);
+}
+
 PRIMITIVE VALUE
 vm_rary_new(int len)
 {

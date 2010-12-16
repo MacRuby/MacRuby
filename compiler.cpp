@@ -198,6 +198,8 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     asetArrayFunc = get_function("vm_rary_aset");
     entryArrayFunc = get_function("vm_ary_entry");
     checkArrayFunc = get_function("vm_ary_check");
+    lengthArrayFunc = get_function("vm_ary_length");
+    ptrArrayFunc = get_function("vm_ary_ptr");
     newStructFunc = NULL;
     newOpaqueFunc = NULL;
     newPointerFunc = NULL;
@@ -6618,14 +6620,13 @@ RoxorCompiler::compile_block_caller(rb_vm_block_t *block)
     Value *argv;
 
     const int arity = rb_vm_arity_n(block->arity);
-    if (arity < 0) {
+    if (arity == -1) {
 	// VALUE foo(VALUE rcv, SEL sel, int argc, VALUE *argv)
 	// {
 	//     return rb_vm_block_eval2(block, rcv, sel, argc, argv);
 	// }
 	f = cast<Function>(module->getOrInsertFunction("",
-		    RubyObjTy, RubyObjTy, PtrTy, Int32Ty, RubyObjPtrTy,
-		    NULL));
+		    RubyObjTy, RubyObjTy, PtrTy, Int32Ty, RubyObjPtrTy, NULL));
 	Function::arg_iterator arg = f->arg_begin();
 	rcv = arg++;
 	sel = arg++;
@@ -6634,7 +6635,26 @@ RoxorCompiler::compile_block_caller(rb_vm_block_t *block)
 
 	bb = BasicBlock::Create(context, "EntryBlock", f);
     }
+    else if (arity == -2) {
+	// VALUE foo(VALUE rcv, SEL sel, VALUE argv)
+	// {
+	//	return rb_block_eval2(block, rcv, sel, RARRAY_LEN(argv),
+	//		RARRAY_PTR(argv));
+	// }
+	f = cast<Function>(module->getOrInsertFunction("",
+		    RubyObjTy, RubyObjTy, PtrTy, RubyObjTy, NULL));
+	Function::arg_iterator arg = f->arg_begin();
+	rcv = arg++;
+	sel = arg++;
+	Value *argv_ary = arg++;
+
+	bb = BasicBlock::Create(context, "EntryBlock", f);
+
+	argc = CallInst::Create(lengthArrayFunc, argv_ary, "", bb);
+	argv = CallInst::Create(ptrArrayFunc, argv_ary, "", bb);
+    }
     else {
+	assert(arity >= 0);
 	// VALUE foo(VALUE rcv, SEL sel, VALUE arg1, ...)
 	// {
 	//     VALUE argv[n] = {arg1, ...};
