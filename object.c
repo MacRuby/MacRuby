@@ -2967,6 +2967,7 @@ Init_Object(void)
     RCLASS_SET_VERSION_FLAG(rb_cRubyObject, RCLASS_IS_SINGLETON);
     RCLASS_SET_VERSION_FLAG(rb_cRubyObject, RCLASS_IS_OBJECT_SUBCLASS);
     rb_define_object_special_methods(rb_cRubyObject);
+    rb_objc_install_NSObject_special_methods((Class)rb_cRubyObject);
 
     eqlSel = sel_registerName("eql?:");
 

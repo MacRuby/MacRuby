@@ -2364,6 +2364,7 @@ Init_Time(void)
 
     rb_cTime = rb_define_class("Time", rb_cNSDate);
     rb_include_module(rb_cTime, rb_mComparable);
+    rb_objc_install_NSObject_special_methods((Class)rb_cTime);
 
     rb_objc_define_method(*(VALUE *)rb_cTime, "alloc", time_s_alloc, 0);
     rb_objc_define_method(*(VALUE *)rb_cTime, "new", rb_class_new_instance_imp,

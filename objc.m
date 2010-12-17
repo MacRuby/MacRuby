@@ -787,14 +787,15 @@ conformsToProtocol(Class klass, Protocol *p)
 
 static bool
 conformsToProtocolAndAncestors(void *self, SEL sel, Class klass,
-	void *protocol, IMP super)
+	void *protocol)
 {
-    if (super != NULL) {
-	if (((bool(*)(void *, SEL, Protocol *))super)(self, sel, protocol)) {
-	    return true;
-	}
-    }
     if (protocol != NULL) {
+	for (Class k = klass; k != NULL; k = class_getSuperclass(k)) {
+	    if (class_conformsToProtocol(k, protocol)) {
+		return true;
+	    }
+	}
+
 	Protocol *p = (Protocol *)protocol;
 	if (conformsToProtocol(klass, p)) {
 	    class_addProtocol(klass, p);
@@ -804,87 +805,52 @@ conformsToProtocolAndAncestors(void *self, SEL sel, Class klass,
     return false;
 }
 
-static IMP old_conformsToProtocol_imp = NULL;
-
 static bool
 robj_conformsToProtocol(void *self, SEL sel, void *protocol)
 {
     return conformsToProtocolAndAncestors(self, sel, object_getClass(self),
-	    protocol, old_conformsToProtocol_imp);
+	    protocol);
 }
-
-static IMP old_conformsToProtocol_mimp = NULL;
 
 static bool
 robj_conformsToProtocol_m(void *self, SEL sel, void *protocol)
 {
-    return conformsToProtocolAndAncestors(self, sel, (Class)self, protocol,
-	    old_conformsToProtocol_mimp);
+    return conformsToProtocolAndAncestors(self, sel, (Class)self, protocol);
 }
-
-static bool
-performRubyOnlySelector(void *self, SEL msg, int argc, void **argv,
-	id *retval)
-{
-    Method m = class_getInstanceMethod(object_getClass((id)self), msg);
-    if (rb_vm_is_ruby_method(m)) {
-	VALUE rb_args[5];
-	assert(argc < 5);
-	for (int i = 0; i < argc; i++) {
-	    rb_args[i] = OC2RB(argv[i]);
-	}
-	*retval = RB2OC(rb_vm_call(OC2RB(self), msg, argc, rb_args));
-	return true;
-    }
-    return false;
-}
-
-static IMP old_performSelector_imp = NULL;
 
 static id
 robj_performSelector(void *self, SEL sel, SEL msg)
 {
-    id retval = NULL;
-    if (!performRubyOnlySelector(self, msg, 0, NULL, &retval)) {
-	if (old_performSelector_imp != NULL) {
-	    return ((id(*)(void *, SEL, SEL))
-		    old_performSelector_imp) (self, sel, msg);
-	}
-    }
-    return retval;
+    return RB2OC(rb_vm_call(OC2RB(self), msg, 0, NULL));
 }
-
-static IMP old_performSelectorWithObject_imp = NULL;
 
 static id
 robj_performSelectorWithObject(void *self, SEL sel, SEL msg, void *arg)
 {
-    id retval = NULL;
-    if (!performRubyOnlySelector(self, msg, 1, &arg, &retval)) {
-	if (old_performSelectorWithObject_imp != NULL) {
-	    return ((id(*)(void *, SEL, SEL, void *))
-		    old_performSelectorWithObject_imp) (self, sel, msg, arg);
-	}
-    }
-    return retval;
+    VALUE rarg = OC2RB(arg);
+    return RB2OC(rb_vm_call(OC2RB(self), msg, 1, &rarg));
 }
-
-static IMP old_performSelectorWithObjectWithObject_imp = NULL;
 
 static id
 robj_performSelectorWithObjectWithObject(void *self, SEL sel, SEL msg,
 	void *arg1, void *arg2)
 {
-    id retval = NULL;
-    void *args[2] = { arg1, arg2 };
-    if (!performRubyOnlySelector(self, msg, 2, args, &retval)) {
-	if (old_performSelectorWithObjectWithObject_imp != NULL) {
-	    return ((id(*)(void *, SEL, SEL, void *, void *))
-		    old_performSelectorWithObjectWithObject_imp)
-		(self, sel, msg, arg1, arg2);
-	}
-    }
-    return retval;
+    VALUE rarg[2] = { OC2RB(arg1), OC2RB(arg2) };
+    return RB2OC(rb_vm_call(OC2RB(self), msg, 2, rarg));
+}
+
+void
+rb_objc_install_NSObject_special_methods(Class k)
+{
+    SEL sel = sel_registerName("conformsToProtocol:");
+    rb_objc_install_method(k, sel, (IMP)robj_conformsToProtocol);
+    rb_objc_install_method(*(Class *)k, sel, (IMP)robj_conformsToProtocol_m);
+
+    rb_objc_install_method2(k, "performSelector:", (IMP)robj_performSelector);
+    rb_objc_install_method2(k, "performSelector:withObject:",
+	    (IMP)robj_performSelectorWithObject);
+    rb_objc_install_method2(k, "performSelector:withObject:withObject:",
+	    (IMP)robj_performSelectorWithObjectWithObject);  
 }
 
 void
@@ -906,24 +872,6 @@ Init_ObjC(void)
     assert(m != NULL);
     old_imp_isaForAutonotifying = method_getImplementation(m);
     method_setImplementation(m, (IMP)rb_obj_imp_isaForAutonotifying);
-
-    // Overwrite NSObject's conformsToProtocol:.
-    k = (Class)[NSObject class];
-    SEL sel = sel_registerName("conformsToProtocol:");
-    old_conformsToProtocol_imp = rb_objc_install_method(k, sel,
-	    (IMP)robj_conformsToProtocol);
-    old_conformsToProtocol_mimp = rb_objc_install_method(
-	    *(Class *)k, sel, (IMP)robj_conformsToProtocol_m);
-
-    // Overwrite NSObject's performSelector: and friends.
-    old_performSelector_imp = rb_objc_install_method2(k,
-	    "performSelector:", (IMP)robj_performSelector);
-    old_performSelectorWithObject_imp = rb_objc_install_method2(k,
-	    "performSelector:withObject:",
-	    (IMP)robj_performSelectorWithObject);
-    old_performSelectorWithObjectWithObject_imp = rb_objc_install_method2(k,
-	    "performSelector:withObject:withObject:",
-	    (IMP)robj_performSelectorWithObjectWithObject);  
 
     // Mark Foundation as multithreaded.
     [NSThread detachNewThreadSelector:@selector(self) toTarget:[NSThread class]

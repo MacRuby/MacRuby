@@ -5864,6 +5864,7 @@ Init_String(void)
     Init_NSString();
 
     // rb_cRubyString is defined earlier in Init_PreVM().
+    rb_objc_install_NSObject_special_methods((Class)rb_cRubyString);
     rb_set_class_path(rb_cRubyString, rb_cObject, "String");
     rb_const_set(rb_cObject, rb_intern("String"), rb_cRubyString);
 

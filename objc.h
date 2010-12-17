@@ -257,6 +257,7 @@ bool rb_objc_isEqual(VALUE x, VALUE y);
 void rb_objc_force_class_initialize(Class klass);
 void rb_objc_fix_relocatable_load_path(void);
 void rb_objc_load_loaded_frameworks_bridgesupport(void);
+void rb_objc_install_NSObject_special_methods(Class k);
 
 extern bool rb_objc_enable_ivar_set_kvo_notifications;
 
