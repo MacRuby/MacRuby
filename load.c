@@ -233,7 +233,7 @@ static bool
 search_required(VALUE name, VALUE *out, int *type)
 {
     const char *name_cstr = RSTRING_PTR(name);
-    if (*name_cstr == '/' || *name_cstr == '.') {
+    if (*name_cstr == '/' || *name_cstr == '.' || *name_cstr == '~') {
 	// Given name is an absolute path.
 	name = rb_file_expand_path(name, Qnil);
 	return check_path(RSTRING_PTR(name), out, type);	
