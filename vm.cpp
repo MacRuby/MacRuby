@@ -2660,7 +2660,7 @@ rb_vm_define_method3(Class klass, ID mid, rb_vm_block_t *block)
 
     Function *func = RoxorCompiler::shared->compile_block_caller(block);
     IMP imp = GET_CORE()->compile(func);
-    NODE *body = rb_vm_cfunc_node_from_imp(klass, arity, imp, 0);
+    NODE *body = rb_vm_cfunc_node_from_imp(klass, arity < -1 ? -2 : arity, imp, 0);
     GC_RETAIN(body);
     GC_RETAIN(block);
 

@@ -6635,7 +6635,7 @@ RoxorCompiler::compile_block_caller(rb_vm_block_t *block)
 
 	bb = BasicBlock::Create(context, "EntryBlock", f);
     }
-    else if (arity == -2) {
+    else if (arity < -1) {
 	// VALUE foo(VALUE rcv, SEL sel, VALUE argv)
 	// {
 	//	return rb_block_eval2(block, rcv, sel, RARRAY_LEN(argv),
