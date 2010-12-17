@@ -198,3 +198,10 @@ assert '[2, 3, 4, 5]', %{
   end
   Foo.new.foo(1,2,3,4,5)
 }
+
+assert '[2, 3, 4]', %{
+  class Foo
+    define_method(:foo) { |a, *b, c| p b }
+  end
+  Foo.new.foo(1,2,3,4,5)
+}
