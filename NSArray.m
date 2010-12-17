@@ -13,6 +13,7 @@
 #include "objc.h"
 #include "vm.h"
 #include "array.h"
+#include "hash.h"
 
 VALUE rb_cArray;
 VALUE rb_cNSArray;
@@ -1458,4 +1459,34 @@ rb_ary_ptr(VALUE ary)
     rb_objc_set_associative_ref((void *)nsary, &nsary_cptr_key, values);
 
     return values;
+}
+
+// A very naive hashing function for arrays, which hashes the array's length,
+// then first and last elements (in case the array has more than 4 elements).
+// We cannot rely on the CoreFoundation hashing function for arrays as it's
+// simply returning the number of elements, and can trigger huge performance
+// problems when using same-sized arrays as keys in Hash objects.
+unsigned long
+rb_ary_hash(VALUE ary)
+{
+    const long len = RARRAY_LEN(ary);
+    unsigned long hash = 0;
+    if (len > 0) {
+	VALUE elem = RARRAY_AT(ary, 0);
+	if (elem == ary) {
+	    // recursive array
+	    return (unsigned long)rb_cRubyArray;
+	}
+	hash += rb_hash_code(elem);
+	if (len > 4) {
+	    elem = RARRAY_AT(ary, len - 1);
+	    if (elem == ary) {
+		// recursive array
+		return (unsigned long)rb_cRubyArray;
+	    }
+	    hash = (hash >> 3) ^ rb_hash_code(elem);
+	}
+	hash += len;
+    }
+    return hash;
 }

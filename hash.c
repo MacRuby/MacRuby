@@ -18,6 +18,7 @@
 #include "objc.h"
 #include "vm.h"
 #include "hash.h"
+#include "array.h"
 #include "class.h"
 
 static VALUE rhash_try_convert(VALUE, SEL, VALUE);
@@ -36,20 +37,42 @@ static SEL selFlattenBang = 0;
 static SEL selDefault = 0;
 static SEL selHash = 0;
 
-VALUE
-rb_hash(VALUE obj)
+unsigned long
+rb_hash_code(VALUE obj)
 {
+    switch (TYPE(obj)) {
+	case T_FIXNUM:
+	case T_FLOAT:
+	case T_SYMBOL:
+	case T_NIL:
+	case T_FALSE:
+	case T_TRUE:
+	    return (unsigned long)obj;
+
+	case T_STRING:
+	    return rb_str_hash(obj);
+
+	case T_ARRAY:
+	    return rb_ary_hash(obj);
+    }
+
     VALUE v = rb_vm_call(obj, selHash, 0, NULL);
 retry:
     switch (TYPE(v)) {
 	case T_FIXNUM:
-	    return v;
+	    return FIX2LONG(v);
 	case T_BIGNUM:
-	    return LONG2FIX(((long *)(RBIGNUM_DIGITS(v)))[0]);
+	    return ((unsigned long *)(RBIGNUM_DIGITS(v)))[0];
 	default:
 	    v = rb_to_int(v);
 	    goto retry;
     }
+}
+
+VALUE
+rb_hash(VALUE obj)
+{
+    return LONG2NUM(rb_hash_code(obj));
 }
 
 typedef int st_foreach_func(st_data_t, st_data_t, st_data_t);
@@ -90,40 +113,13 @@ rb_any_cmp(VALUE a, VALUE b)
     if (a == b) {
 	return 0;
     }
-    const int type = TYPE(a);
-    switch (type) {
-	case T_FIXNUM:
-	case T_FLOAT:
-	case T_SYMBOL:
-	    if (type == TYPE(b)) {
-		return a != b;
-	    }
-	    break;
-
-	case T_STRING:
-	    return rb_str_cmp(a, b);
-    }
-
     return !rb_eql(a, b);
 }
 
 static int
 rb_any_hash(VALUE a)
 {
-    switch (TYPE(a)) {
-	case T_FIXNUM:
-	case T_FLOAT:
-	case T_SYMBOL:
-	case T_NIL:
-	case T_FALSE:
-	case T_TRUE:
-	    return (int)a;
-
-	case T_STRING:
-	    return (int)rb_str_hash(a);
-    }
-
-    return (int)FIX2LONG(rb_hash(a));
+    return (int)rb_hash_code(a);
 }
 
 static const struct st_hash_type objhash = {

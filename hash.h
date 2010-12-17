@@ -103,6 +103,8 @@ VALUE rhash_keys(VALUE hash, SEL sel);
 VALUE rhash_has_key(VALUE hash, SEL sel, VALUE key);
 VALUE rhash_set_default(VALUE hash, SEL sel, VALUE ifnone);
 
+unsigned long rb_hash_code(VALUE obj);
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
