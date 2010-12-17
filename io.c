@@ -2160,6 +2160,9 @@ rb_io_close_write(VALUE io, SEL sel)
     if (io_s->write_fd == -1) {
         rb_raise(rb_eIOError, "closed write stream");
     }
+    if (io_s->mode & FMODE_READABLE) {
+	rb_raise(rb_eIOError, "closing non-duplex IO for writing");
+    }
     io_close(io_s, false, true);
     return Qnil;
 }
