@@ -462,11 +462,8 @@ io_write(VALUE io, SEL sel, VALUE data)
 	return rb_vm_call(io, selWrite, 1, &data);
     }
     io = tmp;
-    
-    rb_io_t *io_struct = ExtractIOStruct(io);
-    rb_io_assert_writable(io_struct);
-    data = rb_obj_as_string(data);
 
+    data = rb_obj_as_string(data);
     data = rb_str_bstr(data);
     const uint8_t *buffer = rb_bstr_bytes(data);
     const long length = rb_bstr_length(data);
@@ -474,6 +471,9 @@ io_write(VALUE io, SEL sel, VALUE data)
     if (length == 0) {
         return INT2FIX(0);
     }
+
+    rb_io_t *io_struct = ExtractIOStruct(io);
+    rb_io_assert_writable(io_struct);
 
     ssize_t code = write(io_struct->write_fd, buffer, length);
     if (code == -1) {
