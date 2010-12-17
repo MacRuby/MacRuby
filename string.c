@@ -3920,8 +3920,10 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 		return bang ? Qnil : rstr_dup(str, 0);
 	    }
 	    if (last < len) {
-		str_concat_string(RSTR(dest),
-			RSTR(rstr_substr(str, last, len - last)));
+		VALUE substr = rstr_substr(str, last, len - last);
+		if (substr != Qnil) {
+		    str_concat_string(RSTR(dest), RSTR(substr));
+		}
 	    }
 	    break;
 	}
