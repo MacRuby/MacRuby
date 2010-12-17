@@ -918,6 +918,12 @@ str_compare(rb_str_t *self, rb_str_t *str)
     return res > 0 ? 1 : -1;
 }
 
+int
+rstr_compare(rb_str_t *str1, rb_str_t *str2)
+{
+    return str_compare(str1, str2);
+}
+
 static int
 str_case_compare(rb_str_t *self, rb_str_t *str)
 {

@@ -80,6 +80,23 @@ rb_equal_imp(VALUE obj1, SEL sel, VALUE obj2)
 int
 rb_eql(VALUE obj1, VALUE obj2)
 {
+    VALUE obj1_class = CLASS_OF(obj1);
+
+    if (obj1_class == rb_cFixnum || obj1_class == rb_cFloat
+	    || obj1_class == rb_cSymbol) {
+	return obj1 == obj2;
+    }
+
+    VALUE obj2_class = CLASS_OF(obj2);
+    if (obj1_class == obj2_class) {
+	if (obj1_class == rb_cRubyString) {
+	    return rstr_compare(RSTR(obj1), RSTR(obj2)) == 0;
+	}
+	if (obj1_class == rb_cRubyArray) {
+	    return rary_eql_fast(RARY(obj1), RARY(obj2));
+	}
+    }
+
     return RTEST(rb_vm_call(obj1, eqlSel, 1, &obj2));
 }
 

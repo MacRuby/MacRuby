@@ -328,6 +328,7 @@ str_simple_transcode(rb_str_t *self, rb_encoding_t *dst_encoding)
         TRANSCODE_BEHAVIOR_RAISE_EXCEPTION, TRANSCODE_BEHAVIOR_RAISE_EXCEPTION, NULL);
 }
 
+int rstr_compare(rb_str_t *str1, rb_str_t *str2);
 
 void rb_str_NSCoder_encode(void *coder, VALUE str, const char *key);
 VALUE rb_str_NSCoder_decode(void *coder, const char *key);

@@ -157,6 +157,7 @@ VALUE rary_sort(VALUE ary, SEL sel);
 VALUE rary_sort_bang(VALUE ary, SEL sel);
 VALUE rary_subseq(VALUE ary, long beg, long len);
 void rary_insert(VALUE ary, long idx, VALUE val);
+bool rary_eql_fast(rb_ary_t *ary1, rb_ary_t *ary2);
 
 // Shared implementations.
 VALUE rary_join(VALUE ary, SEL sel, int argc, VALUE *argv);

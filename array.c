@@ -2521,6 +2521,32 @@ rary_eql(VALUE ary1, SEL sel, VALUE ary2)
     return rb_exec_recursive(recursive_eql, ary1, ary2);
 }
 
+static VALUE
+recursive_eql_fast(VALUE ary1, VALUE ary2, int recur)
+{
+    if (recur) {
+	return Qfalse;
+    }
+    for (long i = 0; i < RARY(ary1)->len; i++) {
+	if (!rb_eql(rary_elt(ary1, i), rary_elt(ary2, i))) {
+	    return Qfalse;
+	}
+    }
+    return Qtrue;
+}
+
+bool
+rary_eql_fast(rb_ary_t *ary1, rb_ary_t *ary2)
+{
+    if (ary1 == ary2) {
+	return true;
+    }
+    if (ary1->len != ary2->len) {
+	return false;
+    }
+    return rb_exec_recursive(recursive_eql_fast, (VALUE)ary1, (VALUE)ary2);
+}
+
 /*
  *  call-seq:
  *     array.include?(obj)   -> true or false
