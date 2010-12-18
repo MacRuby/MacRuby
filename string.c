@@ -438,43 +438,29 @@ str_make_same_format(rb_str_t *str1, rb_str_t *str2)
 }
 
 static long
-str_length(rb_str_t *self, bool ucs2_mode)
+str_length(rb_str_t *self)
 {
     if (self->length_in_bytes == 0) {
 	return 0;
     }
     if (str_try_making_data_uchars(self)) {
-	long length;
-	if (ucs2_mode) {
-	    length = BYTES_TO_UCHARS(self->length_in_bytes);
-	}
-	else {
-	    // we must return the length in Unicode code points,
-	    // not the number of UChars, even if the probability
-	    // we have surrogates is very low
-	    length = u_countChar32(self->data.uchars,
-		    BYTES_TO_UCHARS(self->length_in_bytes));
-	}
-	if (ODD_NUMBER(self->length_in_bytes)) {
-	    return length + 1;
-	}
-	else {
-	    return length;
-	}
+	return div_round_up(self->length_in_bytes, 2);
     }
     else {
 	if (self->encoding->single_byte_encoding) {
 	    return self->length_in_bytes;
 	}
-	else if (ucs2_mode && NON_NATIVE_UTF16_ENC(self->encoding)) {
+	else if (NON_NATIVE_UTF16_ENC(self->encoding)) {
 	    return div_round_up(self->length_in_bytes, 2);
 	}
 	else {
-	    return str_ucnv_length(self, ucs2_mode);
+	    return str_ucnv_length(self, true);
 	}
     }
 }
 
+// Note that each_char iterates on unicode characters
+// With a character not in the BMP the callback will only be called once!
 static void
 str_each_char(rb_str_t *self, each_char_callback_t callback)
 {
@@ -517,11 +503,10 @@ str_each_char(rb_str_t *self, each_char_callback_t callback)
 }
 
 static UChar
-str_get_uchar(rb_str_t *self, long pos, bool ucs2_mode)
+str_get_uchar(rb_str_t *self, long pos)
 {
-    assert(pos >= 0 && pos < str_length(self, ucs2_mode));
+    assert(pos >= 0 && pos < str_length(self));
     if (str_try_making_data_uchars(self)) {
-	// FIXME: Not ucs2 compliant.
 	return self->data.uchars[pos];
     }
     //assert(BINARY_ENC(self->encoding));
@@ -577,84 +562,31 @@ str_cannot_cut_surrogate(void))
 }
 
 static character_boundaries_t
-str_get_character_boundaries(rb_str_t *self, long index, bool ucs2_mode)
+str_get_character_boundaries(rb_str_t *self, long index)
 {
     character_boundaries_t boundaries = {-1, -1};
 
     if (str_is_stored_in_uchars(self)) {
-	if (ucs2_mode || str_known_not_to_have_any_supplementary(self)) {
+	if (index < 0) {
+	    index += div_round_up(self->length_in_bytes, 2);
 	    if (index < 0) {
-		index += div_round_up(self->length_in_bytes, 2);
-		if (index < 0) {
-		    return boundaries;
-		}
-	    }
-	    boundaries.start_offset_in_bytes = UCHARS_TO_BYTES(index);
-	    boundaries.end_offset_in_bytes = boundaries.start_offset_in_bytes
-		+ 2;
-	    if (!UTF16_ENC(self->encoding)) {
-		long length = BYTES_TO_UCHARS(self->length_in_bytes);
-		if ((index < length)
-			&& U16_IS_SURROGATE(self->data.uchars[index])) {
-		    if (U16_IS_SURROGATE_LEAD(self->data.uchars[index])) {
-			boundaries.end_offset_in_bytes = -1;
-		    }
-		    else { // U16_IS_SURROGATE_TRAIL
-			boundaries.start_offset_in_bytes = -1;
-		    }
-		}
-	    }
-	}
-	else {
-	    // we don't have the length of the string, just the number of
-	    // UChars (uchars_count >= number of characters)
-	    long uchars_count = BYTES_TO_UCHARS(self->length_in_bytes);
-	    if ((index < -uchars_count) || (index >= uchars_count)) {
 		return boundaries;
 	    }
-	    const UChar *uchars = self->data.uchars;
-	    long offset;
-	    if (index < 0) {
-		// count the characters from the end
-		offset = uchars_count;
-		while ((offset > 0) && (index < 0)) {
-		    --offset;
-		    // if the next character is a paired surrogate
-		    // we need to go to the start of the whole surrogate
-		    if (U16_IS_TRAIL(uchars[offset]) && (offset > 0)
-			    && U16_IS_LEAD(uchars[offset-1])) {
-			--offset;
-		    }
-		    ++index;
+	}
+	boundaries.start_offset_in_bytes = UCHARS_TO_BYTES(index);
+	boundaries.end_offset_in_bytes = boundaries.start_offset_in_bytes
+	    + 2;
+	if (!UTF16_ENC(self->encoding)) {
+	    long length = BYTES_TO_UCHARS(self->length_in_bytes);
+	    if ((index < length)
+		    && U16_IS_SURROGATE(self->data.uchars[index])) {
+		if (U16_IS_SURROGATE_LEAD(self->data.uchars[index])) {
+		    boundaries.end_offset_in_bytes = -1;
 		}
-		// ended before the index got to 0
-		if (index != 0) {
-		    return boundaries;
-		}
-		assert(offset >= 0);
-	    }
-	    else {
-		// count the characters from the start
-		offset = 0;
-		U16_FWD_N(uchars, offset, uchars_count, index);
-		if (offset >= uchars_count) {
-		    return boundaries;
+		else { // U16_IS_SURROGATE_TRAIL
+		    boundaries.start_offset_in_bytes = -1;
 		}
 	    }
-
-	    long length_in_bytes;
-	    if (U16_IS_LEAD(uchars[offset]) && (offset < uchars_count - 1)
-		    && (U16_IS_TRAIL(uchars[offset+1]))) {
-		// if it's a lead surrogate we must also copy the trail
-		// surrogate
-		length_in_bytes = UCHARS_TO_BYTES(2);
-	    }
-	    else {
-		length_in_bytes = UCHARS_TO_BYTES(1);
-	    }
-	    boundaries.start_offset_in_bytes = UCHARS_TO_BYTES(offset);
-	    boundaries.end_offset_in_bytes = boundaries.start_offset_in_bytes
-		+ length_in_bytes;
 	}
     }
     else { // data in binary
@@ -670,8 +602,7 @@ str_get_character_boundaries(rb_str_t *self, long index, bool ucs2_mode)
 		+ 1;
 	}
 	else if (UTF32_ENC(self->encoding)
-		&& (!ucs2_mode
-		    || str_known_not_to_have_any_supplementary(self))) {
+		&& str_known_not_to_have_any_supplementary(self)) {
 	    if (index < 0) {
 		index += div_round_up(self->length_in_bytes, 4);
 		if (index < 0) {
@@ -682,9 +613,7 @@ str_get_character_boundaries(rb_str_t *self, long index, bool ucs2_mode)
 	    boundaries.end_offset_in_bytes = boundaries.start_offset_in_bytes
 		+ 4;
 	}
-	else if (NON_NATIVE_UTF16_ENC(self->encoding)
-		&& (ucs2_mode
-		    || str_known_not_to_have_any_supplementary(self))) {
+	else if (NON_NATIVE_UTF16_ENC(self->encoding)) {
 	    if (index < 0) {
 		index += div_round_up(self->length_in_bytes, 2);
 		if (index < 0) {
@@ -697,7 +626,7 @@ str_get_character_boundaries(rb_str_t *self, long index, bool ucs2_mode)
 	}
 	else {
 	    boundaries = str_ucnv_get_character_boundaries(self,
-		    index, ucs2_mode);
+		    index, true);
 	}
     }
 
@@ -705,7 +634,7 @@ str_get_character_boundaries(rb_str_t *self, long index, bool ucs2_mode)
 }
 
 static rb_str_t *
-str_get_characters(rb_str_t *self, long first, long last, bool ucs2_mode)
+str_get_characters(rb_str_t *self, long first, long last)
 {
     if (self->length_in_bytes == 0) {
 	if (first == 0) {
@@ -720,9 +649,9 @@ str_get_characters(rb_str_t *self, long first, long last, bool ucs2_mode)
 	str_try_making_data_uchars(self);
     }
     character_boundaries_t first_boundaries =
-	str_get_character_boundaries(self, first, ucs2_mode);
+	str_get_character_boundaries(self, first);
     character_boundaries_t last_boundaries =
-	str_get_character_boundaries(self, last, ucs2_mode);
+	str_get_character_boundaries(self, last);
 
     if (first_boundaries.start_offset_in_bytes == -1) {
 	if (last_boundaries.end_offset_in_bytes == -1) {
@@ -787,7 +716,7 @@ str_ensure_null_terminator(rb_str_t *self)
 }
 
 static void
-str_splice(rb_str_t *self, long pos, long len, rb_str_t *str, bool ucs2_mode)
+str_splice(rb_str_t *self, long pos, long len, rb_str_t *str)
 {
     // self[pos..pos+len] = str
     assert(pos >= 0 && len >= 0);
@@ -804,7 +733,7 @@ str_splice(rb_str_t *self, long pos, long len, rb_str_t *str, bool ucs2_mode)
 	beg.start_offset_in_bytes = beg.end_offset_in_bytes = offset;
 	end.start_offset_in_bytes = end.end_offset_in_bytes = offset;
     }
-    else if (len == 0 && str_length(self, ucs2_mode) == pos) {
+    else if (len == 0 && str_length(self) == pos) {
 	// Positioning after the string.
 	const long offset = self->length_in_bytes;
 	beg.start_offset_in_bytes = beg.end_offset_in_bytes = offset;
@@ -812,12 +741,12 @@ str_splice(rb_str_t *self, long pos, long len, rb_str_t *str, bool ucs2_mode)
     }
     else {
 	// Positioning in the string.
-	beg = str_get_character_boundaries(self, pos, ucs2_mode);
+	beg = str_get_character_boundaries(self, pos);
 
 	// TODO: probably call str_cannot_cut_surrogate()
 	assert(beg.start_offset_in_bytes != -1);
 
-	end = str_get_character_boundaries(self, pos + len - 1, ucs2_mode);
+	end = str_get_character_boundaries(self, pos + len - 1);
 
 	// TODO: probably call str_cannot_cut_surrogate()
 	assert(end.end_offset_in_bytes != -1);
@@ -859,15 +788,15 @@ str_splice(rb_str_t *self, long pos, long len, rb_str_t *str, bool ucs2_mode)
 }
 
 static void
-str_delete(rb_str_t *self, long pos, long len, bool ucs2_mode)
+str_delete(rb_str_t *self, long pos, long len)
 {
-    str_splice(self, pos, len, NULL, ucs2_mode);
+    str_splice(self, pos, len, NULL);
 }
 
 static void
-str_insert(rb_str_t *self, long pos, rb_str_t *str, bool ucs2_mode)
+str_insert(rb_str_t *self, long pos, rb_str_t *str)
 {
-    str_splice(self, pos, 0, str, ucs2_mode);
+    str_splice(self, pos, 0, str);
 }
 
 static void
@@ -1023,8 +952,7 @@ str_case_compare(rb_str_t *self, rb_str_t *str)
 
 
 static long
-str_offset_in_bytes_to_index(rb_str_t *self, long offset_in_bytes,
-	bool ucs2_mode)
+str_offset_in_bytes_to_index(rb_str_t *self, long offset_in_bytes)
 {
     if ((offset_in_bytes >= self->length_in_bytes) || (offset_in_bytes < 0)) {
 	return -1;
@@ -1034,48 +962,22 @@ str_offset_in_bytes_to_index(rb_str_t *self, long offset_in_bytes,
     }
 
     if (str_is_stored_in_uchars(self)) {
-	if (ucs2_mode || str_known_not_to_have_any_supplementary(self)) {
-	    return BYTES_TO_UCHARS(offset_in_bytes);
-	}
-	else {
-	    long length = BYTES_TO_UCHARS(self->length_in_bytes);
-	    long offset_in_uchars = BYTES_TO_UCHARS(offset_in_bytes);
-	    long index = 0, i = 0;
-	    for (;;) {
-		if (U16_IS_LEAD(self->data.uchars[i]) && (i+1 < length)
-			&& U16_IS_TRAIL(self->data.uchars[i+1])) {
-		    i += 2;
-		}
-		else {
-		    ++i;
-		}
-		if (offset_in_uchars < i) {
-		    return index;
-		}
-		++index;
-		if (offset_in_uchars == i) {
-		    return index;
-		}
-	    }
-	}
+	return BYTES_TO_UCHARS(offset_in_bytes);
     }
     else {
 	if (self->encoding->single_byte_encoding) {
 	    return offset_in_bytes;
 	}
 	else if (UTF32_ENC(self->encoding)
-		&& (!ucs2_mode
-		    || str_known_not_to_have_any_supplementary(self))) {
+		&& str_known_not_to_have_any_supplementary(self)) {
 	    return offset_in_bytes / 4;
 	}
-	else if (NON_NATIVE_UTF16_ENC(self->encoding)
-		&& (ucs2_mode
-		    || str_known_not_to_have_any_supplementary(self))) {
+	else if (NON_NATIVE_UTF16_ENC(self->encoding)) {
 	    return BYTES_TO_UCHARS(offset_in_bytes);
 	}
 	else {
 	    return str_ucnv_offset_in_bytes_to_index(self,
-		    offset_in_bytes, ucs2_mode);
+		    offset_in_bytes, true);
 	}
     }
 }
@@ -1136,7 +1038,7 @@ str_offset_in_bytes_for_string(rb_str_t *self, rb_str_t *searched,
 
 static long
 str_index_for_string(rb_str_t *self, rb_str_t *searched, long start_index,
-	long end_index, bool backward_search, bool ucs2_mode)
+	long end_index, bool backward_search)
 {
     str_must_have_compatible_encoding(self, searched);
     str_make_same_format(self, searched);
@@ -1151,7 +1053,7 @@ str_index_for_string(rb_str_t *self, rb_str_t *searched, long start_index,
     }
     else {
 	character_boundaries_t boundaries = str_get_character_boundaries(self,
-		start_index, ucs2_mode);
+		start_index);
 	if (boundaries.start_offset_in_bytes == -1) {
 	    if (boundaries.end_offset_in_bytes == -1) {
 		return -1;
@@ -1165,12 +1067,12 @@ str_index_for_string(rb_str_t *self, rb_str_t *searched, long start_index,
     }
 
     long end_offset_in_bytes;
-    if (end_index < 0 || end_index == str_length(self, ucs2_mode)) {
+    if (end_index < 0 || end_index == str_length(self)) {
 	end_offset_in_bytes = self->length_in_bytes;
     }
     else {
 	character_boundaries_t boundaries = str_get_character_boundaries(self,
-		end_index, ucs2_mode);
+		end_index);
 	if (boundaries.start_offset_in_bytes == -1) {
 	    if (boundaries.end_offset_in_bytes == -1) {
 		return -1;
@@ -1189,7 +1091,7 @@ str_index_for_string(rb_str_t *self, rb_str_t *searched, long start_index,
     if (offset_in_bytes == -1) {
 	return -1;
     }
-    return str_offset_in_bytes_to_index(RSTR(self), offset_in_bytes, ucs2_mode);
+    return str_offset_in_bytes_to_index(RSTR(self), offset_in_bytes);
 }
 
 static bool
@@ -1231,7 +1133,7 @@ rb_str_get_uchars(VALUE str, UChar **chars_p, long *chars_len_p,
     if (IS_RSTR(str)) {
 	if (str_try_making_data_uchars(RSTR(str))) {
 	    chars = RSTR(str)->data.uchars;
-	    chars_len = str_length(RSTR(str), true);
+	    chars_len = str_length(RSTR(str));
 	}
 	else {
 	    //assert(BINARY_ENC(RSTR(str)->encoding));
@@ -1267,7 +1169,7 @@ rstr_substr(VALUE str, long beg, long len)
 	return Qnil;
     }
 
-    const long n = str_length(RSTR(str), true);
+    const long n = str_length(RSTR(str));
     if (beg < 0) {
 	beg += n;
     }
@@ -1281,7 +1183,7 @@ rstr_substr(VALUE str, long beg, long len)
 	len = n - beg;
     }
 
-    rb_str_t *substr = str_get_characters(RSTR(str), beg, beg + len - 1, true);
+    rb_str_t *substr = str_get_characters(RSTR(str), beg, beg + len - 1);
     OBJ_INFECT(substr, str);
     return substr == NULL ? Qnil : (VALUE)substr;
 }
@@ -1295,7 +1197,7 @@ rstr_splice(VALUE self, long beg, long len, VALUE str)
 	rb_raise(rb_eIndexError, "negative length %ld", len);
     }
 
-    const long slen = str_length(RSTR(self), true);
+    const long slen = str_length(RSTR(self));
     if (slen < beg) {
 out_of_range:
 	rb_raise(rb_eIndexError, "index %ld out of string", beg);
@@ -1312,7 +1214,7 @@ out_of_range:
 
     rstr_modify(self);
 
-    str_splice(RSTR(self), beg, len, strstr, true);
+    str_splice(RSTR(self), beg, len, strstr);
 
     if (OBJ_TAINTED(strstr)) {
 	OBJ_TAINT(self);
@@ -1698,12 +1600,6 @@ rstr_clear(VALUE self, SEL sel)
     return self;
 }
 
-static VALUE
-rstr_chars_count(VALUE self, SEL sel)
-{
-    return INT2NUM(str_length(RSTR(self), false));
-}
-
 /*
  *  call-seq:
  *     str.length   => integer
@@ -1715,7 +1611,7 @@ rstr_chars_count(VALUE self, SEL sel)
 static VALUE
 rstr_length(VALUE self, SEL sel)
 {
-    return INT2NUM(str_length(RSTR(self), true));
+    return INT2NUM(str_length(RSTR(self)));
 }
 
 /*
@@ -2053,7 +1949,7 @@ rstr_aref(VALUE str, SEL sel, int argc, VALUE *argv)
 	    {
 		long beg = 0, len = 0;
 		switch (rb_range_beg_len(indx, &beg, &len,
-			    str_length(RSTR(str), true), 0)) {
+			    str_length(RSTR(str)), 0)) {
 		    case Qfalse:
 			break;
 		    case Qnil:
@@ -2176,7 +2072,7 @@ num_index:
 
 	case T_STRING:
 	    pos = str_index_for_string(RSTR(str), str_need_string(indx),
-		    0, -1, false, true);
+		    0, -1, false);
 	    if (pos < 0) {
 		rb_raise(rb_eIndexError, "string not matched");
 	    }
@@ -2188,7 +2084,7 @@ num_index:
 	    {
 		long beg, len;
 		if (rb_range_beg_len(indx, &beg, &len,
-			    str_length(RSTR(str), true), 2)) {
+			    str_length(RSTR(str)), 2)) {
 		    rstr_splice(str, beg, len, val);
 		    return val;
 		}
@@ -2295,7 +2191,7 @@ rstr_insert(VALUE str, SEL sel, VALUE idx, VALUE substr)
 static VALUE
 rstr_index(VALUE self, SEL sel, int argc, VALUE *argv)
 {
-    const long len = str_length(RSTR(self), true);
+    const long len = str_length(RSTR(self));
     VALUE sub, initpos;
     long pos;
 
@@ -2332,7 +2228,7 @@ rstr_index(VALUE self, SEL sel, int argc, VALUE *argv)
 	    }
 	    else {
 		pos = str_index_for_string(RSTR(self), str_need_string(sub),
-			pos, -1, false, true);
+			pos, -1, false);
 	    }
 	    break;
     }
@@ -2363,7 +2259,7 @@ rstr_index(VALUE self, SEL sel, int argc, VALUE *argv)
 static VALUE
 rstr_rindex(VALUE self, SEL sel, int argc, VALUE *argv)
 {
-    const long len = str_length(RSTR(self), true);
+    const long len = str_length(RSTR(self));
     VALUE sub, initpos;
     long pos;
 
@@ -2397,19 +2293,12 @@ rstr_rindex(VALUE self, SEL sel, int argc, VALUE *argv)
 	case T_STRING:
 	    if (rb_str_chars_len(sub) > 0) {
 		pos = str_index_for_string(RSTR(self), str_need_string(sub),
-			0, pos, true, true);
+			0, pos, true);
 	    }
 	    break;
     }
 
     return pos >= 0 ? LONG2NUM(pos) : Qnil;
-}
-
-static VALUE
-rstr_getchar(VALUE self, SEL sel, VALUE index)
-{
-    const long idx = FIX2LONG(index);
-    return rstr_substr(self, idx, 1);
 }
 
 /*
@@ -2451,7 +2340,7 @@ rstr_times(VALUE self, SEL sel, VALUE times)
     if (len < 0) {
 	rb_raise(rb_eArgError, "negative argument");
     }
-    if (len > 0 && LONG_MAX/len < str_length(RSTR(self), true)) {
+    if (len > 0 && LONG_MAX/len < str_length(RSTR(self))) {
 	rb_raise(rb_eArgError, "argument too big");
     }
 
@@ -2703,7 +2592,7 @@ rstr_start_with(VALUE str, SEL sel, int argc, VALUE *argv)
 	    continue;
 	}
 	const long pos = str_index_for_string(RSTR(str), str_need_string(tmp),
-		0, rb_str_chars_len(tmp), false, true);
+		0, rb_str_chars_len(tmp), false);
 	if (pos == 0) {
 	    return Qtrue;
 	}
@@ -2732,7 +2621,7 @@ rstr_end_with(VALUE str, SEL sel, int argc, VALUE *argv)
 	    continue;
 	}
 	const long pos = str_index_for_string(RSTR(str), str_need_string(tmp),
-		len - sublen, len, false, true);
+		len - sublen, len, false);
 	if (pos == len - sublen) {
 	    return Qtrue;
 	}
@@ -2822,7 +2711,7 @@ str_inspect(rb_str_t *str, bool dump)
 {
     const bool uchars = str_try_making_data_uchars(str);
     const long len = uchars
-	? str_length(str, true) : str->length_in_bytes;
+	? str_length(str) : str->length_in_bytes;
 
     VALUE result;
     if (len == 0) {
@@ -3160,7 +3049,7 @@ static VALUE str_strip(VALUE str, int direction);
 static VALUE
 rstr_split(VALUE str, SEL sel, int argc, VALUE *argv)
 {
-    const long len = str_length(RSTR(str), true);
+    const long len = str_length(RSTR(str));
     int lim = 0;
 
     VALUE spat, limit;
@@ -3248,10 +3137,10 @@ fs_set:
 	}
 	else {
 	    rb_str_t *spat_str = str_need_string(spat);
-	    const long spat_len = str_length(spat_str, true);
+	    const long spat_len = str_length(spat_str);
 	    do {
 		const long pos = str_index_for_string(RSTR(str), spat_str,
-			beg, -1, false, true);
+			beg, -1, false);
 		if (pos == -1) {
 		    break;
 		}
@@ -3518,10 +3407,10 @@ rstr_chomp_bang(VALUE str, SEL sel, int argc, VALUE *argv)
     if (rs == rb_default_rs
 	|| (rslen == 1 && rb_str_get_uchar(rs, 0) == '\n')) {
 	// Remove trailing carriage return.
-	UChar c = str_get_uchar(RSTR(str), len - 1, true);
+	UChar c = str_get_uchar(RSTR(str), len - 1);
 	if (c == '\n') {
 	    to_del++;
-	    c = len > 1 ? str_get_uchar(RSTR(str), len - 2, true) : 0;
+	    c = len > 1 ? str_get_uchar(RSTR(str), len - 2) : 0;
 	}
 	if (c == '\r' && (rslen > 0 || to_del != 0)) {
 	    to_del++;
@@ -3530,12 +3419,12 @@ rstr_chomp_bang(VALUE str, SEL sel, int argc, VALUE *argv)
     else if (rslen == 0) {
 	// Remove all trailing carriage returns.
 	for (int i = len - 1; i >= 0; i--) {
-	    UChar c = str_get_uchar(RSTR(str), i, true);
+	    UChar c = str_get_uchar(RSTR(str), i);
 	    if (c != '\n') {
 		break;
 	    }
 	    to_del++;
-	    if (i > 0 && str_get_uchar(RSTR(str), i - 1, true) == '\r') {
+	    if (i > 0 && str_get_uchar(RSTR(str), i - 1) == '\r') {
 		to_del++;
 		i--;
 	    }
@@ -3544,7 +3433,7 @@ rstr_chomp_bang(VALUE str, SEL sel, int argc, VALUE *argv)
     else if (rslen <= len) {
 	// Remove trailing substring.
 	if (str_index_for_string(RSTR(str), str_need_string(rs),
-		    len - rslen, -1, false, true) >= 0) {
+		    len - rslen, -1, false) >= 0) {
 	    to_del += rslen;
 	}
     }
@@ -3552,7 +3441,7 @@ rstr_chomp_bang(VALUE str, SEL sel, int argc, VALUE *argv)
     if (to_del == 0) {
 	return Qnil;
     }
-    str_delete(RSTR(str), len - to_del, to_del, true);
+    str_delete(RSTR(str), len - to_del, to_del);
     return str;
 }
 
@@ -3597,7 +3486,7 @@ rstr_chop_bang(VALUE str, SEL sel)
 {
     rstr_modify(str);
 
-    const long len = str_length(RSTR(str), true);
+    const long len = str_length(RSTR(str));
     if (len == 0) {
 	return Qnil;
     }
@@ -3617,7 +3506,7 @@ rstr_chop_bang(VALUE str, SEL sel)
 	}
     }
 
-    str_delete(RSTR(str), len - to_del, to_del, true);
+    str_delete(RSTR(str), len - to_del, to_del);
     return str;
 }
 
@@ -3832,7 +3721,7 @@ rstr_sub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 
 	rstr_modify(str);
 	str_splice(RSTR(str), results[0].beg, results[0].end - results[0].beg,
-		str_need_string(repl), true);
+		str_need_string(repl));
 	if (OBJ_TAINTED(repl)) {
 	    tainted = true;
 	}
@@ -3936,7 +3825,7 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
     VALUE dest = rb_str_new5(str, NULL, 0);
     long offset = 0, last = 0;
     bool changed = false;
-    const long len = str_length(RSTR(str), true);
+    const long len = str_length(RSTR(str));
     VALUE match = Qnil;
 
     if (bang) {
@@ -4318,7 +4207,7 @@ rstr_justify_part(rb_str_t *str, rb_str_t *pad, long width, long padwidth,
 	if (padwidth > width) {
 	    pad = RSTR(rstr_substr((VALUE)pad, 0, width));
 	}
-	str_insert(str, index, pad, true);
+	str_insert(str, index, pad);
 	width -= padwidth;
 	index += padwidth;
     }
@@ -4339,12 +4228,12 @@ rstr_justify(int argc, VALUE *argv, VALUE str, char mode)
     }
 
     rb_str_t *padstr = str_need_string(pad);
-    const long padwidth = str_length(RSTR(padstr), true);
+    const long padwidth = str_length(RSTR(padstr));
     if (padwidth == 0) {
 	rb_raise(rb_eArgError, "zero width padding");
     }
 
-    const long len = str_length(RSTR(str), true);
+    const long len = str_length(RSTR(str));
     long width = NUM2LONG(w);
     str = rb_str_new3(str);
     if (str_is_stored_in_uchars(RSTR(padstr))) {
@@ -4433,7 +4322,7 @@ str_strip(VALUE str, int direction)
 {
     rstr_modify(str);
 
-    long len = str_length(RSTR(str), true);
+    long len = str_length(RSTR(str));
     if (len == 0) {
 	return Qnil;
     }
@@ -4451,7 +4340,7 @@ str_strip(VALUE str, int direction)
 	}
 
 	if (pos > 0) {
-	    str_delete(RSTR(str), 0, pos, true);
+	    str_delete(RSTR(str), 0, pos);
 	    len -= pos;
 	    changed = true;
 	}
@@ -4469,7 +4358,7 @@ str_strip(VALUE str, int direction)
 	}
 
 	if (pos < len - 1 && pos >= 0) {
-	    str_delete(RSTR(str), pos + 1, len - pos - 1, true);
+	    str_delete(RSTR(str), pos + 1, len - pos - 1);
 	    changed = true;
 	}
     }
@@ -4644,17 +4533,16 @@ rstr_each_line(VALUE str, SEL sel, int argc, VALUE *argv)
 	paragraph = true;
     }
 
-    const long len = str_length(RSTR(str), true);
+    const long len = str_length(RSTR(str));
     const bool tainted = OBJ_TAINTED(str);
 
     long pos = 0;
     do {
-	long off = str_index_for_string(RSTR(str), rs_str, pos, -1,
-		false, true);
+	long off = str_index_for_string(RSTR(str), rs_str, pos, -1, false);
 	if(paragraph && off >= 0) {
 	    int i;
 	    for(i = off + 1; i < len; i++) {
-		UChar c = str_get_uchar(RSTR(str), i, true);
+		UChar c = str_get_uchar(RSTR(str), i);
 		if (c != '\n') {
 		    break;
 		}
@@ -4799,7 +4687,7 @@ rstr_each_codepoint(VALUE str, SEL sel)
     }
     RETURN_ENUMERATOR(str, 0, 0);
 
-    const long len = str_length(RSTR(str), true);
+    const long len = str_length(RSTR(str));
     for (int i = 0; i < len; i++) {
 	rb_yield(INT2NUM(rb_str_get_uchar(str, i)));
     }
@@ -5725,7 +5613,7 @@ rstr_partition(VALUE str, SEL sel, VALUE sep)
 	StringValue(sep);
 	seplen = rb_str_chars_len(sep);
 	pos = str_index_for_string(RSTR(str), str_need_string(sep),
-		0, -1, false, true);
+		0, -1, false);
     }
     if (pos < 0) {
 failed:
@@ -5774,7 +5662,7 @@ rstr_rpartition(VALUE str, SEL sel, VALUE sep)
     else {
 	StringValue(sep);
 	pos = str_index_for_string(RSTR(str), str_need_string(sep),
-		0, -1, true, true);
+		0, -1, true);
     }
     if (pos < 0) {
 failed:
@@ -5824,7 +5712,7 @@ rstr_crypt(VALUE str, SEL sel, VALUE salt)
 static void
 check_bounds(void *rcv, long pos, bool can_be_end)
 {
-    const long len = str_length(RSTR(rcv), true);
+    const long len = str_length(RSTR(rcv));
     if (pos >= 0) {
 	if (can_be_end) {
 	    if (pos <= len) {
@@ -5845,14 +5733,14 @@ check_bounds(void *rcv, long pos, bool can_be_end)
 static CFIndex
 rstr_imp_length(void *rcv, SEL sel)
 {
-    return str_length(RSTR(rcv), true);
+    return str_length(RSTR(rcv));
 }
 
 static UniChar
 rstr_imp_characterAtIndex(void *rcv, SEL sel, CFIndex idx)
 {
     check_bounds(rcv, idx, false);
-    return str_get_uchar(RSTR(rcv), idx, true);
+    return str_get_uchar(RSTR(rcv), idx);
 }
 
 static void
@@ -5880,7 +5768,7 @@ rstr_imp_replaceCharactersInRangeWithString(void *rcv, SEL sel, CFRange range,
 {
     check_bounds(rcv, range.location + range.length, true);
     rb_str_t *spat = str_need_string((VALUE)str);
-    str_splice(RSTR(rcv), range.location, range.length, spat, true);
+    str_splice(RSTR(rcv), range.location, range.length, spat);
 }
 
 // :nodoc:
@@ -6020,9 +5908,6 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "transform", rstr_transform, 1);
 
     // MacRuby extensions (debugging).
-    rb_objc_define_method(rb_cRubyString, "__chars_count__",
-	    rstr_chars_count, 0);
-    rb_objc_define_method(rb_cRubyString, "__getchar__", rstr_getchar, 1);
     rb_objc_define_method(rb_cRubyString, "__stored_in_uchars__?",
 	    rstr_is_stored_in_uchars, 0);
 
@@ -6423,7 +6308,7 @@ UChar
 rb_str_get_uchar(VALUE str, long pos)
 {
     if (IS_RSTR(str)) {
-	return str_get_uchar(RSTR(str), pos, true);
+	return str_get_uchar(RSTR(str), pos);
     }
     assert(pos >= 0 && pos < CFStringGetLength((CFStringRef)str));
     return CFStringGetCharacterAtIndex((CFStringRef)str, pos);
@@ -6459,7 +6344,7 @@ long
 rb_str_chars_len(VALUE str)
 {
     if (IS_RSTR(str)) {
-	return str_length(RSTR(str), true);
+	return str_length(RSTR(str));
     }
     return CFStringGetLength((CFStringRef)str);
 }
@@ -6722,7 +6607,7 @@ void
 rb_str_delete(VALUE str, long beg, long len)
 {
     if (IS_RSTR(str)) {
-	str_delete(RSTR(str), beg, len, false);
+	str_delete(RSTR(str), beg, len);
     }
     else {
 	CFStringDelete((CFMutableStringRef)str, CFRangeMake(beg, len));
