@@ -280,13 +280,14 @@ str_replace_with_string(rb_str_t *self, rb_str_t *source)
 static bool str_try_making_data_uchars(rb_str_t *self);
 
 static void
-str_append_uchar(rb_str_t *self, UChar c)
+str_append_uchar32(rb_str_t *self, UChar32 c)
 {
     assert(str_try_making_data_uchars(self));
     const long uchar_cap = BYTES_TO_UCHARS(self->capacity_in_bytes);
     const long uchar_len = BYTES_TO_UCHARS(self->length_in_bytes);
-    if (uchar_len + 1 >= uchar_cap) {
-	assert(uchar_len + 1 < uchar_cap + 10);
+    int concat_len = U_IS_BMP(c) ? 1 : 2;
+    if (uchar_len + concat_len >= uchar_cap) {
+	assert(uchar_len + concat_len < uchar_cap + 10);
 	self->capacity_in_bytes += UCHARS_TO_BYTES(10);
 	UChar *uchars = (UChar *)xrealloc(self->data.uchars,
 		self->capacity_in_bytes);
@@ -294,8 +295,14 @@ str_append_uchar(rb_str_t *self, UChar c)
 	    GC_WB(&self->data.uchars, uchars);
 	}
     }
-    self->data.uchars[uchar_len] = c;
-    self->length_in_bytes += UCHARS_TO_BYTES(1);
+    if (U_IS_BMP(c)) {
+	self->data.uchars[uchar_len] = c;
+    }
+    else {
+	self->data.uchars[uchar_len] = U16_LEAD(c);
+	self->data.uchars[uchar_len+1] = U16_TRAIL(c);
+    }
+    self->length_in_bytes += UCHARS_TO_BYTES(concat_len);
 }
 
 static void
@@ -653,16 +660,8 @@ str_get_characters(rb_str_t *self, long first, long last)
     character_boundaries_t last_boundaries =
 	str_get_character_boundaries(self, last);
 
-    if (first_boundaries.start_offset_in_bytes == -1) {
-	if (last_boundaries.end_offset_in_bytes == -1) {
-	    // you cannot cut a surrogate in an encoding that is not UTF-16
-	    str_cannot_cut_surrogate();
-	}
-	else {
-	    return NULL;
-	}
-    }
-    else if (last_boundaries.end_offset_in_bytes == -1) {
+    if ((first_boundaries.start_offset_in_bytes == -1) ||
+	    (last_boundaries.end_offset_in_bytes == -1)) {
 	// you cannot cut a surrogate in an encoding that is not UTF-16
 	str_cannot_cut_surrogate();
     }
@@ -742,14 +741,13 @@ str_splice(rb_str_t *self, long pos, long len, rb_str_t *str)
     else {
 	// Positioning in the string.
 	beg = str_get_character_boundaries(self, pos);
-
-	// TODO: probably call str_cannot_cut_surrogate()
-	assert(beg.start_offset_in_bytes != -1);
-
 	end = str_get_character_boundaries(self, pos + len - 1);
 
-	// TODO: probably call str_cannot_cut_surrogate()
-	assert(end.end_offset_in_bytes != -1);
+	if ((beg.start_offset_in_bytes == -1) ||
+		(end.end_offset_in_bytes == -1)) {
+	    // you cannot cut a surrogate in an encoding that is not UTF-16
+	    str_cannot_cut_surrogate();
+	}
     }
 
     const long bytes_to_splice = end.end_offset_in_bytes
@@ -2698,12 +2696,12 @@ rstr_intern(VALUE self, SEL sel)
  */
 
 static void
-inspect_append(VALUE result, UChar c, bool escape)
+inspect_append(VALUE result, UChar32 c, bool escape)
 {
     if (escape) {
-	str_append_uchar(RSTR(result), '\\');
+	str_append_uchar32(RSTR(result), '\\');
     }
-    str_append_uchar(RSTR(result), c);
+    str_append_uchar32(RSTR(result), c);
 }
 
 static VALUE
@@ -3618,10 +3616,10 @@ rb_reg_regsub(VALUE str, VALUE src, VALUE regexp, rb_match_result_t *results,
 		break;
 
 	    default:
-		str_append_uchar(RSTR(val), '\\');
+		str_append_uchar32(RSTR(val), '\\');
 		// fall through
 	    case '\\':
-		str_append_uchar(RSTR(val), c);
+		str_append_uchar32(RSTR(val), c);
 		break;
 	}
 
@@ -6318,7 +6316,7 @@ void
 rb_str_append_uchar(VALUE str, UChar c)
 {
     if (IS_RSTR(str)) {
-	str_append_uchar(RSTR(str), c);	
+	str_append_uchar32(RSTR(str), c);
     }
     else {
 	CFStringAppendCharacters((CFMutableStringRef)str, &c, 1);
@@ -6371,7 +6369,6 @@ rb_enc_str_buf_cat(VALUE str, const char *cstr, long len, rb_encoding_t *enc)
     }
     else {
 	abort(); // TODO
-	
     }
     return str;
 }
