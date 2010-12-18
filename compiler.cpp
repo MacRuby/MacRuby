@@ -2734,6 +2734,7 @@ RoxorCompiler::compile_scope(NODE *node)
 	running_block = NULL;
     }
 
+    Value *old_current_block_arg = current_block_arg;
     current_block_arg = NULL;
     if (node->nd_tbl != NULL) {
 	bool has_vars_to_save = false;
@@ -2978,6 +2979,8 @@ RoxorCompiler::compile_scope(NODE *node)
 	    v.ary->eraseFromParent();
 	}
     }
+
+    current_block_arg = old_current_block_arg;
 
     rescue_rethrow_bb = old_rescue_rethrow_bb;
     rescue_invoke_bb = old_rescue_invoke_bb;
