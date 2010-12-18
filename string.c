@@ -23,6 +23,7 @@
 #include "ruby/node.h"
 #include "vm.h"
 #include "class.h"
+#include "encoding_ucnv.h"
 
 #include <unicode/unum.h>
 #include <unicode/utrans.h>
@@ -138,7 +139,7 @@ str_update_flags(rb_str_t *self)
 	str_update_flags_utf16(self);
     }
     else {
-	self->encoding->methods.update_flags(self);
+	str_ucnv_update_flags(self);
     }
 }
 
@@ -387,7 +388,7 @@ str_make_data_binary(rb_str_t *self)
 	return;
     }
 
-    self->encoding->methods.make_data_binary(self);
+    str_ucnv_make_data_binary(self);
 }
 
 static bool
@@ -418,7 +419,7 @@ str_try_making_data_uchars(rb_str_t *self)
 	return false;
     }
 
-    return self->encoding->methods.try_making_data_uchars(self);
+    return str_ucnv_try_making_data_uchars(self);
 }
 
 static void
@@ -469,8 +470,49 @@ str_length(rb_str_t *self, bool ucs2_mode)
 	    return div_round_up(self->length_in_bytes, 2);
 	}
 	else {
-	    return self->encoding->methods.length(self, ucs2_mode);
+	    return str_ucnv_length(self, ucs2_mode);
 	}
+    }
+}
+
+static void
+str_each_char(rb_str_t *self, each_char_callback_t callback)
+{
+    if (str_is_stored_in_uchars(self)) {
+	bool stop = false;
+	long length = BYTES_TO_UCHARS(self->length_in_bytes);
+	for (long i = 0; i < length;) {
+	    UChar32 c;
+	    long old_i = i;
+	    U16_NEXT(self->data.uchars, i, length, c);
+	    callback(c, (const char *)&self->data.uchars[old_i],
+		    UCHARS_TO_BYTES(old_i-i), &stop);
+	    if (stop) {
+		return;
+	    }
+	};
+    }
+    else if (BINARY_ENC(self->encoding)
+	    || (self->encoding == rb_encodings[ENCODING_ASCII])) {
+	const uint8_t *pos = (uint8_t*)self->data.bytes;
+	const uint8_t *end = pos + self->length_in_bytes;
+	bool stop = false;
+	for (; pos < end; ++pos) {
+	    UChar32 c;
+	    if (*pos > 127) {
+		c = U_SENTINEL;
+	    }
+	    else {
+		c = *pos;
+	    }
+	    callback(c, (const char *)pos, 1, &stop);
+	    if (stop) {
+		return;
+	    }
+	}
+    }
+    else {
+	str_ucnv_each_char(self, callback);
     }
 }
 
@@ -494,7 +536,7 @@ str_bytesize(rb_str_t *self)
 	    return self->length_in_bytes;
 	}
 	else {
-	    return self->encoding->methods.bytesize(self);
+	    return str_ucnv_bytesize(self);
 	}
     }
     else {
@@ -654,7 +696,7 @@ str_get_character_boundaries(rb_str_t *self, long index, bool ucs2_mode)
 		+ 2;
 	}
 	else {
-	    boundaries = self->encoding->methods.get_character_boundaries(self,
+	    boundaries = str_ucnv_get_character_boundaries(self,
 		    index, ucs2_mode);
 	}
     }
@@ -1032,7 +1074,7 @@ str_offset_in_bytes_to_index(rb_str_t *self, long offset_in_bytes,
 	    return BYTES_TO_UCHARS(offset_in_bytes);
 	}
 	else {
-	    return self->encoding->methods.offset_in_bytes_to_index(self,
+	    return str_ucnv_offset_in_bytes_to_index(self,
 		    offset_in_bytes, ucs2_mode);
 	}
     }
@@ -1362,7 +1404,7 @@ str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_en
 	    pos_in_src = self->length_in_bytes;
 	}
 	else {
-	    src_encoding_used->methods.transcode_to_utf16(src_encoding_used,
+	    str_ucnv_transcode_to_utf16(src_encoding_used,
 		    self, &pos_in_src, &utf16, &utf16_length);
 	}
 
@@ -1441,7 +1483,7 @@ str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_en
 	    for (;;) {
 		long bytes_length;
 		char *bytes;
-		dst_encoding_used->methods.transcode_from_utf16(dst_encoding_used,
+		str_ucnv_transcode_from_utf16(dst_encoding_used,
 			utf16, utf16_length, &utf16_pos, &bytes, &bytes_length);
 		if (bytes_length > 0) {
 		    str_concat_bytes(dst_str, bytes, bytes_length);
@@ -2785,7 +2827,8 @@ str_inspect(rb_str_t *str, bool dump)
     VALUE result;
     if (len == 0) {
 	result = rb_str_new2("\"\"");
-	goto bail;
+	OBJ_INFECT(result, str);
+	return result;
     }
 
     // Allocate an UTF-8 string with a good initial capacity.
@@ -2794,31 +2837,18 @@ str_inspect(rb_str_t *str, bool dump)
 	BINARY_ENC(str->encoding) ? (len * 5) + 2 : len + 2;
     result = rb_unicode_str_new(NULL, result_init_len);
 
-#define GET_UCHAR(pos) \
-    ((uchars \
-      ? str->data.uchars[pos] : (unsigned char)str->data.bytes[pos]))
-
     inspect_append(result, '"', false);
-    for (long i = 0; i < len; i++) {
-	const UChar c = GET_UCHAR(i);
-
-	bool print;
-	if (uchars) {
-	    print = iswprint(c);
-	}
-	else { // ASCII printable characters
-	    print = ((c >= 0x20) && (c <= 0x7E));
+    __block UChar32 prev = 0;
+    str_each_char(str, ^(UChar32 c, const char* char_start, long char_len, bool *stop) {
+	bool print = iswprint(c);
+	if (dump && prev == '#') {
+	    inspect_append(result, prev, (c == '$' || c == '@' || c == '{'));
 	}
 	if (print) {
 	    if (c == '"' || c == '\\') {
 		inspect_append(result, c, true);
 	    }
-	    else if (dump && c == '#' && i + 1 < len) {
-		const UChar c2 = GET_UCHAR(i + 1);
-		const bool need_escape = c2 == '$' || c2 == '@' || c2 == '{';
-		inspect_append(result, c, need_escape);
-	    }
-	    else {
+	    else if (c != '#' || !dump) {
 		inspect_append(result, c, false);
 	    }
 	}
@@ -2848,19 +2878,23 @@ str_inspect(rb_str_t *str, bool dump)
 	}
 	else {
 	    char buf[10];
-	    snprintf(buf, sizeof buf, "\\x%02X", c);
-	    char *p = buf;
-	    while (*p != '\0') {
-		inspect_append(result, *p, false);
-		p++;
+	    for (long i = 0; i < char_len; ++i) {
+		uint8_t byte = (uint8_t)char_start[i];
+		snprintf(buf, sizeof buf, "\\x%02X", byte);
+		char *p = buf;
+		while (*p != '\0') {
+		    inspect_append(result, *p, false);
+		    p++;
+		}
 	    }
 	}
+	prev = c;
+    });
+    if (dump && prev == '#') {
+	inspect_append(result, prev, false);
     }
     inspect_append(result, '"', false);
    
-#undef GET_UCHAR
-
-bail:
     OBJ_INFECT(result, str);
     return result; 
 }

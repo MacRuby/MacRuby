@@ -10,7 +10,7 @@
  */
 
 #include "ruby/macruby.h"
-#include "encoding.h"
+#include "encoding_ucnv.h"
 #include "unicode/ucnv.h"
 
 // do not forget to close the converter
@@ -28,7 +28,7 @@
 	); \
     ucnv_reset(cnv);
 
-static void
+void
 str_ucnv_update_flags(rb_str_t *self)
 {
     assert(!str_is_stored_in_uchars(self));
@@ -73,7 +73,7 @@ str_ucnv_update_flags(rb_str_t *self)
     str_set_ascii_only(self, ascii_only);
 }
 
-static void
+void
 str_ucnv_make_data_binary(rb_str_t *self)
 {
     assert(str_is_stored_in_uchars(self));
@@ -129,7 +129,7 @@ utf16_bytesize_approximation(rb_encoding_t *enc, int bytesize)
     return approximation;
 }
 
-static bool
+bool
 str_ucnv_try_making_data_uchars(rb_str_t *self)
 {
     assert(!str_is_stored_in_uchars(self));
@@ -175,7 +175,7 @@ str_ucnv_try_making_data_uchars(rb_str_t *self)
     }
 }
 
-static long
+long
 str_ucnv_length(rb_str_t *self, bool ucs2_mode)
 {
     assert(!str_is_stored_in_uchars(self));
@@ -218,8 +218,59 @@ str_ucnv_length(rb_str_t *self, bool ucs2_mode)
     return len;
 }
 
+
+void rb_ensure_b(void (^b_block)(void), void (^e_block)(void));
+
+void
+str_ucnv_each_char(rb_str_t *self, each_char_callback_t callback)
+{
+    assert(!str_is_stored_in_uchars(self));
+
+    USE_CONVERTER(cnv, self->encoding);
+
+    rb_ensure_b(^{
+	const char *pos = self->data.bytes;
+	const char *end = pos + self->length_in_bytes;
+	bool stop = false;
+	for (;;) {
+	    const char *char_start_pos = pos;
+	    // iterate through the string one Unicode code point at a time
+	    UErrorCode err = U_ZERO_ERROR;
+	    UChar32 c = ucnv_getNextUChar(cnv, &pos, end, &err);
+	    if (err == U_INDEX_OUTOFBOUNDS_ERROR) {
+		// end of the string
+		break;
+	    }
+	    else if (U_FAILURE(err)) {
+		long min_char_size = self->encoding->min_char_size;
+		while (char_start_pos < pos) {
+		    long char_len = pos - char_start_pos;
+		    if (char_len > min_char_size) {
+			char_len = min_char_size;
+		    }
+		    callback(U_SENTINEL, char_start_pos, char_len, &stop);
+		    if (stop) {
+			return;
+		    }
+		    char_start_pos += char_len;
+		}
+	    }
+	    else {
+		long char_len = pos - char_start_pos;
+		callback(c, char_start_pos, char_len, &stop);
+		if (stop) {
+		    return;
+		}
+	    }
+	}
+    }, ^{
+	ucnv_close(cnv);
+    });
+}
+
+
 #define STACK_BUFFER_SIZE 1024
-static long
+long
 str_ucnv_bytesize(rb_str_t *self)
 {
     assert(str_is_stored_in_uchars(self));
@@ -254,7 +305,7 @@ str_ucnv_bytesize(rb_str_t *self)
     return len;
 }
 
-static character_boundaries_t
+character_boundaries_t
 str_ucnv_get_character_boundaries(rb_str_t *self, long index, bool ucs2_mode)
 {
     assert(!str_is_stored_in_uchars(self));
@@ -353,7 +404,7 @@ str_ucnv_get_character_boundaries(rb_str_t *self, long index, bool ucs2_mode)
     return boundaries;
 }
 
-static long
+long
 str_ucnv_offset_in_bytes_to_index(rb_str_t *self, long offset_in_bytes,
 	bool ucs2_mode)
 {
@@ -410,7 +461,7 @@ str_ucnv_offset_in_bytes_to_index(rb_str_t *self, long offset_in_bytes,
     return index;
 }
 
-static void
+void
 str_ucnv_transcode_to_utf16(struct rb_encoding *src_enc,
 	rb_str_t *self, long *pos,
 	UChar **utf16, long *utf16_length)
@@ -452,7 +503,7 @@ str_ucnv_transcode_to_utf16(struct rb_encoding *src_enc,
     }
 }
 
-static void
+void
 str_ucnv_transcode_from_utf16(struct rb_encoding *dst_enc,
 	UChar *utf16, long utf16_length, long *utf16_pos,
 	char **bytes, long *bytes_length)
@@ -504,17 +555,4 @@ enc_init_ucnv_encoding(rb_encoding_t *encoding)
 
     // fill the fields not filled yet
     encoding->private_data = converter;
-    encoding->methods.update_flags = str_ucnv_update_flags;
-    encoding->methods.make_data_binary = str_ucnv_make_data_binary;
-    encoding->methods.try_making_data_uchars = str_ucnv_try_making_data_uchars;
-    encoding->methods.length = str_ucnv_length;
-    encoding->methods.bytesize = str_ucnv_bytesize;
-    encoding->methods.get_character_boundaries =
-	str_ucnv_get_character_boundaries;
-    encoding->methods.offset_in_bytes_to_index =
-	str_ucnv_offset_in_bytes_to_index;
-    encoding->methods.transcode_to_utf16 =
-	str_ucnv_transcode_to_utf16;
-    encoding->methods.transcode_from_utf16 =
-	str_ucnv_transcode_from_utf16;
 }

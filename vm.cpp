@@ -3539,6 +3539,21 @@ rb_ensure(VALUE (*b_proc)(ANYARGS), VALUE data1,
 
 extern "C"
 void
+rb_ensure_b(void (^b_block)(void), void (^e_block)(void))
+{
+    struct Finally {
+	void (^e_block)(void);
+	Finally(void (^_e_block)(void)) {
+	    e_block = _e_block;
+	}
+	~Finally() { e_block(); }
+    } finalizer(e_block);
+
+    b_block();
+}
+
+extern "C"
+void
 rb_vm_break(VALUE val)
 {
 #if 0

@@ -110,18 +110,6 @@ typedef struct {
     long end_offset_in_bytes;
 } character_boundaries_t;
 
-typedef struct {
-    void (*update_flags)(rb_str_t *);
-    void (*make_data_binary)(rb_str_t *);
-    bool (*try_making_data_uchars)(rb_str_t *);
-    long (*length)(rb_str_t *, bool);
-    long (*bytesize)(rb_str_t *);
-    character_boundaries_t (*get_character_boundaries)(rb_str_t *, long, bool);
-    long (*offset_in_bytes_to_index)(rb_str_t *, long, bool);
-    void (*transcode_to_utf16)(struct rb_encoding *, rb_str_t *, long *, UChar **, long *);
-    void (*transcode_from_utf16)(struct rb_encoding *, UChar *, long, long *, char **, long *);
-} encoding_methods_t;
-
 typedef struct rb_encoding {
     struct RBasic basic;
     unsigned int index;
@@ -131,7 +119,6 @@ typedef struct rb_encoding {
     unsigned char min_char_size;
     bool single_byte_encoding : 1;
     bool ascii_compatible : 1;
-    encoding_methods_t methods;
     void *private_data;
 } rb_encoding_t;
 

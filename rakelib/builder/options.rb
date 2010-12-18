@@ -152,8 +152,8 @@ class BuilderConfig
     sdk = opt.delete(:sdk)
     has_libauto = sdk ? File.exist?("#{sdk}/usr/lib/libauto.dylib") : true
     archflags = archs.map { |x| "-arch #{x}" }.join(' ')
-    @cflags = "-std=c99 -I. -I./include -fno-common -pipe -g -Wall -fexceptions -O#{OPTZ_LEVEL} -Wno-deprecated-declarations -Werror #{archflags}"
-    @cxxflags = "-I. -I./include -g -Wall -Wno-deprecated-declarations -Werror #{archflags}"
+    @cflags = "-std=c99 -I. -I./include -pipe -fno-common -fexceptions -fblocks -g -O#{OPTZ_LEVEL} -Wall -Wno-deprecated-declarations -Werror #{archflags}"
+    @cxxflags = "-I. -I./include -fblocks -g -Wall -Wno-deprecated-declarations -Werror #{archflags}"
     @ldflags = '-lpthread -ldl -lxml2 -lobjc -licucore -framework Foundation'
     @ldflags << " -lauto" if has_libauto
     if opt.delete(:static)
