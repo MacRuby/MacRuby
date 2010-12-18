@@ -4956,46 +4956,21 @@ rstr_reverse_bang(VALUE str, SEL sel)
 {
     rstr_modify(str);
 
-    if (str_try_making_data_uchars(RSTR(str))) {
-	const long len = BYTES_TO_UCHARS(RSTR(str)->length_in_bytes);
-	if (len <= 1) {
-	    return str;
-	}
-	bool has_lead = false;
-	for (long i = 0; i < (len / 2); i++) {
-	    UChar c = RSTR(str)->data.uchars[i];
-	    if (U16_IS_LEAD(c)) {
-		has_lead = true;
-	    }
-	    RSTR(str)->data.uchars[i] = RSTR(str)->data.uchars[len - i - 1];
-	    RSTR(str)->data.uchars[len - i - 1] = c;
-	}
-	if (has_lead) {
-	    // if the string contained surrogates,
-	    // we have to put them back in the correct order
-	    for (long i = 0; i < len - 1; ++i) {
-		UChar c = RSTR(str)->data.uchars[i];
-		if (U16_IS_TRAIL(c)) {
-		    UChar next = RSTR(str)->data.uchars[i+1];
-		    if (U16_IS_LEAD(next)) {
-			RSTR(str)->data.uchars[i] = next;
-			RSTR(str)->data.uchars[i+1] = c;
-		    }
-		}
-	    }
-	}
+    if (RSTR(str)->length_in_bytes <= 1) {
+	return str;
     }
-    else {
-	const long len = RSTR(str)->length_in_bytes;
-	if (len <= 1) {
-	    return str;
-	}
-	for (long i = 0; i < (len / 2); i++) {
-	    char c = RSTR(str)->data.bytes[i];
-	    RSTR(str)->data.bytes[i] = RSTR(str)->data.bytes[len - i - 1];
-	    RSTR(str)->data.bytes[len - i - 1] = c; 
-	}
-    }
+
+    str_make_data_binary(RSTR(str));
+    char *new_bytes = xmalloc(RSTR(str)->length_in_bytes);
+    __block long pos = RSTR(str)->length_in_bytes;
+    str_each_char(RSTR(str), ^(UChar32 c, const char* char_start, long char_len, bool *stop) {
+	pos -= char_len;
+	memcpy(&new_bytes[pos], char_start, char_len);
+    });
+    assert(pos == 0);
+
+    RSTR(str)->capacity_in_bytes = RSTR(str)->length_in_bytes;
+    GC_WB(&RSTR(str)->data.bytes, new_bytes);
 
     // we modify it directly so the information stored
     // in the facultative flags might be outdated
