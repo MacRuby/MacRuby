@@ -986,6 +986,68 @@ str_need_string(VALUE str)
 	? (rb_str_t *)str : str_new_from_cfstring((CFStringRef)str);
 }
 
+static void
+str_extract_uchars_range(rb_str_t *self, long range_start_offset_in_uchars,
+	long range_length_in_uchars, UChar *buffer)
+{
+    if (range_length_in_uchars <= 0) {
+	return;
+    }
+    if (IS_NATIVE_UTF16_ENC(self->encoding)) {
+	memcpy(buffer,
+		&self->bytes[BYTES_TO_UCHARS(range_start_offset_in_uchars)],
+		BYTES_TO_UCHARS(range_length_in_uchars));
+    }
+    else {
+	__block long pos_in_src = 0;
+	__block long pos_in_dst = 0;
+	str_each_uchar32(self, ^(UChar32 c, long start_index, long char_len, bool *stop) {
+	    if (pos_in_src >= range_start_offset_in_uchars) {
+		if (c == U_SENTINEL) {
+		    if (char_len == 1) {
+			buffer[pos_in_dst++] = self->bytes[start_index];
+		    }
+		    else {
+			UChar accumulator = 0;
+			if (self->encoding->little_endian) {
+			    for (long i = char_len-1; i >= 0; --i) {
+				accumulator = accumulator << 8
+				    | self->bytes[start_index+i];
+			    }
+			}
+			else {
+			    for (long i = 0; i < char_len; ++i) {
+				accumulator = accumulator << 8
+				    | self->bytes[start_index+i];
+			    }
+			}
+			buffer[pos_in_dst++] = accumulator;
+		    }
+		}
+		else if (U_IS_BMP(c)) {
+		    buffer[pos_in_dst++] = c;
+		}
+		else {
+		    buffer[pos_in_dst++] = U16_LEAD(c);
+		    if (pos_in_dst < range_length_in_uchars) {
+			buffer[pos_in_dst++] = U16_TRAIL(c);
+		    }
+		}
+	    }
+	    if ((c == U_SENTINEL) || U_IS_BMP(c)) {
+		pos_in_src++;
+	    }
+	    else {
+		pos_in_src += 2;
+	    }
+	    if (pos_in_dst >= range_length_in_uchars) {
+		*stop = true;
+	    }
+	});
+	assert(pos_in_dst == range_length_in_uchars);
+    }
+}
+
 void
 rb_str_get_uchars(VALUE str, UChar **chars_p, long *chars_len_p,
 	bool *need_free_p)
@@ -1000,25 +1062,7 @@ rb_str_get_uchars(VALUE str, UChar **chars_p, long *chars_len_p,
 	chars_len = str_length(RSTR(str));
 	if (chars_len > 0) {
 	    chars = (UChar *)malloc(sizeof(UChar) * chars_len);
-	    __block long pos = 0;
-	    str_each_uchar32(RSTR(str), ^(UChar32 c, long start_index, long char_len, bool *stop) {
-		if (c == U_SENTINEL) {
-		    if (char_len == 1) {
-			chars[pos++] = RSTR(str)->bytes[start_index];
-		    }
-		    else {
-			abort(); // TODO
-		    }
-		}
-		else if (U_IS_BMP(c)) {
-		    chars[pos++] = c;
-		}
-		else {
-		    chars[pos++] = U16_LEAD(c);
-		    chars[pos++] = U16_TRAIL(c);
-		}
-	    });
-	    assert(pos == chars_len);
+	    str_extract_uchars_range(RSTR(str), 0, chars_len, chars);
 	    need_free = true;
 	}
     }
@@ -3798,10 +3842,9 @@ rstr_change_case(VALUE str, change_case_callback_t callback)
 	return changed;
     }
     else {
-	if (!IS_UTF32_ENC(RSTR(str)->encoding)
-		&& !IS_UTF16_ENC(RSTR(str)->encoding)) {
-	    abort(); // should not happen
-	}
+	assert(IS_UTF32_ENC(RSTR(str)->encoding)
+		|| IS_UTF16_ENC(RSTR(str)->encoding));
+
 	__block bool changed = true;
 	str_each_uchar32(RSTR(str), ^(UChar32 c, long start_index, long char_len, bool *stop) {
 	    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
@@ -4489,16 +4532,18 @@ rstr_each_byte(VALUE str, SEL sel)
 static VALUE
 rstr_each_codepoint(VALUE str, SEL sel)
 {
-    if (!str_is_valid_encoding(RSTR(str))) {
-	rb_raise(rb_eArgError, "invalid byte sequence in %s",
-	    RSTR(str)->encoding->public_name);
-    }
     RETURN_ENUMERATOR(str, 0, 0);
 
-    const long len = str_length(RSTR(str));
-    for (int i = 0; i < len; i++) {
-	rb_yield(INT2NUM(rb_str_get_uchar(str, i)));
-    }
+    str_each_uchar32(RSTR(str), ^(UChar32 c, long start_index, long char_len, bool *stop) {
+	if (c == U_SENTINEL) {
+	    rb_raise(rb_eArgError, "invalid byte sequence in %s",
+		RSTR(str)->encoding->public_name);
+	}
+	else {
+	    rb_yield(INT2NUM(c));
+	}
+    });
+
     return str;
 }
 
@@ -5527,40 +5572,7 @@ static void
 rstr_imp_getCharactersRange(void *rcv, SEL sel, UniChar *buffer, CFRange range)
 {
     check_bounds(rcv, range.location + range.length, true);
-    if (range.length > 0) {
-	__block long pos_in_src = 0;
-	__block long pos_in_dst = 0;
-	str_each_uchar32(RSTR(rcv), ^(UChar32 c, long start_index, long char_len, bool *stop) {
-	    if (pos_in_src >= range.location) {
-		if (c == U_SENTINEL) {
-		    if (char_len == 1) {
-			buffer[pos_in_dst++] = RSTR(rcv)->bytes[start_index];
-		    }
-		    else {
-			abort(); // TODO
-		    }
-		}
-		else if (U_IS_BMP(c)) {
-		    buffer[pos_in_dst++] = c;
-		}
-		else {
-		    buffer[pos_in_dst++] = U16_LEAD(c);
-		    if (pos_in_dst < range.length) {
-			buffer[pos_in_dst++] = U16_TRAIL(c);
-		    }
-		}
-	    }
-	    if ((c == U_SENTINEL) || U_IS_BMP(c)) {
-		pos_in_src++;
-	    }
-	    else {
-		pos_in_src += 2;
-	    }
-	    if (pos_in_dst >= range.length) {
-		*stop = true;
-	    }
-	});
-    }
+    str_extract_uchars_range(RSTR(rcv), range.location, range.length, buffer);
 }
 
 static void
