@@ -3635,6 +3635,10 @@ rb_reg_regsub(VALUE str, VALUE src, VALUE regexp, rb_match_result_t *results,
 	}
     }
 
+    if (val != 0 && pos < str_chars_len) {
+	str_concat_uchars(RSTR(val), &str_chars[pos], str_chars_len - pos);
+    }
+
     if (str_chars_need_free) {
 	free(str_chars);
     }
@@ -3645,11 +3649,9 @@ rb_reg_regsub(VALUE str, VALUE src, VALUE regexp, rb_match_result_t *results,
     if (val == 0) {
 	return str;
     }
-
-    if (pos < str_chars_len) {
-	str_concat_uchars(RSTR(val), &str_chars[pos], str_chars_len - pos);
+    else {
+	return val;
     }
-    return val;
 }
 
 static VALUE
