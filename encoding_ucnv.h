@@ -18,18 +18,15 @@
 extern "C" {
 #endif
 
-typedef void (^each_char_callback_t)(UChar32 c, const char* character_start, long character_length, bool *stop);
+typedef void (^each_uchar32_callback_t)(UChar32 c, long start_index, long length, bool *stop);
 
 void str_ucnv_update_flags(rb_str_t *self);
-void str_ucnv_make_data_binary(rb_str_t *self);
-bool str_ucnv_try_making_data_uchars(rb_str_t *self);
 long str_ucnv_length(rb_str_t *self, bool ucs2_mode);
-long str_ucnv_bytesize(rb_str_t *self);
 character_boundaries_t str_ucnv_get_character_boundaries(rb_str_t *self, long index, bool ucs2_mode);
 long str_ucnv_offset_in_bytes_to_index(rb_str_t *self, long offset_in_bytes, bool ucs2_mode);
 void str_ucnv_transcode_to_utf16(struct rb_encoding *src_enc, rb_str_t *self, long *pos, UChar **utf16, long *utf16_length);
 void str_ucnv_transcode_from_utf16(struct rb_encoding *dst_enc, UChar *utf16, long utf16_length, long *utf16_pos, char **bytes, long *bytes_length);
-void str_ucnv_each_char(rb_str_t *self, each_char_callback_t callback);
+void str_ucnv_each_uchar32(rb_str_t *self, each_uchar32_callback_t callback);
 
 #if defined(__cplusplus)
 } // extern "C"

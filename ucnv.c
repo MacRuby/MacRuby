@@ -31,15 +31,12 @@
 void
 str_ucnv_update_flags(rb_str_t *self)
 {
-    assert(!str_is_stored_in_uchars(self));
-
     USE_CONVERTER(cnv, self->encoding);
 
     bool ascii_only = true;
     bool valid_encoding = true;
-    bool has_supplementary = false;
 
-    const char *pos = self->data.bytes;
+    const char *pos = self->bytes;
     const char *end = pos + self->length_in_bytes;
     for (;;) {
 	// iterate through the string one Unicode code point at a time
@@ -54,64 +51,31 @@ str_ucnv_update_flags(rb_str_t *self)
 		// conversion error
 		valid_encoding = false;
 		ascii_only = false;
+		break;
 	    }
 	}
 	else {
 	    if (c > 127) {
 		ascii_only = false;
-		if (U_IS_SUPPLEMENTARY(c)) {
-		    has_supplementary = true;
-		}
 	    }
 	}
     }
 
     ucnv_close(cnv);
 
-    str_set_has_supplementary(self, has_supplementary);
     str_set_valid_encoding(self, valid_encoding);
     str_set_ascii_only(self, ascii_only);
-}
-
-void
-str_ucnv_make_data_binary(rb_str_t *self)
-{
-    assert(str_is_stored_in_uchars(self));
-
-    USE_CONVERTER(cnv, self->encoding);
-
-    UErrorCode err = U_ZERO_ERROR;
-    long capa = UCNV_GET_MAX_BYTES_FOR_STRING(BYTES_TO_UCHARS(
-		self->length_in_bytes), ucnv_getMaxCharSize(cnv));
-    char *buffer = xmalloc(capa);
-    const UChar *source_pos = self->data.uchars;
-    const UChar *source_end = self->data.uchars
-	+ BYTES_TO_UCHARS(self->length_in_bytes);
-    char *target_pos = buffer;
-    char *target_end = buffer + capa;
-    ucnv_fromUnicode(cnv, &target_pos, target_end, &source_pos, source_end,
-	    NULL, true, &err);
-    // there should never be any conversion error here
-    // (if there's one it means some checking has been forgotten before)
-    assert(U_SUCCESS(err));
-
-    ucnv_close(cnv);
-
-    str_set_stored_in_uchars(self, false);
-    self->capacity_in_bytes = capa;
-    self->length_in_bytes = target_pos - buffer;
-    GC_WB(&self->data.bytes, buffer);
 }
 
 static long
 utf16_bytesize_approximation(rb_encoding_t *enc, int bytesize)
 {
     long approximation;
-    if (UTF16_ENC(enc)) {
+    if (IS_UTF16_ENC(enc)) {
 	approximation = bytesize; // the bytesize in UTF-16 is the same
 				  // whatever the endianness
     }
-    else if (UTF32_ENC(enc)) {
+    else if (IS_UTF32_ENC(enc)) {
 	// the bytesize in UTF-16 is nearly half of the bytesize in UTF-32
 	// (if there characters not in the BMP it's a bit more though)
 	approximation = bytesize / 2;
@@ -129,60 +93,12 @@ utf16_bytesize_approximation(rb_encoding_t *enc, int bytesize)
     return approximation;
 }
 
-bool
-str_ucnv_try_making_data_uchars(rb_str_t *self)
-{
-    assert(!str_is_stored_in_uchars(self));
-
-    USE_CONVERTER(cnv, self->encoding);
-
-    long capa = utf16_bytesize_approximation(self->encoding,
-	    self->length_in_bytes);
-    const char *source_pos = self->data.bytes;
-    const char *source_end = self->data.bytes + self->length_in_bytes;
-    UChar *buffer = xmalloc(capa);
-    UChar *target_pos = buffer;
-    UErrorCode err = U_ZERO_ERROR;
-    for (;;) {
-	UChar *target_end = buffer + BYTES_TO_UCHARS(capa);
-	err = U_ZERO_ERROR;
-	ucnv_toUnicode(cnv, &target_pos, target_end, &source_pos, source_end,
-		NULL, true, &err);
-	if (err == U_BUFFER_OVERFLOW_ERROR) {
-	    long index = target_pos - buffer;
-	    capa *= 2; // double the buffer's size
-	    buffer = xrealloc(buffer, capa);
-	    target_pos = buffer + index;
-	}
-	else {
-	    break;
-	}
-    }
-
-    ucnv_close(cnv);
-
-    if (U_SUCCESS(err)) {
-	str_set_valid_encoding(self, true);
-	str_set_stored_in_uchars(self, true);
-	self->capacity_in_bytes = capa;
-	self->length_in_bytes = UCHARS_TO_BYTES(target_pos - buffer);
-	GC_WB(&self->data.uchars, buffer);
-	return true;
-    }
-    else {
-	str_set_valid_encoding(self, false);
-	return false;
-    }
-}
-
 long
 str_ucnv_length(rb_str_t *self, bool ucs2_mode)
 {
-    assert(!str_is_stored_in_uchars(self));
-
     USE_CONVERTER(cnv, self->encoding);
 
-    const char *pos = self->data.bytes;
+    const char *pos = self->bytes;
     const char *end = pos + self->length_in_bytes;
     long len = 0;
     bool valid_encoding = true;
@@ -222,14 +138,12 @@ str_ucnv_length(rb_str_t *self, bool ucs2_mode)
 void rb_ensure_b(void (^b_block)(void), void (^e_block)(void));
 
 void
-str_ucnv_each_char(rb_str_t *self, each_char_callback_t callback)
+str_ucnv_each_uchar32(rb_str_t *self, each_uchar32_callback_t callback)
 {
-    assert(!str_is_stored_in_uchars(self));
-
     USE_CONVERTER(cnv, self->encoding);
 
     rb_ensure_b(^{
-	const char *pos = self->data.bytes;
+	const char *pos = self->bytes;
 	const char *end = pos + self->length_in_bytes;
 	bool stop = false;
 	for (;;) {
@@ -248,7 +162,7 @@ str_ucnv_each_char(rb_str_t *self, each_char_callback_t callback)
 		    if (char_len > min_char_size) {
 			char_len = min_char_size;
 		    }
-		    callback(U_SENTINEL, char_start_pos, char_len, &stop);
+		    callback(U_SENTINEL, char_start_pos-self->bytes, char_len, &stop);
 		    if (stop) {
 			return;
 		    }
@@ -257,7 +171,7 @@ str_ucnv_each_char(rb_str_t *self, each_char_callback_t callback)
 	    }
 	    else {
 		long char_len = pos - char_start_pos;
-		callback(c, char_start_pos, char_len, &stop);
+		callback(c, char_start_pos-self->bytes, char_len, &stop);
 		if (stop) {
 		    return;
 		}
@@ -268,48 +182,9 @@ str_ucnv_each_char(rb_str_t *self, each_char_callback_t callback)
     });
 }
 
-
-#define STACK_BUFFER_SIZE 1024
-long
-str_ucnv_bytesize(rb_str_t *self)
-{
-    assert(str_is_stored_in_uchars(self));
-
-    // for strings stored in UTF-16 for which the Ruby encoding is not UTF-16,
-    // we have to convert back the string in its original encoding to get the
-    // length in bytes
-    USE_CONVERTER(cnv, self->encoding);
-
-    UErrorCode err = U_ZERO_ERROR;
-
-    long len = 0;
-    char buffer[STACK_BUFFER_SIZE];
-    const UChar *source_pos = self->data.uchars;
-    const UChar *source_end = self->data.uchars + BYTES_TO_UCHARS(
-	    self->length_in_bytes);
-    char *target_end = buffer + STACK_BUFFER_SIZE;
-    for (;;) {
-	err = U_ZERO_ERROR;
-	char *target_pos = buffer;
-	ucnv_fromUnicode(cnv, &target_pos, target_end, &source_pos, source_end,
-		NULL, true, &err);
-	len += target_pos - buffer;
-	if (err != U_BUFFER_OVERFLOW_ERROR) {
-	    // if the convertion failed, a check was missing somewhere
-	    assert(U_SUCCESS(err));
-	    break;
-	}
-    }
-
-    ucnv_close(cnv);
-    return len;
-}
-
 character_boundaries_t
 str_ucnv_get_character_boundaries(rb_str_t *self, long index, bool ucs2_mode)
 {
-    assert(!str_is_stored_in_uchars(self));
-
     character_boundaries_t boundaries = {-1, -1};
 
     if (index < 0) {
@@ -323,7 +198,7 @@ str_ucnv_get_character_boundaries(rb_str_t *self, long index, bool ucs2_mode)
     // the code has many similarities with str_length
     USE_CONVERTER(cnv, self->encoding);
 
-    const char *pos = self->data.bytes;
+    const char *pos = self->bytes;
     const char *end = pos + self->length_in_bytes;
     long current_index = 0;
     for (;;) {
@@ -336,7 +211,7 @@ str_ucnv_get_character_boundaries(rb_str_t *self, long index, bool ucs2_mode)
 	    // end of the string
 	    break;
 	}
-	long offset_in_bytes = character_start_pos - self->data.bytes;
+	long offset_in_bytes = character_start_pos - self->bytes;
 	long converted_width = pos - character_start_pos;
 	if (U_FAILURE(err)) {
 	    long min_char_size = self->encoding->min_char_size;
@@ -408,12 +283,10 @@ long
 str_ucnv_offset_in_bytes_to_index(rb_str_t *self, long offset_in_bytes,
 	bool ucs2_mode)
 {
-    assert(!str_is_stored_in_uchars(self));
-
     // the code has many similarities with str_length
     USE_CONVERTER(cnv, self->encoding);
 
-    const char *current_position = self->data.bytes;
+    const char *current_position = self->bytes;
     const char *searched_position = current_position + offset_in_bytes;
     const char *end = current_position + self->length_in_bytes;
     long index = 0;
@@ -470,8 +343,8 @@ str_ucnv_transcode_to_utf16(struct rb_encoding *src_enc,
 
     long capa = utf16_bytesize_approximation(src_enc,
 	    self->length_in_bytes);
-    const char *source_pos = self->data.bytes + *pos;
-    const char *source_end = self->data.bytes + self->length_in_bytes;
+    const char *source_pos = self->bytes + *pos;
+    const char *source_end = self->bytes + self->length_in_bytes;
     UChar *buffer = xmalloc(capa);
     UChar *target_pos = buffer;
     UErrorCode err = U_ZERO_ERROR;
@@ -495,7 +368,7 @@ str_ucnv_transcode_to_utf16(struct rb_encoding *src_enc,
 
     *utf16 = buffer;
     *utf16_length = target_pos - buffer;
-    *pos = source_pos - self->data.bytes;
+    *pos = source_pos - self->bytes;
 
     if (U_FAILURE(err)) {
 	// the invalid character will be skipped by str_transcode

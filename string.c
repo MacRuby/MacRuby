@@ -37,20 +37,18 @@ VALUE rb_fs;
 static void
 str_update_flags_utf16(rb_str_t *self)
 {
-    assert(str_is_stored_in_uchars(self)
-	    || NON_NATIVE_UTF16_ENC(self->encoding));
+    assert(IS_UTF16_ENC(self->encoding));
 
     bool ascii_only = true;
-    bool has_supplementary = false;
     bool valid_encoding = true;
     // if the length is an odd number, it can't be valid UTF-16
     if (ODD_NUMBER(self->length_in_bytes)) {
 	valid_encoding = false;
     }
 
-    UChar *uchars = self->data.uchars;
+    UChar *uchars = (UChar *)self->bytes;
     long uchars_count = BYTES_TO_UCHARS(self->length_in_bytes);
-    bool native_byte_order = str_is_stored_in_uchars(self);
+    bool native_byte_order = IS_NATIVE_UTF16_ENC(self->encoding);
     UChar32 lead = 0;
     for (int i = 0; i < uchars_count; ++i) {
 	UChar32 c;
@@ -76,7 +74,6 @@ str_update_flags_utf16(rb_str_t *self)
 		    valid_encoding = false;
 		}
 		else {
-		    has_supplementary = true;
 		    c = U16_GET_SUPPLEMENTARY(lead, c);
 		    if (!U_IS_UNICODE_CHAR(c)) {
 			valid_encoding = false;
@@ -104,7 +101,6 @@ str_update_flags_utf16(rb_str_t *self)
 	valid_encoding = false;
     }
 
-    str_set_has_supplementary(self, has_supplementary);
     if (valid_encoding) {
 	str_set_valid_encoding(self, true);
 	str_set_ascii_only(self, ascii_only);
@@ -121,46 +117,24 @@ str_update_flags(rb_str_t *self)
     if (self->length_in_bytes == 0) {
 	str_set_valid_encoding(self, true);
 	str_set_ascii_only(self, true);
-	str_set_has_supplementary(self, false);
     }
-    else if (BINARY_ENC(self->encoding)) {
+    else if (IS_BINARY_ENC(self->encoding)) {
 	str_set_valid_encoding(self, true);
-	str_set_has_supplementary(self, false);
 	bool ascii_only = true;
 	for (long i = 0; i < self->length_in_bytes; ++i) {
-	    if ((uint8_t)self->data.bytes[i] > 127) {
+	    if ((uint8_t)self->bytes[i] > 127) {
 		ascii_only = false;
 		break;
 	    }
 	}
 	str_set_ascii_only(self, ascii_only);
     }
-    else if (str_is_stored_in_uchars(self) || UTF16_ENC(self->encoding)) {
+    else if (IS_UTF16_ENC(self->encoding)) {
 	str_update_flags_utf16(self);
     }
     else {
 	str_ucnv_update_flags(self);
     }
-}
-
-static void
-str_invert_byte_order(rb_str_t *self)
-{
-    assert(NON_NATIVE_UTF16_ENC(self->encoding));
-
-    long length_in_bytes = self->length_in_bytes;
-    char *bytes = self->data.bytes;
-
-    if (ODD_NUMBER(length_in_bytes)) {
-	--length_in_bytes;
-    }
-
-    for (long i = 0; i < length_in_bytes; i += 2) {
-	char tmp = bytes[i];
-	bytes[i] = bytes[i+1];
-	bytes[i+1] = tmp;
-    }
-    str_negate_stored_in_uchars(self);
 }
 
 static rb_encoding_t *
@@ -223,8 +197,9 @@ str_alloc(VALUE klass)
     str->encoding = rb_encodings[ENCODING_UTF8];
     str->capacity_in_bytes = 0;
     str->length_in_bytes = 0;
-    str->data.bytes = NULL;
-    str->flags = 0;
+    str->bytes = NULL;
+    str_reset_flags(str);
+
     return str;
 }
 
@@ -247,13 +222,13 @@ str_replace_with_bytes(rb_str_t *self, const char *bytes, long len,
     assert(len >= 0);
     assert(enc != NULL);
 
-    self->flags = 0;
+    str_reset_flags(self);
     self->encoding = enc;
     self->capacity_in_bytes = len;
     if (len > 0) {
-	GC_WB(&self->data.bytes, xmalloc(len));
+	GC_WB(&self->bytes, xmalloc(len));
 	if (bytes != NULL) {
-	    memcpy(self->data.bytes, bytes, len);
+	    memcpy(self->bytes, bytes, len);
 	    self->length_in_bytes = len;
 	}
 	else {
@@ -261,7 +236,7 @@ str_replace_with_bytes(rb_str_t *self, const char *bytes, long len,
 	}
     }
     else {
-	self->data.bytes = NULL;
+	self->bytes = NULL;
 	self->length_in_bytes = 0;
     }
 }
@@ -272,62 +247,61 @@ str_replace_with_string(rb_str_t *self, rb_str_t *source)
     if (self == source) {
 	return;
     }
-    str_replace_with_bytes(self, source->data.bytes, source->length_in_bytes,
+    str_replace_with_bytes(self, source->bytes, source->length_in_bytes,
 	    source->encoding);
     self->flags = source->flags;
 }
 
-static bool str_try_making_data_uchars(rb_str_t *self);
+static void str_resize_bytes(rb_str_t *self, long new_capacity);
+static void str_concat_bytes(rb_str_t *self, const char *bytes, long len);
 
 static void
 str_append_uchar32(rb_str_t *self, UChar32 c)
 {
-    assert(str_try_making_data_uchars(self));
-    const long uchar_cap = BYTES_TO_UCHARS(self->capacity_in_bytes);
-    const long uchar_len = BYTES_TO_UCHARS(self->length_in_bytes);
-    int concat_len = U_IS_BMP(c) ? 1 : 2;
-    if (uchar_len + concat_len >= uchar_cap) {
-	assert(uchar_len + concat_len < uchar_cap + 10);
-	self->capacity_in_bytes += UCHARS_TO_BYTES(10);
-	UChar *uchars = (UChar *)xrealloc(self->data.uchars,
-		self->capacity_in_bytes);
-	if (uchars != self->data.uchars) {
-	    GC_WB(&self->data.uchars, uchars);
+    if ((c <= 127) && self->encoding->ascii_compatible) {
+	str_resize_bytes(self, self->length_in_bytes + 1);
+	self->bytes[self->length_in_bytes] = c;
+	self->length_in_bytes++;
+    }
+    else if (IS_UTF8_ENC(self->encoding)) {
+	long len = U8_LENGTH(c);
+	if (len > 0) {
+	    str_resize_bytes(self, self->length_in_bytes + len);
+	    U8_APPEND_UNSAFE(self->bytes, self->length_in_bytes, c);
+	    self->length_in_bytes += len;
 	}
     }
-    if (U_IS_BMP(c)) {
-	self->data.uchars[uchar_len] = c;
+    else if (IS_NATIVE_UTF32_ENC(self->encoding)) {
+	str_concat_bytes(self, (char *)&c, 4);
+    }
+    else if (IS_NATIVE_UTF16_ENC(self->encoding) && U_IS_BMP(c)) {
+	UChar uchar = c;
+	str_concat_bytes(self, (char *)&uchar, 2);
     }
     else {
-	self->data.uchars[uchar_len] = U16_LEAD(c);
-	self->data.uchars[uchar_len+1] = U16_TRAIL(c);
+	rb_str_t *str = RSTR(rb_enc_str_new((char *)&c, 4,
+		    rb_encodings[ENCODING_UTF32_NATIVE]));
+	str = str_simple_transcode(str, self->encoding);
+	str_concat_bytes(self, str->bytes, str->length_in_bytes);
     }
-    self->length_in_bytes += UCHARS_TO_BYTES(concat_len);
 }
 
+static void str_concat_uchars(rb_str_t *self, const UChar *chars, long len);
 static void
 str_replace_with_uchars(rb_str_t *self, const UChar *chars, long len)
 {
     assert(len >= 0);
 
-    len = UCHARS_TO_BYTES(len);
-    self->flags = 0;
+    str_reset_flags(self);
+    self->length_in_bytes = 0;
     self->encoding = rb_encodings[ENCODING_UTF8];
-    self->capacity_in_bytes = len;
     if (len > 0) {
-	GC_WB(&self->data.uchars, xmalloc(len));
-	if (chars != NULL) {
-	    memcpy(self->data.uchars, chars, len);
-	    self->length_in_bytes = len;
+	if (chars == NULL) {
+	    str_resize_bytes(self, len);
 	}
 	else {
-	    self->length_in_bytes = 0;
+	    str_concat_uchars(self, chars, len);
 	}
-	str_set_stored_in_uchars(self, true);
-    }
-    else {
-	self->data.uchars = NULL;
-	self->length_in_bytes = 0;
     }
 }
 
@@ -380,132 +354,77 @@ str_new_from_cfstring(CFStringRef source)
     return destination;
 }
 
-static void
-str_make_data_binary(rb_str_t *self)
-{
-    if (!str_is_stored_in_uchars(self) || NATIVE_UTF16_ENC(self->encoding)) {
-	// nothing to do
-	return;
-    }
-
-    if (NON_NATIVE_UTF16_ENC(self->encoding)) {
-	// Doing the conversion ourself is faster, and anyway ICU's converter
-	// does not like non-paired surrogates.
-	str_invert_byte_order(self);
-	return;
-    }
-
-    str_ucnv_make_data_binary(self);
-}
-
-static bool
-str_try_making_data_uchars(rb_str_t *self)
-{
-    if (str_is_stored_in_uchars(self)) {
-	return true;
-    }
-    else if (NATIVE_UTF16_ENC(self->encoding)) {
-	// sometimes the flag might not already be set so set it
-	str_set_stored_in_uchars(self, true);
-	return true;
-    }
-    else if (NON_NATIVE_UTF16_ENC(self->encoding)) {
-	str_invert_byte_order(self);
-	return true;
-    }
-    else if (BINARY_ENC(self->encoding)) {
-	// you can't convert binary to anything
-	return false;
-    }
-    else if (self->length_in_bytes == 0) {
-	// for empty strings, nothing to convert
-	str_set_stored_in_uchars(self, true);
-	return true;
-    }
-    else if (str_known_to_have_an_invalid_encoding(self)) {
-	return false;
-    }
-
-    return str_ucnv_try_making_data_uchars(self);
-}
-
-static void
-str_make_same_format(rb_str_t *str1, rb_str_t *str2)
-{
-    if (str_is_stored_in_uchars(str1) != str_is_stored_in_uchars(str2)) {
-	if (str_is_stored_in_uchars(str1)) {
-	    if (!str_try_making_data_uchars(str2)) {
-		str_make_data_binary(str1);
-	    }
-	}
-	else {
-	    str_make_data_binary(str2);
-	}
-    }
-}
-
 static long
 str_length(rb_str_t *self)
 {
-    if (self->length_in_bytes == 0) {
-	return 0;
+    if (self->encoding->single_byte_encoding) {
+	return self->length_in_bytes;
     }
-    if (str_try_making_data_uchars(self)) {
+    else if (IS_UTF8_ENC(self->encoding)) {
+	long length = 0;
+	int i = 0;
+	while (i < self->length_in_bytes) {
+	    UChar32 c;
+	    int old_i = i;
+	    U8_NEXT(self->bytes, i, self->length_in_bytes, c);
+	    if (c == U_SENTINEL) {
+		length += i - old_i;
+	    }
+	    else if (U_IS_BMP(c)) {
+		length++;
+	    }
+	    else {
+		length += 2;
+	    }
+	}
+	return length;
+    }
+    else if (IS_UTF16_ENC(self->encoding)) {
 	return div_round_up(self->length_in_bytes, 2);
     }
     else {
-	if (self->encoding->single_byte_encoding) {
-	    return self->length_in_bytes;
-	}
-	else if (NON_NATIVE_UTF16_ENC(self->encoding)) {
-	    return div_round_up(self->length_in_bytes, 2);
-	}
-	else {
-	    return str_ucnv_length(self, true);
-	}
+	return str_ucnv_length(self, true);
     }
 }
 
 // Note that each_char iterates on unicode characters
 // With a character not in the BMP the callback will only be called once!
 static void
-str_each_char(rb_str_t *self, each_char_callback_t callback)
+str_each_uchar32(rb_str_t *self, each_uchar32_callback_t callback)
 {
-    if (str_is_stored_in_uchars(self)) {
+    if (IS_BINARY_ENC(self->encoding) || IS_ASCII_ENC(self->encoding)) {
 	bool stop = false;
-	long length = BYTES_TO_UCHARS(self->length_in_bytes);
-	for (long i = 0; i < length;) {
-	    UChar32 c;
-	    long old_i = i;
-	    U16_NEXT(self->data.uchars, i, length, c);
-	    callback(c, (const char *)&self->data.uchars[old_i],
-		    UCHARS_TO_BYTES(old_i-i), &stop);
-	    if (stop) {
-		return;
-	    }
-	};
-    }
-    else if (BINARY_ENC(self->encoding)
-	    || (self->encoding == rb_encodings[ENCODING_ASCII])) {
-	const uint8_t *pos = (uint8_t*)self->data.bytes;
-	const uint8_t *end = pos + self->length_in_bytes;
-	bool stop = false;
-	for (; pos < end; ++pos) {
-	    UChar32 c;
-	    if (*pos > 127) {
+	for (long i = 0; i < self->length_in_bytes; ++i) {
+	    UChar32 c = (uint8_t)self->bytes[i];
+	    if (c > 127) {
 		c = U_SENTINEL;
 	    }
-	    else {
-		c = *pos;
-	    }
-	    callback(c, (const char *)pos, 1, &stop);
+	    callback(c, i, 1, &stop);
 	    if (stop) {
 		return;
 	    }
 	}
     }
+    else if (IS_NATIVE_UTF16_ENC(self->encoding)) {
+	bool stop = false;
+	long length = BYTES_TO_UCHARS(self->length_in_bytes);
+	UChar *uchars = (UChar *)self->bytes;
+	for (long i = 0; i < length;) {
+	    UChar32 c;
+	    long old_i = i;
+	    U16_NEXT(uchars, i, length, c);
+	    callback(c, UCHARS_TO_BYTES(old_i),
+		    UCHARS_TO_BYTES(i-old_i), &stop);
+	    if (stop) {
+		return;
+	    }
+	    // in case the length changed
+	    // (it should not happen but never know)
+	    length = BYTES_TO_UCHARS(self->length_in_bytes);
+	};
+    }
     else {
-	str_ucnv_each_char(self, callback);
+	str_ucnv_each_uchar32(self, callback);
     }
 }
 
@@ -513,27 +432,45 @@ static UChar
 str_get_uchar(rb_str_t *self, long pos)
 {
     assert(pos >= 0 && pos < str_length(self));
-    if (str_try_making_data_uchars(self)) {
-	return self->data.uchars[pos];
+
+    if (IS_NATIVE_UTF16_ENC(self->encoding)) {
+	return ((UChar *)self->bytes)[pos];
     }
-    //assert(BINARY_ENC(self->encoding));
-    return self->data.bytes[pos];
+
+    __block UChar return_value = 0;
+    __block long i = 0;
+    str_each_uchar32(self, ^(UChar32 c, long start_index, long char_len, bool *stop) {
+	if (c == U_SENTINEL || U_IS_BMP(c)) {
+	    if (i == pos) {
+		return_value = c;
+		*stop = true;
+	    }
+	    else {
+		++i;
+	    }
+	}
+	else {
+	    if (i == pos) {
+		return_value = U16_LEAD(c);
+		*stop = true;
+	    }
+	    else if (i+1 == pos) {
+		return_value = U16_TRAIL(c);
+		*stop = true;
+	    }
+	    else {
+		i += 2;
+	    }
+	}
+    });
+
+    return return_value;
 }
 
 static long
 str_bytesize(rb_str_t *self)
 {
-    if (str_is_stored_in_uchars(self)) {
-	if (UTF16_ENC(self->encoding)) {
-	    return self->length_in_bytes;
-	}
-	else {
-	    return str_ucnv_bytesize(self);
-	}
-    }
-    else {
-	return self->length_in_bytes;
-    }
+    return self->length_in_bytes;
 }
 
 static rb_str_t *
@@ -541,7 +478,6 @@ str_new_similar_empty_string(rb_str_t *self)
 {
     rb_str_t *str = str_alloc(rb_cRubyString);
     str->encoding = self->encoding;
-    str->flags = self->flags & STRING_REQUIRED_FLAGS;
     return str;
 }
 
@@ -552,9 +488,8 @@ str_new_copy_of_part(rb_str_t *self, long offset_in_bytes,
     rb_str_t *str = str_alloc(rb_cRubyString);
     str->encoding = self->encoding;
     str->capacity_in_bytes = str->length_in_bytes = length_in_bytes;
-    str->flags = self->flags & STRING_REQUIRED_FLAGS;
-    GC_WB(&str->data.bytes, xmalloc(length_in_bytes));
-    memcpy(str->data.bytes, &self->data.bytes[offset_in_bytes],
+    GC_WB(&str->bytes, xmalloc(length_in_bytes));
+    memcpy(str->bytes, &self->bytes[offset_in_bytes],
 	    length_in_bytes);
     return str;
 }
@@ -573,7 +508,17 @@ str_get_character_boundaries(rb_str_t *self, long index)
 {
     character_boundaries_t boundaries = {-1, -1};
 
-    if (str_is_stored_in_uchars(self)) {
+    if (self->encoding->single_byte_encoding) {
+	if (index < 0) {
+	    index += self->length_in_bytes;
+	    if (index < 0) {
+		return boundaries;
+	    }
+	}
+	boundaries.start_offset_in_bytes = index;
+	boundaries.end_offset_in_bytes = boundaries.start_offset_in_bytes + 1;
+    }
+    else if (IS_UTF16_ENC(self->encoding)) {
 	if (index < 0) {
 	    index += div_round_up(self->length_in_bytes, 2);
 	    if (index < 0) {
@@ -581,60 +526,10 @@ str_get_character_boundaries(rb_str_t *self, long index)
 	    }
 	}
 	boundaries.start_offset_in_bytes = UCHARS_TO_BYTES(index);
-	boundaries.end_offset_in_bytes = boundaries.start_offset_in_bytes
-	    + 2;
-	if (!UTF16_ENC(self->encoding)) {
-	    long length = BYTES_TO_UCHARS(self->length_in_bytes);
-	    if ((index < length)
-		    && U16_IS_SURROGATE(self->data.uchars[index])) {
-		if (U16_IS_SURROGATE_LEAD(self->data.uchars[index])) {
-		    boundaries.end_offset_in_bytes = -1;
-		}
-		else { // U16_IS_SURROGATE_TRAIL
-		    boundaries.start_offset_in_bytes = -1;
-		}
-	    }
-	}
+	boundaries.end_offset_in_bytes = boundaries.start_offset_in_bytes + 2;
     }
-    else { // data in binary
-	if (self->encoding->single_byte_encoding) {
-	    if (index < 0) {
-		index += self->length_in_bytes;
-		if (index < 0) {
-		    return boundaries;
-		}
-	    }
-	    boundaries.start_offset_in_bytes = index;
-	    boundaries.end_offset_in_bytes = boundaries.start_offset_in_bytes
-		+ 1;
-	}
-	else if (UTF32_ENC(self->encoding)
-		&& str_known_not_to_have_any_supplementary(self)) {
-	    if (index < 0) {
-		index += div_round_up(self->length_in_bytes, 4);
-		if (index < 0) {
-		    return boundaries;
-		}
-	    }
-	    boundaries.start_offset_in_bytes = index * 4;
-	    boundaries.end_offset_in_bytes = boundaries.start_offset_in_bytes
-		+ 4;
-	}
-	else if (NON_NATIVE_UTF16_ENC(self->encoding)) {
-	    if (index < 0) {
-		index += div_round_up(self->length_in_bytes, 2);
-		if (index < 0) {
-		    return boundaries;
-		}
-	    }
-	    boundaries.start_offset_in_bytes = UCHARS_TO_BYTES(index);
-	    boundaries.end_offset_in_bytes = boundaries.start_offset_in_bytes
-		+ 2;
-	}
-	else {
-	    boundaries = str_ucnv_get_character_boundaries(self,
-		    index, true);
-	}
+    else {
+	boundaries = str_ucnv_get_character_boundaries(self, index, true);
     }
 
     return boundaries;
@@ -650,10 +545,6 @@ str_get_characters(rb_str_t *self, long first, long last)
 	else {
 	    return NULL;
 	}
-    }
-    if (!self->encoding->single_byte_encoding
-	    && !str_is_stored_in_uchars(self)) {
-	str_try_making_data_uchars(self);
     }
     character_boundaries_t first_boundaries =
 	str_get_character_boundaries(self, first);
@@ -688,13 +579,13 @@ str_resize_bytes(rb_str_t *self, long new_capacity)
 	rb_raise(rb_eArgError, "negative string size (or size too big)");
     }
     if (self->capacity_in_bytes < new_capacity) {
-	if (self->data.bytes == NULL) {
-	    GC_WB(&self->data.bytes, xmalloc(new_capacity));
+	if (self->bytes == NULL) {
+	    GC_WB(&self->bytes, xmalloc(new_capacity));
 	}
 	else {
-	    char *bytes = xrealloc(self->data.bytes, new_capacity);
-	    if (bytes != self->data.bytes) {
-		GC_WB(&self->data.bytes, bytes);
+	    char *bytes = xrealloc(self->bytes, new_capacity);
+	    if (bytes != self->bytes) {
+		GC_WB(&self->bytes, bytes);
 	    }
 	}
 	self->capacity_in_bytes = new_capacity;
@@ -704,13 +595,11 @@ str_resize_bytes(rb_str_t *self, long new_capacity)
 static void
 str_ensure_null_terminator(rb_str_t *self)
 {
-    assert(!str_is_stored_in_uchars(self) || NATIVE_UTF16_ENC(self->encoding));
-
     if (self->length_in_bytes > 0
 	&& (self->capacity_in_bytes == self->length_in_bytes
-	    || self->data.bytes[self->length_in_bytes] != '\0')) {
+	    || self->bytes[self->length_in_bytes] != '\0')) {
 	str_resize_bytes(self, self->length_in_bytes + 1);
-	self->data.bytes[self->length_in_bytes] = '\0';
+	self->bytes[self->length_in_bytes] = '\0';
     }
 }
 
@@ -722,7 +611,6 @@ str_splice(rb_str_t *self, long pos, long len, rb_str_t *str)
 
     if (str != NULL) {
 	str_must_have_compatible_encoding(self, str);
-	str_make_same_format(self, str);
     }
 
     character_boundaries_t beg, end;
@@ -766,18 +654,18 @@ str_splice(rb_str_t *self, long pos, long len, rb_str_t *str)
 	    && end.end_offset_in_bytes == self->length_in_bytes) {
     	if (bytes_to_add > 0) {
 	    // We are splicing at the very end.
-	    memcpy(self->data.bytes + self->length_in_bytes, str->data.bytes,
+	    memcpy(self->bytes + self->length_in_bytes, str->bytes,
 		    bytes_to_add);
 	}
     }
     else {
 	// We are splicing in the middle.
-	memmove(self->data.bytes + beg.start_offset_in_bytes + bytes_to_add,
-		self->data.bytes + end.end_offset_in_bytes,
+	memmove(self->bytes + beg.start_offset_in_bytes + bytes_to_add,
+		self->bytes + end.end_offset_in_bytes,
 		self->length_in_bytes - end.end_offset_in_bytes);
 	if (bytes_to_add > 0) {
-	    memcpy(self->data.bytes + beg.start_offset_in_bytes,
-		    str->data.bytes, bytes_to_add);
+	    memcpy(self->bytes + beg.start_offset_in_bytes,
+		    str->bytes, bytes_to_add);
 	}
     }
 
@@ -804,27 +692,56 @@ str_concat_bytes(rb_str_t *self, const char *bytes, long len)
 
     const long new_length_in_bytes = self->length_in_bytes + len;
 
+    str_reset_flags(self);
     str_resize_bytes(self, new_length_in_bytes);
-    memcpy(self->data.bytes + self->length_in_bytes, bytes, len);
+    memcpy(self->bytes + self->length_in_bytes, bytes, len);
     self->length_in_bytes = new_length_in_bytes;
 }
 
 static void
 str_concat_uchars(rb_str_t *self, const UChar *chars, long len)
 {
-    if (str_try_making_data_uchars(self)) {
-	str_concat_bytes(self, (const char *)chars, UCHARS_TO_BYTES(len)); 
+    if (len == 0) {
+	return;
     }
-    else {
-	assert(BINARY_ENC(RSTR(self)->encoding));
+    str_reset_flags(self);
+    if (IS_UTF8_ENC(self->encoding)) {
+	long new_length_in_bytes = self->length_in_bytes;
+	for (long i = 0; i < len; ) {
+	    UChar32 c;
+	    U16_NEXT(chars, i, len, c);
+	    new_length_in_bytes += U8_LENGTH(c);
+	}
+	str_resize_bytes(self, new_length_in_bytes);
+	for (long pos_in_src = 0, pos_in_dst = self->length_in_bytes;
+		pos_in_src < len; ) {
+	    UChar32 c;
+	    UBool is_error;
+	    U16_NEXT(chars, pos_in_src, len, c);
+	    U8_APPEND((uint8_t *)self->bytes, pos_in_dst,
+		    new_length_in_bytes, c, is_error);
+	}
+	self->length_in_bytes = new_length_in_bytes;
+    }
+    else if (IS_NATIVE_UTF16_ENC(self->encoding)) {
+	str_concat_bytes(self, (char *)chars, UCHARS_TO_BYTES(len));
+    }
+    else if (IS_BINARY_ENC(self->encoding) || IS_ASCII_ENC(self->encoding)) {
 	const long new_length_in_bytes = RSTR(self)->length_in_bytes + len;
 
 	str_resize_bytes(self, new_length_in_bytes);
-	char *ptr = (RSTR(self)->data.bytes + RSTR(self)->length_in_bytes);
+	char *ptr = (RSTR(self)->bytes + RSTR(self)->length_in_bytes);
 	for (int i = 0; i < len; ++i) {
 	    ptr[i] = chars[i];
 	}
 	self->length_in_bytes = new_length_in_bytes;
+    }
+    else {
+	rb_str_t *str = RSTR(rb_enc_str_new((char *)chars,
+		    UCHARS_TO_BYTES(len),
+		    rb_encodings[ENCODING_UTF16_NATIVE]));
+	str = str_simple_transcode(str, self->encoding);
+	str_concat_bytes(self, str->bytes, str->length_in_bytes);
     }
 }
 
@@ -836,21 +753,9 @@ str_concat_string(rb_str_t *self, rb_str_t *str)
     }
 
     rb_encoding_t *enc = str_must_have_compatible_encoding(self, str);
-    str_make_same_format(self, str);
-
-    // TODO: we should maybe merge flags
-    // (if both are ASCII-only, the concatenation is ASCII-only,
-    //  though I'm not sure all the tests required are worth doing)
-    str_unset_facultative_flags(self);
-
-    str_concat_bytes(self, str->data.bytes, str->length_in_bytes);
-
-    if (enc != self->encoding) {
-	self->encoding = enc;
-	if (NATIVE_UTF16_ENC(enc)) {
-	    str_set_stored_in_uchars(self, true);
-	}
-    }
+    self->encoding = enc;
+    str_reset_flags(self);
+    str_concat_bytes(self, str->bytes, str->length_in_bytes);
 }
 
 static int
@@ -870,12 +775,10 @@ str_compare(rb_str_t *self, rb_str_t *str)
 	return -1;
     }
 
-    str_make_same_format(self, str);
-
     const long min_len = self->length_in_bytes < str->length_in_bytes
 	? self->length_in_bytes : str->length_in_bytes;
 
-    const int res = memcmp(self->data.bytes, str->data.bytes, min_len);
+    const int res = memcmp(self->bytes, str->bytes, min_len);
 
     if (res == 0) {
 	if (self->length_in_bytes == str->length_in_bytes) {
@@ -910,34 +813,17 @@ str_case_compare(rb_str_t *self, rb_str_t *str)
 	return -1;
     }
 
-    str_make_same_format(self, str);
-
     const long min_length = self->length_in_bytes < str->length_in_bytes
 	? self->length_in_bytes : str->length_in_bytes;
 
-    if (str_is_stored_in_uchars(str)) {
-	for (long i = 0; i < BYTES_TO_UCHARS(min_length); i++) {
-	    UChar c1 = self->data.uchars[i];
-	    UChar c2 = str->data.uchars[i];
+    for (long i = 0; i < min_length; i++) {
+	char c1 = self->bytes[i];
+	char c2 = str->bytes[i];
+	if (c1 != c2) {
+	    c1 = isascii(c1) ? toupper(c1) : c1;
+	    c2 = isascii(c2) ? toupper(c2) : c2;
 	    if (c1 != c2) {
-		c1 = isascii(c1) ? toupper(c1) : c1;
-		c2 = isascii(c2) ? toupper(c2) : c2;
-		if (c1 != c2) {
-		    return c1 < c2 ? -1 : 1;
-		}
-	    }
-	}
-    }
-    else {
-	for (long i = 0; i < min_length; i++) {
-	    char c1 = self->data.bytes[i];
-	    char c2 = str->data.bytes[i];
-	    if (c1 != c2) {
-		c1 = isascii(c1) ? toupper(c1) : c1;
-		c2 = isascii(c2) ? toupper(c2) : c2;
-		if (c1 != c2) {
-		    return c1 < c2 ? -1 : 1;
-		}
+		return c1 < c2 ? -1 : 1;
 	    }
 	}
     }
@@ -959,24 +845,14 @@ str_offset_in_bytes_to_index(rb_str_t *self, long offset_in_bytes)
 	return 0;
     }
 
-    if (str_is_stored_in_uchars(self)) {
+    if (self->encoding->single_byte_encoding) {
+	return offset_in_bytes;
+    }
+    else if (IS_UTF16_ENC(self->encoding)) {
 	return BYTES_TO_UCHARS(offset_in_bytes);
     }
     else {
-	if (self->encoding->single_byte_encoding) {
-	    return offset_in_bytes;
-	}
-	else if (UTF32_ENC(self->encoding)
-		&& str_known_not_to_have_any_supplementary(self)) {
-	    return offset_in_bytes / 4;
-	}
-	else if (NON_NATIVE_UTF16_ENC(self->encoding)) {
-	    return BYTES_TO_UCHARS(offset_in_bytes);
-	}
-	else {
-	    return str_ucnv_offset_in_bytes_to_index(self,
-		    offset_in_bytes, true);
-	}
+	return str_ucnv_offset_in_bytes_to_index(self, offset_in_bytes, true);
     }
 }
 
@@ -995,24 +871,17 @@ str_offset_in_bytes_for_string(rb_str_t *self, rb_str_t *searched,
 	return backward_search ? end_offset_in_bytes : start_offset_in_bytes;
     }
     str_must_have_compatible_encoding(self, searched);
-    str_make_same_format(self, searched);
     if (searched->length_in_bytes > self->length_in_bytes) {
 	return -1;
     }
 
-    long increment;
-    if (str_is_stored_in_uchars(self)) {
-	increment = 2;
-    }
-    else {
-	increment = self->encoding->min_char_size;
-    }
+    long increment = self->encoding->min_char_size;
 
     if (backward_search) {
 	for (long offset = end_offset_in_bytes - increment;
 		offset >= start_offset_in_bytes;
 		offset -= increment) {
-	    if (memcmp(self->data.bytes + offset, searched->data.bytes,
+	    if (memcmp(self->bytes + offset, searched->bytes,
 			searched->length_in_bytes) == 0) {
 		return offset;
 	    }
@@ -1025,7 +894,7 @@ str_offset_in_bytes_for_string(rb_str_t *self, rb_str_t *searched,
 	for (long offset = start_offset_in_bytes;
 		offset < max_offset_in_bytes;
 		offset += increment) {
-	    if (memcmp(self->data.bytes + offset, searched->data.bytes,
+	    if (memcmp(self->bytes + offset, searched->bytes,
 			searched->length_in_bytes) == 0) {
 		return offset;
 	    }
@@ -1039,7 +908,6 @@ str_index_for_string(rb_str_t *self, rb_str_t *searched, long start_index,
 	long end_index, bool backward_search)
 {
     str_must_have_compatible_encoding(self, searched);
-    str_make_same_format(self, searched);
 
     if (searched->length_in_bytes == 0 && self->length_in_bytes == 0) {
 	return start_index;
@@ -1129,20 +997,29 @@ rb_str_get_uchars(VALUE str, UChar **chars_p, long *chars_len_p,
     bool need_free = false;
 
     if (IS_RSTR(str)) {
-	if (str_try_making_data_uchars(RSTR(str))) {
-	    chars = RSTR(str)->data.uchars;
-	    chars_len = str_length(RSTR(str));
-	}
-	else {
-	    //assert(BINARY_ENC(RSTR(str)->encoding));
-	    chars_len = RSTR(str)->length_in_bytes;
-	    if (chars_len > 0) {
-		chars = (UChar *)malloc(sizeof(UChar) * chars_len);
-		for (long i = 0; i < chars_len; i++) {
-		    chars[i] = RSTR(str)->data.bytes[i];
+	chars_len = str_length(RSTR(str));
+	if (chars_len > 0) {
+	    chars = (UChar *)malloc(sizeof(UChar) * chars_len);
+	    __block long pos = 0;
+	    str_each_uchar32(RSTR(str), ^(UChar32 c, long start_index, long char_len, bool *stop) {
+		if (c == U_SENTINEL) {
+		    if (char_len == 1) {
+			chars[pos++] = RSTR(str)->bytes[start_index];
+		    }
+		    else {
+			abort(); // TODO
+		    }
 		}
-		need_free = true;
-	    }
+		else if (U_IS_BMP(c)) {
+		    chars[pos++] = c;
+		}
+		else {
+		    chars[pos++] = U16_LEAD(c);
+		    chars[pos++] = U16_TRAIL(c);
+		}
+	    });
+	    assert(pos == chars_len);
+	    need_free = true;
 	}
     }
     else {
@@ -1232,7 +1109,6 @@ rstr_append(VALUE str, VALUE substr)
 static void inline
 str_concat_ascii_cstr(rb_str_t *self, char *cstr)
 {
-    str_make_data_binary(self);
     long len = strlen(cstr);
     if (self->encoding->ascii_compatible) {
 	str_concat_bytes(self, cstr, len);
@@ -1240,7 +1116,7 @@ str_concat_ascii_cstr(rb_str_t *self, char *cstr)
     else {
 	rb_str_t *str = RSTR(rb_enc_str_new(cstr, len, rb_encodings[ENCODING_ASCII]));
 	str = str_simple_transcode(str, self->encoding);
-	str_concat_bytes(self, str->data.bytes, str->length_in_bytes);
+	str_concat_bytes(self, str->bytes, str->length_in_bytes);
     }
 }
 
@@ -1263,25 +1139,15 @@ str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_en
 	return dst_str;
     }
 
-    if (src_encoding == self->encoding) {
-	// if the string can already be converted in UTF-16, half the job is done
-	str_try_making_data_uchars(self);
-    }
-    else {
-	// if the source encoding is not the string encoding
-	// we must be sure to start from the bytes, not UTF-16
-	str_make_data_binary(self);
-    }
-
     rb_encoding_t *src_encoding_used;
     rb_encoding_t *dst_encoding_used;
-    if (BINARY_ENC(dst_encoding)) {
+    if (IS_BINARY_ENC(dst_encoding)) {
 	dst_encoding_used = rb_encodings[ENCODING_ASCII];
     }
     else {
 	dst_encoding_used = dst_encoding;
     }
-    if (BINARY_ENC(src_encoding)) {
+    if (IS_BINARY_ENC(src_encoding)) {
 	src_encoding_used = rb_encodings[ENCODING_ASCII];
     }
     else {
@@ -1296,17 +1162,10 @@ str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_en
     for (;;) {
 	UChar *utf16;
 	long utf16_length;
-	// if the encoding is native UTF-16 it's always stored in UChars
-	// but it can contain invalid bytes
-	if (str_is_stored_in_uchars(self) && !NATIVE_UTF16_ENC(self->encoding)) {
-	    utf16 = self->data.uchars;
-	    utf16_length = BYTES_TO_UCHARS(self->length_in_bytes);
-	    pos_in_src = self->length_in_bytes;
-	}
-	else {
-	    str_ucnv_transcode_to_utf16(src_encoding_used,
+	// we need to transcode even if the source encoding is native UTF-16
+	// because it could contain invalid bytes
+	str_ucnv_transcode_to_utf16(src_encoding_used,
 		    self, &pos_in_src, &utf16, &utf16_length);
-	}
 
 	if (utf16_length > 0) {
 	    if ((behavior_for_undefined == TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_TEXT)
@@ -1398,7 +1257,7 @@ str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_en
 			    break;
 			case TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING:
 			    if (replacement_str->length_in_bytes > 0) {
-				str_concat_bytes(dst_str, replacement_str->data.bytes, replacement_str->length_in_bytes);
+				str_concat_bytes(dst_str, replacement_str->bytes, replacement_str->length_in_bytes);
 			    }
 			    break;
 			case TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_TEXT:
@@ -1431,7 +1290,7 @@ str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_en
 			char *bytes_list = xmalloc(invalid_bytes_length * 4);
 			char *bytes_list_pos = bytes_list;
 			for (long i = 0; i < invalid_bytes_length; ++i) {
-			    sprintf(bytes_list_pos, "\\x%02X", (unsigned char)self->data.bytes[pos_in_src+i]);
+			    sprintf(bytes_list_pos, "\\x%02X", (unsigned char)self->bytes[pos_in_src+i]);
 			    bytes_list_pos += 4;
 			}
 			rb_raise(rb_eInvalidByteSequenceError, "\"%s\" on %s", bytes_list, src_encoding->public_name);
@@ -1439,7 +1298,7 @@ str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_en
 		    break;
 		case TRANSCODE_BEHAVIOR_REPLACE_WITH_STRING:
 		    if (replacement_str->length_in_bytes > 0) {
-			str_concat_bytes(dst_str, replacement_str->data.bytes, replacement_str->length_in_bytes);
+			str_concat_bytes(dst_str, replacement_str->bytes, replacement_str->length_in_bytes);
 		    }
 		    break;
 		default:
@@ -1456,11 +1315,6 @@ str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_en
     if (behavior_for_undefined == TRANSCODE_BEHAVIOR_REPLACE_WITH_XML_ATTR) {
 	str_concat_ascii_cstr(dst_str, "\"");
     }
-
-    if (NATIVE_UTF16_ENC(dst_str->encoding)) {
-	str_set_stored_in_uchars(dst_str, true);
-    }
-
 
     return dst_str;
 }
@@ -1660,46 +1514,16 @@ rstr_getbyte(VALUE self, SEL sel, VALUE index)
     unsigned char c = 0;
     long idx = NUM2LONG(index);
 
-    if (str_is_stored_in_uchars(RSTR(self))
-	    && NATIVE_UTF16_ENC(RSTR(self)->encoding)) {
+    if (idx < 0) {
+	idx += RSTR(self)->length_in_bytes;
 	if (idx < 0) {
-	    idx += RSTR(self)->length_in_bytes;
-	    if (idx < 0) {
-		return Qnil;
-	    }
-	}
-	if (idx >= RSTR(self)->length_in_bytes) {
 	    return Qnil;
 	}
-	if (NATIVE_UTF16_ENC(RSTR(self)->encoding)) {
-	    c = RSTR(self)->data.bytes[idx];
-	}
-	else { // non native byte-order UTF-16
-	    if ((idx & 1) == 0) { // even
-		c = RSTR(self)->data.bytes[idx+1];
-	    }
-	    else { // odd
-		c = RSTR(self)->data.bytes[idx-1];
-	    }
-	}
     }
-    else {
-	// work with a binary string
-	// (UTF-16 strings could be converted to their binary form
-	//  on the fly but that would just add complexity)
-	str_make_data_binary(RSTR(self));
-
-	if (idx < 0) {
-	    idx += RSTR(self)->length_in_bytes;
-	    if (idx < 0) {
-		return Qnil;
-	    }
-	}
-	if (idx >= RSTR(self)->length_in_bytes) {
-	    return Qnil;
-	}
-	c = RSTR(self)->data.bytes[idx];
+    if (idx >= RSTR(self)->length_in_bytes) {
+	return Qnil;
     }
+    c = RSTR(self)->bytes[idx];
 
     return INT2FIX(c); 
 }
@@ -1715,7 +1539,6 @@ static VALUE
 rstr_setbyte(VALUE self, SEL sel, VALUE idx, VALUE value)
 {
     rstr_modify(self);
-    str_make_data_binary(RSTR(self));
 
     long index = NUM2LONG(idx);
     int byte = NUM2INT(value);
@@ -1726,7 +1549,7 @@ rstr_setbyte(VALUE self, SEL sel, VALUE idx, VALUE value)
     if (index < 0) {
 	index += RSTR(self)->length_in_bytes;
     }
-    RSTR(self)->data.bytes[index] = byte;
+    RSTR(self)->bytes[index] = byte;
     return value;
 }
 
@@ -1741,8 +1564,7 @@ rstr_setbyte(VALUE self, SEL sel, VALUE idx, VALUE value)
 static VALUE
 rstr_to_data(VALUE self, SEL sel)
 {
-    str_make_data_binary(RSTR(self));
-    CFDataRef data = CFDataCreate(NULL, (const UInt8 *)RSTR(self)->data.bytes,
+    CFDataRef data = CFDataCreate(NULL, (const UInt8 *)RSTR(self)->bytes,
 	    RSTR(self)->length_in_bytes); 
     CFMakeCollectable(data);
     return (VALUE)data;
@@ -1760,8 +1582,7 @@ rstr_to_data(VALUE self, SEL sel)
 static VALUE
 rstr_pointer(VALUE self, SEL sel)
 {
-    str_make_data_binary(RSTR(self));
-    return rb_pointer_new("C", RSTR(self)->data.bytes,
+    return rb_pointer_new("C", RSTR(self)->bytes,
 	    RSTR(self)->length_in_bytes); 
 }
 
@@ -1777,15 +1598,8 @@ rb_str_force_encoding(VALUE str, rb_encoding_t *enc)
 {
     assert(IS_RSTR(str));
     if (enc != RSTR(str)->encoding) {
-	str_make_data_binary(RSTR(str));
-	if (NATIVE_UTF16_ENC(RSTR(str)->encoding)) {
-	    str_set_stored_in_uchars(RSTR(str), false);
-	}
 	RSTR(str)->encoding = enc;
-	str_unset_facultative_flags(RSTR(str));
-	if (NATIVE_UTF16_ENC(RSTR(str)->encoding)) {
-	    str_set_stored_in_uchars(RSTR(str), true);
-	}
+	str_reset_flags(RSTR(str));
     }
 }
 
@@ -2627,12 +2441,6 @@ rstr_end_with(VALUE str, SEL sel, int argc, VALUE *argv)
     return Qfalse;
 }
 
-static VALUE
-rstr_is_stored_in_uchars(VALUE self, SEL sel)
-{
-    return str_is_stored_in_uchars(RSTR(self)) ? Qtrue : Qfalse;
-}
-
 /*
  *  call-seq:
  *     str.to_s     => str
@@ -2707,26 +2515,19 @@ inspect_append(VALUE result, UChar32 c, bool escape)
 static VALUE
 str_inspect(rb_str_t *str, bool dump)
 {
-    const bool uchars = str_try_making_data_uchars(str);
-    const long len = uchars
-	? str_length(str) : str->length_in_bytes;
-
     VALUE result;
-    if (len == 0) {
+    if (str->length_in_bytes == 0) {
 	result = rb_str_new2("\"\"");
 	OBJ_INFECT(result, str);
 	return result;
     }
 
-    // Allocate an UTF-8 string with a good initial capacity.
-    // Binary strings will likely have most bytes escaped.
-    const long result_init_len =
-	BINARY_ENC(str->encoding) ? (len * 5) + 2 : len + 2;
+    const long result_init_len = str->length_in_bytes * 3 / 2;
     result = rb_unicode_str_new(NULL, result_init_len);
 
     inspect_append(result, '"', false);
     __block UChar32 prev = 0;
-    str_each_char(str, ^(UChar32 c, const char* char_start, long char_len, bool *stop) {
+    str_each_uchar32(str, ^(UChar32 c, long start_index, long char_len, bool *stop) {
 	bool print = iswprint(c);
 	if (dump && prev == '#') {
 	    inspect_append(result, prev, (c == '$' || c == '@' || c == '{'));
@@ -2766,7 +2567,7 @@ str_inspect(rb_str_t *str, bool dump)
 	else {
 	    char buf[10];
 	    for (long i = 0; i < char_len; ++i) {
-		uint8_t byte = (uint8_t)char_start[i];
+		uint8_t byte = (uint8_t)str->bytes[start_index+i];
 		snprintf(buf, sizeof buf, "\\x%02X", byte);
 		char *p = buf;
 		while (*p != '\0') {
@@ -3978,42 +3779,60 @@ rstr_gsub(VALUE str, SEL sel, int argc, VALUE *argv)
  *  changes were made.
  *  Note: case replacement is effective only in ASCII region.
  */
-
-#define CHAR_ITERATE(str, code) \
-    if (str_try_making_data_uchars(RSTR(str))) { \
-	for (long i = 0, count = BYTES_TO_UCHARS(RSTR(str)->length_in_bytes); \
-		i < count; i++) { \
-	    UChar __tmp, c; \
-	    __tmp = c = RSTR(str)->data.uchars[i]; \
-	    code; \
-	    if (__tmp != c) { \
-		RSTR(str)->data.uchars[i] = c; \
-	    } \
-	} \
-    } \
-    else { \
-	for (long i = 0, count = RSTR(str)->length_in_bytes; \
-		i < count; i++) { \
-	    char __tmp, c; \
-	    __tmp = c = RSTR(str)->data.bytes[i]; \
-	    code; \
-	    if (__tmp != c) { \
-		RSTR(str)->data.bytes[i] = c; \
-	    } \
-	} \
+typedef char (^change_case_callback_t)(char c, bool first_char);
+static bool
+rstr_change_case(VALUE str, change_case_callback_t callback)
+{
+    if (RSTR(str)->encoding->ascii_compatible) {
+	bool changed = false;
+	for (long i = 0; i < RSTR(str)->length_in_bytes; ++i) {
+	    char c = RSTR(str)->bytes[i];
+	    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+		char new_c = callback(c, i == 0);
+		if (new_c != c) {
+		    changed = true;
+		    RSTR(str)->bytes[i] = new_c;
+		}
+	    }
+	}
+	return changed;
     }
+    else {
+	if (!IS_UTF32_ENC(RSTR(str)->encoding)
+		&& !IS_UTF16_ENC(RSTR(str)->encoding)) {
+	    abort(); // should not happen
+	}
+	__block bool changed = true;
+	str_each_uchar32(RSTR(str), ^(UChar32 c, long start_index, long char_len, bool *stop) {
+	    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+		char new_c = callback(c, start_index == 0);
+		if (new_c != c) {
+		    changed = true;
+		    memset(&RSTR(str)->bytes[start_index], 0, char_len);
+		    if (RSTR(str)->encoding->little_endian) {
+			RSTR(str)->bytes[start_index] = new_c;
+		    }
+		    else {
+			RSTR(str)->bytes[start_index+char_len-1] = new_c;
+		    }
+		}
+	    }
+	});
+	return changed;
+    }
+}
 
 static VALUE
 rstr_downcase_bang(VALUE str, SEL sel)
 {
     rstr_modify(str);
 
-    bool changed = false;
-    CHAR_ITERATE(str,
+    bool changed = rstr_change_case(str, ^ char (char c, bool first_char) {
 	if (c >= 'A' && c <= 'Z') {
-	    c = 'a' + (c - 'A');
-	    changed = true; 
-	});
+	    return 'a' + (c - 'A');
+	}
+	return c;
+    });
 
     return changed ? str : Qnil;
 }
@@ -4052,12 +3871,12 @@ rstr_upcase_bang(VALUE str, SEL sel)
 {
     rstr_modify(str);
 
-    bool changed = false;
-    CHAR_ITERATE(str,
+    bool changed = rstr_change_case(str, ^ char (char c, bool first_char) {
 	if (c >= 'a' && c <= 'z') {
-	    c = 'A' + (c - 'a');
-	    changed = true; 
-	});
+	    return 'A' + (c - 'a');
+	}
+	return c;
+    });
 
     return changed ? str : Qnil;
 }
@@ -4096,16 +3915,15 @@ rstr_swapcase_bang(VALUE str, SEL sel)
 {
     rstr_modify(str);
 
-    bool changed = false;
-    CHAR_ITERATE(str,
+    bool changed = rstr_change_case(str, ^ char (char c, bool first_char) {
 	if (c >= 'A' && c <= 'Z') {
-	    c = 'a' + (c - 'A');
-	    changed = true; 
+	    return 'a' + (c - 'A');
 	}
         else if (c >= 'a' && c <= 'z') {
-	    c = 'A' + (c - 'a');
-	    changed = true;
-	});
+	    return 'A' + (c - 'a');
+	}
+	return c;
+    });
 
     return changed ? str : Qnil;
 }
@@ -4149,18 +3967,17 @@ rstr_capitalize_bang(VALUE str, SEL sel)
 {
     rstr_modify(str);
 
-    bool changed = false;
-    CHAR_ITERATE(str,
-        if (i == 0) {
+    bool changed = rstr_change_case(str, ^ char (char c, bool first_char) {
+        if (first_char) {
 	    if (c >= 'a' && c <= 'z') {
-		c = 'A' + (c - 'a');
-		changed = true;
+		return 'A' + (c - 'a');
 	    }
 	}
 	else if (c >= 'A' && c <= 'Z') {
-	    c = 'a' + (c - 'A');
-	    changed = true; 
-	});
+	    return 'a' + (c - 'A');
+	}
+	return c;
+    });
 
     return changed ? str : Qnil;
 }
@@ -4236,9 +4053,6 @@ rstr_justify(int argc, VALUE *argv, VALUE str, char mode)
     const long len = str_length(RSTR(str));
     long width = NUM2LONG(w);
     str = rb_str_new3(str);
-    if (str_is_stored_in_uchars(RSTR(padstr))) {
-	str_try_making_data_uchars(RSTR(str));
-    }
     if (width < 0 || width <= len) {
 	return str;
     }
@@ -4609,24 +4423,20 @@ rstr_each_char(VALUE str, SEL sel)
 {
     RETURN_ENUMERATOR(str, 0, 0);
 
-    UChar *chars = NULL;
-    long chars_len = 0;
-    bool need_free = false;
-    rb_str_get_uchars(str, &chars, &chars_len, &need_free);
+    __block VALUE return_value = str;
 
-    for (long i = 0; i < chars_len; i++) {
-	VALUE charstr = rb_unicode_str_new(&chars[i], 1);
+    str_each_uchar32(RSTR(str), ^(UChar32 c, long start_index, long char_len, bool *stop) {
+	VALUE charstr = (VALUE)str_new_copy_of_part(RSTR(str),
+	    start_index, char_len);
 	rb_yield(charstr);
-	ENSURE_AND_RETURN_IF_BROKEN(
-	    if (need_free) free(chars)
-	);
-    }
+	VALUE v = rb_vm_pop_broken_value(); \
+	if (v != Qundef) {
+	    return_value = v;
+	    *stop = true;
+	}
+    });
 
-    if (need_free) {
-	free(chars);
-    }
-
-    return str;
+    return return_value;
 }
 
 /*
@@ -4646,12 +4456,10 @@ rstr_each_char(VALUE str, SEL sel)
 static VALUE
 rstr_each_byte(VALUE str, SEL sel)
 {
-    str_make_data_binary(RSTR(str));
-
     RETURN_ENUMERATOR(str, 0, 0);
 
     for (long i = 0; i < RSTR(str)->length_in_bytes; i++) {
-	rb_yield(INT2FIX((unsigned char)RSTR(str)->data.bytes[i]));
+	rb_yield(INT2FIX((unsigned char)RSTR(str)->bytes[i]));
 	RETURN_IF_BROKEN();
     }
     return str;
@@ -4726,23 +4534,21 @@ rstr_succ(VALUE str, SEL sel)
 	return str;
     }
 
-    if (!str_try_making_data_uchars(RSTR(str))) {
-	rb_raise(rb_eArgError,
-		"cannot make receiver data as Unicode characters");
+    if (!RSTR(str)->encoding->ascii_compatible) {
+	rb_raise(rb_eArgError, "The encoding must be ASCII-compatible");
     }
 
-    UChar *chars_buf = (UChar *)malloc(RSTR(str)->length_in_bytes
-	    + sizeof(UChar));
-    UChar *chars_ptr = &chars_buf[1];
+    char *chars_buf = (char *)malloc(RSTR(str)->length_in_bytes + 1);
+    char *chars_ptr = &chars_buf[1];
 
-    memcpy(chars_ptr, RSTR(str)->data.uchars, RSTR(str)->length_in_bytes);
+    memcpy(chars_ptr, RSTR(str)->bytes, RSTR(str)->length_in_bytes);
 
-    long len = BYTES_TO_UCHARS(RSTR(str)->length_in_bytes);
-    UChar carry = 0;
+    long len = RSTR(str)->length_in_bytes;
+    char carry = 0;
     bool modified = false;
 
     for (long i = len - 1; i >= 0; i--) {
-	UChar c = chars_ptr[i];
+	char c = chars_ptr[i];
 	if (isdigit(c)) {
 	    modified = true;
 	    if (c != '9') {
@@ -4787,7 +4593,7 @@ rstr_succ(VALUE str, SEL sel)
 	len++;
     }
 
-    VALUE newstr = rb_unicode_str_new(chars_ptr, len);
+    VALUE newstr = rb_enc_str_new(chars_ptr, len, RSTR(str)->encoding);
     free(chars_buf);
     OBJ_INFECT(newstr, str);
 
@@ -4962,21 +4768,20 @@ rstr_reverse_bang(VALUE str, SEL sel)
 	return str;
     }
 
-    str_make_data_binary(RSTR(str));
     char *new_bytes = xmalloc(RSTR(str)->length_in_bytes);
     __block long pos = RSTR(str)->length_in_bytes;
-    str_each_char(RSTR(str), ^(UChar32 c, const char* char_start, long char_len, bool *stop) {
+    str_each_uchar32(RSTR(str), ^(UChar32 c, long start_index, long char_len, bool *stop) {
 	pos -= char_len;
-	memcpy(&new_bytes[pos], char_start, char_len);
+	memcpy(&new_bytes[pos], &RSTR(str)->bytes[start_index], char_len);
     });
     assert(pos == 0);
 
     RSTR(str)->capacity_in_bytes = RSTR(str)->length_in_bytes;
-    GC_WB(&RSTR(str)->data.bytes, new_bytes);
+    GC_WB(&RSTR(str)->bytes, new_bytes);
 
     // we modify it directly so the information stored
     // in the facultative flags might be outdated
-    str_unset_facultative_flags(RSTR(str));
+    str_reset_flags(RSTR(str));
 
     return str;
 }
@@ -5533,7 +5338,7 @@ rstr_sum(VALUE str, SEL sel, int argc, VALUE *argv)
 	    sum = rb_vm_call_simple(sum, selPLUS, LONG2FIX(sum0));
 	    sum0 = 0;
 	}
-	sum0 += (unsigned char)RSTR(str)->data.bytes[i];
+	sum0 += (unsigned char)RSTR(str)->bytes[i];
     }
     if (bits == 0) {
 	if (sum0 != 0) {
@@ -5723,17 +5528,38 @@ rstr_imp_getCharactersRange(void *rcv, SEL sel, UniChar *buffer, CFRange range)
 {
     check_bounds(rcv, range.location + range.length, true);
     if (range.length > 0) {
-	if (str_try_making_data_uchars(RSTR(rcv))) {
-	    memcpy(buffer, &RSTR(rcv)->data.uchars[range.location],
-		    sizeof(UniChar) * range.length);
-	}
-	else {
-	    for (long i = range.location, j = 0;
-		    i < range.location + range.length;
-		    i++, j++) {
-		buffer[j] = RSTR(rcv)->data.bytes[i];
+	__block long pos_in_src = 0;
+	__block long pos_in_dst = 0;
+	str_each_uchar32(RSTR(rcv), ^(UChar32 c, long start_index, long char_len, bool *stop) {
+	    if (pos_in_src >= range.location) {
+		if (c == U_SENTINEL) {
+		    if (char_len == 1) {
+			buffer[pos_in_dst++] = RSTR(rcv)->bytes[start_index];
+		    }
+		    else {
+			abort(); // TODO
+		    }
+		}
+		else if (U_IS_BMP(c)) {
+		    buffer[pos_in_dst++] = c;
+		}
+		else {
+		    buffer[pos_in_dst++] = U16_LEAD(c);
+		    if (pos_in_dst < range.length) {
+			buffer[pos_in_dst++] = U16_TRAIL(c);
+		    }
+		}
 	    }
-	}
+	    if ((c == U_SENTINEL) || U_IS_BMP(c)) {
+		pos_in_src++;
+	    }
+	    else {
+		pos_in_src += 2;
+	    }
+	    if (pos_in_dst >= range.length) {
+		*stop = true;
+	    }
+	});
     }
 }
 
@@ -5882,10 +5708,6 @@ Init_String(void)
     // MacRuby extensions.
     rb_objc_define_method(rb_cRubyString, "transform", rstr_transform, 1);
 
-    // MacRuby extensions (debugging).
-    rb_objc_define_method(rb_cRubyString, "__stored_in_uchars__?",
-	    rstr_is_stored_in_uchars, 0);
-
     // Cocoa primitives.
     rb_objc_install_method2((Class)rb_cRubyString, "length",
 	    (IMP)rstr_imp_length);
@@ -5928,8 +5750,6 @@ rb_objc_str_is_pure(VALUE str)
 
 // ByteString emulation.
 
-#define IS_BSTR(obj) (IS_RSTR(obj) && !str_is_stored_in_uchars(RSTR(obj)))
-
 VALUE
 rb_str_bstr(VALUE str)
 {
@@ -5957,15 +5777,14 @@ rb_str_bstr(VALUE str)
 	    free(buf);
 	}
     }
-    str_make_data_binary(RSTR(str));
     return str;
 }
 
 uint8_t *
 rb_bstr_bytes(VALUE str)
 {
-    assert(IS_BSTR(str));
-    return (uint8_t *)RSTR(str)->data.bytes;
+    assert(IS_RSTR(str));
+    return (uint8_t *)RSTR(str)->bytes;
 }
 
 VALUE
@@ -5986,21 +5805,21 @@ rb_bstr_new(void)
 long
 rb_bstr_length(VALUE str)
 {
-    assert(IS_BSTR(str));
+    assert(IS_RSTR(str));
     return RSTR(str)->length_in_bytes;
 }
 
 void
 rb_bstr_concat(VALUE str, const uint8_t *bytes, long len)
 {
-    assert(IS_BSTR(str));
+    assert(IS_RSTR(str));
     str_concat_bytes(RSTR(str), (const char *)bytes, len);
 }
 
 void
 rb_bstr_resize(VALUE str, long capa)
 {
-    assert(IS_BSTR(str));
+    assert(IS_RSTR(str));
     str_resize_bytes(RSTR(str), capa);
     RSTR(str)->length_in_bytes = capa;
 }
@@ -6008,7 +5827,7 @@ rb_bstr_resize(VALUE str, long capa)
 void
 rb_bstr_set_length(VALUE str, long len)
 {
-    assert(IS_BSTR(str));
+    assert(IS_RSTR(str));
     assert(len <= RSTR(str)->capacity_in_bytes);
     RSTR(str)->length_in_bytes = len;
 }
@@ -6159,9 +5978,8 @@ rb_str_cstr(VALUE str)
 	if (RSTR(str)->length_in_bytes == 0) {
 	    return "";
 	}
-	str_make_data_binary(RSTR(str));
 	str_ensure_null_terminator(RSTR(str));
-	return RSTR(str)->data.bytes;
+	return RSTR(str)->bytes;
     }
 
     // CFString code path, hopefully this should not happen very often.
@@ -6187,7 +6005,6 @@ long
 rb_str_clen(VALUE str)
 {
     if (IS_RSTR(str)) {
-	str_make_data_binary(RSTR(str));
 	return RSTR(str)->length_in_bytes;
     }
     return CFStringGetLength((CFStringRef)str);
@@ -6431,10 +6248,8 @@ void
 rb_str_set_len(VALUE str, long len)
 {
     if (IS_RSTR(str)) {
-	const long len_bytes = str_is_stored_in_uchars(RSTR(str))
-	    ? UCHARS_TO_BYTES(len) : len;
-	assert(len_bytes <= RSTR(str)->length_in_bytes);
-	RSTR(str)->length_in_bytes = len_bytes;
+	assert(len <= RSTR(str)->length_in_bytes);
+	RSTR(str)->length_in_bytes = len;
     }
     else {
 	abort(); // TODO

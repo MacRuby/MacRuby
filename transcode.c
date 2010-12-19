@@ -68,7 +68,7 @@ rb_econv_asciicompat_encoding(VALUE klass, SEL sel, VALUE arg)
     if ((enc == NULL) || (enc->ascii_compatible)) {
         return Qnil;
     }
-    else if (UTF16_ENC(enc) || UTF32_ENC(enc)) {
+    else if (IS_UTF16_ENC(enc) || IS_UTF32_ENC(enc)) {
         return (VALUE)rb_utf8_encoding();
     }
     // TODO: Port MRI's table that maps ASCII-incompatible encodings to compatible ones.
