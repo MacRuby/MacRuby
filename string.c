@@ -387,7 +387,7 @@ str_length(rb_str_t *self)
     }
 }
 
-// Note that each_char iterates on unicode characters
+// Note that each_uchar32 iterates on Unicode characters
 // With a character not in the BMP the callback will only be called once!
 static void
 str_each_uchar32(rb_str_t *self, each_uchar32_callback_t callback)
@@ -404,6 +404,29 @@ str_each_uchar32(rb_str_t *self, each_uchar32_callback_t callback)
 		return;
 	    }
 	}
+    }
+    else if (IS_UTF8_ENC(self->encoding)) {
+	bool stop = false;
+	for (int i = 0; i < self->length_in_bytes; ) {
+	    UChar32 c;
+	    int old_i = i;
+	    U8_NEXT(self->bytes, i, self->length_in_bytes, c);
+	    int char_length = i - old_i;
+	    if (c == U_SENTINEL) {
+		for (long j = 0; j < char_length; ++j) {
+		    callback(c, old_i+j, 1, &stop);
+		    if (stop) {
+			return;
+		    }
+		}
+	    }
+	    else {
+		callback(c, old_i, char_length, &stop);
+		if (stop) {
+		    return;
+		}
+	    }
+	};
     }
     else if (IS_NATIVE_UTF16_ENC(self->encoding)) {
 	bool stop = false;
