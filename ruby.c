@@ -1452,7 +1452,7 @@ ruby_prog_init(void)
     rb_define_hooked_variable("$VERBOSE", &ruby_verbose, 0, verbose_setter);
     rb_define_hooked_variable("$-v", &ruby_verbose, 0, verbose_setter);
     rb_define_hooked_variable("$-w", &ruby_verbose, 0, verbose_setter);
-    rb_define_virtual_variable("$-W", opt_W_getter, 0);
+    rb_define_virtual_variable("$-W", opt_W_getter, rb_gvar_readonly_setter);
     rb_define_variable("$DEBUG", &ruby_debug);
     rb_define_variable("$-d", &ruby_debug);
 

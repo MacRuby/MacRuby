@@ -383,6 +383,8 @@ static VALUE var_getter(ID id, VALUE *var);
 static void  var_setter(VALUE val, ID id, VALUE *var);
 static void  var_marker(VALUE *var);
 
+#define readonly_setter rb_gvar_readonly_setter
+
 struct global_entry*
 rb_global_entry(ID id)
 {
@@ -481,7 +483,7 @@ var_marker(VALUE *var)
     }
 }
 
-static void
+void
 readonly_setter(VALUE val, ID id, void *var)
 {
     rb_name_error(id, "%s is a read-only variable", rb_id2name(id));

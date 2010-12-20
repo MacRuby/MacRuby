@@ -773,6 +773,8 @@ void rb_objc_define_private_method(VALUE klass, const char *name, void *imp, con
 void rb_objc_define_module_function(VALUE klass, const char *name, void *imp, const int arity);
 void rb_objc_undef_method(VALUE klass, const char *name);
 
+void rb_gvar_readonly_setter(VALUE val, ID id, void *var);
+
 void rb_global_variable(VALUE*);
 void rb_register_mark_object(VALUE);
 void rb_gc_register_address(VALUE*);
