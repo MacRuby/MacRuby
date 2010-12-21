@@ -966,37 +966,37 @@ rb_obj_untrusted(VALUE obj)
 static VALUE
 rb_obj_trust_imp(VALUE obj, SEL sel)
 {
-    rb_secure(4);
-    if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
-	switch (TYPE(obj)) {
-	    case T_SYMBOL:
-		break;
-
-	    case T_ARRAY:
-		if (rb_klass_is_rary(*(VALUE *)obj)) {
-		    RBASIC(obj)->flags &= ~FL_UNTRUSTED;
-		    break;
-		}
-		// fall through
-	    case T_STRING:
-		if (rb_klass_is_rstr(*(VALUE *)obj)) {
-		    RBASIC(obj)->flags &= ~FL_UNTRUSTED;
-		    break;
-		}
-		// fall through
-	    case T_HASH:
-		if (rb_klass_is_rhash(*(VALUE *)obj)) {
-		    RBASIC(obj)->flags &= ~FL_UNTRUSTED;
-		    break;
-		}
-	    default:
-		rb_objc_flag_set((const void *)obj, FL_UNTRUSTED, false);
-	}
-	return obj;
-    }
-    if (!OBJ_TAINTED(obj)) {
+    rb_secure(3);
+    if (OBJ_UNTRUSTED(obj)) {
 	if (OBJ_FROZEN(obj)) {
 	    rb_error_frozen("object");
+	}
+	if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
+	    switch (TYPE(obj)) {
+		case T_SYMBOL:
+		    break;
+
+		case T_ARRAY:
+		    if (rb_klass_is_rary(*(VALUE *)obj)) {
+			RBASIC(obj)->flags &= ~FL_UNTRUSTED;
+			break;
+		    }
+		    // fall through
+		case T_STRING:
+		    if (rb_klass_is_rstr(*(VALUE *)obj)) {
+			RBASIC(obj)->flags &= ~FL_UNTRUSTED;
+			break;
+		    }
+		    // fall through
+		case T_HASH:
+		    if (rb_klass_is_rhash(*(VALUE *)obj)) {
+			RBASIC(obj)->flags &= ~FL_UNTRUSTED;
+			break;
+		    }
+		default:
+		    rb_objc_flag_set((const void *)obj, FL_UNTRUSTED, false);
+	    }
+	    return obj;
 	}
 	FL_UNSET(obj, FL_UNTRUSTED);
     }
