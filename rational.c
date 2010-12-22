@@ -2331,7 +2331,7 @@ Init_Rational(void)
     rb_objc_define_method(rb_cRational, "to_i", nurat_truncate, 0);
     rb_objc_define_method(rb_cRational, "to_f", nurat_to_f, 0);
     rb_objc_define_method(rb_cRational, "to_r", nurat_to_r, 0);
-    rb_objc_define_method(rb_cRational, "rationalize", nurat_rationalize, 0);
+    rb_objc_define_method(rb_cRational, "rationalize", nurat_rationalize, -1);
 
     rb_objc_define_method(rb_cRational, "hash", nurat_hash, 0);
 
