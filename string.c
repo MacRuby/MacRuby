@@ -4800,6 +4800,7 @@ rstr_transform(VALUE str, SEL sel, VALUE transform_pat)
 	if (need_free) {
 	    free(transform_chars);
 	}
+	free(new_chars);
 	rb_raise(rb_eArgError, "cannot create transliterator");
     }
 
