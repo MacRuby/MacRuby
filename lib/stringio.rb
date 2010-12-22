@@ -574,8 +574,17 @@ class StringIO
         else
           begin
             arg = arg.to_ary
-            arg.each {|a| puts a }
-            next
+            recur = false
+            arg.each do |a| 
+              if arg == a
+                recur = true
+                break
+              else
+                puts a
+              end
+            end
+            next unless recur
+            line = '[...]'
           rescue
             line = arg.to_s
           end
