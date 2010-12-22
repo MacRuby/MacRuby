@@ -1,3 +1,4 @@
+fails:String#encoding is equal to the source encoding by default
 fails:String#encoding for US-ASCII Strings returns US-ASCII if self is US-ASCII
 fails:String#encoding for US-ASCII Strings returns US-ASCII if self is US-ASCII only, despite the default internal encoding being different
 fails:String#encoding for US-ASCII Strings returns US-ASCII if self is US-ASCII only, despite the default external encoding being different
