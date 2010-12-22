@@ -304,6 +304,13 @@ rb_mod_init_copy(VALUE clone, SEL sel, VALUE orig)
 VALUE
 rb_class_init_copy(VALUE clone, SEL sel, VALUE orig)
 {
+    if (orig == rb_cBasicObject || orig == rb_cObject) {
+	rb_raise(rb_eTypeError, "can't copy the root class");
+    }
+    if (/* RCLASS_SUPER(clone) ||  FIXME: comment out because Singleton.clone raises a rb_eTypeError */
+	(clone == rb_cBasicObject || clone == rb_cObject)) {
+	rb_raise(rb_eTypeError, "already initialized class");
+    }
     if (RCLASS_SINGLETON(orig)) {
 	rb_raise(rb_eTypeError, "can't copy singleton class");
     }
