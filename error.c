@@ -575,15 +575,31 @@ exc_set_backtrace(VALUE exc, SEL sel, VALUE bt)
 static VALUE
 exc_equal(VALUE exc, SEL sel, VALUE obj)
 {
+    VALUE mesg, backtrace;
+    if (exc == obj) {
+	return Qtrue;
+    }
     ID id_mesg = rb_intern("mesg");
-
-    if (exc == obj) return Qtrue;
-    if (rb_obj_class(exc) != rb_obj_class(obj))
-	return rb_equal(obj, exc);
-    if (!rb_equal(rb_attr_get(exc, id_mesg), rb_attr_get(obj, id_mesg)))
-	return Qfalse;
-    if (!rb_equal(exc_backtrace(exc, 0), exc_backtrace(obj, 0)))
-	return Qfalse;
+    if (rb_obj_class(exc) != rb_obj_class(obj)) {
+	SEL sel_message = sel_registerName("message");
+	SEL sel_backtrace = sel_registerName("backtrace");
+	if (!rb_vm_respond_to(obj, sel_message, false)
+		|| !rb_vm_respond_to(obj, sel_backtrace, false)) {
+	    return Qfalse;
+	}
+	mesg = rb_vm_call(obj, sel_message, 0, NULL);
+	backtrace = rb_vm_call(obj, sel_backtrace, 0, NULL);
+    }
+    else {
+        mesg = rb_attr_get(obj, id_mesg);
+        backtrace = exc_backtrace(obj, 0);
+    }
+    if (!rb_equal(rb_attr_get(exc, id_mesg), mesg)) {
+        return Qfalse;
+    }
+    if (!rb_equal(exc_backtrace(exc, 0), backtrace)) {
+        return Qfalse;
+    }
     return Qtrue;
 }
 
