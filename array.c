@@ -2444,9 +2444,12 @@ rary_rassoc(VALUE ary, SEL sel, VALUE value)
  *
  */
 
-VALUE
-rb_ary_equal(VALUE ary1, VALUE ary2)
+static VALUE
+recursive_equal(VALUE ary1, VALUE ary2, int recur)
 {
+    if (recur) {
+	return Qtrue; // like Ruby 1.9...
+    }
     if (IS_RARY(ary1) && IS_RARY(ary2)) {
 	if (RARY(ary1)->len != RARY(ary2)->len) {
 	    return Qfalse;
@@ -2467,6 +2470,12 @@ rb_ary_equal(VALUE ary1, VALUE ary2)
 	return Qtrue;
     }
     return CFEqual((CFTypeRef)ary1, (CFTypeRef)ary2) ? Qtrue : Qfalse;
+}
+
+VALUE
+rb_ary_equal(VALUE ary1, VALUE ary2)
+{
+    return rb_exec_recursive(recursive_equal, ary1, ary2);
 }
 
 static VALUE
