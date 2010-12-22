@@ -853,18 +853,23 @@ rb_struct_equal(VALUE s, SEL sel, VALUE s2)
  */
 
 static VALUE
-rb_struct_hash(VALUE s, SEL sel)
+rb_struct_hash_r(VALUE s, VALUE s2, int recur)
 {
-    long i, h;
-    VALUE n;
-
-    h = rb_hash(rb_obj_class(s));
-    for (i = 0; i < RSTRUCT_LEN(s); i++) {
-	h = (h << 1) | (h<0 ? 1 : 0);
-	n = rb_hash(RSTRUCT_PTR(s)[i]);
-	h ^= NUM2LONG(n);
+    long h = rb_hash(rb_obj_class(s));
+    if (!recur) {
+	for (long i = 0; i < RSTRUCT_LEN(s); i++) {
+	    h = (h << 1) | (h < 0 ? 1 : 0);
+	    VALUE n = rb_hash(RSTRUCT_PTR(s)[i]);
+	    h ^= NUM2LONG(n);
+	}
     }
     return LONG2FIX(h);
+}
+
+static VALUE
+rb_struct_hash(VALUE s, SEL sel)
+{
+    return rb_exec_recursive(rb_struct_hash_r, s, Qnil);
 }
 
 /*
