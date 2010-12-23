@@ -4495,7 +4495,7 @@ rstr_each_char(VALUE str, SEL sel)
 	VALUE charstr = (VALUE)str_new_copy_of_part(RSTR(str),
 	    start_index, char_len);
 	rb_yield(charstr);
-	VALUE v = rb_vm_pop_broken_value(); \
+	VALUE v = rb_vm_pop_broken_value();
 	if (v != Qundef) {
 	    return_value = v;
 	    *stop = true;
@@ -4557,17 +4557,21 @@ rstr_each_codepoint(VALUE str, SEL sel)
 {
     RETURN_ENUMERATOR(str, 0, 0);
 
+    __block VALUE return_value = str;
     str_each_uchar32(RSTR(str), ^(UChar32 c, long start_index, long char_len, bool *stop) {
 	if (c == U_SENTINEL) {
 	    rb_raise(rb_eArgError, "invalid byte sequence in %s",
 		RSTR(str)->encoding->public_name);
 	}
-	else {
-	    rb_yield(INT2NUM(c));
+	rb_yield(INT2NUM(c));
+	VALUE v = rb_vm_pop_broken_value();
+	if (v != Qundef) {
+	    return_value = v;
+	    *stop = true;
 	}
     });
 
-    return str;
+    return return_value;
 }
 
 /*
