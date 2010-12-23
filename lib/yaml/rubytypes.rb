@@ -21,15 +21,15 @@ class Object
   end
 
   #yaml_as "tag:ruby.yaml.org,2002:object"
-  
+
   def to_yaml_style
     nil
   end
-  
+
   def to_yaml_properties
     self.instance_variables.sort
   end
-  
+
   def to_yaml(output = nil)
     YAML::quick_emit(output) do |out|
       out.map(taguri, to_yaml_style) do |map|
@@ -84,7 +84,7 @@ end
 
 class NSString
   yaml_as "tag:yaml.org,2002:str"
-  
+
   def to_yaml(output = nil)
     YAML::quick_emit(output) do |out|
       out.scalar(taguri, self, to_yaml_style)
@@ -110,7 +110,7 @@ end
 
 class NSArray
   yaml_as "tag:yaml.org,2002:seq"
-  
+
   def to_yaml(output = nil)
     YAML::quick_emit(output) do |out|
       out.seq(taguri, to_yaml_style) do |seq|
@@ -122,10 +122,10 @@ end
 
 class NSDictionary
   yaml_as "tag:yaml.org,2002:map"
-  
+
   def to_yaml(output = nil)
     YAML::quick_emit(output) do |out|
-      out.map(taguri, to_yaml_style) do |map| 
+      out.map(taguri, to_yaml_style) do |map|
         each { |k,v| map.add(k,v) }
       end
     end
@@ -134,11 +134,11 @@ end
 
 class Integer
   yaml_as "tag:yaml.org,2002:int"
-  
+
   def Integer.yaml_new(val)
     val.to_i
   end
-  
+
   def to_yaml(output = nil)
     YAML::quick_emit(output) do |out|
       out.scalar("tag:yaml.org,2002:int", self.to_s, :plain)
@@ -148,11 +148,11 @@ end
 
 class Float
   yaml_as "tag:yaml.org,2002:float"
-  
+
   def Float.yaml_new(val)
     val.to_f
   end
-  
+
   def to_yaml(output = nil)
     str = self.to_s
     if str == "Infinity"
@@ -170,9 +170,9 @@ end
 
 class Symbol
   yaml_as "tag:ruby.yaml.org,2002:symbol"
-  
+
   def self.yaml_new(val); val[1..-1].to_sym; end
-  
+
   def to_yaml(output = nil)
     YAML::quick_emit(output) do |out|
       out.scalar(taguri, self.inspect, :plain)
@@ -182,11 +182,11 @@ end
 
 class Range
   yaml_as "tag:ruby.yaml.org,2002:range"
-  
+
   def Range.yaml_new(attrs)
     Range.new(attrs['begin'], attrs['end'], attrs['excl'])
   end
-  
+
   def to_yaml(output = nil)
     YAML::quick_emit(output) do |out|
       out.map(taguri, to_yaml_style) do |map|
@@ -210,7 +210,7 @@ end
 
 class Rational
   yaml_as "tag:ruby.yaml.org,2002:object:Rational"
-  
+
   def Rational.yaml_new(attrs)
     if attrs.is_a? String
       Rational(attrs)
@@ -218,10 +218,10 @@ class Rational
       Rational(attrs['numerator'], attrs['denominator'])
     end
   end
-  
-  def to_yaml(output = nil) 
+
+  def to_yaml(output = nil)
     YAML::quick_emit(output) do |out|
-      out.map(taguri, to_yaml_style) do |map| 
+      out.map(taguri, to_yaml_style) do |map|
         map.add('denominator', denominator)
         map.add('numerator', numerator)
       end
@@ -248,11 +248,11 @@ class Complex
   end
 end
 
-class NilClass 
+class NilClass
   yaml_as "tag:yaml.org,2002:null"
-  
+
   def self.yaml_new(val); nil; end
-  
+
   def to_yaml(output = nil)
     YAML::quick_emit(output) do |out|
       out.scalar(taguri, "", :plain)
@@ -262,9 +262,9 @@ end
 
 class TrueClass
   yaml_as "tag:yaml.org,2002:true"
-  
+
   def self.yaml_new(val); true; end
-  
+
   def to_yaml(output = nil)
     YAML::quick_emit(output) do |out|
       out.scalar(taguri, "true", :plain)
@@ -274,9 +274,9 @@ end
 
 class FalseClass
   yaml_as "tag:yaml.org,2002:false"
-  
+
   def self.yaml_new(val); false; end
-  
+
   def to_yaml(output = nil)
     YAML::quick_emit(output) do |out|
       out.scalar(taguri, "false", :plain)
@@ -321,7 +321,7 @@ class Time
                 utc_same_instant = self.dup.utc
                 utc_same_writing = Time.utc(year,month,day,hour,min,sec,usec)
                 difference_to_utc = utc_same_writing - utc_same_instant
-                if (difference_to_utc < 0) 
+                if (difference_to_utc < 0)
                     difference_sign = '-'
                     absolute_difference = -difference_to_utc
                 else
@@ -391,7 +391,7 @@ class Struct
             end
             if not struct_type
                 struct_def = [ tag.split( ':', 4 ).last ]
-                struct_type = Struct.new( *struct_def.concat( val.keys.collect { |k| k.intern } ) ) 
+                struct_type = Struct.new( *struct_def.concat( val.keys.collect { |k| k.intern } ) )
             end
 
             #
@@ -629,7 +629,7 @@ class Time
                 utc_same_instant = self.dup.utc
                 utc_same_writing = Time.utc(year,month,day,hour,min,sec,usec)
                 difference_to_utc = utc_same_writing - utc_same_instant
-                if (difference_to_utc < 0) 
+                if (difference_to_utc < 0)
                     difference_sign = '-'
                     absolute_difference = -difference_to_utc
                 else

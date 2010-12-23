@@ -1,7 +1,7 @@
 # MacRuby implementation of strscan.
 #
 # This file is covered by the Ruby license. See COPYING for more details.
-# 
+#
 # Copyright (C) 2009-2010, Apple Inc. All rights reserved.
 
 class ScanError < StandardError; end
@@ -11,14 +11,14 @@ class ScanError < StandardError; end
 #
 #   s = StringScanner.new('This is an example string')
 #   s.eos?               # -> false
-#   
+#
 #   p s.scan(/\w+/)      # -> "This"
 #   p s.scan(/\w+/)      # -> nil
 #   p s.scan(/\s+/)      # -> " "
 #   p s.scan(/\s+/)      # -> nil
 #   p s.scan(/\w+/)      # -> "is"
 #   s.eos?               # -> false
-#   
+#
 #   p s.scan(/\s+/)      # -> " "
 #   p s.scan(/\w+/)      # -> "an"
 #   p s.scan(/\s+/)      # -> " "
@@ -26,7 +26,7 @@ class ScanError < StandardError; end
 #   p s.scan(/\s+/)      # -> " "
 #   p s.scan(/\w+/)      # -> "string"
 #   s.eos?               # -> true
-#   
+#
 #   p s.scan(/\s+/)      # -> nil
 #   p s.scan(/\w+/)      # -> nil
 #
@@ -55,7 +55,7 @@ class ScanError < StandardError; end
 # the string without actually scanning.  You can access the most recent match.
 # You can modify the string being scanned, reset or terminate the scanner,
 # find out or change the position of the scan pointer, skip ahead, and so on.
-# 
+#
 # === Advancing the Scan Pointer
 #
 # - #getch
@@ -86,7 +86,7 @@ class ScanError < StandardError; end
 # - #reset
 # - #terminate
 # - #pos=
-# 
+#
 # === Match Data
 #
 # - #matched
@@ -107,14 +107,14 @@ class ScanError < StandardError; end
 # There are aliases to several of the methods.
 #
 class StringScanner
-  
+
   # string <String>::  The string to scan
   # pos <Integer>:: The position of the scan pointer.  In the 'reset' position, this
   #     value is zero.  In the 'terminated' position (i.e. the string is exhausted),
   #     this value is the length of the string.
-  #     
+  #
   #     In short, it's a 0-based index into the string.
-  #     
+  #
   #       s = StringScanner.new('test string')
   #       s.pos               # -> 0
   #       s.scan_until /str/  # -> "test str"
@@ -125,13 +125,13 @@ class StringScanner
   # match <String>:: Matched string
   #
   attr_reader :string, :pos
-  
+
   # This method is defined for backward compatibility.
   #
   def self.must_C_version
     self
-  end  
-  
+  end
+
   # StringScanner.new(string, dup = false)
   #
   # Creates a new StringScanner object to scan over the given +string+.
@@ -141,7 +141,7 @@ class StringScanner
     @string = string
     @pos = 0
   end
-  
+
   # Duplicates a StringScanner object when dup or clone are called on the
   # object.
   #
@@ -149,16 +149,16 @@ class StringScanner
     @string = orig.string
     @pos = orig.pos
     @match = orig.instance_variable_get("@match")
-  end 
-  
+  end
+
   # Reset the scan pointer (index 0) and clear matching data.
   #
   def reset
     @previous_position = self.pos = 0
     @match = nil
-    self 
+    self
   end
-  
+
   # Set the scan pointer to the end of the string and clear matching data.
   #
   def terminate
@@ -166,7 +166,7 @@ class StringScanner
     self.pos = string.size
     self
   end
-  
+
   # Equivalent to #terminate.
   # This method is obsolete; use #terminate instead.
   #
@@ -174,15 +174,15 @@ class StringScanner
     warn "StringScanner#clear is obsolete; use #terminate instead" if $VERBOSE
     terminate
   end
-  
+
   # Changes the string being scanned to +str+ and resets the scanner.
   # Returns +str+.
   #
   def string=(str)
     reset
-    @string = str 
+    @string = str
   end
-  
+
   # Appends +str+ to the string being scanned.
   # This method does not affect scan pointer.
   #
@@ -198,7 +198,7 @@ class StringScanner
     self
   end
   alias :<< :concat
-  
+
   # Modify the scan pointer.
   #
   #   s = StringScanner.new('test string')
@@ -210,10 +210,10 @@ class StringScanner
     raise RangeError, "index out of range" if (n < 0 || (string && n > string.size))
     @pos = n
   end
-  
+
   alias :pointer :pos
   alias :pointer= :pos=
-  
+
   # Scans one byte and returns it.
   # This method is not multibyte sensitive.
   # See also: #getch.
@@ -222,7 +222,7 @@ class StringScanner
   #   s.get_byte         # => "a"
   #   s.get_byte         # => "b"
   #   s.get_byte         # => nil
-  #   
+  #
   #   # encoding: EUC-JP
   #   s = StringScanner.new("\244\242")
   #   s.get_byte         # => "244"
@@ -234,7 +234,7 @@ class StringScanner
     # TODO replace by a solution that will work with UTF-8
     scan(/./mn)
   end
-  
+
   # Equivalent to #get_byte.
   # This method is obsolete; use #get_byte instead.
   #
@@ -242,7 +242,7 @@ class StringScanner
     warn "StringScanner#getbyte is obsolete; use #get_byte instead" if $VERBOSE
     get_byte
   end
-  
+
   # Tries to match with +pattern+ at the current position. If there's a match,
   # the scanner advances the "scan pointer" and returns the matched string.
   # Otherwise, the scanner returns +nil+.
@@ -257,7 +257,7 @@ class StringScanner
   def scan(pattern)
     _scan(pattern, true, true, true)
   end
-  
+
   # Scans the string _until_ the +pattern+ is matched.  Returns the substring up
   # to and including the end of the match, advancing the scan pointer to that
   # location. If there is no match, +nil+ is returned.
@@ -270,7 +270,7 @@ class StringScanner
   def scan_until(pattern)
     _scan(pattern, true, true, false)
   end
-  
+
   # Tests whether the given +pattern+ is matched from the current scan pointer.
   # Returns the matched string if +return_string_p+ is true.
   # Advances the scan pointer if +advance_pointer_p+ is true.
@@ -281,7 +281,7 @@ class StringScanner
   def scan_full(pattern, succptr, getstr)
     _scan(pattern, succptr, getstr, true)
   end
-  
+
   # Scans the string _until_ the +pattern+ is matched.
   # Returns the matched string if +return_string_p+ is true, otherwise
   # returns the number of bytes advanced.
@@ -291,7 +291,7 @@ class StringScanner
   def search_full(pattern, succptr, getstr)
     _scan(pattern, succptr, getstr, false)
   end
-  
+
   # Scans one character and returns it.
   # This method is multibyte character sensitive.
   #
@@ -303,7 +303,7 @@ class StringScanner
   def getch
     scan(/./m)
   end
-  
+
   # Returns +true+ if the scan pointer is at the end of the string.
   #
   #   s = StringScanner.new('test string')
@@ -316,7 +316,7 @@ class StringScanner
   def eos?
     self.pos >= self.string.size
   end
-  
+
   # Equivalent to #eos?.
   # This method is obsolete, use #eos? instead.
   #
@@ -324,7 +324,7 @@ class StringScanner
     warn "StringScanner#empty? is obsolete; use #eos? instead" if $VERBOSE
     eos?
   end
-  
+
   # Returns true iff there is more data in the string.  See #eos?.
   # This method is obsolete; use #eos? instead.
   #
@@ -335,20 +335,20 @@ class StringScanner
   def rest?
     !eos?
   end
-  
+
   # Returns the "rest" of the string (i.e. everything after the scan pointer).
   # If there is no more data (eos? = true), it returns <tt>""</tt>.
   #
   def rest
     string[pos..-1] || ""
   end
-  
+
   # <tt>s.rest_size</tt> is equivalent to <tt>s.rest.size</tt>.
   #
   def rest_size
     rest.size
   end
-  
+
   # <tt>s.restsize</tt> is equivalent to <tt>s.rest_size</tt>.
   # This method is obsolete; use #rest_size instead.
   #
@@ -356,7 +356,7 @@ class StringScanner
     warn "StringScanner#restsize is obsolete; use #rest_size instead" if $VERBOSE
     rest_size
   end
-  
+
   # Returns a string that represents the StringScanner object, showing:
   # - the current position
   # - the size of the string
@@ -377,14 +377,14 @@ class StringScanner
                     "#<StringScanner #{pos}/#{string.size} #{prev} @ #{rest.inspect}>"
                   else
                     "#<StringScanner #{pos}/#{string.size} @ #{rest.inspect}>"
-                  end 
+                  end
       to_return.taint if self.string.tainted?
       to_return
     else
       "#<StringScanner (uninitialized)>"
     end
   end
-  
+
   # Tests whether the given +pattern+ is matched from the current scan pointer.
   # Returns the length of the match, or +nil+.  The scan pointer is not advanced.
   #
@@ -392,21 +392,21 @@ class StringScanner
   #   p s.match?(/\w+/)   # -> 4
   #   p s.match?(/\w+/)   # -> 4
   #   p s.match?(/\s+/)   # -> nil
-  #  
+  #
   def match?(pattern)
     _scan(pattern, false, false, true)
   end
-  
+
   # Returns the last matched string.
-  # 
+  #
   #   s = StringScanner.new('test string')
   #   s.match?(/\w+/)     # -> 4
   #   s.matched           # -> "test"
-  #     
+  #
   def matched
     @match.to_s if matched?
   end
-  
+
   # Returns +true+ iff the last match was successful.
   #
   #   s = StringScanner.new('test string')
@@ -417,8 +417,8 @@ class StringScanner
   #
   def matched?
     !@match.nil?
-  end 
-  
+  end
+
   # Returns the last matched string.
   #
   #   s = StringScanner.new('test string')
@@ -428,7 +428,7 @@ class StringScanner
   def matched_size
     @match.to_s.size if matched?
   end
-  
+
   # Equivalent to #matched_size.
   # This method is obsolete; use #matched_size instead.
   #
@@ -436,7 +436,7 @@ class StringScanner
     warn "StringScanner#matchedsize is obsolete; use #matched_size instead" if $VERBOSE
     matched_size
   end
- 
+
   # Attempts to skip over the given +pattern+ beginning with the scan pointer.
   # If it matches, the scan pointer is advanced to the end of the match, and the
   # length of the match is returned.  Otherwise, +nil+ is returned.
@@ -453,7 +453,7 @@ class StringScanner
   def skip(pattern)
     _scan(pattern, true, false, true)
   end
-  
+
   # Advances the scan pointer until +pattern+ is matched and consumed.  Returns
   # the number of bytes advanced, or +nil+ if no match was found.
   #
@@ -470,7 +470,7 @@ class StringScanner
   def skip_until(pattern)
     _scan(pattern, true, false, false)
   end
-  
+
   # This returns the value that #scan would return, without advancing the scan
   # pointer.  The match register is affected, though.
   #
@@ -486,7 +486,7 @@ class StringScanner
   def check(pattern)
     _scan(pattern, false, true, true)
   end
-  
+
 
   # This returns the value that #scan_until would return, without advancing the
   # scan pointer.  The match register is affected, though.
@@ -501,7 +501,7 @@ class StringScanner
   def check_until(pattern)
     _scan(pattern, false, true, false)
   end
-  
+
   # Looks _ahead_ to see if the +pattern+ exists _anywhere_ in the string,
   # without advancing the scan pointer.  This predicates whether a #scan_until
   # will return a value.
@@ -515,7 +515,7 @@ class StringScanner
   def exist?(pattern)
     _scan(pattern, false, false, false)
   end
-  
+
   # Extracts a string corresponding to <tt>string[pos,len]</tt>, without
   # advancing the scan pointer.
   #
@@ -528,7 +528,7 @@ class StringScanner
     raise ArgumentError if length < 0
     length.zero? ? "" :  string[pos, length]
   end
-  
+
   # Equivalent to #peek.
   # This method is obsolete; use #peek instead.
   #
@@ -536,7 +536,7 @@ class StringScanner
     warn "StringScanner#peep is obsolete; use #peek instead" if $VERBOSE
     peek(length)
   end
-  
+
   # Set the scan pointer to the previous position.  Only one previous position is
   # remembered, and it changes with each scanning operation.
   #
@@ -552,9 +552,9 @@ class StringScanner
     self.pos = @prev_pos
     @prev_pos = nil
     @match = nil
-    self    
+    self
   end
-  
+
   # Returns +true+ iff the scan pointer is at the beginning of the line.
   #
   #   s = StringScanner.new("test\ntest\n")
@@ -570,7 +570,7 @@ class StringScanner
     (pos == 0) || (string[pos-1] == "\n")
   end
   alias :beginning_of_line? :bol?
-  
+
   # Return the n-th subgroup in the most recent match.
   #
   #   s = StringScanner.new("Fri Dec 12 1975 14:39")
@@ -586,19 +586,19 @@ class StringScanner
     raise TypeError, "Bad argument #{n.inspect}" unless n.respond_to? :to_int
     @match.nil? ? nil : @match[n]
   end
-  
+
   # Return the <i><b>pre</b>-match</i> (in the regular expression sense) of the last scan.
   #
   #   s = StringScanner.new('test string')
   #   s.scan(/\w+/)           # -> "test"
   #   s.scan(/\s+/)           # -> " "
   #   s.pre_match             # -> "test"
-  #   s.post_match            # -> "string"  
+  #   s.post_match            # -> "string"
   #
   def pre_match
     string[0...(pos - @match.to_s.size)] if matched?
   end
-  
+
   # Return the <i><b>post</b>-match</i> (in the regular expression sense) of the last scan.
   #
   #   s = StringScanner.new('test string')
@@ -610,35 +610,35 @@ class StringScanner
   def post_match
     @match.post_match if matched?
   end
-  
+
   private
-  
+
   def _scan(pattern, succptr, getstr, headonly)
     raise TypeError, "bad pattern argument: #{pattern.inspect}" unless
       String === pattern or Regexp === pattern or pattern.respond_to? :to_str
- 
+
     @match = nil
     rest = self.rest
-    
+
     return nil if rest_size < 0
-  
+
     if headonly
       headonly_pattern = Regexp.new('^' + pattern.source, pattern.options)
       @match = headonly_pattern.match rest
     else
       @match = pattern.match rest
     end
- 
+
     return nil unless @match
- 
+
     m = rest[0, @match.end(0)]
- 
+
     if succptr
       @prev_pos = pos
       self.pos += m.size
     end
-    
+
     getstr ? m : m.size
   end
-  
+
 end
