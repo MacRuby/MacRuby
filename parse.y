@@ -9876,7 +9876,7 @@ ripper_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
     if (need_free) {
 	UChar *tmp = (UChar *)xmalloc(sizeof(UChar) * chars_len);
 	memcpy(tmp, chars, sizeof(UChar) * chars_len);
-	free(chars);
+	orig_free(chars);
 	chars = tmp;
     }
 
