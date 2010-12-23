@@ -129,6 +129,26 @@ str_update_flags(rb_str_t *self)
 	}
 	str_set_ascii_only(self, ascii_only);
     }
+    else if (IS_UTF8_ENC(self->encoding)) {
+	bool ascii_only = true;
+	bool valid_encoding = true;
+
+	for (int i = 0; i < self->length_in_bytes; ) {
+	    UChar32 c;
+	    U8_NEXT(self->bytes, i, self->length_in_bytes, c);
+	    if (c == U_SENTINEL) {
+		valid_encoding = false;
+		ascii_only = false;
+		break;
+	    }
+	    else if (c > 127) {
+		ascii_only = false;
+	    }
+	}
+
+	str_set_valid_encoding(self, valid_encoding);
+	str_set_ascii_only(self, ascii_only);
+    }
     else if (IS_UTF16_ENC(self->encoding)) {
 	str_update_flags_utf16(self);
     }
@@ -357,7 +377,8 @@ str_new_from_cfstring(CFStringRef source)
 static long
 str_length(rb_str_t *self)
 {
-    if (self->encoding->single_byte_encoding) {
+    if (self->encoding->single_byte_encoding
+	    || (self->encoding->ascii_compatible && str_is_ascii_only(self))) {
 	return self->length_in_bytes;
     }
     else if (IS_UTF8_ENC(self->encoding)) {
@@ -531,7 +552,8 @@ str_get_character_boundaries(rb_str_t *self, long index)
 {
     character_boundaries_t boundaries = {-1, -1};
 
-    if (self->encoding->single_byte_encoding) {
+    if (self->encoding->single_byte_encoding
+	    || (self->encoding->ascii_compatible && str_is_ascii_only(self))) {
 	if (index < 0) {
 	    index += self->length_in_bytes;
 	    if (index < 0) {
@@ -540,6 +562,54 @@ str_get_character_boundaries(rb_str_t *self, long index)
 	}
 	boundaries.start_offset_in_bytes = index;
 	boundaries.end_offset_in_bytes = boundaries.start_offset_in_bytes + 1;
+    }
+    else if (IS_UTF8_ENC(self->encoding)) {
+	long pos = 0;
+	int i = 0;
+	if (index < 0) {
+	    index += str_length(self);
+	    if (index < 0) {
+		return boundaries;
+	    }
+	}
+	while (i < self->length_in_bytes) {
+	    UChar32 c;
+	    int old_i = i;
+	    long new_pos = pos;
+	    U8_NEXT(self->bytes, i, self->length_in_bytes, c);
+	    if (c == U_SENTINEL) {
+		new_pos += i - old_i;
+		if (new_pos > index) {
+		    boundaries.start_offset_in_bytes =
+			old_i + (index - pos);
+		    boundaries.end_offset_in_bytes =
+			boundaries.start_offset_in_bytes + 1;
+		    return boundaries;
+		}
+	    }
+	    else if (U_IS_BMP(c)) {
+		new_pos++;
+		if (new_pos > index) {
+		    boundaries.start_offset_in_bytes = old_i;
+		    boundaries.end_offset_in_bytes = i;
+		    return boundaries;
+		}
+	    }
+	    else {
+		new_pos += 2;
+		if (new_pos > index) {
+		    if (index == pos) {
+			boundaries.start_offset_in_bytes = old_i;
+		    }
+		    else {
+			assert(index == pos + 1);
+			boundaries.end_offset_in_bytes = i;
+		    }
+		    return boundaries;
+		}
+	    }
+	    pos = new_pos;
+	}
     }
     else if (IS_UTF16_ENC(self->encoding)) {
 	if (index < 0) {
@@ -1016,10 +1086,16 @@ str_extract_uchars_range(rb_str_t *self, long range_start_offset_in_uchars,
     if (range_length_in_uchars <= 0) {
 	return;
     }
-    if (IS_NATIVE_UTF16_ENC(self->encoding)) {
+    if (self->encoding->ascii_compatible && str_is_ascii_only(self)) {
+	char *source_bytes = &self->bytes[range_start_offset_in_uchars];
+	for (long i = 0; i < range_length_in_uchars; ++i) {
+	    buffer[i] = source_bytes[i];
+	}
+    }
+    else if (IS_NATIVE_UTF16_ENC(self->encoding)) {
 	memcpy(buffer,
-		&self->bytes[BYTES_TO_UCHARS(range_start_offset_in_uchars)],
-		BYTES_TO_UCHARS(range_length_in_uchars));
+		&self->bytes[UCHARS_TO_BYTES(range_start_offset_in_uchars)],
+		UCHARS_TO_BYTES(range_length_in_uchars));
     }
     else {
 	__block long pos_in_src = 0;

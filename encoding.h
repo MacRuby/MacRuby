@@ -184,13 +184,6 @@ str_reset_flags(rb_str_t *self)
 }
 
 static inline bool
-str_known_to_have_an_invalid_encoding(rb_str_t *self)
-{
-    return (self->flags & (STRING_VALID_ENCODING_SET
-		| STRING_VALID_ENCODING)) == STRING_VALID_ENCODING_SET;
-}
-
-static inline bool
 str_check_flag_and_update_if_needed(rb_str_t *self, str_flag_t flag_set,
 	str_flag_t flag)
 {
