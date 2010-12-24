@@ -278,6 +278,7 @@ static void str_concat_bytes(rb_str_t *self, const char *bytes, long len);
 static void
 str_append_uchar32(rb_str_t *self, UChar32 c)
 {
+    str_reset_flags(self);
     if ((c <= 127) && self->encoding->ascii_compatible) {
 	str_resize_bytes(self, self->length_in_bytes + 1);
 	self->bytes[self->length_in_bytes] = c;

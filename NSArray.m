@@ -1155,6 +1155,11 @@ recursive_join(VALUE ary, VALUE argp, int recur)
     return rb_ary_join(arg[0], arg[1]);
 }
 
+// TODO: Make it faster.
+// rdoc spends a lot of time resizing strings concatenated by rb_ary_join.
+// Resizing the string buffer using str_resize_bytes with something close
+// to the final size before starting the concatenations would probably
+// make it much faster.
 VALUE
 rb_ary_join(VALUE ary, VALUE sep)
 {
