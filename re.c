@@ -728,6 +728,9 @@ rb_reg_matcher_new(VALUE re, VALUE str)
 
     if (status != U_ZERO_ERROR) {
 	uregex_close(matcher->pattern);
+	if (need_free) {
+	    free(chars);
+	}
 	rb_raise(rb_eRegexpError, "can't set pattern text: %s",
 		u_errorName(status));	
     }
