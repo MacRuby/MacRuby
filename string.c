@@ -847,9 +847,42 @@ str_concat_string(rb_str_t *self, rb_str_t *str)
     }
 
     rb_encoding_t *enc = str_must_have_compatible_encoding(self, str);
-    self->encoding = enc;
     str_reset_flags(self);
+    self->encoding = enc;
     str_concat_bytes(self, str->bytes, str->length_in_bytes);
+}
+
+static void
+str_concat_string_part(rb_str_t *self, rb_str_t *str, long start, long len)
+{
+    assert(len >= 0 && start >= 0);
+    if (len == 0) {
+	return;
+    }
+
+    rb_encoding_t *enc = str_must_have_compatible_encoding(self, str);
+    str_reset_flags(self);
+    self->encoding = enc;
+
+    character_boundaries_t first_boundaries =
+	str_get_character_boundaries(self, start);
+    character_boundaries_t last_boundaries;
+    if (len == 1) {
+	last_boundaries = first_boundaries;
+    }
+    else {
+	last_boundaries = str_get_character_boundaries(self, start+len-1);
+    }
+
+    if ((first_boundaries.start_offset_in_bytes == -1) ||
+	    (last_boundaries.end_offset_in_bytes == -1)) {
+	// you cannot cut a surrogate in an encoding that is not UTF-16
+	str_cannot_cut_surrogate();
+    }
+
+    str_concat_bytes(self, &str->bytes[first_boundaries.start_offset_in_bytes],
+	    last_boundaries.end_offset_in_bytes -
+		first_boundaries.start_offset_in_bytes);
 }
 
 static int
@@ -1159,11 +1192,17 @@ rb_str_get_uchars(VALUE str, UChar **chars_p, long *chars_len_p,
     bool need_free = false;
 
     if (IS_RSTR(str)) {
-	chars_len = str_length(RSTR(str));
-	if (chars_len > 0) {
-	    chars = (UChar *)malloc(sizeof(UChar) * chars_len);
-	    str_extract_uchars_range(RSTR(str), 0, chars_len, chars);
-	    need_free = true;
+	rb_str_t *rstr = RSTR(str);
+	if (rstr->length_in_bytes > 0) {
+	    chars_len = str_length(RSTR(str));
+	    if (IS_NATIVE_UTF16_ENC(rstr->encoding)) {
+		chars = (UChar *)rstr->bytes;
+	    }
+	    else {
+		chars = (UChar *)malloc(sizeof(UChar) * chars_len);
+		str_extract_uchars_range(RSTR(str), 0, chars_len, chars);
+		need_free = true;
+	    }
 	}
     }
     else {
@@ -3501,14 +3540,8 @@ rb_reg_regsub(VALUE str, VALUE src, VALUE regexp, rb_match_result_t *results,
     rb_str_get_uchars(str, &str_chars, &str_chars_len,
 	    &str_chars_need_free);
 
-    UChar *src_chars = NULL;
-    long src_chars_len = 0;
-    bool src_chars_need_free = false;
-
-    rb_str_get_uchars(src, &src_chars, &src_chars_len,
-	    &src_chars_need_free);
-
     long pos = 0;
+    long src_chars_len = -1;
 
     for (long i = 0; i < str_chars_len; i++) {
 	UChar c = str_chars[i];
@@ -3542,12 +3575,16 @@ rb_reg_regsub(VALUE str, VALUE src, VALUE regexp, rb_match_result_t *results,
 		break;
 
 	    case '`':
-		str_concat_uchars(RSTR(val), src_chars, results[0].beg);
+		str_concat_string_part(RSTR(val), RSTR(src),
+			0, results[0].beg);
 		break;
 
 	    case '\'':
-		str_concat_uchars(RSTR(val), &src_chars[results[0].end],
-			src_chars_len - results[0].end);
+		if (src_chars_len == -1) {
+		    src_chars_len = str_length(RSTR(src));
+		}
+		str_concat_string_part(RSTR(val), RSTR(src),
+			results[0].end, src_chars_len - results[0].end);
 		break;
 
 	    case '+':
@@ -3575,8 +3612,8 @@ rb_reg_regsub(VALUE str, VALUE src, VALUE regexp, rb_match_result_t *results,
 	    if (results[no].beg == -1) {
 		continue;
 	    }
-	    str_concat_uchars(RSTR(val), &src_chars[results[no].beg],
-		    results[no].end - results[no].beg);
+	    str_concat_string_part(RSTR(val), RSTR(src),
+		    results[no].beg, results[no].end - results[no].beg);
 	}
     }
 
@@ -3586,9 +3623,6 @@ rb_reg_regsub(VALUE str, VALUE src, VALUE regexp, rb_match_result_t *results,
 
     if (str_chars_need_free) {
 	free(str_chars);
-    }
-    if (src_chars_need_free) {
-	free(src_chars);
     }
 
     if (val == 0) {
