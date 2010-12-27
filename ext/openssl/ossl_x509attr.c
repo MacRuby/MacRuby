@@ -248,11 +248,12 @@ ossl_x509attr_to_der(VALUE self)
     GetX509Attr(self, attr);
     if((len = i2d_X509_ATTRIBUTE(attr, NULL)) <= 0)
 	ossl_raise(eX509AttrError, NULL);
-    str = rb_str_new(0, len);
-    p = (unsigned char *)RSTRING_PTR(str);
+    str = rb_bstr_new();
+    rb_bstr_resize(str, len);
+    p = (unsigned char *)rb_bstr_bytes(str);
     if(i2d_X509_ATTRIBUTE(attr, &p) <= 0)
 	ossl_raise(eX509AttrError, NULL);
-    rb_str_set_len(str, p - (unsigned char*)RSTRING_PTR(str)); 
+    rb_bstr_resize(str, p - (unsigned char*)rb_bstr_bytes(str));
 
     return str;
 }
