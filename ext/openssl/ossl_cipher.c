@@ -357,7 +357,7 @@ ossl_cipher_final(VALUE self, SEL sel)
     GetCipher(self, ctx);
     str = rb_bstr_new();
     rb_bstr_resize(str, EVP_CIPHER_CTX_block_size(ctx));
-    if (!EVP_CipherFinal_ex(ctx, (unsigned char *)RSTRING_PTR(str), &out_len))
+    if (!EVP_CipherFinal_ex(ctx, (unsigned char *)rb_bstr_bytes(str), &out_len))
 	ossl_raise(eCipherError, NULL);
     assert(out_len <= RSTRING_LEN(str));
     rb_str_set_len(str, out_len);

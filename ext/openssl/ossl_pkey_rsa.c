@@ -289,7 +289,7 @@ ossl_rsa_to_der(VALUE self)
 	ossl_raise(eRSAError, NULL);
     str = rb_bstr_new();
     rb_bstr_resize(str, len);
-    p = (unsigned char *)RSTRING_PTR(str);
+    p = (unsigned char *)rb_bstr_bytes(str);
     if(i2d_func(pkey->pkey.rsa, &p) < 0)
 	ossl_raise(eRSAError, NULL);
     ossl_str_adjust(str, p);
@@ -345,7 +345,7 @@ ossl_rsa_public_decrypt(VALUE self, SEL sel, int argc, VALUE *argv)
     str = rb_bstr_new();
     rb_bstr_resize(str, ossl_rsa_buf_size(pkey));
     buf_len = RSA_public_decrypt(RSTRING_LEN(buffer), (unsigned char *)RSTRING_PTR(buffer),
-				 (unsigned char *)RSTRING_PTR(str), pkey->pkey.rsa,
+				 (unsigned char *)rb_bstr_bytes(str), pkey->pkey.rsa,
 				 pad);
     if (buf_len < 0) ossl_raise(eRSAError, NULL);
     rb_str_set_len(str, buf_len);
@@ -375,7 +375,7 @@ ossl_rsa_private_encrypt(VALUE self, SEL sel, int argc, VALUE *argv)
     str = rb_bstr_new();
     rb_bstr_resize(str, ossl_rsa_buf_size(pkey));
     buf_len = RSA_private_encrypt(RSTRING_LEN(buffer), (unsigned char *)RSTRING_PTR(buffer),
-				  (unsigned char *)RSTRING_PTR(str), pkey->pkey.rsa,
+				  (unsigned char *)rb_bstr_bytes(str), pkey->pkey.rsa,
 				  pad);
     if (buf_len < 0) ossl_raise(eRSAError, NULL);
     rb_str_set_len(str, buf_len);
@@ -406,7 +406,7 @@ ossl_rsa_private_decrypt(VALUE self, SEL sel, int argc, VALUE *argv)
     str = rb_bstr_new();
     rb_bstr_resize(str, ossl_rsa_buf_size(pkey));
     buf_len = RSA_private_decrypt(RSTRING_LEN(buffer), (unsigned char *)RSTRING_PTR(buffer),
-				  (unsigned char *)RSTRING_PTR(str), pkey->pkey.rsa,
+				  (unsigned char *)rb_bstr_bytes(str), pkey->pkey.rsa,
 				  pad);
     if (buf_len < 0) ossl_raise(eRSAError, NULL);
     rb_str_set_len(str, buf_len);
