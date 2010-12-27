@@ -184,14 +184,16 @@ ossl_bn_to_s(VALUE self, SEL sel, int argc, VALUE *argv)
     switch (base) {
     case 0:
 	len = BN_bn2mpi(bn, NULL);
-        str = rb_str_new(0, len);
-	if (BN_bn2mpi(bn, (unsigned char *)RSTRING_PTR(str)) != len)
+	str = rb_bstr_new();
+	rb_bstr_resize(str, len);
+	if (BN_bn2mpi(bn, (unsigned char *)rb_bstr_bytes(str)) != len)
 	    ossl_raise(eBNError, NULL);
 	break;
     case 2:
 	len = BN_num_bytes(bn);
-        str = rb_str_new(0, len);
-	if (BN_bn2bin(bn, (unsigned char *)RSTRING_PTR(str)) != len)
+	str = rb_bstr_new();
+	rb_bstr_resize(str, len);
+	if (BN_bn2bin(bn, (unsigned char *)rb_bstr_bytes(str)) != len)
 	    ossl_raise(eBNError, NULL);
 	break;
     case 10:
