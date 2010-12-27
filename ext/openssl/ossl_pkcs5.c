@@ -34,9 +34,10 @@ ossl_pkcs5_pbkdf2_hmac(VALUE self, VALUE pass, VALUE salt, VALUE iter, VALUE key
     StringValue(salt);
     md = GetDigestPtr(digest);
 
-    str = rb_str_new(0, len);
+    str = rb_bstr_new();
+    rb_bstr_resize(str, len);
 
-    if (PKCS5_PBKDF2_HMAC(RSTRING_PTR(pass), RSTRING_LEN(pass), RSTRING_PTR(salt), RSTRING_LEN(salt), NUM2INT(iter), md, len, RSTRING_PTR(str)) != 1)
+    if (PKCS5_PBKDF2_HMAC(RSTRING_PTR(pass), RSTRING_LEN(pass), RSTRING_PTR(salt), RSTRING_LEN(salt), NUM2INT(iter), md, len, rb_bstr_bytes(str)) != 1)
         ossl_raise(ePKCS5, "PKCS5_PBKDF2_HMAC");
 
     return str;
@@ -70,11 +71,12 @@ ossl_pkcs5_pbkdf2_hmac_sha1(VALUE self, VALUE pass, VALUE salt, VALUE iter, VALU
     StringValue(pass);
     StringValue(salt);
 
-    str = rb_str_new(0, len);
+    str = rb_bstr_new();
+    rb_bstr_resize(str, len);
 
     if (PKCS5_PBKDF2_HMAC_SHA1(RSTRING_PTR(pass), RSTRING_LEN(pass),
 			       (const unsigned char *)RSTRING_PTR(salt), RSTRING_LEN(salt), NUM2INT(iter),
-			       len, (unsigned char *)RSTRING_PTR(str)) != 1)
+			       len, (unsigned char *)rb_bstr_bytes(str)) != 1)
         ossl_raise(ePKCS5, "PKCS5_PBKDF2_HMAC_SHA1");
 
     return str;
