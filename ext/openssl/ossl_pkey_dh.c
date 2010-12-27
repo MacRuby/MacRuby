@@ -407,8 +407,9 @@ ossl_dh_compute_key(VALUE self, SEL sel, VALUE pub)
     dh = pkey->pkey.dh;
     pub_key = GetBNPtr(pub);
     len = DH_size(dh);
-    str = rb_str_new(0, len);
-    if ((len = DH_compute_key((unsigned char *)RSTRING_PTR(str), pub_key, dh)) < 0) {
+    str = rb_bstr_new();
+    rb_bstr_resize(str, len);
+    if ((len = DH_compute_key((unsigned char *)rb_bstr_bytes(str), pub_key, dh)) < 0) {
 	ossl_raise(eDHError, NULL);
     }
     rb_str_set_len(str, len);
