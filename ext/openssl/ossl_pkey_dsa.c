@@ -396,13 +396,14 @@ ossl_dsa_sign(VALUE self, SEL sel, VALUE data)
     if (!DSA_PRIVATE(self, pkey->pkey.dsa)) {
 	ossl_raise(eDSAError, "Private DSA key needed!");
     }
-    str = rb_str_new(0, ossl_dsa_buf_size(pkey));
+    str = rb_bstr_new();
+    rb_str_resize(str, ossl_dsa_buf_size(pkey));
     if (!DSA_sign(0, (unsigned char *)RSTRING_PTR(data), RSTRING_LEN(data),
-		  (unsigned char *)RSTRING_PTR(str),
+		  (unsigned char *)rb_bstr_bytes(str),
 		  &buf_len, pkey->pkey.dsa)) { /* type is ignored (0) */
 	ossl_raise(eDSAError, NULL);
     }
-    rb_str_set_len(str, buf_len);
+    rb_str_resize(str, buf_len);
 
     return str;
 }
