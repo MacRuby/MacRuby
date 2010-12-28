@@ -179,7 +179,7 @@ ossl_pkey_sign(VALUE self, SEL sel, VALUE digest, VALUE data)
     if (!EVP_SignFinal(&ctx, (unsigned char *)rb_bstr_bytes(str), &buf_len, pkey))
 	ossl_raise(ePKeyError, NULL);
     assert((long)buf_len <= RSTRING_LEN(str));
-    rb_str_set_len(str, buf_len);
+    rb_bstr_resize(str, buf_len);
 
     return str;
 }

@@ -677,7 +677,7 @@ static VALUE ossl_ec_key_dsa_sign_asn1(VALUE self, VALUE data)
     if (ECDSA_sign(0, (const unsigned char *) RSTRING_PTR(data), RSTRING_LEN(data), (unsigned char *) rb_bstr_bytes(str), &buf_len, ec) != 1)
          ossl_raise(eECError, "ECDSA_sign");
 
-    rb_str_resize(str, buf_len);
+    rb_bstr_resize(str, buf_len);
 
     return str;
 }

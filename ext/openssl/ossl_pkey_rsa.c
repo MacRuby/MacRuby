@@ -318,10 +318,10 @@ ossl_rsa_public_encrypt(VALUE self, SEL sel, int argc, VALUE *argv)
     str = rb_bstr_new();
     rb_bstr_resize(str, ossl_rsa_buf_size(pkey));
     buf_len = RSA_public_encrypt(RSTRING_LEN(buffer), (unsigned char *)RSTRING_PTR(buffer),
-				 (unsigned char *)RSTRING_PTR(str), pkey->pkey.rsa,
+				 (unsigned char *)rb_bstr_bytes(str), pkey->pkey.rsa,
 				 pad);
     if (buf_len < 0) ossl_raise(eRSAError, NULL);
-    rb_str_set_len(str, buf_len);
+    rb_bstr_resize(str, buf_len);
 
     return str;
 }

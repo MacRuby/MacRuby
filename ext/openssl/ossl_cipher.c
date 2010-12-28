@@ -324,17 +324,16 @@ ossl_cipher_update(VALUE self, SEL sel, int argc, VALUE *argv)
 
     if (NIL_P(str)) {
 	str = rb_bstr_new();
-	rb_bstr_resize(str, out_len);
     } else {
         StringValue(str);
 	str = rb_str_bstr(str);
-        rb_str_resize(str, out_len);
     }
+    rb_bstr_resize(str, out_len);
 
-    if (!EVP_CipherUpdate(ctx, (unsigned char *)RSTRING_PTR(str), &out_len, in, in_len))
+    if (!EVP_CipherUpdate(ctx, (unsigned char *)rb_bstr_bytes(str), &out_len, in, in_len))
 	ossl_raise(eCipherError, NULL);
     assert(out_len < RSTRING_LEN(str));
-    rb_str_set_len(str, out_len);
+    rb_bstr_resize(str, out_len);
 
     return str;
 }
@@ -360,7 +359,7 @@ ossl_cipher_final(VALUE self, SEL sel)
     if (!EVP_CipherFinal_ex(ctx, (unsigned char *)rb_bstr_bytes(str), &out_len))
 	ossl_raise(eCipherError, NULL);
     assert(out_len <= RSTRING_LEN(str));
-    rb_str_set_len(str, out_len);
+    rb_bstr_resize(str, out_len);
 
     return str;
 }

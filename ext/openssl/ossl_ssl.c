@@ -1216,7 +1216,7 @@ ossl_ssl_read_internal(int argc, VALUE *argv, VALUE self, int nonblock)
     }
 
   end:
-    rb_str_set_len(str, nread);
+    rb_bstr_resize(str, nread);
     OBJ_TAINT(str);
 
     return str;
