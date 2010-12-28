@@ -56,14 +56,14 @@ GetDigestPtr(VALUE obj)
 
 VALUE
 ossl_digest_new(const EVP_MD *md)
-{  
+{
     VALUE ret;
     EVP_MD_CTX *ctx;
 
     ret = ossl_digest_alloc(cDigest, 0);
     GetDigest(ret, ctx);
     EVP_DigestInit_ex(ctx, md, NULL);
-   
+
     return ret;
 }
 
@@ -104,7 +104,7 @@ ossl_digest_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 
     GetDigest(self, ctx);
     EVP_DigestInit_ex(ctx, md, NULL);
-    
+
     if (!NIL_P(data)) return ossl_digest_update(self, 0, data);
     return self;
 }
@@ -113,7 +113,7 @@ static VALUE
 ossl_digest_copy(VALUE self, SEL sel, VALUE other)
 {
     EVP_MD_CTX *ctx1, *ctx2;
-    
+
     rb_check_frozen(self);
     if (self == other) return self;
 
@@ -243,7 +243,7 @@ Init_ossl_digest()
 
     cDigest = rb_define_class_under(mOSSL, "Digest", rb_path2class("Digest::Class"));
     eDigestError = rb_define_class_under(cDigest, "DigestError", eOSSLError);
-	
+
     rb_objc_define_method(*(VALUE *)cDigest, "alloc", ossl_digest_alloc, 0);
 
     rb_objc_define_method(cDigest, "initialize", ossl_digest_initialize, -1);

@@ -79,7 +79,7 @@ ossl_cipher_alloc(VALUE klass, SEL sel)
 
     MakeCipher(obj, klass, ctx);
     EVP_CIPHER_CTX_init(ctx);
-	
+
     return obj;
 }
 
@@ -112,7 +112,7 @@ static VALUE
 ossl_cipher_copy(VALUE self, SEL sel, VALUE other)
 {
     EVP_CIPHER_CTX *ctx1, *ctx2;
-	
+
     rb_check_frozen(self);
     if (self == other) return self;
 
@@ -170,7 +170,7 @@ ossl_cipher_reset(VALUE self, SEL sel)
     GetCipher(self, ctx);
     if (EVP_CipherInit_ex(ctx, NULL, NULL, NULL, NULL, -1) != 1)
 	ossl_raise(eCipherError, NULL);
-		
+
     return self;
 }
 
@@ -287,7 +287,7 @@ ossl_cipher_pkcs5_keyivgen(VALUE self, SEL sel, int argc, VALUE *argv)
     digest = NIL_P(vdigest) ? EVP_md5() : GetDigestPtr(vdigest);
     GetCipher(self, ctx);
     EVP_BytesToKey(EVP_CIPHER_CTX_cipher(ctx), digest, salt,
-		   (unsigned char *)RSTRING_PTR(vpass), RSTRING_LEN(vpass), iter, key, iv); 
+		   (unsigned char *)RSTRING_PTR(vpass), RSTRING_LEN(vpass), iter, key, iv);
     if (EVP_CipherInit_ex(ctx, NULL, NULL, key, iv, -1) != 1)
 	ossl_raise(eCipherError, NULL);
     OPENSSL_cleanse(key, sizeof key);
@@ -305,7 +305,7 @@ ossl_cipher_pkcs5_keyivgen(VALUE self, SEL sel, int argc, VALUE *argv)
  *  +data+ is a nonempty string.
  *  +buffer+ is an optional string to store the result.
  */
-static VALUE 
+static VALUE
 ossl_cipher_update(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     EVP_CIPHER_CTX *ctx;
@@ -347,7 +347,7 @@ ossl_cipher_update(VALUE self, SEL sel, int argc, VALUE *argv)
  *
  *  See EVP_CipherFinal_ex for further information.
  */
-static VALUE 
+static VALUE
 ossl_cipher_final(VALUE self, SEL sel)
 {
     EVP_CIPHER_CTX *ctx;
@@ -448,7 +448,7 @@ ossl_cipher_set_key_length(VALUE self, SEL sel, VALUE key_length)
 {
     int len = NUM2INT(key_length);
     EVP_CIPHER_CTX *ctx;
- 
+
     GetCipher(self, ctx);
     if (EVP_CIPHER_CTX_set_key_length(ctx, len) != 1)
         ossl_raise(eCipherError, NULL);
@@ -518,7 +518,7 @@ static VALUE ossl_cipher_block_size() { }
 /*
  * INIT
  */
-void 
+void
 Init_ossl_cipher(void)
 {
 #if 0 /* let rdoc know about mOSSL */

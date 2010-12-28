@@ -560,7 +560,7 @@ ossl_ocspbres_get_status(VALUE self, SEL sel)
     }
 
     return ret;
-} 
+}
 
 static VALUE
 ossl_ocspbres_sign(VALUE self, SEL sel, int argc, VALUE *argv)

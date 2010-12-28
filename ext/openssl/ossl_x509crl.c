@@ -66,14 +66,14 @@ ossl_x509crl_new(X509_CRL *crl)
     tmp = crl ? X509_CRL_dup(crl) : X509_CRL_new();
     if(!tmp) ossl_raise(eX509CRLError, NULL);
     WrapX509CRL(cX509CRL, obj, tmp);
-        
+
     return obj;
 }
 
 /*
  * PRIVATE
  */
-static VALUE 
+static VALUE
 ossl_x509crl_alloc(VALUE klass)
 {
     X509_CRL *crl;
@@ -87,7 +87,7 @@ ossl_x509crl_alloc(VALUE klass)
     return obj;
 }
 
-static VALUE 
+static VALUE
 ossl_x509crl_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     BIO *in;
@@ -116,7 +116,7 @@ static VALUE
 ossl_x509crl_copy(VALUE self, SEL sel, VALUE other)
 {
     X509_CRL *a, *b, *crl;
-	
+
     rb_check_frozen(self);
     if (self == other) return self;
     GetX509CRL(self, a);
@@ -130,7 +130,7 @@ ossl_x509crl_copy(VALUE self, SEL sel, VALUE other)
     return self;
 }
 
-static VALUE 
+static VALUE
 ossl_x509crl_get_version(VALUE self)
 {
     X509_CRL *crl;
@@ -142,7 +142,7 @@ ossl_x509crl_get_version(VALUE self)
     return LONG2NUM(ver);
 }
 
-static VALUE 
+static VALUE
 ossl_x509crl_set_version(VALUE self, SEL sel, VALUE version)
 {
     X509_CRL *crl;
@@ -159,7 +159,7 @@ ossl_x509crl_set_version(VALUE self, SEL sel, VALUE version)
     return version;
 }
 
-static VALUE 
+static VALUE
 ossl_x509crl_get_signature_algorithm(VALUE self)
 {
     X509_CRL *crl;
@@ -181,7 +181,7 @@ ossl_x509crl_get_signature_algorithm(VALUE self)
     return str;
 }
 
-static VALUE 
+static VALUE
 ossl_x509crl_get_issuer(VALUE self)
 {
     X509_CRL *crl;
@@ -191,7 +191,7 @@ ossl_x509crl_get_issuer(VALUE self)
     return ossl_x509name_new(X509_CRL_get_issuer(crl)); /* NO DUP - don't free */
 }
 
-static VALUE 
+static VALUE
 ossl_x509crl_set_issuer(VALUE self, SEL sel, VALUE issuer)
 {
     X509_CRL *crl;
@@ -204,7 +204,7 @@ ossl_x509crl_set_issuer(VALUE self, SEL sel, VALUE issuer)
     return issuer;
 }
 
-static VALUE 
+static VALUE
 ossl_x509crl_get_last_update(VALUE self)
 {
     X509_CRL *crl;
@@ -214,7 +214,7 @@ ossl_x509crl_get_last_update(VALUE self)
     return asn1time_to_time(X509_CRL_get_lastUpdate(crl));
 }
 
-static VALUE 
+static VALUE
 ossl_x509crl_set_last_update(VALUE self, SEL sel, VALUE time)
 {
     X509_CRL *crl;
@@ -229,7 +229,7 @@ ossl_x509crl_set_last_update(VALUE self, SEL sel, VALUE time)
     return time;
 }
 
-static VALUE 
+static VALUE
 ossl_x509crl_get_next_update(VALUE self)
 {
     X509_CRL *crl;
@@ -239,7 +239,7 @@ ossl_x509crl_get_next_update(VALUE self)
     return asn1time_to_time(X509_CRL_get_nextUpdate(crl));
 }
 
-static VALUE 
+static VALUE
 ossl_x509crl_set_next_update(VALUE self, SEL sel, VALUE time)
 {
     X509_CRL *crl;
@@ -280,7 +280,7 @@ ossl_x509crl_get_revoked(VALUE self)
     return ary;
 }
 
-static VALUE 
+static VALUE
 ossl_x509crl_set_revoked(VALUE self, SEL sel, VALUE ary)
 {
     X509_CRL *crl;
@@ -306,7 +306,7 @@ ossl_x509crl_set_revoked(VALUE self, SEL sel, VALUE ary)
     return ary;
 }
 
-static VALUE 
+static VALUE
 ossl_x509crl_add_revoked(VALUE self, SEL sel, VALUE revoked)
 {
     X509_CRL *crl;
@@ -322,7 +322,7 @@ ossl_x509crl_add_revoked(VALUE self, SEL sel, VALUE revoked)
     return revoked;
 }
 
-static VALUE 
+static VALUE
 ossl_x509crl_sign(VALUE self, SEL sel, VALUE key, VALUE digest)
 {
     X509_CRL *crl;
@@ -339,7 +339,7 @@ ossl_x509crl_sign(VALUE self, SEL sel, VALUE key, VALUE digest)
     return self;
 }
 
-static VALUE 
+static VALUE
 ossl_x509crl_verify(VALUE self, SEL sel, VALUE key)
 {
     X509_CRL *crl;
@@ -356,7 +356,7 @@ ossl_x509crl_verify(VALUE self, SEL sel, VALUE key)
     return Qfalse;
 }
 
-static VALUE 
+static VALUE
 ossl_x509crl_to_der(VALUE self)
 {
     X509_CRL *crl;
@@ -379,7 +379,7 @@ ossl_x509crl_to_der(VALUE self)
     return str;
 }
 
-static VALUE 
+static VALUE
 ossl_x509crl_to_pem(VALUE self)
 {
     X509_CRL *crl;
@@ -402,7 +402,7 @@ ossl_x509crl_to_pem(VALUE self)
     return str;
 }
 
-static VALUE 
+static VALUE
 ossl_x509crl_to_text(VALUE self)
 {
     X509_CRL *crl;
@@ -421,14 +421,14 @@ ossl_x509crl_to_text(VALUE self)
     BIO_get_mem_ptr(out, &buf);
     str = rb_str_new(buf->data, buf->length);
     BIO_free(out);
-	
+
     return str;
 }
 
 /*
  * Gets X509v3 extensions as array of X509Ext objects
  */
-static VALUE 
+static VALUE
 ossl_x509crl_get_extensions(VALUE self)
 {
     X509_CRL *crl;
@@ -454,13 +454,13 @@ ossl_x509crl_get_extensions(VALUE self)
 /*
  * Sets X509_EXTENSIONs
  */
-static VALUE 
+static VALUE
 ossl_x509crl_set_extensions(VALUE self, SEL sel, VALUE ary)
 {
     X509_CRL *crl;
     X509_EXTENSION *ext;
     int i;
-	
+
     Check_Type(ary, T_ARRAY);
     /* All ary members should be X509 Extensions */
     for (i=0; i<RARRAY_LEN(ary); i++) {
@@ -481,7 +481,7 @@ ossl_x509crl_set_extensions(VALUE self, SEL sel, VALUE ary)
     return ary;
 }
 
-static VALUE 
+static VALUE
 ossl_x509crl_add_extension(VALUE self, SEL sel, VALUE extension)
 {
     X509_CRL *crl;
@@ -501,17 +501,17 @@ ossl_x509crl_add_extension(VALUE self, SEL sel, VALUE extension)
 /*
  * INIT
  */
-void 
+void
 Init_ossl_x509crl()
 {
     eX509CRLError = rb_define_class_under(mX509, "CRLError", eOSSLError);
 
     cX509CRL = rb_define_class_under(mX509, "CRL", rb_cObject);
-	
+
     rb_objc_define_method(*(VALUE *)cX509CRL, "alloc", ossl_x509crl_alloc, 0);
     rb_objc_define_method(cX509CRL, "initialize", ossl_x509crl_initialize, -1);
     rb_define_copy_func(cX509CRL, ossl_x509crl_copy);
-    
+
     rb_objc_define_method(cX509CRL, "version", ossl_x509crl_get_version, 0);
     rb_objc_define_method(cX509CRL, "version=", ossl_x509crl_set_version, 1);
     rb_objc_define_method(cX509CRL, "signature_algorithm", ossl_x509crl_get_signature_algorithm, 0);

@@ -54,7 +54,7 @@ VALUE eX509StoreError;
 /*
  * Public functions
  */
-VALUE 
+VALUE
 ossl_x509store_new(X509_STORE *store)
 {
     VALUE obj;
@@ -76,19 +76,19 @@ GetX509StorePtr(VALUE obj)
 
 X509_STORE *
 DupX509StorePtr(VALUE obj)
-{   
+{
     X509_STORE *store;
 
     SafeGetX509Store(obj, store);
     CRYPTO_add(&store->references, 1, CRYPTO_LOCK_X509_STORE);
-    
+
     return store;
 }
 
 /*
  * Private functions
  */
-static VALUE 
+static VALUE
 ossl_x509store_alloc(VALUE klass)
 {
     X509_STORE *store;
@@ -170,7 +170,7 @@ ossl_x509store_set_purpose(VALUE self, SEL sel, VALUE purpose)
 #if (OPENSSL_VERSION_NUMBER >= 0x00907000L)
     X509_STORE *store;
     long p = NUM2LONG(purpose);
-    
+
     GetX509Store(self, store);
     X509_STORE_set_purpose(store, p);
 #else
@@ -196,14 +196,14 @@ ossl_x509store_set_trust(VALUE self, SEL sel, VALUE trust)
     return trust;
 }
 
-static VALUE 
+static VALUE
 ossl_x509store_set_time(VALUE self, SEL sel, VALUE time)
 {
     rb_iv_set(self, "@time", time);
     return time;
 }
 
-static VALUE 
+static VALUE
 ossl_x509store_add_file(VALUE self, SEL sel, VALUE file)
 {
     X509_STORE *store;
@@ -224,7 +224,7 @@ ossl_x509store_add_file(VALUE self, SEL sel, VALUE file)
     return self;
 }
 
-static VALUE 
+static VALUE
 ossl_x509store_add_path(VALUE self, SEL sel, VALUE dir)
 {
     X509_STORE *store;
@@ -292,7 +292,7 @@ static VALUE ossl_x509stctx_get_err(VALUE);
 static VALUE ossl_x509stctx_get_err_string(VALUE);
 static VALUE ossl_x509stctx_get_chain(VALUE);
 
-static VALUE 
+static VALUE
 ossl_x509store_verify(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE cert, chain;
@@ -349,7 +349,7 @@ ossl_x509stctx_free(X509_STORE_CTX *ctx)
     X509_STORE_CTX_free(ctx);
 }
 
-static VALUE 
+static VALUE
 ossl_x509stctx_alloc(VALUE klass)
 {
     X509_STORE_CTX *ctx;
@@ -441,7 +441,7 @@ ossl_x509stctx_get_chain(VALUE self)
     return ary;
 }
 
-static VALUE 
+static VALUE
 ossl_x509stctx_get_err(VALUE self)
 {
     X509_STORE_CTX *ctx;
@@ -462,7 +462,7 @@ ossl_x509stctx_set_error(VALUE self, SEL sel, VALUE err)
     return err;
 }
 
-static VALUE 
+static VALUE
 ossl_x509stctx_get_err_string(VALUE self)
 {
     X509_STORE_CTX *ctx;
@@ -474,7 +474,7 @@ ossl_x509stctx_get_err_string(VALUE self)
     return rb_str_new2(X509_verify_cert_error_string(err));
 }
 
-static VALUE 
+static VALUE
 ossl_x509stctx_get_err_depth(VALUE self)
 {
     X509_STORE_CTX *ctx;
@@ -484,7 +484,7 @@ ossl_x509stctx_get_err_depth(VALUE self)
     return INT2FIX(X509_STORE_CTX_get_error_depth(ctx));
 }
 
-static VALUE 
+static VALUE
 ossl_x509stctx_get_curr_cert(VALUE self)
 {
     X509_STORE_CTX *ctx;
@@ -576,7 +576,7 @@ ossl_x509stctx_set_time(VALUE self, SEL sel, VALUE time)
 /*
  * INIT
  */
-void 
+void
 Init_ossl_x509store()
 {
     VALUE x509stctx;

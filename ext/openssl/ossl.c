@@ -48,7 +48,7 @@ string2hex(const unsigned char *buf, int buf_len, char **hexbuf, int *hexbuf_len
  * Data Conversion
  */
 STACK_OF(X509) *
-ossl_x509_ary2sk0(VALUE ary)  
+ossl_x509_ary2sk0(VALUE ary)
 {
     STACK_OF(X509) *sk;
     VALUE val;
@@ -57,13 +57,13 @@ ossl_x509_ary2sk0(VALUE ary)
 
     Check_Type(ary, T_ARRAY);
     sk = sk_X509_new_null();
-    if (!sk) ossl_raise(eOSSLError, NULL); 
+    if (!sk) ossl_raise(eOSSLError, NULL);
 
     for (i = 0; i < RARRAY_LEN(ary); i++) {
         val = rb_ary_entry(ary, i);
         if (!rb_obj_is_kind_of(val, cX509Cert)) {
             sk_X509_pop_free(sk, X509_free);
-            ossl_raise(eOSSLError, "object not X509 cert in array"); 
+            ossl_raise(eOSSLError, "object not X509 cert in array");
         }
         x509 = DupX509CertPtr(val); /* NEED TO DUP */
         sk_X509_push(sk, x509);
@@ -129,7 +129,7 @@ ossl_buf2str(char *buf, int len)
  */
 static VALUE
 ossl_pem_passwd_cb0(VALUE flag)
-{	
+{
     VALUE pass;
 
     pass = rb_yield(flag);
@@ -143,7 +143,7 @@ ossl_pem_passwd_cb(char *buf, int max_len, int flag, void *pwd)
 {
     int len, status = 0;
     VALUE rflag, pass;
-    
+
     if (pwd || !rb_block_given_p())
 	return PEM_def_callback(buf, max_len, flag, pwd);
 
@@ -178,12 +178,12 @@ int ossl_verify_cb_idx;
 
 VALUE
 ossl_call_verify_cb_proc(struct ossl_verify_cb_args *args)
-{   
+{
     return rb_funcall(args->proc, rb_intern("call"), 2,
                       args->preverify_ok, args->store_ctx);
 }
- 
-int 
+
+int
 ossl_verify_cb(int ok, X509_STORE_CTX *ctx)
 {
     VALUE proc, rctx, ret;
@@ -346,7 +346,7 @@ void
 ossl_debug(const char *fmt, ...)
 {
     va_list args;
-	
+
     if (dOSSL == Qtrue) {
 	fprintf(stderr, "OSSL_DEBUG: ");
 	va_start(args, fmt);
@@ -379,7 +379,7 @@ ossl_debug_set(VALUE self, VALUE val)
 {
     VALUE old = dOSSL;
     dOSSL = val;
-	
+
     if (old != dOSSL) {
 	if (dOSSL == Qtrue) {
 	    CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_ON);

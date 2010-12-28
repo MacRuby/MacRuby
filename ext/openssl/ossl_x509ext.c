@@ -49,7 +49,7 @@ VALUE eX509ExtError;
 /*
  * Public
  */
-VALUE 
+VALUE
 ossl_x509ext_new(X509_EXTENSION *ext)
 {
     X509_EXTENSION *new;
@@ -64,7 +64,7 @@ ossl_x509ext_new(X509_EXTENSION *ext)
 	ossl_raise(eX509ExtError, NULL);
     }
     WrapX509Ext(cX509Ext, obj, new);
-	
+
     return obj;
 }
 
@@ -103,7 +103,7 @@ ossl_x509extfactory_free(X509V3_CTX *ctx)
     OPENSSL_free(ctx);
 }
 
-static VALUE 
+static VALUE
 ossl_x509extfactory_alloc(VALUE klass)
 {
     X509V3_CTX *ctx;
@@ -115,7 +115,7 @@ ossl_x509extfactory_alloc(VALUE klass)
     return obj;
 }
 
-static VALUE 
+static VALUE
 ossl_x509extfactory_set_issuer_cert(VALUE self, SEL sel, VALUE cert)
 {
     X509V3_CTX *ctx;
@@ -127,7 +127,7 @@ ossl_x509extfactory_set_issuer_cert(VALUE self, SEL sel, VALUE cert)
     return cert;
 }
 
-static VALUE 
+static VALUE
 ossl_x509extfactory_set_subject_cert(VALUE self, SEL sel, VALUE cert)
 {
     X509V3_CTX *ctx;
@@ -139,7 +139,7 @@ ossl_x509extfactory_set_subject_cert(VALUE self, SEL sel, VALUE cert)
     return cert;
 }
 
-static VALUE 
+static VALUE
 ossl_x509extfactory_set_subject_req(VALUE self, SEL sel, VALUE req)
 {
     X509V3_CTX *ctx;
@@ -151,7 +151,7 @@ ossl_x509extfactory_set_subject_req(VALUE self, SEL sel, VALUE req)
     return req;
 }
 
-static VALUE 
+static VALUE
 ossl_x509extfactory_set_crl(VALUE self, SEL sel, VALUE crl)
 {
     X509V3_CTX *ctx;
@@ -181,12 +181,12 @@ ossl_x509extfactory_set_config(VALUE self, SEL sel, VALUE config)
 #define rb_f_fork rb_f_notimplement
 #endif
 
-static VALUE 
+static VALUE
 ossl_x509extfactory_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     /*X509V3_CTX *ctx;*/
     VALUE issuer_cert, subject_cert, subject_req, crl;
-	
+
     /*GetX509ExtFactory(self, ctx);*/
 
     rb_scan_args(argc, argv, "04",
@@ -211,7 +211,7 @@ ossl_x509extfactory_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
  * ["ln", "critical,value"] or the same for sn
  * ["ln", "value"] => not critical
  */
-static VALUE 
+static VALUE
 ossl_x509extfactory_create_ext(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     X509V3_CTX *ctx;
@@ -351,7 +351,7 @@ ossl_x509ext_set_critical(VALUE self, SEL sel, VALUE flag)
     return flag;
 }
 
-static VALUE 
+static VALUE
 ossl_x509ext_get_oid(VALUE obj)
 {
     X509_EXTENSION *ext;
@@ -428,12 +428,12 @@ void
 Init_ossl_x509ext()
 {
     eX509ExtError = rb_define_class_under(mX509, "ExtensionError", eOSSLError);
-    
+
     cX509ExtFactory = rb_define_class_under(mX509, "ExtensionFactory", rb_cObject);
-	
+
     rb_objc_define_method(*(VALUE *)cX509ExtFactory, "alloc", ossl_x509extfactory_alloc, 0);
     rb_objc_define_method(cX509ExtFactory, "initialize", ossl_x509extfactory_initialize, -1);
-	
+
     rb_attr(cX509ExtFactory, rb_intern("issuer_certificate"), 1, 0, Qfalse);
     rb_attr(cX509ExtFactory, rb_intern("subject_certificate"), 1, 0, Qfalse);
     rb_attr(cX509ExtFactory, rb_intern("subject_request"), 1, 0, Qfalse);
@@ -446,7 +446,7 @@ Init_ossl_x509ext()
     rb_objc_define_method(cX509ExtFactory, "crl=", ossl_x509extfactory_set_crl, 1);
     rb_objc_define_method(cX509ExtFactory, "config=", ossl_x509extfactory_set_config, 1);
     rb_objc_define_method(cX509ExtFactory, "create_ext", ossl_x509extfactory_create_ext, -1);
-	
+
     cX509Ext = rb_define_class_under(mX509, "Extension", rb_cObject);
     rb_objc_define_method(*(VALUE *)cX509Ext, "alloc", ossl_x509ext_alloc, 0);
     rb_objc_define_method(cX509Ext, "initialize", ossl_x509ext_initialize, -1);

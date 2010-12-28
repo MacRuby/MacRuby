@@ -42,12 +42,12 @@ ossl_spki_alloc(VALUE klass, SEL sel)
 {
     NETSCAPE_SPKI *spki;
     VALUE obj;
-	
+
     if (!(spki = NETSCAPE_SPKI_new())) {
 	ossl_raise(eSPKIError, NULL);
-    }	
+    }
     WrapSPKI(klass, obj, spki);
-	
+
     return obj;
 }
 
@@ -57,7 +57,7 @@ ossl_spki_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
     NETSCAPE_SPKI *spki;
     VALUE buffer;
     const unsigned char *p;
-	
+
     if (rb_scan_args(argc, argv, "01", &buffer) == 0) {
 	return self;
     }
@@ -92,7 +92,7 @@ ossl_spki_to_der(VALUE self, SEL sel)
     if (i2d_NETSCAPE_SPKI(spki, &p) <= 0)
         ossl_raise(eX509CertError, NULL);
     ossl_str_adjust(str, p);
-    
+
     return str;
 }
 
@@ -102,7 +102,7 @@ ossl_spki_to_pem(VALUE self, SEL sel)
     NETSCAPE_SPKI *spki;
     char *data;
     VALUE str;
-	
+
     GetSPKI(self, spki);
     if (!(data = NETSCAPE_SPKI_b64_encode(spki))) {
 	ossl_raise(eSPKIError, NULL);
@@ -119,7 +119,7 @@ ossl_spki_print(VALUE self, SEL sel)
     BIO *out;
     BUF_MEM *buf;
     VALUE str;
-	
+
     GetSPKI(self, spki);
     if (!(out = BIO_new(BIO_s_mem()))) {
 	ossl_raise(eSPKIError, NULL);
@@ -131,7 +131,7 @@ ossl_spki_print(VALUE self, SEL sel)
     BIO_get_mem_ptr(out, &buf);
     str = rb_str_new(buf->data, buf->length);
     BIO_free(out);
-	
+
     return str;
 }
 
@@ -188,7 +188,7 @@ ossl_spki_set_challenge(VALUE self, SEL sel, VALUE str)
 			 RSTRING_LEN(str))) {
 	ossl_raise(eSPKIError, NULL);
     }
-    
+
     return str;
 }
 
@@ -236,14 +236,14 @@ void
 Init_ossl_ns_spki()
 {
     mNetscape = rb_define_module_under(mOSSL, "Netscape");
-	
+
     eSPKIError = rb_define_class_under(mNetscape, "SPKIError", eOSSLError);
-	
+
     cSPKI = rb_define_class_under(mNetscape, "SPKI", rb_cObject);
-	
+
     rb_objc_define_method(*(VALUE *)cSPKI, "alloc", ossl_spki_alloc, 0);
     rb_objc_define_method(cSPKI, "initialize", ossl_spki_initialize, -1);
-	
+
     rb_objc_define_method(cSPKI, "to_der", ossl_spki_to_der, 0);
     rb_objc_define_method(cSPKI, "to_pem", ossl_spki_to_pem, 0);
     rb_define_alias(cSPKI, "to_s", "to_pem");

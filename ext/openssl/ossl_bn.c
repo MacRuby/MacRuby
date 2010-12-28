@@ -91,7 +91,7 @@ ossl_bn_alloc(VALUE klass, SEL sel)
 {
     BIGNUM *bn;
     VALUE obj;
-	
+
     if (!(bn = BN_new())) {
 	ossl_raise(eBNError, NULL);
     }
@@ -382,7 +382,7 @@ ossl_bn_div(VALUE self, SEL sel, VALUE other)
     }
     WrapBN(CLASS_OF(self), obj1, r1);
     WrapBN(CLASS_OF(self), obj2, r2);
-    
+
     return rb_ary_new3(2, obj1, obj2);
 }
 
@@ -575,7 +575,7 @@ ossl_bn_s_generate_prime(VALUE klass, SEL sel, int argc, VALUE *argv)
     VALUE vnum, vsafe, vadd, vrem, obj;
 
     rb_scan_args(argc, argv, "13", &vnum, &vsafe, &vadd, &vrem);
-	
+
     num = NUM2INT(vnum);
 
     if (vsafe == Qfalse) {
@@ -593,7 +593,7 @@ ossl_bn_s_generate_prime(VALUE klass, SEL sel, int argc, VALUE *argv)
 	ossl_raise(eBNError, NULL);
     }
     WrapBN(klass, obj, result);
-    
+
     return obj;
 }
 
@@ -617,14 +617,14 @@ static VALUE
 ossl_bn_copy(VALUE self, SEL sel, VALUE other)
 {
     BIGNUM *bn1, *bn2;
-    
+
     rb_check_frozen(self);
-    
+
     if (self == other) return self;
-    
+
     GetBN(self, bn1);
     bn2 = GetBNPtr(other);
-    
+
     if (!BN_copy(bn1, bn2)) {
 	ossl_raise(eBNError, NULL);
     }
@@ -747,7 +747,7 @@ Init_ossl_bn()
 
     rb_objc_define_method(*(VALUE *)cBN, "alloc", ossl_bn_alloc, 0);
     rb_objc_define_method(cBN, "initialize", ossl_bn_initialize, -1);
-	
+
     rb_define_copy_func(cBN, ossl_bn_copy);
     rb_objc_define_method(cBN, "copy", ossl_bn_copy, 1);
 
@@ -795,7 +795,7 @@ Init_ossl_bn()
      * value_one - DON'T IMPL.
      * set_word
      * get_word */
-    
+
     rb_objc_define_method(*(VALUE *)cBN, "rand", ossl_bn_s_rand, -1);
     rb_objc_define_method(*(VALUE *)cBN, "pseudo_rand", ossl_bn_s_pseudo_rand, -1);
     rb_objc_define_method(*(VALUE *)cBN, "rand_range", ossl_bn_s_rand_range, 1);
@@ -832,7 +832,7 @@ Init_ossl_bn()
     rb_define_alias(cBN, "to_int", "to_i");
     rb_objc_define_method(cBN, "to_bn", ossl_bn_to_bn, 0);
     rb_objc_define_method(cBN, "coerce", ossl_bn_coerce, 1);
-	
+
     /*
      * TODO:
      * But how to: from_bin, from_mpi? PACK?
