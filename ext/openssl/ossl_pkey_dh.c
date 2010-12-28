@@ -412,7 +412,7 @@ ossl_dh_compute_key(VALUE self, SEL sel, VALUE pub)
     if ((len = DH_compute_key((unsigned char *)rb_bstr_bytes(str), pub_key, dh)) < 0) {
 	ossl_raise(eDHError, NULL);
     }
-    rb_str_set_len(str, len);
+    rb_bstr_resize(str, len);
 
     return str;
 }
