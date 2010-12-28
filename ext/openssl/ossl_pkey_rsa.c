@@ -348,7 +348,7 @@ ossl_rsa_public_decrypt(VALUE self, SEL sel, int argc, VALUE *argv)
 				 (unsigned char *)rb_bstr_bytes(str), pkey->pkey.rsa,
 				 pad);
     if (buf_len < 0) ossl_raise(eRSAError, NULL);
-    rb_str_set_len(str, buf_len);
+    rb_bstr_resize(str, buf_len);
     
     return str;
 }
@@ -378,7 +378,7 @@ ossl_rsa_private_encrypt(VALUE self, SEL sel, int argc, VALUE *argv)
 				  (unsigned char *)rb_bstr_bytes(str), pkey->pkey.rsa,
 				  pad);
     if (buf_len < 0) ossl_raise(eRSAError, NULL);
-    rb_str_set_len(str, buf_len);
+    rb_bstr_resize(str, buf_len);
     
     return str;
 }
@@ -409,7 +409,7 @@ ossl_rsa_private_decrypt(VALUE self, SEL sel, int argc, VALUE *argv)
 				  (unsigned char *)rb_bstr_bytes(str), pkey->pkey.rsa,
 				  pad);
     if (buf_len < 0) ossl_raise(eRSAError, NULL);
-    rb_str_set_len(str, buf_len);
+    rb_bstr_resize(str, buf_len);
 
     return str;
 }
