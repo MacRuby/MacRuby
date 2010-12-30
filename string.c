@@ -2331,16 +2331,17 @@ rstr_plus(VALUE self, SEL sel, VALUE other)
 static VALUE
 rstr_times(VALUE self, SEL sel, VALUE times)
 {
-    const long len = NUM2LONG(times);
-    if (len < 0) {
+    const long n = NUM2LONG(times);
+    if (n < 0) {
 	rb_raise(rb_eArgError, "negative argument");
     }
-    if (len > 0 && LONG_MAX/len < str_length(RSTR(self))) {
+    if (n > 0 && LONG_MAX/n < RSTR(self)->length_in_bytes) {
 	rb_raise(rb_eArgError, "argument too big");
     }
 
     VALUE new = str_new_like(self);
-    for (long i = 0; i < len; i++) {
+    str_resize_bytes(RSTR(new), n * RSTR(self)->length_in_bytes);
+    for (long i = 0; i < n; ++i) {
 	str_concat_string(RSTR(new), RSTR(self));
     }
     OBJ_INFECT(new, self);
