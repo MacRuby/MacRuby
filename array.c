@@ -1799,8 +1799,6 @@ rary_keep_if(VALUE ary, SEL sel)
 static bool
 rary_delete_element(VALUE ary, VALUE item, bool use_equal)
 {
-    rary_modify(ary);
-
     VALUE *p = rary_ptr(ary);
     VALUE *t = p;
     VALUE *end = p + RARY(ary)->len;
@@ -1849,6 +1847,8 @@ rary_delete(VALUE ary, SEL sel, VALUE item)
 	}
 	return Qnil;
     }
+
+    rary_modify(ary);
     return item;
 }
 
@@ -2838,6 +2838,7 @@ rary_uniq(VALUE ary, SEL sel)
 static VALUE
 rary_compact_bang(VALUE ary, SEL sel)
 {
+    rary_modify(ary);
     return rary_delete_element(ary, Qnil, false) ? ary : Qnil;
 }
 
