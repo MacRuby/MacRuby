@@ -1243,11 +1243,15 @@ inspect_ary(VALUE ary, VALUE dummy, int recur)
     }
 
     bool tainted = OBJ_TAINTED(ary);
+    bool untrusted = OBJ_UNTRUSTED(ary);
     VALUE str = rb_str_buf_new2("[");
     for (long i = 0; i < RARRAY_LEN(ary); i++) {
 	VALUE s = rb_inspect(RARRAY_AT(ary, i));
 	if (OBJ_TAINTED(s)) {
 	    tainted = true;
+	}
+	if (OBJ_UNTRUSTED(s)) {
+	    untrusted = true;
 	}
 	if (i > 0) {
 	    rb_str_buf_cat2(str, ", ");
@@ -1258,6 +1262,9 @@ inspect_ary(VALUE ary, VALUE dummy, int recur)
 
     if (tainted) {
 	OBJ_TAINT(str);
+    }
+    if (untrusted) {
+	OBJ_UNTRUST(str);
     }
     return str;
 }
