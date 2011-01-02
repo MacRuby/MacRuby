@@ -21,6 +21,7 @@ typedef struct {
     VALUE *elements;
 } rb_ary_t;
 
+#define ARY_MAX_SIZE (LONG_MAX / (int)sizeof(VALUE))
 #define RARY(x) ((rb_ary_t *)x)
 
 static inline bool
@@ -101,6 +102,10 @@ rary_store(VALUE ary, long idx, VALUE item)
                     idx - len);
         }
     }
+    else if (idx >= ARY_MAX_SIZE) {
+	rb_raise(rb_eIndexError, "index %ld too big", idx);
+    }
+
     size_t uidx = (size_t)idx;
     if (uidx >= RARY(ary)->len) {
         rary_reserve(ary, uidx + 1);

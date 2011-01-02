@@ -167,7 +167,7 @@ assert_ary_len(const long len)
     if (len < 0) {
 	rb_raise(rb_eArgError, "negative array size (or size too big)");
     }
-    if ((unsigned long)len > (LONG_MAX / sizeof(VALUE))) {
+    if ((unsigned long)len > ARY_MAX_SIZE) {
 	rb_raise(rb_eArgError, "array size too big");
     }
 }

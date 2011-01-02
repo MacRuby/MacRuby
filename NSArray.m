@@ -217,6 +217,9 @@ nsary_store(id ary, long idx, VALUE val)
 		    idx - len);
 	}
     }
+    else if (idx >= ARY_MAX_SIZE) {
+	rb_raise(rb_eIndexError, "index %ld too big", idx);
+    }
 
     CHECK_MUTABLE(ary);
 
