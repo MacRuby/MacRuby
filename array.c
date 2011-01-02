@@ -928,6 +928,9 @@ rary_splice(VALUE ary, long beg, long len, VALUE rpl)
 	rpl = rb_ary_dup(rpl);
     }
     if (beg >= n) {
+	if (beg > ARY_MAX_SIZE - rlen) {
+	    rb_raise(rb_eIndexError, "index %ld too big", beg);
+	}
 	for (long i = n; i < beg; i++) {
 	    rary_push(ary, Qnil);
 	}
