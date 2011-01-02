@@ -2352,7 +2352,7 @@ rary_times(VALUE ary, SEL sel, VALUE times)
     VALUE ary2 = rary_alloc(rb_obj_class(ary), 0);
     if (len > 0) {
 	const long n = RARY(ary)->len;
-	if (LONG_MAX/len < n) {
+	if (ARY_MAX_SIZE/len < n) {
 	    rb_raise(rb_eArgError, "argument too big");
 	}
 	for (long i = 0; i < len; i++) {
