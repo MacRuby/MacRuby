@@ -106,6 +106,7 @@ rary_store(VALUE ary, long idx, VALUE item)
 	rb_raise(rb_eIndexError, "index %ld too big", idx);
     }
 
+    rary_modify(ary);
     size_t uidx = (size_t)idx;
     if (uidx >= RARY(ary)->len) {
         rary_reserve(ary, uidx + 1);
