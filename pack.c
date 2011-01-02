@@ -1196,7 +1196,12 @@ hex2num(char c)
     PACK_LENGTH_ADJUST_SIZE(sizeof(type))
 #endif
 
-#define PACK_ITEM_ADJUST() while (tmp--) rb_ary_push(ary, Qnil)
+#define PACK_ITEM_ADJUST() do {				\
+	if (!block_p) {					\
+	    while (tmp--) rb_ary_push(ary, Qnil);	\
+	}						\
+    }							\
+    while (0)
 
 static VALUE
 infected_str_new(const char *ptr, long len, VALUE str)
