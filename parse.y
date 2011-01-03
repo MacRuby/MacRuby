@@ -2387,6 +2387,33 @@ call_args	: command
 			$$ = arg_add_optblock(arg_add_assocs($1, $3), $4);
 		    %*/
 		    }
+		| args ',' assocs ',' args opt_block_arg
+		    {
+		    /*%%%*/
+#if WITH_OBJC
+			NODE *n;
+			unsigned all_symbol_pairs = 1;
+			if ($1->nd_alen != 1)
+			    yyerror("invalid use of named arguments in method call");
+			for (n = $3; n != NULL; 
+			     n = n->nd_next->nd_next) {
+			    if (nd_type(n->nd_head) != NODE_LIT
+			        || TYPE(n->nd_head->nd_head) != T_SYMBOL) {
+			        all_symbol_pairs = 0;
+			        break;
+			    }
+			}
+			if (!all_symbol_pairs)
+			    yyerror("invalid use of named arguments in method call");
+                        $$ = arg_append($1, $3);
+                        $3->flags |= NODE_ARRAY_NAMED_ARGS;
+			$$ = arg_append($1, $5);
+			$$ = arg_blk_pass($$, $6);
+		    /*%
+			$$ = arg_add_optblock(arg_add_star(arg_add_assocs($1, $3), $5), $6);
+		    %*/
+#endif
+		    }
 		| block_arg
 		    /*%c%*/
 		    /*%c
@@ -8808,7 +8835,7 @@ process_named_args_gen(struct parser_params *parser, NODE *n)
 {
     NODE *args = n->nd_args;
     if (args != NULL 
-	&& args->nd_argc == 2 
+	&& (args->nd_argc == 2 || args->nd_argc == 3)
 	&& nd_type(args->u3.node->u1.node) == NODE_ARRAY
 	&& args->u3.node->u1.node->flags & NODE_ARRAY_NAMED_ARGS) {
 
@@ -8838,6 +8865,12 @@ process_named_args_gen(struct parser_params *parser, NODE *n)
 	}
 
 	n->nd_mid = rb_intern(buf);
+        if (args->nd_argc == 3) {
+            NODE *variadic_args = args->nd_next->nd_next->nd_head;
+            for (p = variadic_args; p != NULL; p = p->nd_next) {
+		list_append(new_argv, p->nd_head);
+            }
+	}
 	GC_WB(&n->nd_args, new_argv);
     }
     return n;
@@ -9883,7 +9916,7 @@ ripper_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
     struct lex_get_str_context *ctx = (struct lex_get_str_context *)
 	xmalloc(sizeof(struct lex_get_str_context));
     GC_WB(&ctx->str, src);
-    ctx->chars = chars;
+    ctx->chars = chars; // FIXME need write barrier?
     ctx->chars_len = chars_len;
 
     parser->parser_lex_gets = lex_get_str;
