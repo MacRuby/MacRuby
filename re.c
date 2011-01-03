@@ -41,10 +41,10 @@ typedef struct rb_match {
     VALUE str;
     rb_match_result_t *results;
     int results_count;
+    bool busy;
 } rb_match_t;
 
 #define RMATCH(o) ((rb_match_t *)o)
-#define MATCH_BUSY FL_USER2
 
 static rb_regexp_t *
 regexp_alloc(VALUE klass, SEL sel)
@@ -65,6 +65,7 @@ match_alloc(VALUE klass, SEL sel)
     match->str = 0;
     match->results = NULL;
     match->results_count = 0;
+    match->busy = false;
     return match;
 }
 
@@ -202,6 +203,7 @@ init_from_string(rb_regexp_t *regexp, VALUE str, int option, VALUE *excp)
 	// of -1 which indicates it's terminated by \0.
 	chars = &null_char;
 	chars_len = -1;
+	need_free = false;
     }
     else {
 	sanitize_regexp_string(&chars, &chars_len, &need_free);
@@ -722,6 +724,7 @@ rb_reg_matcher_new(VALUE re, VALUE str)
 	// of -1 which indicates it's terminated by \0.
 	chars = &null_char;
 	chars_len = -1;
+	need_free = false;
     }
 
     uregex_setText(match_pattern, chars, chars_len, &status);
@@ -808,7 +811,7 @@ rb_reg_matcher_search_find(VALUE re, VALUE matcher, int pos, bool reverse,
     rb_match_result_t *res = NULL;
 
     VALUE match = rb_backref_get();
-    if (NIL_P(match) || FL_TEST(match, MATCH_BUSY)) {
+    if (NIL_P(match) || RMATCH(match)->busy) {
 	// Creating a new Match object.
 	match = (VALUE)match_alloc(rb_cMatch, 0);
 	rb_backref_set(match);
@@ -2203,7 +2206,9 @@ bail:
 void
 rb_match_busy(VALUE match)
 {
-    FL_SET(match, MATCH_BUSY);
+    if (match != Qnil) {
+	RMATCH(match)->busy = true;
+    }
 }
 
 int
