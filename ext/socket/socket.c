@@ -2271,6 +2271,26 @@ sock_initialize(VALUE sock, SEL sel, VALUE domain, VALUE type, VALUE protocol)
     return init_sock(sock, fd);
 }
 
+#if defined HAVE_SOCKETPAIR
+static VALUE
+io_call_close(VALUE io)
+{
+    return rb_funcall(io, rb_intern("close"), 0, 0);
+}
+
+static VALUE
+io_close(VALUE io)
+{
+    return rb_rescue(io_call_close, io, 0, 0);
+}
+
+static VALUE
+pair_yield(VALUE pair)
+{
+    return rb_ensure(rb_yield, pair, io_close, rb_ary_entry(pair, 1));
+}
+#endif
+
 static VALUE
 sock_s_socketpair(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
@@ -2278,6 +2298,8 @@ sock_s_socketpair(VALUE klass, SEL sel, int argc, VALUE *argv)
     VALUE domain, type, protocol;
     int d, t, p, sp[2];
     int ret;
+    VALUE s1, s2, r;
+
     rb_scan_args(argc, argv, "21", &domain, &type, &protocol);
     if (NIL_P(protocol))
         protocol = INT2FIX(0);
@@ -2293,8 +2315,13 @@ sock_s_socketpair(VALUE klass, SEL sel, int argc, VALUE *argv)
 	rb_sys_fail("socketpair(2)");
     }
 
-    return rb_assoc_new(init_sock(rb_obj_alloc(klass), sp[0]),
-			init_sock(rb_obj_alloc(klass), sp[1]));
+    s1 = init_sock(rb_obj_alloc(klass), sp[0]);
+    s2 = init_sock(rb_obj_alloc(klass), sp[1]);
+    r = rb_assoc_new(s1, s2);
+    if (rb_block_given_p()) {
+        return rb_ensure(pair_yield, r, io_close, s1);
+    }
+    return r;
 #else
     rb_notimplement();
 #endif
