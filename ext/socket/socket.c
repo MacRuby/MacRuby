@@ -2272,11 +2272,15 @@ sock_initialize(VALUE sock, SEL sel, VALUE domain, VALUE type, VALUE protocol)
 }
 
 static VALUE
-sock_s_socketpair(VALUE klass, SEL sel, VALUE domain, VALUE type, VALUE protocol)
+sock_s_socketpair(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
 #if defined HAVE_SOCKETPAIR
+    VALUE domain, type, protocol;
     int d, t, p, sp[2];
     int ret;
+    rb_scan_args(argc, argv, "21", &domain, &type, &protocol);
+    if (NIL_P(protocol))
+        protocol = INT2FIX(0);
 
     setup_domain_and_type(domain, &d, type, &t);
     p = NUM2INT(protocol);
@@ -2301,15 +2305,20 @@ static VALUE
 unix_s_socketpair(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     VALUE domain, type, protocol;
-    domain = INT2FIX(PF_UNIX);
+    VALUE args[3];
 
+    domain = INT2FIX(PF_UNIX);
     rb_scan_args(argc, argv, "02", &type, &protocol);
     if (argc == 0)
 	type = INT2FIX(SOCK_STREAM);
     if (argc <= 1)
 	protocol = INT2FIX(0);
 
-    return sock_s_socketpair(klass, 0, domain, type, protocol);
+    args[0] = domain;
+    args[1] = type;
+    args[2] = protocol;
+
+    return sock_s_socketpair(klass, 0, 3, args);
 }
 #endif
 
@@ -3630,8 +3639,8 @@ Init_socket()
     rb_objc_define_method(rb_cSocket, "recvfrom", sock_recvfrom, -1);
     rb_objc_define_method(rb_cSocket, "recvfrom_nonblock", sock_recvfrom_nonblock, -1);
 
-    rb_objc_define_method(*(VALUE *)rb_cSocket, "socketpair", sock_s_socketpair, 3);
-    rb_objc_define_method(*(VALUE *)rb_cSocket, "pair", sock_s_socketpair, 3);
+    rb_objc_define_method(*(VALUE *)rb_cSocket, "socketpair", sock_s_socketpair, -1);
+    rb_objc_define_method(*(VALUE *)rb_cSocket, "pair", sock_s_socketpair, -1);
     rb_objc_define_method(*(VALUE *)rb_cSocket, "gethostname", sock_gethostname, 0);
     rb_objc_define_method(*(VALUE *)rb_cSocket, "gethostbyname", sock_s_gethostbyname, 1);
     rb_objc_define_method(*(VALUE *)rb_cSocket, "gethostbyaddr", sock_s_gethostbyaddr, -1);
