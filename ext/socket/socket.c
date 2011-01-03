@@ -3241,8 +3241,14 @@ sock_s_getservbyport(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE port, proto;
     struct servent *sp;
+    long portnum;
 
     rb_scan_args(argc, argv, "11", &port, &proto);
+    portnum = NUM2LONG(port);
+    if (portnum != (uint16_t)portnum) {
+	const char *s = portnum > 0 ? "big" : "small";
+	rb_raise(rb_eRangeError, "integer %ld too %s to convert into `int16_t'", portnum, s);
+    }
     if (NIL_P(proto)) proto = rb_str_new2("tcp");
     StringValue(proto);
 
