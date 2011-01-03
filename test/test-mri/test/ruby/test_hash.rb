@@ -257,8 +257,6 @@ class TestHash < Test::Unit::TestCase
   end
 
   def test_delete_if
-    skip("[BUG : #793] wontfix : Iterator is executed more when calls Hash#shift in Hash's Iterator.")
-
     base = @cls[ 1 => 'one', 2 => false, true => 'true', 'cat' => 99 ]
     h1   = @cls[ 1 => 'one', 2 => false, true => 'true' ]
     h2   = @cls[ 2 => false, 'cat' => 99 ]
@@ -319,8 +317,6 @@ class TestHash < Test::Unit::TestCase
   end
 
   def test_each
-    skip("[BUG : #792] wontfix : Hash#delete while iterating is broken.")
-
     count = 0
     @cls[].each { |k, v| count + 1 }
     assert_equal(0, count)
@@ -333,8 +329,6 @@ class TestHash < Test::Unit::TestCase
   end
 
   def test_each_key
-    skip("[BUG : #792] wontfix : Hash#delete while iterating is broken.")
-
     count = 0
     @cls[].each_key { |k| count + 1 }
     assert_equal(0, count)
@@ -347,8 +341,6 @@ class TestHash < Test::Unit::TestCase
   end
 
   def test_each_pair
-    skip("[BUG : #792] wontfix : Hash#delete while iterating is broken.")
-
     count = 0
     @cls[].each_pair { |k, v| count + 1 }
     assert_equal(0, count)
@@ -682,6 +674,8 @@ class TestHash < Test::Unit::TestCase
   end
 
   def test_security_check
+    skip("[BUG : #1076 Abort")
+
     h = {}
     assert_raise(SecurityError) do
       Thread.new do
@@ -725,8 +719,6 @@ class TestHash < Test::Unit::TestCase
   end
 
   def test_shift2
-    skip("[BUG : #793] wontfix : Iterator is executed more when calls Hash#shift in Hash's Iterator.")
-
     h = Hash.new {|hh, k| :foo }
     h[1] = 2
     assert_equal([1, 2], h.shift)

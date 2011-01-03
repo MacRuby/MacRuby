@@ -73,6 +73,8 @@ class TestStruct < Test::Unit::TestCase
   end
 
   def test_modify
+    skip("[BUG : #1076 Abort")
+
     klass = Struct.new(:a)
     o = klass.new(1)
     assert_raise(SecurityError) do

@@ -346,6 +346,9 @@ class TestM17NComb < Test::Unit::TestCase
         assert_raise(Encoding::CompatibilityError) { s << s2 }
       end
     }
+
+    assert_equal("A\x84\x31\xA4\x39".force_encoding("GB18030"),
+                 "A".force_encoding("GB18030") << 0x8431A439)
   end
 
   def test_str_aref
@@ -644,8 +647,6 @@ class TestM17NComb < Test::Unit::TestCase
   end
 
   def test_str_center
-    skip("[BUG : #772] Assertion")
-
     combination(STRINGS, [0,1,2,3,10]) {|s1, width|
       t = s1.center(width)
       assert(a(t).index(a(s1)))
@@ -688,8 +689,6 @@ class TestM17NComb < Test::Unit::TestCase
   end
 
   def test_str_rjust
-    skip("[BUG : #772] Assertion")
-
     combination(STRINGS, [0,1,2,3,10]) {|s1, width|
       t = s1.rjust(width)
       assert(a(t).index(a(s1)))
@@ -728,8 +727,6 @@ class TestM17NComb < Test::Unit::TestCase
   end
 
   def test_str_chop
-    skip("[BUG : #772] Assertion")
-
     STRINGS.each {|s|
       s = s.dup
       desc = "#{encdump s}.chop"
@@ -1014,8 +1011,6 @@ class TestM17NComb < Test::Unit::TestCase
   end
 
   def test_str_insert
-    skip("[BUG : #772] Assertion")
-
     combination(STRINGS, 0..2, STRINGS) {|s1, nth, s2|
       t1 = s1.dup
       t2 = s1.dup
@@ -1082,8 +1077,6 @@ class TestM17NComb < Test::Unit::TestCase
   end
 
   def test_str_reverse
-    skip("[BUG : #772] Assertion")
-
     STRINGS.each {|s|
       t = s.reverse
       assert_equal(s.bytesize, t.bytesize)
@@ -1279,7 +1272,7 @@ class TestM17NComb < Test::Unit::TestCase
   end
 
   def test_tr
-    skip("[BUG : #827] Assertion")
+    skip("[BUG : #???] Assertion")
 
     combination(STRINGS, STRINGS, STRINGS) {|s1, s2, s3|
       desc = "#{encdump s1}.tr(#{encdump s2}, #{encdump s3})"
@@ -1310,7 +1303,7 @@ class TestM17NComb < Test::Unit::TestCase
   end
 
   def test_tr_s
-    skip("[BUG : #827] Assertion")
+    skip("[BUG : #???] Assertion")
 
     combination(STRINGS, STRINGS, STRINGS) {|s1, s2, s3|
       desc = "#{encdump s1}.tr_s(#{encdump s2}, #{encdump s3})"
@@ -1358,6 +1351,8 @@ class TestM17NComb < Test::Unit::TestCase
   end
 
   def test_str_succ
+    skip("[BUG : #???] Assertion")
+
     STRINGS.each {|s0|
       next if s0.empty?
       s = s0.dup

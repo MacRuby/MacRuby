@@ -357,8 +357,6 @@ class TestThread < Test::Unit::TestCase
   end
 
   def test_thread_local_security
-    skip("[BUG : #842] SecurityError Level 4")
-
     t = Thread.new { sleep }
 
     assert_raise(SecurityError) do
@@ -478,7 +476,7 @@ class TestThreadGroup < Test::Unit::TestCase
   end
 
   def test_frozen_thgroup
-    skip("[BUG : #???] Assertion")
+    skip("[BUG : #1085] Assertion failed: ((b->flags & flags) == flags)")
 
     thgrp = ThreadGroup.new
 

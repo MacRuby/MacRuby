@@ -27,8 +27,6 @@ class TestWEBrickCGI < Test::Unit::TestCase
   end
 
   def test_cgi
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     start_cgi_server{|server, addr, port, log|
       http = Net::HTTP.new(addr, port)
       req = Net::HTTP::Get.new("/webrick.cgi")
@@ -85,8 +83,6 @@ class TestWEBrickCGI < Test::Unit::TestCase
   end
 
   def test_bad_request
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     start_cgi_server{|server, addr, port, log|
       sock = TCPSocket.new(addr, port)
       begin

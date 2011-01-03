@@ -237,8 +237,6 @@ class WEBrick::TestFileHandler < Test::Unit::TestCase
   end
 
   def test_script_disclosure
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     config = {
       :CGIInterpreter => TestWEBrick::RubyBin,
       :DocumentRoot => File.dirname(__FILE__),

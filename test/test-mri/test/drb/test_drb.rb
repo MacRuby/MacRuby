@@ -1,6 +1,3 @@
-puts "[BUG : #???] Timeout, MacRuby don't finish #{$0}"
-__END__
-
 require_relative 'drbtest'
 
 class TestDRbCore < Test::Unit::TestCase

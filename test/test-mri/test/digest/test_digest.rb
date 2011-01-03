@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 #
 # $RoughId: test.rb,v 1.4 2001/07/13 15:38:27 knu Exp $
-# $Id: test_digest.rb 27586 2010-05-02 05:56:35Z nobu $
+# $Id: test_digest.rb 29665 2010-11-01 15:04:05Z yugui $
 
 require 'test/unit'
 
@@ -125,4 +125,11 @@ module TestDigest
       Data2 => "12a053384a9c0c88e405a06c27dcf49ada62eb2b",
     }
   end if defined?(Digest::RMD160)
+
+  class TestBase < Test::Unit::TestCase
+    def test_base
+      bug3810 = '[ruby-core:32231]'
+      assert_raise(NotImplementedError, bug3810) {Digest::Base.new}
+    end
+  end
 end

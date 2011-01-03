@@ -271,6 +271,12 @@ class TestRubyOptions < Test::Unit::TestCase
       assert_equal("\"\u3042\"", r.join.force_encoding(Encoding::UTF_8))
       assert_equal([], e)
     end
+
+    bug4118 = '[ruby-dev:42680]'
+    assert_in_out_err(%w[], "#!/bin/sh\n""#!shebang\n""#!ruby\n""puts __LINE__\n",
+                      %w[4], [], bug4118)
+    assert_in_out_err(%w[-x], "#!/bin/sh\n""#!shebang\n""#!ruby\n""puts __LINE__\n",
+                      %w[4], [], bug4118)
   end
 
   def test_sflag
@@ -444,5 +450,16 @@ class TestRubyOptions < Test::Unit::TestCase
     end
     s.close
     assert_equal("\"zzz\\n\"\n", result, '[ruby-core:30910]')
+  end
+
+  def test_unmatching_glob
+    bug3851 = '[ruby-core:32478]'
+    a = "a[foo"
+    Dir.mktmpdir do |dir|
+      open(File.join(dir, a), "w") {|f| f.puts("p 42")}
+      assert_in_out_err(["-C", dir, a], "", ["42"], [], bug3851)
+      File.unlink(File.join(dir, a))
+      assert_in_out_err(["-C", dir, a], "", [], /LoadError/, bug3851)
+    end
   end
 end

@@ -175,9 +175,11 @@ class TestString < Test::Unit::TestCase
     def o.<=>(x); nil; end
     assert_nil("foo" <=> o)
 
+    class << o;remove_method :<=>;end
     def o.<=>(x); 1; end
     assert_equal(-1, "foo" <=> o)
 
+    class << o;remove_method :<=>;end
     def o.<=>(x); 2**100; end
     assert_equal(-(2**100), "foo" <=> o)
   end
@@ -200,6 +202,7 @@ class TestString < Test::Unit::TestCase
     def o.to_str; end
     def o.==(x); false; end
     assert_equal(false, "foo" == o)
+    class << o;remove_method :==;end
     def o.==(x); true; end
     assert_equal(true, "foo" == o)
   end
@@ -479,6 +482,8 @@ class TestString < Test::Unit::TestCase
     assert_equal(4, a.count(S("hello"), S("^l")))
     assert_equal(4, a.count(S("ej-m")))
     assert_equal(0, S("y").count(S("a\\-z")))
+    assert_equal(5, "abc\u{3042 3044 3046}".count("^a"))
+    assert_equal(5, "abc\u{3042 3044 3046}".count("^\u3042"))
 
     assert_raise(ArgumentError) { "foo".count }
   end
@@ -498,6 +503,10 @@ class TestString < Test::Unit::TestCase
     assert_equal(true, "a\u0101".delete("\u0101").ascii_only?)
     assert_equal(true, "a\u3041".delete("\u3041").ascii_only?)
     assert_equal(false, "a\u3041\u3042".tr("\u3041", "a").ascii_only?)
+
+    assert_equal("a", "abc\u{3042 3044 3046}".delete("^a"))
+    assert_equal("bc\u{3042 3044 3046}", "abc\u{3042 3044 3046}".delete("a"))
+    assert_equal("\u3042", "abc\u{3042 3044 3046}".delete("^\u3042"))
   end
 
   def test_delete!
@@ -956,6 +965,14 @@ class TestString < Test::Unit::TestCase
     res = []
     a.scan(/(...)/) { |w| res << w }
     assert_equal([[S("cru")], [S("el ")], [S("wor")]],res)
+
+    a = S("hello")
+    a.taint
+    a.untrust
+    res = []
+    a.scan(/./) { |w| res << w }
+    assert(res[0].tainted?, '[ruby-core:33338] #4087')
+    assert(res[0].untrusted?, '[ruby-core:33338] #4087')
   end
 
   def test_size
@@ -1365,8 +1382,6 @@ class TestString < Test::Unit::TestCase
   end
 
   def test_sum_long
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     s8421505 = "\xff" * 8421505
     assert_equal(127, s8421505.sum(31))
     assert_equal(2147483775, s8421505.sum(0))
@@ -1456,7 +1471,7 @@ class TestString < Test::Unit::TestCase
   end
 
   def test_tr
-    skip("[BUG : #827] Assertion")
+    skip("[BUG : #???] Assertion")
 
     assert_equal(S("hippo"), S("hello").tr(S("el"), S("ip")))
     assert_equal(S("*e**o"), S("hello").tr(S("^aeiou"), S("*")))
@@ -1472,7 +1487,7 @@ class TestString < Test::Unit::TestCase
   end
 
   def test_tr!
-    skip("[BUG : #827] Assertion")
+    skip("[BUG : #???] Assertion")
 
     a = S("hello")
     b = a.dup
@@ -1814,6 +1829,7 @@ class TestString < Test::Unit::TestCase
       c.class_eval { attr 1 }
     end
 
+    class << o;remove_method :to_str;end
     def o.to_str; "foo"; end
     assert_nothing_raised do
       c.class_eval { attr o }
@@ -1884,10 +1900,20 @@ class TestString < Test::Unit::TestCase
   end
 
   def test_ascii_incomat_inspect
+    bug4081 = '[ruby-core:33283]'
     [Encoding::UTF_16LE, Encoding::UTF_16BE,
      Encoding::UTF_32LE, Encoding::UTF_32BE].each do |e|
       assert_equal('"abc"', "abc".encode(e).inspect)
       assert_equal('"\\u3042\\u3044\\u3046"', "\u3042\u3044\u3046".encode(e).inspect)
+      assert_equal('"ab\\"c"', "ab\"c".encode(e).inspect, bug4081)
     end
+    begin
+      ext = Encoding.default_external
+      Encoding.default_external = "us-ascii"
+      i = "abc\"\\".force_encoding("utf-8").inspect
+    ensure
+      Encoding.default_external = ext
+    end
+    assert_equal('"abc\\"\\\\"', i, bug4081)
   end
 end

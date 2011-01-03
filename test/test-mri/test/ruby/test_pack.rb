@@ -596,6 +596,8 @@ class TestPack < Test::Unit::TestCase
   end
 
   def test_modify_under_safe4
+    skip("[BUG : #1076 Abort")
+
     s = "foo"
     assert_raise(SecurityError) do
       Thread.new do
@@ -614,5 +616,12 @@ class TestPack < Test::Unit::TestCase
       str = [1].pack(fmt)
       assert_equal([1,nil], str.unpack("#{fmt}2"))
     }
+  end
+
+  def test_short_with_block
+    bug4059 = '[ruby-core:33193]'
+    result = :ok
+    assert_nil("".unpack("i") {|x| result = x}, bug4059)
+    assert_equal(:ok, result)
   end
 end

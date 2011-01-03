@@ -90,7 +90,7 @@ class PPInspectTest < Test::Unit::TestCase
   end
 
   def test_pretty_print_inspect
-    skip("[BUG : #???] Segfault")
+    skip("[BUG : #1082] Segfault")
 
     a = PrettyPrintInspect.new(1)
     assert_equal("<pretty_print:1>", a.inspect)
