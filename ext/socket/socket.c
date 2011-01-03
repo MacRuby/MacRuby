@@ -2258,10 +2258,15 @@ setup_domain_and_type(VALUE domain, int *dv, VALUE type, int *tv)
 }
 
 static VALUE
-sock_initialize(VALUE sock, SEL sel, VALUE domain, VALUE type, VALUE protocol)
+sock_initialize(VALUE sock, SEL sel, int argc, VALUE *argv)
 {
+    VALUE domain, type, protocol;
     int fd;
     int d, t;
+
+    rb_scan_args(argc, argv, "21", &domain, &type, &protocol);
+    if (NIL_P(protocol))
+        protocol = INT2FIX(0);
 
     rb_secure(3);
     setup_domain_and_type(domain, &d, type, &t);
@@ -3654,7 +3659,7 @@ Init_socket()
 
     rb_cSocket = rb_define_class("Socket", rb_cBasicSocket);
 
-    rb_objc_define_method(rb_cSocket, "initialize", sock_initialize, 3);
+    rb_objc_define_method(rb_cSocket, "initialize", sock_initialize, -1);
     rb_objc_define_method(rb_cSocket, "connect", sock_connect, 1);
     rb_objc_define_method(rb_cSocket, "connect_nonblock", sock_connect_nonblock, 1);
     rb_objc_define_method(rb_cSocket, "bind", sock_bind, 1);
