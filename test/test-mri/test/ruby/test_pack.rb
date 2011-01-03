@@ -596,7 +596,7 @@ class TestPack < Test::Unit::TestCase
   end
 
   def test_modify_under_safe4
-    skip("[BUG : #1076 Abort")
+    skip("[BUG : #1076] Abort")
 
     s = "foo"
     assert_raise(SecurityError) do

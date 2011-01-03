@@ -281,7 +281,7 @@ class TestTime < Test::Unit::TestCase
   T2000 = Time.at(946684800).gmtime
 
   def test_security_error
-    skip("[BUG : #1076 Abort")
+    skip("[BUG : #1076] Abort")
 
     assert_raise(SecurityError) do
       Thread.new do

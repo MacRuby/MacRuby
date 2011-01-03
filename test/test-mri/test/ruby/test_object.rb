@@ -41,7 +41,7 @@ class TestObject < Test::Unit::TestCase
   end
 
   def test_freeze_under_safe_4
-    skip("[BUG : #1076 Abort")
+    skip("[BUG : #1076] Abort")
 
     o = Object.new
     assert_raise(SecurityError) do
@@ -214,7 +214,7 @@ class TestObject < Test::Unit::TestCase
   end
 
   def test_add_method_under_safe4
-    skip("[BUG : #1076 Abort")
+    skip("[BUG : #1076] Abort")
 
     o = Object.new
     assert_raise(SecurityError) do
@@ -249,7 +249,7 @@ class TestObject < Test::Unit::TestCase
   end
 
   def test_remove_method
-    skip("[BUG : #1076 Abort")
+    skip("[BUG : #1076] Abort")
 
     assert_raise(SecurityError) do
       Thread.new do

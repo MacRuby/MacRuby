@@ -114,7 +114,7 @@ class TestEnv < Test::Unit::TestCase
   end
 
   def test_aset
-    skip("[BUG : #1076 Abort")
+    skip("[BUG : #1076] Abort")
 
     assert_raise(SecurityError) do
       Thread.new do

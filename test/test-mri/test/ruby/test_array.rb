@@ -1630,7 +1630,7 @@ class TestArray < Test::Unit::TestCase
   end
 
   def test_modify_check
-    skip("[BUG : #1076 Abort")
+    skip("[BUG : #1076] Abort")
 
     a = []
     a.freeze
