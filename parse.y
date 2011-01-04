@@ -9916,7 +9916,12 @@ ripper_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
     struct lex_get_str_context *ctx = (struct lex_get_str_context *)
 	xmalloc(sizeof(struct lex_get_str_context));
     GC_WB(&ctx->str, src);
-    ctx->chars = chars; // FIXME need write barrier?
+    if (need_free) {
+	GC_WB(&ctx->chars, chars);
+    }
+    else {
+	ctx->chars = chars;
+    }
     ctx->chars_len = chars_len;
 
     parser->parser_lex_gets = lex_get_str;
