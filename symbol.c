@@ -49,19 +49,18 @@ is_identchar(UChar c)
 ID
 rb_intern_str(VALUE str)
 {
-    const unsigned long name_hash = rb_str_hash(str);
-    ID id = (ID)CFDictionaryGetValue(sym_id, (const void *)name_hash); 
-    if (id != 0) {
-	return id;
-    } 
-
-    rb_sym_t *sym = NULL;
-
     UChar *chars = NULL;
     long chars_len = 0;
     bool need_free = false;
     rb_str_get_uchars(str, &chars, &chars_len, &need_free);
 
+    const unsigned long name_hash = rb_str_hash_uchars(chars, chars_len);
+    ID id = (ID)CFDictionaryGetValue(sym_id, (const void *)name_hash); 
+    if (id != 0) {
+	goto return_id;
+    } 
+
+    rb_sym_t *sym = NULL;
     long pos = 0;
     if (chars_len > 0) {
 	UChar c = chars[0];
@@ -121,6 +120,7 @@ id_register:
     CFDictionarySetValue(sym_id, (const void *)name_hash, (const void *)id);
     CFDictionarySetValue(id_str, (const void *)id, (const void *)sym);
 
+return_id:
     if (need_free) {
 	free(chars);
     }
