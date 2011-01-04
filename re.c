@@ -730,7 +730,7 @@ rb_reg_matcher_new(VALUE re, VALUE str)
     uregex_setText(match_pattern, chars, chars_len, &status);
 
     if (status != U_ZERO_ERROR) {
-	uregex_close(matcher->pattern);
+	uregex_close(match_pattern);
 	if (need_free) {
 	    free(chars);
 	}
