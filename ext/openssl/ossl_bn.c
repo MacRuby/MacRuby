@@ -671,7 +671,7 @@ ossl_bn_is_prime(VALUE self, SEL sel, int argc, VALUE *argv)
     VALUE vchecks;
     int checks = BN_prime_checks;
 
-    if (rb_scan_args(argc, argv, "01", &vchecks) == 0) {
+    if (rb_scan_args(argc, argv, "01", &vchecks) == 1) {
 	checks = NUM2INT(vchecks);
     }
     GetBN(self, bn);
