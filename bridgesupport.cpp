@@ -582,6 +582,16 @@ rb_boxed_fields(VALUE rcv, SEL sel)
 }
 
 static VALUE
+rb_boxed_size(VALUE rcv, SEL sel)
+{
+    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(rcv);
+    if (bs_boxed->bs_type == BS_ELEMENT_STRUCT) {
+	return LONG2NUM(GET_CORE()->get_sizeof(bs_boxed->as.s->type));
+    }
+    return Qnil;
+}
+
+static VALUE
 rb_vm_opaque_new(VALUE rcv, SEL sel)
 {
     // XXX instead of doing this, we should perhaps simply delete the new
@@ -639,6 +649,8 @@ RoxorCore::register_bs_boxed(bs_element_type_t type, void *value)
 	// Define other utility methods.
 	rb_objc_define_method(*(VALUE *)boxed->klass, "fields",
 		(void *)rb_boxed_fields, 0);
+	rb_objc_define_method(*(VALUE *)boxed->klass, "size",
+		(void *)rb_boxed_size, 0);
 	rb_objc_define_method(boxed->klass, "dup",
 		(void *)rb_vm_struct_dup, 0);
 	rb_objc_define_method(boxed->klass, "clone",
