@@ -298,7 +298,7 @@ VALUE rstr_concat(VALUE self, SEL sel, VALUE other);
 
 VALUE rb_unicode_str_new(const UniChar *ptr, const size_t len);
 
-#define STR_UCHARS_STATIC_BUFSIZE 35
+#define STR_UCHARS_STATIC_BUFSIZE 64
 
 typedef struct {
     UChar static_buf[STR_UCHARS_STATIC_BUFSIZE];
