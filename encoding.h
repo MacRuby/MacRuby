@@ -316,7 +316,8 @@ rb_str_get_uchars(VALUE str, rb_str_uchars_buf_t *buf)
 	if (rstr->encoding->ascii_compatible && str_is_ascii_only(rstr)
 		&& rstr->length_in_bytes < STR_UCHARS_STATIC_BUFSIZE) {
 	    // Fast path.
-	    for (long i = 0; i < rstr->length_in_bytes; i++) {
+	    long i;
+	    for (i = 0; i < rstr->length_in_bytes; i++) {
 		buf->static_buf[i] = rstr->bytes[i];
 	    }
 	    buf->chars = buf->static_buf;
