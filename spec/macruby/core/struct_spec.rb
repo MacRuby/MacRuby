@@ -212,6 +212,18 @@ describe "A BridgeSupport structure" do
     end
   end
 
+  it "returns the sizeof of the C structure when the #size class method is called" do
+    if RUBY_ARCH == 'x86_64'
+      NSPoint.size.should == 16
+      NSSize.size.should == 16
+      NSRect.size.should == 32
+    else
+      NSPoint.size.should == 8
+      NSSize.size.should == 8
+      NSRect.size.should == 16
+    end
+  end
+
   if MACOSX_VERSION <= 10.6
     it "defined after a structure which has the same type is an alias to the other structure class" do
       NSPoint.should == CGPoint
