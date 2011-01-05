@@ -372,14 +372,9 @@ cstr_update(UChar **str, long *str_len, long start, long num, VALUE replace)
 		sizeof(UChar) * (len - start - num));
     }
     if (replace_len > 0) {
-	UChar *replace_chars = NULL;
-	bool need_free = false;
-	rb_str_get_uchars(replace, &replace_chars, &replace_len, &need_free);
-	assert(replace_len > 0);
+	RB_STR_GET_UCHARS(replace, replace_chars, replace_len2);
+	assert(replace_len2 == replace_len);
 	bcopy(replace_chars, *str + start, sizeof(UChar) * replace_len);
-	if (need_free) {
-	    free(replace_chars);
-	}
     }
     return replace_len - num;
 }
@@ -413,19 +408,11 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 {
     bool tainted = OBJ_TAINTED(fmt);
 
-    UChar *format_str = NULL;
     long format_len = 0;
-    bool need_free = false;
-    rb_str_get_uchars(fmt, &format_str, &format_len, &need_free);
+    UChar *format_str = rb_str_xcopy_uchars(fmt, &format_len);
     if (format_len == 0) {
 	goto bail;
     }
-    UChar *tmp = (UChar *)xmalloc(format_len * sizeof(UChar));
-    memcpy(tmp, format_str, format_len * sizeof(UChar));
-    if (need_free) {
-	free(format_str);
-    }
-    format_str = tmp;
 
     long num, pos;
     int j = 0;

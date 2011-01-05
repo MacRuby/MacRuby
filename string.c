@@ -320,6 +320,9 @@ str_replace_with_uchars(rb_str_t *self, const UChar *chars, long len)
 	if (chars == NULL) {
 	    str_resize_bytes(self, len);
 	}
+	else if (self->bytes == (char *)chars) {
+	    self->length_in_bytes = UCHARS_TO_BYTES(len);
+	}
 	else {
 	    str_concat_uchars(self, chars, len);
 	}
@@ -1182,42 +1185,74 @@ str_extract_uchars_range(rb_str_t *self, long range_start_offset_in_uchars,
 }
 
 void
-rb_str_get_uchars(VALUE str, UChar **chars_p, long *chars_len_p,
-	bool *need_free_p)
+rb_str_get_uchars_always(VALUE str, rb_str_uchars_buf_t *buf)
 {
-    assert(chars_p != NULL && chars_len_p != NULL && need_free_p != NULL);
+    long len = 0;
 
-    UChar *chars = NULL;
-    long chars_len = 0;
-    bool need_free = false;
+    buf->chars = NULL;
 
     if (IS_RSTR(str)) {
 	rb_str_t *rstr = RSTR(str);
 	if (rstr->length_in_bytes > 0) {
-	    chars_len = str_length(RSTR(str));
+	    len = str_length(rstr);
 	    if (IS_NATIVE_UTF16_ENC(rstr->encoding)) {
-		chars = (UChar *)rstr->bytes;
+		buf->chars = (UChar *)rstr->bytes;
 	    }
 	    else {
-		chars = (UChar *)malloc(sizeof(UChar) * chars_len);
-		str_extract_uchars_range(RSTR(str), 0, chars_len, chars);
-		need_free = true;
+		if (len > STR_UCHARS_STATIC_BUFSIZE) {
+		    buf->chars = (UChar *)malloc(sizeof(UChar) * len);
+		}
+		else {
+		    buf->chars = buf->static_buf;
+		}
+		str_extract_uchars_range(rstr, 0, len, buf->chars);
 	    }
 	}
     }
     else {
-	chars_len = CFStringGetLength((CFStringRef)str);
-	if (chars_len > 0) {
-	    chars = (UChar *)malloc(sizeof(UChar) * chars_len);
-	    CFStringGetCharacters((CFStringRef)str, CFRangeMake(0, chars_len),
-		    chars);
-	    need_free = true;
+	len = CFStringGetLength((CFStringRef)str);
+	if (len > 0) {
+	    if (len > STR_UCHARS_STATIC_BUFSIZE) {
+		buf->chars = (UChar *)malloc(sizeof(UChar) * len);
+	    }
+	    else {
+		buf->chars = buf->static_buf;
+	    }
+	    CFStringGetCharacters((CFStringRef)str, CFRangeMake(0, len),
+		    buf->chars);
 	}
     }
 
-    *chars_p = chars;
-    *chars_len_p = chars_len;
-    *need_free_p = need_free;
+    buf->len = len;
+}
+
+UChar *
+rb_str_xcopy_uchars(VALUE str, long *len_p)
+{
+    UChar *chars = NULL;
+    long len = 0;
+
+    if (IS_RSTR(str)) {
+	rb_str_t *rstr = RSTR(str);
+	len = str_length(rstr);
+	if (len > 0) {
+	    chars = (UChar *)xmalloc(sizeof(UChar) * len);
+	    str_extract_uchars_range(rstr, 0, len, chars);
+	}
+    }
+    else {
+	len = CFStringGetLength((CFStringRef)str);
+	if (len > 0) {
+	    chars = (UChar *)xmalloc(sizeof(UChar) * len);
+	    CFStringGetCharacters((CFStringRef)str, CFRangeMake(0, len),
+		    chars);
+	}
+    }
+
+    if (len_p != NULL) {
+	*len_p = len;
+    }
+    return chars;
 }
 
 static VALUE
@@ -3080,11 +3115,7 @@ fs_set:
     const int lim_orig = lim;
     long beg = 0;
     if (awk_split) {
-	UChar *chars = NULL;
-	long chars_len = 0;
-	bool need_free = false;
-
-	rb_str_get_uchars(str, &chars, &chars_len, &need_free);
+	RB_STR_GET_UCHARS(str, chars, chars_len);
 
 	for (long i = 0; i < chars_len; i++) {
 	    UChar c = chars[i];
@@ -3100,10 +3131,6 @@ fs_set:
 		    break;
 		}
 	    }
-	}
-
-	if (need_free) {
-	    free(chars);
 	}
     }
     else if (spat_string) {
@@ -3534,12 +3561,7 @@ rb_reg_regsub(VALUE str, VALUE src, VALUE regexp, rb_match_result_t *results,
 {
     VALUE val = 0;
 
-    UChar *str_chars = NULL;
-    long str_chars_len = 0;
-    bool str_chars_need_free = false;
-
-    rb_str_get_uchars(str, &str_chars, &str_chars_len,
-	    &str_chars_need_free);
+    RB_STR_GET_UCHARS(str, str_chars, str_chars_len);
 
     long pos = 0;
     long src_chars_len = -1;
@@ -3620,10 +3642,6 @@ rb_reg_regsub(VALUE str, VALUE src, VALUE regexp, rb_match_result_t *results,
 
     if (val != 0 && pos < str_chars_len) {
 	str_concat_uchars(RSTR(val), &str_chars[pos], str_chars_len - pos);
-    }
-
-    if (str_chars_need_free) {
-	free(str_chars);
     }
 
     if (val == 0) {
@@ -4887,36 +4905,19 @@ rstr_transform(VALUE str, SEL sel, VALUE transform_pat)
 {
     StringValue(transform_pat);
 
-    UChar *new_chars = NULL;
     long new_chars_len = 0;
-    bool need_free = false;
-    rb_str_get_uchars(str, &new_chars, &new_chars_len, &need_free);
-
+    UChar *new_chars = rb_str_xcopy_uchars(str, &new_chars_len);
     if (new_chars_len == 0) {
 	return Qnil;
     }
 
-    if (!need_free) {
-	UChar *tmp = (UChar *)malloc(sizeof(UChar) * new_chars_len);
-	memcpy(tmp, new_chars, sizeof(UChar) * new_chars_len);
-	new_chars = tmp;
-    }
-
-    UChar *transform_chars = NULL;
-    long transform_chars_len = 0;
-    need_free = false;
-    rb_str_get_uchars(transform_pat, &transform_chars, &transform_chars_len,
-	    &need_free);
+    RB_STR_GET_UCHARS(str, transform_chars, transform_chars_len);
 
     UErrorCode status = U_ZERO_ERROR;
     UTransliterator *trans = utrans_openU(transform_chars, transform_chars_len,
 	    UTRANS_FORWARD, NULL, 0, NULL, &status);
 
     if (trans == NULL) {
-	if (need_free) {
-	    free(transform_chars);
-	}
-	free(new_chars);
 	rb_raise(rb_eArgError, "cannot create transliterator");
     }
 
@@ -4925,16 +4926,7 @@ rstr_transform(VALUE str, SEL sel, VALUE transform_pat)
     utrans_transUChars(trans, new_chars, &capacity, capacity,
 	    0, &limit, &status);
 
-    new_chars_len = (long)capacity;
-
-    VALUE newstr = rb_unicode_str_new(new_chars, new_chars_len);
-
-    if (need_free) {
-	free(transform_chars);
-    }
-    free(new_chars);
-
-    return newstr;
+    return rb_unicode_str_new(new_chars, (long)capacity);
 }
 
 /*
@@ -5010,10 +5002,7 @@ fill_linear_charset_buffer(char *buf, long bufsize, long *lenp, bool *negatep,
 {
     StringValue(source);
 
-    UChar *chars = NULL;
-    long chars_len = 0;
-    bool need_free = false;
-    rb_str_get_uchars(source, &chars, &chars_len, &need_free);
+    RB_STR_GET_UCHARS(source, chars, chars_len);
 
     long pos = 0;
     if (negatep != NULL) {
@@ -5067,10 +5056,6 @@ fill_linear_charset_buffer(char *buf, long bufsize, long *lenp, bool *negatep,
     *lenp = bufpos;
 
 bail:
-    if (need_free) {
-	free(chars);
-    }
-
     if (error) {
 	rb_raise(rb_eArgError, "invalid string transliteration");
     }
@@ -5187,10 +5172,7 @@ rstr_count(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     INTERSECT_CHARSET_TABLE_CREATE();
 
-    UChar *chars = NULL;
-    long chars_len = 0;
-    bool need_free = false;
-    rb_str_get_uchars(str, &chars, &chars_len, &need_free);
+    RB_STR_GET_UCHARS(str, chars, chars_len);
 
     long count = 0;
     for (long i = 0; i < chars_len; i++) {
@@ -5198,11 +5180,6 @@ rstr_count(VALUE str, SEL sel, int argc, VALUE *argv)
 	    count++;
 	}
     }
-
-    if (need_free) {
-	free(chars);
-    }
-
     return LONG2NUM(count); 
 }
 
@@ -5221,10 +5198,7 @@ rstr_delete_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 
     INTERSECT_CHARSET_TABLE_CREATE();
 
-    UChar *chars = NULL;
-    long chars_len = 0;
-    bool need_free = false;
-    rb_str_get_uchars(str, &chars, &chars_len, &need_free);
+    RB_STR_GET_UCHARS(str, chars, chars_len);
 
     bool modified = false;
     for (long i = 0; i < chars_len; i++) {
@@ -5238,20 +5212,10 @@ rstr_delete_bang(VALUE str, SEL sel, int argc, VALUE *argv)
     }
 
     if (!modified) {
-	if (need_free) {
-	    free(chars);
-	}
 	return Qnil;
     }
 
-    if (need_free) {
-	str_replace_with_uchars(RSTR(str), chars, chars_len);
-	free(chars);
-    }
-    else {
-	RSTR(str)->length_in_bytes = UCHARS_TO_BYTES(chars_len);
-    }
-
+    str_replace_with_uchars(RSTR(str), chars, chars_len);
     return str;
 }
 
@@ -5301,10 +5265,7 @@ rstr_squeeze_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 
     INTERSECT_CHARSET_TABLE_CREATE();
 
-    UChar *chars = NULL;
-    long chars_len = 0;
-    bool need_free = false;
-    rb_str_get_uchars(str, &chars, &chars_len, &need_free);
+    RB_STR_GET_UCHARS(str, chars, chars_len);
 
     bool modified = false;
     for (long i = 0; i < chars_len; i++) {
@@ -5321,20 +5282,10 @@ rstr_squeeze_bang(VALUE str, SEL sel, int argc, VALUE *argv)
     }
 
     if (!modified) {
-	if (need_free) {
-	    free(chars);
-	}
 	return Qnil;
     }
 
-    if (need_free) {
-	str_replace_with_uchars(RSTR(str), chars, chars_len);
-	free(chars);
-    }
-    else {
-	RSTR(str)->length_in_bytes = UCHARS_TO_BYTES(chars_len);
-    }
-
+    str_replace_with_uchars(RSTR(str), chars, chars_len);
     return str;
 }
 
@@ -5385,10 +5336,7 @@ translate(VALUE str, VALUE source, VALUE repl, bool sflag)
     char tbl[0xff]; 
     create_translate_charset_table(tbl, source, repl);
 
-    UChar *chars = NULL;
-    long chars_len = 0;
-    bool need_free = false;
-    rb_str_get_uchars(str, &chars, &chars_len, &need_free);
+    RB_STR_GET_UCHARS(str, chars, chars_len);
 
     bool modified = false;
     for (long i = 0; i < chars_len; i++) {
@@ -5406,20 +5354,10 @@ translate(VALUE str, VALUE source, VALUE repl, bool sflag)
     } 
 
     if (!modified) {
-	if (need_free) {
-	    free(chars);
-	}
 	return Qnil;
     }
 
-    if (need_free) {
-	str_replace_with_uchars(RSTR(str), chars, chars_len);
-	free(chars);
-    }
-//    else {
-//	RSTR(str)->length_in_bytes = UCHARS_TO_BYTES(chars_len);
-//    }
-
+    str_replace_with_uchars(RSTR(str), chars, chars_len);
     return str;
 }
 
@@ -6462,15 +6400,8 @@ rb_str_hash_uchars(const UChar *chars, long len)
 unsigned long
 rb_str_hash(VALUE str)
 {
-    UChar *chars = NULL;
-    long chars_len = 0;
-    bool need_free = false;
-    rb_str_get_uchars(str, &chars, &chars_len, &need_free);
-    const unsigned long hash = rb_str_hash_uchars(chars, chars_len);
-    if (need_free) {
-	free(chars);
-    }
-    return hash;
+    RB_STR_GET_UCHARS(str, chars, chars_len);
+    return rb_str_hash_uchars(chars, chars_len);
 }
 
 long

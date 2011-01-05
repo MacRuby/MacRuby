@@ -91,20 +91,16 @@ regexp_finalize_imp(void *rcv, SEL sel)
 
 // Work around ICU limitations.
 static void
-sanitize_regexp_string(UChar **chars_p, long *chars_len_p, bool *need_free_p)
+sanitize_regexp_string(UChar **chars_p, long *chars_len_p)
 {
     UChar *chars = *chars_p;
     long chars_len = *chars_len_p;
-    bool need_free = *need_free_p;
 
 #define copy_if_needed() \
     do { \
-	if (!need_free) { \
-	    UChar *tmp = (UChar *)malloc(sizeof(UChar) * chars_len); \
-	    memcpy(tmp, chars, sizeof(UChar) * chars_len); \
-	    chars = tmp; \
-	    need_free = true; \
-	} \
+	UChar *tmp = (UChar *)xmalloc(sizeof(UChar) * chars_len); \
+	memcpy(tmp, chars, sizeof(UChar) * chars_len); \
+	chars = tmp; \
     } \
     while (0)
 
@@ -183,7 +179,6 @@ printf("\n");
 
     *chars_p = chars;
     *chars_len_p = chars_len;
-    *need_free_p = need_free;
 }
 
 static bool
@@ -191,10 +186,7 @@ init_from_string(rb_regexp_t *regexp, VALUE str, int option, VALUE *excp)
 {
     option |= REGEXP_OPT_DEFAULT;
 
-    UChar *chars = NULL;
-    long chars_len = 0;
-    bool need_free = false;
-    rb_str_get_uchars(str, &chars, &chars_len, &need_free);
+    RB_STR_GET_UCHARS(str, chars, chars_len);
 
     UChar null_char = '\0';
     if (chars_len == 0) {
@@ -203,20 +195,15 @@ init_from_string(rb_regexp_t *regexp, VALUE str, int option, VALUE *excp)
 	// of -1 which indicates it's terminated by \0.
 	chars = &null_char;
 	chars_len = -1;
-	need_free = false;
     }
     else {
-	sanitize_regexp_string(&chars, &chars_len, &need_free);
+	sanitize_regexp_string(&chars, &chars_len);
     }
 
     UParseError pe;
     UErrorCode status = U_ZERO_ERROR;
     URegularExpression *pattern = uregex_open(chars, chars_len, option,
 	    &pe, &status);
-
-    if (need_free) {
-	free(chars);
-    }
 
     if (pattern == NULL) {
 	if (excp != NULL) {
@@ -669,7 +656,7 @@ regexp_equal(VALUE rcv, SEL sel, VALUE other)
 typedef struct rb_regexp_matcher {
     struct RBasic basic;
     URegularExpression *pattern;
-    UChar *text_to_free;
+    UChar *text_chars;
     rb_encoding_t *encoding;
     VALUE frozen_str;
 } rb_regexp_matcher_t;
@@ -680,10 +667,6 @@ reg_matcher_cleanup(rb_regexp_matcher_t *m)
     if (m->pattern != NULL) {
 	uregex_close(m->pattern);
 	m->pattern = NULL;
-    }
-    if (m->text_to_free != NULL) {
-	free(m->text_to_free);
-	m->text_to_free = NULL;
     }
 }
 
@@ -697,6 +680,7 @@ regexp_matcher_finalize_imp(void *rcv, SEL sel)
 	((void(*)(void *, SEL))regexp_matcher_finalize_imp_super)(rcv, sel);
     }
 }
+
 VALUE
 rb_reg_matcher_new(VALUE re, VALUE str)
 {
@@ -712,28 +696,22 @@ rb_reg_matcher_new(VALUE re, VALUE str)
 		u_errorName(status));
     }
 
-    UChar *chars = NULL;
     long chars_len = 0;
-    bool need_free = false;
-    rb_str_get_uchars(str, &chars, &chars_len, &need_free);
+    UChar *chars = rb_str_xcopy_uchars(str, &chars_len);
 
-    UChar null_char = '\0';
     if (chars_len == 0) {
 	// uregex_setText() will complain if we pass a NULL pattern or a
 	// pattern length of 0, so we do pass an empty pattern with a length
 	// of -1 which indicates it's terminated by \0.
-	chars = &null_char;
+	chars = (UChar *)xmalloc(sizeof(UChar));
+	*chars = '\0';
 	chars_len = -1;
-	need_free = false;
     }
 
     uregex_setText(match_pattern, chars, chars_len, &status);
 
     if (status != U_ZERO_ERROR) {
 	uregex_close(match_pattern);
-	if (need_free) {
-	    free(chars);
-	}
 	rb_raise(rb_eRegexpError, "can't set pattern text: %s",
 		u_errorName(status));	
     }
@@ -744,7 +722,7 @@ rb_reg_matcher_new(VALUE re, VALUE str)
 
     // Apparently uregex_setText doesn't copy the given string, so we need
     // to keep it around until we finally destroy the matcher object.
-    matcher->text_to_free = need_free ? chars : NULL;
+    GC_WB(&matcher->text_chars, chars);
 
     return (VALUE)matcher;
 }
@@ -756,7 +734,7 @@ rb_reg_matcher_destroy(VALUE matcher)
     xfree((void *)matcher);
 }
 
-static int
+int
 rb_reg_matcher_search_find(VALUE re, VALUE matcher, int pos, bool reverse,
 	bool findFirst)
 {
@@ -855,18 +833,6 @@ rb_reg_matcher_search_find(VALUE re, VALUE matcher, int pos, bool reverse,
     }
 
     return res[0].beg;
-}
-
-int
-rb_reg_matcher_search_first(VALUE re, VALUE matcher, int pos, bool reverse)
-{
-    return rb_reg_matcher_search_find(re, matcher, pos, reverse, true);
-}
-
-int
-rb_reg_matcher_search_next(VALUE re, VALUE matcher, int pos, bool reverse)
-{
-    return rb_reg_matcher_search_find(re, matcher, pos, reverse, false);
 }
 
 static long
@@ -975,7 +941,6 @@ regexp_match3(VALUE rcv, SEL sel)
 	rb_backref_set(Qnil);
 	return Qnil;
     }
-
     const long start = rb_reg_search(rcv, line, 0, 0);
     if (start < 0) {
 	return Qnil;
@@ -2124,12 +2089,9 @@ rb_reg_new(const char *cstr, long len, int options)
 VALUE
 rb_reg_quote(VALUE pat)
 {
-    UChar *chars = NULL;
-    long chars_len = 0;
-    bool need_free = false;
     VALUE result;
 
-    rb_str_get_uchars(pat, &chars, &chars_len, &need_free);
+    RB_STR_GET_UCHARS(pat, chars, chars_len);
 
     long pos = 0;
     for (; pos < chars_len; pos++) {
@@ -2197,9 +2159,6 @@ meta_found:
     }
 
 bail:
-    if (need_free) {
-	free(chars);
-    }
     return result;
 }
 

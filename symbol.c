@@ -49,10 +49,7 @@ is_identchar(UChar c)
 ID
 rb_intern_str(VALUE str)
 {
-    UChar *chars = NULL;
-    long chars_len = 0;
-    bool need_free = false;
-    rb_str_get_uchars(str, &chars, &chars_len, &need_free);
+    RB_STR_GET_UCHARS(str, chars, chars_len);
 
     const unsigned long name_hash = rb_str_hash_uchars(chars, chars_len);
     ID id = (ID)CFDictionaryGetValue(sym_id, (const void *)name_hash); 
@@ -121,9 +118,6 @@ id_register:
     CFDictionarySetValue(id_str, (const void *)id, (const void *)sym);
 
 return_id:
-    if (need_free) {
-	free(chars);
-    }
     return id;
 }
 
@@ -395,10 +389,7 @@ is_special_global_name(UChar *ptr, long len)
 static bool
 sym_should_be_escaped(VALUE sym)
 {
-    UChar *chars = NULL;
-    long chars_len = 0;
-    bool need_free = false;
-    rb_str_get_uchars(RSYM(sym)->str, &chars, &chars_len, &need_free);
+    RB_STR_GET_UCHARS(RSYM(sym)->str, chars, chars_len);
 
     if (chars_len == 0) {
 	return true;
@@ -563,10 +554,6 @@ sym_should_be_escaped(VALUE sym)
     }
 
 bail:
-    if (need_free) {
-	free(chars);
-    }
-
     return escape;
 }
 

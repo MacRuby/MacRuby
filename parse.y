@@ -5094,15 +5094,13 @@ rb_parser_compile_string(VALUE vparser, const char *f, VALUE s, int line)
     struct parser_params *parser;
     Data_Get_Struct(vparser, struct parser_params, parser);
 
-    UChar *chars = NULL;
     long chars_len = 0;
-    bool need_free = false;
-    rb_str_get_uchars(s, &chars, &chars_len, &need_free);
+    UChar *chars = rb_str_xcopy_uchars(s, &chars_len); 
 
     struct lex_get_str_context *ctx = (struct lex_get_str_context *)
 	xmalloc(sizeof(struct lex_get_str_context));
     GC_WB(&ctx->str, s);
-    ctx->chars = chars;
+    GC_WB(&ctx->chars, chars);
     ctx->chars_len = chars_len;
 
     lex_gets = lex_get_str;
@@ -5111,14 +5109,7 @@ rb_parser_compile_string(VALUE vparser, const char *f, VALUE s, int line)
     lex_pbeg = lex_p = lex_pend = 0;
     compile_for_eval = rb_parse_in_eval();
 
-    NODE *node = yycompile(parser, f, line);
-
-    if (need_free && chars != NULL) {
-	orig_free(chars);
-	chars = NULL;
-    }
-
-    return node;
+    return yycompile(parser, f, line);
 }
 
 NODE*
@@ -9901,27 +9892,13 @@ ripper_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
     Data_Get_Struct(self, struct parser_params, parser);
     rb_scan_args(argc, argv, "12", &src, &fname, &lineno);
 
-    UChar *chars = NULL;
     long chars_len = 0;
-    bool need_free = false;
-    rb_str_get_uchars(src, &chars, &chars_len, &need_free);
-
-    if (need_free) {
-	UChar *tmp = (UChar *)xmalloc(sizeof(UChar) * chars_len);
-	memcpy(tmp, chars, sizeof(UChar) * chars_len);
-	orig_free(chars);
-	chars = tmp;
-    }
+    UChar *chars = rb_str_xcopy_uchars(src, &chars_len);
 
     struct lex_get_str_context *ctx = (struct lex_get_str_context *)
 	xmalloc(sizeof(struct lex_get_str_context));
     GC_WB(&ctx->str, src);
-    if (need_free) {
-	GC_WB(&ctx->chars, chars);
-    }
-    else {
-	ctx->chars = chars;
-    }
+    GC_WB(&ctx->chars, chars);
     ctx->chars_len = chars_len;
 
     parser->parser_lex_gets = lex_get_str;

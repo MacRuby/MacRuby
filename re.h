@@ -24,10 +24,27 @@ VALUE rb_reg_regcomp(VALUE str);
 VALUE rb_regexp_source(VALUE re);
 
 VALUE rb_reg_matcher_new(VALUE re, VALUE str);
+int rb_reg_matcher_search_find(VALUE re, VALUE matcher, int pos, bool reverse,
+	bool findFirst);
 void rb_reg_matcher_destroy(VALUE matcher);
-int rb_reg_matcher_search_first(VALUE re, VALUE matcher, int pos, bool reverse);
-int rb_reg_matcher_search_next(VALUE re, VALUE matcher, int pos, bool reverse);
-#define rb_reg_matcher_search rb_reg_matcher_search_next
+
+static inline int
+rb_reg_matcher_search_first(VALUE re, VALUE matcher, int pos, bool reverse)
+{
+    return rb_reg_matcher_search_find(re, matcher, pos, reverse, true);
+}
+
+static inline int
+rb_reg_matcher_search_next(VALUE re, VALUE matcher, int pos, bool reverse)
+{
+    return rb_reg_matcher_search_find(re, matcher, pos, reverse, false);
+}
+
+static inline int
+rb_reg_matcher_search(VALUE re, VALUE matcher, int pos, bool reverse)
+{
+    return rb_reg_matcher_search_next(re, matcher, pos, reverse);
+}
 
 static inline int
 rb_reg_search(VALUE re, VALUE str, int pos, bool reverse)

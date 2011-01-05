@@ -295,9 +295,46 @@ VALUE rstr_concat(VALUE self, SEL sel, VALUE other);
 // The following functions should always been prefered over anything else,
 // especially if this "else" is RSTRING_PTR and RSTRING_LEN.
 // They also work on CFStrings.
+
 VALUE rb_unicode_str_new(const UniChar *ptr, const size_t len);
-void rb_str_get_uchars(VALUE str, UChar **chars_p, long *chars_len_p,
-	bool *need_free_p);
+
+#define STR_UCHARS_STATIC_BUFSIZE 35
+
+typedef struct {
+    UChar static_buf[STR_UCHARS_STATIC_BUFSIZE];
+    UChar *chars;
+    long len;
+} rb_str_uchars_buf_t;
+
+void rb_str_get_uchars_always(VALUE str, rb_str_uchars_buf_t *buf);
+
+static inline void
+rb_str_get_uchars(VALUE str, rb_str_uchars_buf_t *buf)
+{
+    if (IS_RSTR(str)) {
+	rb_str_t *rstr = RSTR(str);
+	if (rstr->encoding->ascii_compatible && str_is_ascii_only(rstr)
+		&& rstr->length_in_bytes < STR_UCHARS_STATIC_BUFSIZE) {
+	    // Fast path.
+	    for (long i = 0; i < rstr->length_in_bytes; i++) {
+		buf->static_buf[i] = rstr->bytes[i];
+	    }
+	    buf->chars = buf->static_buf;
+	    buf->len = rstr->length_in_bytes;
+	    return;
+	}
+    }
+    rb_str_get_uchars_always(str, buf);
+}
+
+UChar *rb_str_xcopy_uchars(VALUE str, long *len_p);
+
+#define RB_STR_GET_UCHARS(str, _chars, _len) \
+    rb_str_uchars_buf_t __buf; \
+    rb_str_get_uchars(str, &__buf); \
+    UChar *_chars = __buf.chars; \
+    long _len = __buf.len
+
 long rb_str_chars_len(VALUE str);
 UChar rb_str_get_uchar(VALUE str, long pos);
 void rb_str_append_uchar(VALUE str, UChar c);
