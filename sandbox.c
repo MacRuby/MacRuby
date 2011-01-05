@@ -86,6 +86,9 @@ rb_sandbox_apply(VALUE self, SEL sel)
     rb_sandbox_t *box;
     Data_Get_Struct(self, rb_sandbox_t, box);
     char *error = NULL;
+    if (box->profile == NULL || box->flags == 0) { 
+ 		rb_raise(rb_eRuntimeError, "sandbox must have non-empty profile."); 
+ 	}
     if (sandbox_init(box->profile, box->flags, &error) == -1) {
         rb_raise(rb_eSecurityError, "Couldn't apply sandbox: `%s`", error);
     }
