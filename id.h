@@ -46,8 +46,6 @@ extern ID idRangeEachLE;
 extern ID idArrayEach;
 extern ID idTimes;
 extern ID idEnd;
-extern ID idBitblt;
-extern ID idAnswer;
 extern ID idSend;
 extern ID id__send__;
 extern ID idRespond_to;
