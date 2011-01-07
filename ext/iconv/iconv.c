@@ -941,7 +941,7 @@ iconv_iconv(int argc, VALUE *argv, VALUE self)
 	if (NIL_P(n2) || length < 0) {
 	    length = slen;
 	}
-	str = rb_str_subseq(str, start, length);
+	str = rb_str_substr(str, start, length);
     }
 
     return iconv_convert(VALUE2ICONV(cd), str, 0, -1, rb_enc_get_index(self), NULL);

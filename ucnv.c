@@ -186,14 +186,7 @@ character_boundaries_t
 str_ucnv_get_character_boundaries(rb_str_t *self, long index, bool ucs2_mode)
 {
     character_boundaries_t boundaries = {-1, -1};
-
-    if (index < 0) {
-	// calculating the length is slow but we don't have much choice
-	index += str_ucnv_length(self, ucs2_mode);
-	if (index < 0) {
-	    return boundaries;
-	}
-    }
+    assert(index >= 0);
 
     // the code has many similarities with str_length
     USE_CONVERTER(cnv, self->encoding);

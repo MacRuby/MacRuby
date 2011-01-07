@@ -1852,7 +1852,8 @@ rb_reg_match_results(VALUE match, int *count)
 }
 
 VALUE
-rb_reg_nth_match(int nth, VALUE match)
+rb_reg_nth_match_with_cache(int nth, VALUE match,
+	character_boundaries_cache_t *cache)
 {
     if (NIL_P(match)) {
 	return Qnil;
@@ -1873,7 +1874,13 @@ rb_reg_nth_match(int nth, VALUE match)
 	return Qnil;
     }
 
-    return rb_str_substr(RMATCH(match)->str, beg, end - beg);
+    return rb_str_substr_with_cache(RMATCH(match)->str, beg, end - beg, cache);
+}
+
+VALUE
+rb_reg_nth_match(int nth, VALUE match)
+{
+    return rb_reg_nth_match_with_cache(nth, match, NULL);
 }
 
 VALUE

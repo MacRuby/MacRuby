@@ -379,14 +379,28 @@ str_new_from_cfstring(CFStringRef source)
 }
 
 static long
-str_length(rb_str_t *self)
+str_length_with_cache(rb_str_t *self, character_boundaries_cache_t *cache)
 {
-    if (self->encoding->single_byte_encoding
+    // fast paths
+    if (self->length_in_bytes == 0) {
+	return 0;
+    }
+    else if (self->encoding->single_byte_encoding
 	    || (self->encoding->ascii_compatible && str_is_ascii_only(self))) {
 	return self->length_in_bytes;
     }
-    else if (IS_UTF8_ENC(self->encoding)) {
-	long length = 0;
+    else if (IS_UTF16_ENC(self->encoding)) {
+	return div_round_up(self->length_in_bytes, 2);
+    }
+
+    if (cache != NULL
+	    && cache->cached_length >= 0) {
+	return cache->cached_length;
+    }
+
+    // slow paths
+    long length = 0;
+    if (IS_UTF8_ENC(self->encoding)) {
 	int i = 0;
 	while (i < self->length_in_bytes) {
 	    UChar32 c;
@@ -402,14 +416,21 @@ str_length(rb_str_t *self)
 		length += 2;
 	    }
 	}
-	return length;
-    }
-    else if (IS_UTF16_ENC(self->encoding)) {
-	return div_round_up(self->length_in_bytes, 2);
     }
     else {
-	return str_ucnv_length(self, true);
+	length = str_ucnv_length(self, true);
     }
+
+    if (cache != NULL) {
+	cache->cached_length = length;
+    }
+
+    return length;
+}
+
+static long str_length(rb_str_t *self)
+{
+    return str_length_with_cache(self, NULL);
 }
 
 // Note that each_uchar32 iterates on Unicode characters
@@ -533,6 +554,7 @@ static rb_str_t *
 str_new_copy_of_part(rb_str_t *self, long offset_in_bytes,
 	long length_in_bytes)
 {
+    assert(length_in_bytes > 0);
     rb_str_t *str = str_alloc(rb_cRubyString);
     str->encoding = self->encoding;
     str->capacity_in_bytes = str->length_in_bytes = length_in_bytes;
@@ -552,10 +574,11 @@ str_cannot_cut_surrogate(void))
 }
 
 static character_boundaries_t
-str_get_character_boundaries(rb_str_t *self, long index)
+str_get_character_boundaries(rb_str_t *self, long index, character_boundaries_cache_t *cache)
 {
     character_boundaries_t boundaries = {-1, -1};
 
+    // fast paths
     if (self->encoding->single_byte_encoding
 	    || (self->encoding->ascii_compatible && str_is_ascii_only(self))) {
 	if (index < 0) {
@@ -566,54 +589,8 @@ str_get_character_boundaries(rb_str_t *self, long index)
 	}
 	boundaries.start_offset_in_bytes = index;
 	boundaries.end_offset_in_bytes = boundaries.start_offset_in_bytes + 1;
-    }
-    else if (IS_UTF8_ENC(self->encoding)) {
-	long pos = 0;
-	int i = 0;
-	if (index < 0) {
-	    index += str_length(self);
-	    if (index < 0) {
-		return boundaries;
-	    }
-	}
-	while (i < self->length_in_bytes) {
-	    UChar32 c;
-	    int old_i = i;
-	    long new_pos = pos;
-	    U8_NEXT(self->bytes, i, self->length_in_bytes, c);
-	    if (c == U_SENTINEL) {
-		new_pos += i - old_i;
-		if (new_pos > index) {
-		    boundaries.start_offset_in_bytes =
-			old_i + (index - pos);
-		    boundaries.end_offset_in_bytes =
-			boundaries.start_offset_in_bytes + 1;
-		    return boundaries;
-		}
-	    }
-	    else if (U_IS_BMP(c)) {
-		new_pos++;
-		if (new_pos > index) {
-		    boundaries.start_offset_in_bytes = old_i;
-		    boundaries.end_offset_in_bytes = i;
-		    return boundaries;
-		}
-	    }
-	    else {
-		new_pos += 2;
-		if (new_pos > index) {
-		    if (index == pos) {
-			boundaries.start_offset_in_bytes = old_i;
-		    }
-		    else {
-			assert(index == pos + 1);
-			boundaries.end_offset_in_bytes = i;
-		    }
-		    return boundaries;
-		}
-	    }
-	    pos = new_pos;
-	}
+
+	return boundaries; // getting the offset is fast so no use caching it
     }
     else if (IS_UTF16_ENC(self->encoding)) {
 	if (index < 0) {
@@ -624,16 +601,93 @@ str_get_character_boundaries(rb_str_t *self, long index)
 	}
 	boundaries.start_offset_in_bytes = UCHARS_TO_BYTES(index);
 	boundaries.end_offset_in_bytes = boundaries.start_offset_in_bytes + 2;
+
+	return boundaries; // getting the offset is fast so no use caching it
+    }
+
+    // slow path
+    if (index < 0) {
+	index += str_length_with_cache(self, cache);
+	if (index < 0) {
+	    return boundaries;
+	}
+    }
+
+    bool can_use_cache = (cache != NULL
+	    && cache->cached_boundaries_index >= 0);
+    if (can_use_cache && cache->cached_boundaries_index == index) {
+	return cache->cached_boundaries;
+    }
+
+    if (IS_UTF8_ENC(self->encoding)) {
+	long pos = 0;
+	int index_in_bytes = 0;
+	if (can_use_cache && cache->cached_boundaries_index < index) {
+	    // if we are in the middle of a non-BMP character,
+	    // end_offset_in_bytes or start_offset_in_bytes might be -1
+	    if (cache->cached_boundaries.end_offset_in_bytes == -1) {
+		index_in_bytes = cache->cached_boundaries.start_offset_in_bytes;
+		pos = cache->cached_boundaries_index;
+	    }
+	    else {
+		index_in_bytes = cache->cached_boundaries.end_offset_in_bytes;
+		pos = cache->cached_boundaries_index + 1;
+	    }
+	}
+	while (index_in_bytes < self->length_in_bytes) {
+	    UChar32 c;
+	    int old_index_in_bytes = index_in_bytes;
+	    long new_pos = pos;
+	    U8_NEXT(self->bytes, index_in_bytes, self->length_in_bytes, c);
+	    if (c == U_SENTINEL) {
+		new_pos += index_in_bytes - old_index_in_bytes;
+		if (new_pos > index) {
+		    boundaries.start_offset_in_bytes =
+			old_index_in_bytes + (index - pos);
+		    boundaries.end_offset_in_bytes =
+			boundaries.start_offset_in_bytes + 1;
+		    break;
+		}
+	    }
+	    else if (U_IS_BMP(c)) {
+		new_pos++;
+		if (new_pos > index) {
+		    boundaries.start_offset_in_bytes = old_index_in_bytes;
+		    boundaries.end_offset_in_bytes = index_in_bytes;
+		    break;
+		}
+	    }
+	    else {
+		new_pos += 2;
+		if (new_pos > index) {
+		    if (index == pos) {
+			boundaries.start_offset_in_bytes = old_index_in_bytes;
+		    }
+		    else {
+			assert(index == pos + 1);
+			boundaries.end_offset_in_bytes = index_in_bytes;
+		    }
+		    break;
+		}
+	    }
+	    pos = new_pos;
+	}
     }
     else {
 	boundaries = str_ucnv_get_character_boundaries(self, index, true);
+    }
+
+    if (cache != NULL) {
+	cache->cached_boundaries_index = index;
+	cache->cached_boundaries = boundaries;
     }
 
     return boundaries;
 }
 
 static rb_str_t *
-str_get_characters(rb_str_t *self, long first, long last)
+str_get_characters(rb_str_t *self, long first, long last,
+	character_boundaries_cache_t *cache)
 {
     if (self->length_in_bytes == 0) {
 	if (first == 0) {
@@ -643,10 +697,17 @@ str_get_characters(rb_str_t *self, long first, long last)
 	    return NULL;
 	}
     }
+
+    character_boundaries_cache_t local_cache;
+    if (cache == NULL) {
+	reset_character_boundaries_cache(&local_cache);
+	cache = &local_cache;
+    }
+
     character_boundaries_t first_boundaries =
-	str_get_character_boundaries(self, first);
+	str_get_character_boundaries(self, first, cache);
     character_boundaries_t last_boundaries =
-	str_get_character_boundaries(self, last);
+	str_get_character_boundaries(self, last, cache);
 
     if ((first_boundaries.start_offset_in_bytes == -1) ||
 	    (last_boundaries.end_offset_in_bytes == -1)) {
@@ -724,9 +785,12 @@ str_splice(rb_str_t *self, long pos, long len, rb_str_t *str)
 	end.start_offset_in_bytes = end.end_offset_in_bytes = offset;
     }
     else {
+	character_boundaries_cache_t local_cache;
+	reset_character_boundaries_cache(&local_cache);
+
 	// Positioning in the string.
-	beg = str_get_character_boundaries(self, pos);
-	end = str_get_character_boundaries(self, pos + len - 1);
+	beg = str_get_character_boundaries(self, pos, &local_cache);
+	end = str_get_character_boundaries(self, pos + len - 1, &local_cache);
 
 	if ((beg.start_offset_in_bytes == -1) ||
 		(end.end_offset_in_bytes == -1)) {
@@ -867,14 +931,18 @@ str_concat_string_part(rb_str_t *self, rb_str_t *str, long start, long len)
     str_reset_flags(self);
     self->encoding = enc;
 
+    character_boundaries_cache_t local_cache;
+    reset_character_boundaries_cache(&local_cache);
+
     character_boundaries_t first_boundaries =
-	str_get_character_boundaries(self, start);
+	str_get_character_boundaries(self, start, &local_cache);
     character_boundaries_t last_boundaries;
     if (len == 1) {
 	last_boundaries = first_boundaries;
     }
     else {
-	last_boundaries = str_get_character_boundaries(self, start+len-1);
+	last_boundaries = str_get_character_boundaries(self, start+len-1,
+		&local_cache);
     }
 
     if ((first_boundaries.start_offset_in_bytes == -1) ||
@@ -1043,13 +1111,16 @@ str_index_for_string(rb_str_t *self, rb_str_t *searched, long start_index,
 	return start_index;
     }
 
+    character_boundaries_cache_t local_cache;
+    reset_character_boundaries_cache(&local_cache);
+
     long start_offset_in_bytes;
     if (start_index == 0) {
 	start_offset_in_bytes = 0;
     }
     else {
 	character_boundaries_t boundaries = str_get_character_boundaries(self,
-		start_index);
+		start_index, &local_cache);
 	if (boundaries.start_offset_in_bytes == -1) {
 	    if (boundaries.end_offset_in_bytes == -1) {
 		return -1;
@@ -1068,7 +1139,7 @@ str_index_for_string(rb_str_t *self, rb_str_t *searched, long start_index,
     }
     else {
 	character_boundaries_t boundaries = str_get_character_boundaries(self,
-		end_index);
+		end_index, &local_cache);
 	if (boundaries.start_offset_in_bytes == -1) {
 	    if (boundaries.end_offset_in_bytes == -1) {
 		return -1;
@@ -1256,13 +1327,14 @@ rb_str_xcopy_uchars(VALUE str, long *len_p)
 }
 
 static VALUE
-rstr_substr(VALUE str, long beg, long len)
+rstr_substr_with_cache(VALUE str, long beg, long len,
+	character_boundaries_cache_t *cache)
 {
     if (len < 0) {
 	return Qnil;
     }
 
-    const long n = str_length(RSTR(str));
+    const long n = str_length_with_cache(RSTR(str), cache);
     if (beg < 0) {
 	beg += n;
     }
@@ -1276,9 +1348,15 @@ rstr_substr(VALUE str, long beg, long len)
 	len = n - beg;
     }
 
-    rb_str_t *substr = str_get_characters(RSTR(str), beg, beg + len - 1);
+    rb_str_t *substr = str_get_characters(RSTR(str), beg, beg + len - 1, cache);
     OBJ_INFECT(substr, str);
     return substr == NULL ? Qnil : (VALUE)substr;
+}
+
+static VALUE
+rstr_substr(VALUE str, long beg, long len)
+{
+    return rstr_substr_with_cache(str, beg, len, NULL);
 }
 
 static void
@@ -2961,6 +3039,9 @@ rstr_scan(VALUE self, SEL sel, VALUE pat)
     pat = get_pat(pat, true);
     const bool tainted = OBJ_TAINTED(self) || OBJ_TAINTED(pat);
 
+    character_boundaries_cache_t local_cache;
+    reset_character_boundaries_cache(&local_cache);
+
     VALUE ary = 0;
     if (!block_given) {
 	ary = rb_ary_new();
@@ -2986,7 +3067,7 @@ rstr_scan(VALUE self, SEL sel, VALUE pat)
 
 	VALUE scan_result;
 	if (count == 1) {
-	    scan_result = rb_reg_nth_match(0, match);
+	    scan_result = rb_reg_nth_match_with_cache(0, match, &local_cache);
 	    if (tainted) {
 		OBJ_TAINT(scan_result);
 	    }
@@ -2994,7 +3075,8 @@ rstr_scan(VALUE self, SEL sel, VALUE pat)
 	else {
 	    scan_result = rb_ary_new2(count);
 	    for (int i = 1; i < count; i++) {
-		VALUE substr = rb_reg_nth_match(i, match);
+		VALUE substr = rb_reg_nth_match_with_cache(i, match,
+			&local_cache);
 		if (tainted) {
 		    OBJ_TAINT(tainted);
 		}
@@ -3226,7 +3308,7 @@ again:
 	    tmp = rb_str_new(NULL, 0);
 	}
 	else {
-	    tmp = rb_str_subseq(str, beg, len - beg);
+	    tmp = rb_str_substr(str, beg, len - beg);
 	}
 	rb_ary_push(result, tmp);
     }
@@ -6451,16 +6533,33 @@ rb_str_inspect(VALUE str)
 VALUE
 rb_str_subseq(VALUE str, long beg, long len)
 {
+    assert(IS_RSTR(str) && beg >= 0 && len >= 0
+	    && RSTR(str)->length_in_bytes <= len + beg);
+    VALUE subseq;
+    if (len == 0) {
+	subseq = (VALUE)str_new_similar_empty_string(RSTR(str));
+    }
+    else {
+	subseq = (VALUE)str_new_copy_of_part(RSTR(str), beg, len);
+    }
+    OBJ_INFECT(subseq, str);
+    return subseq;
+}
+
+VALUE
+rb_str_substr_with_cache(VALUE str, long beg, long len,
+	character_boundaries_cache_t *cache)
+{
     if (!IS_RSTR(str)) {
 	str = (VALUE)str_need_string(str);
     }
-    return rstr_substr(str, beg, len);
+    return rstr_substr_with_cache(str, beg, len, cache);
 }
 
 VALUE
 rb_str_substr(VALUE str, long beg, long len)
 {
-    return rb_str_subseq(str, beg, len);
+    return rb_str_substr_with_cache(str, beg, len, NULL);
 }
 
 void

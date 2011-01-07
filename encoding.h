@@ -109,6 +109,12 @@ typedef struct {
     long end_offset_in_bytes;
 } character_boundaries_t;
 
+typedef struct {
+    character_boundaries_t cached_boundaries;
+    long cached_boundaries_index;
+    long cached_length;
+} character_boundaries_cache_t;
+
 typedef struct rb_encoding {
     struct RBasic basic;
     unsigned int index;
@@ -168,6 +174,14 @@ extern rb_encoding_t *rb_encodings[ENCODINGS_COUNT];
 #define UCHARS_TO_BYTES(len) ((len) * sizeof(UChar))
 
 #define ODD_NUMBER(x) ((x) & 0x1)
+
+static inline void
+reset_character_boundaries_cache(character_boundaries_cache_t *cache)
+{
+    assert(cache != NULL);
+    cache->cached_boundaries_index = -1;
+    cache->cached_length = -1;
+}
 
 static inline long
 div_round_up(long a, long b)
@@ -277,6 +291,11 @@ str_simple_transcode(rb_str_t *self, rb_encoding_t *dst_encoding)
     return str_transcode(self, self->encoding, dst_encoding,
         TRANSCODE_BEHAVIOR_RAISE_EXCEPTION, TRANSCODE_BEHAVIOR_RAISE_EXCEPTION, NULL);
 }
+
+VALUE rb_str_substr_with_cache(VALUE str, long beg, long len,
+	character_boundaries_cache_t *cache);
+VALUE rb_reg_nth_match_with_cache(int nth, VALUE match,
+	character_boundaries_cache_t *cache);
 
 int rstr_compare(rb_str_t *str1, rb_str_t *str2);
 
