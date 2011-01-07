@@ -45,8 +45,7 @@ extern bool ruby_initialized;
 
 - (id)evaluateFileAtPath:(NSString *)path
 {
-    return [self evaluateString:[NSString stringWithContentsOfFile:path
-	usedEncoding:nil error:nil]];
+    return RB2OC(rb_f_require(Qnil, (VALUE)path));
 }
 
 - (id)evaluateFileAtURL:(NSURL *)URL
