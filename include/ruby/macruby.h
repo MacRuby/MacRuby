@@ -138,6 +138,23 @@ void rb_objc_methods(VALUE, Class);
 bool rb_objc_is_immutable(VALUE);
 #endif
 
+RUBY_EXTERN VALUE rb_cNSObject;
+RUBY_EXTERN VALUE rb_cRubyObject;
+RUBY_EXTERN VALUE rb_cNSString;
+RUBY_EXTERN VALUE rb_cNSMutableString;
+RUBY_EXTERN VALUE rb_cRubyString;
+RUBY_EXTERN VALUE rb_cNSArray;
+RUBY_EXTERN VALUE rb_cNSMutableArray;
+RUBY_EXTERN VALUE rb_cRubyArray;
+RUBY_EXTERN VALUE rb_cNSHash;
+RUBY_EXTERN VALUE rb_cNSMutableHash;
+RUBY_EXTERN VALUE rb_cRubyHash;
+RUBY_EXTERN VALUE rb_cNSNumber;
+RUBY_EXTERN VALUE rb_cNSDate;
+RUBY_EXTERN VALUE rb_cBoxed;
+RUBY_EXTERN VALUE rb_cPointer;
+RUBY_EXTERN VALUE rb_cTopLevel;
+
 #if defined(__cplusplus)
 #if 0
 { /* satisfy cc-mode */
