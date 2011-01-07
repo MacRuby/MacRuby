@@ -668,15 +668,19 @@ rb_objc_load_loaded_frameworks_bridgesupport(void)
 }
 
 void
-rb_objc_willChangeValueForKey(id obj, NSString *key)
+rb_objc_willChangeValueForKey(VALUE obj, NSString *key)
 {
-    [obj willChangeValueForKey:key];
+    if (!SPECIAL_CONST_P(obj)) {
+	[(id)obj willChangeValueForKey:key];
+    }
 }
 
 void
-rb_objc_didChangeValueForKey(id obj, NSString *key)
+rb_objc_didChangeValueForKey(VALUE obj, NSString *key)
 {
-    [obj didChangeValueForKey:key];
+    if (!SPECIAL_CONST_P(obj)) {
+	[(id)obj didChangeValueForKey:key];
+    }
 }
 
 static VALUE
