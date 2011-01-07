@@ -101,13 +101,13 @@ pop_last_hash(int *argc_p, VALUE *argv)
     return tmp;
 }
 
-static inline VALUE
+static VALUE
 rb_io_get_io(VALUE io)
 {
     return rb_convert_type(io, T_FILE, "IO", "to_io");
 }
 
-static inline VALUE
+static VALUE
 rb_io_check_io(VALUE io)
 {
     return rb_check_convert_type(io, T_FILE, "IO", "to_io");
@@ -199,7 +199,7 @@ convert_mode_string_to_oflags(VALUE s)
     return convert_fmode_to_oflags(convert_mode_string_to_fmode(s));
 }
 
-static inline int
+static int
 convert_oflags_to_fmode(int mode)
 {
     int flags = 0;
@@ -242,13 +242,13 @@ rb_io_taint_check(VALUE io)
     return io;
 }
 
-static inline bool
+static bool
 rb_io_is_open(rb_io_t *io_struct) 
 {
     return io_struct->fd != -1;
 }
 
-static inline void
+static void
 rb_io_assert_open(rb_io_t *io_struct)
 {
     if (!rb_io_is_open(io_struct)) {
@@ -257,25 +257,25 @@ rb_io_assert_open(rb_io_t *io_struct)
     }
 }
 
-static inline bool
+static bool
 rb_io_is_closed_for_reading(rb_io_t *io_struct) 
 {
     return io_struct->read_fd == -1;
 }
 
-static inline bool
+static bool
 rb_io_is_closed_for_writing(rb_io_t *io_struct) 
 {
     return io_struct->write_fd == -1;
 }
 
-static inline bool
+static bool
 rb_io_is_readable(rb_io_t *io_struct)
 {
     return !rb_io_is_closed_for_reading(io_struct);
 }
 
-static inline bool
+static bool
 rb_io_is_writable(rb_io_t *io_struct)
 {
     return !rb_io_is_closed_for_writing(io_struct);
@@ -307,7 +307,7 @@ io_alloc(VALUE klass, SEL sel)
     return (VALUE)io;
 }
 
-static inline void 
+static void 
 prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode)
 {
     // While getting rid of the FMODE_* constants and replacing them with the 
@@ -900,7 +900,7 @@ rb_io_to_io(VALUE io, SEL sel)
     return io;
 }
 
-static inline bool
+static bool
 __rb_io_wait_readable(int fd)
 {
     if (errno == EINTR) {
@@ -937,7 +937,7 @@ rb_io_read_pending(rb_io_t *io_struct)
     return io_struct->buf != NULL && CFDataGetLength(io_struct->buf) > 0;
 }
 
-static inline long
+static long
 read_internal(int fd, UInt8 *buffer, long len)
 {
     long code;
@@ -953,7 +953,7 @@ retry:
     return code;
 }
 
-static inline void
+static void
 rb_io_create_buf(rb_io_t *io_struct)
 {
     if (io_struct->buf == NULL) {
@@ -963,7 +963,7 @@ rb_io_create_buf(rb_io_t *io_struct)
     }
 }
 
-static inline void
+static void
 rb_io_read_update(rb_io_t *io_struct, long len)
 {
     io_struct->buf_offset += len;
@@ -3233,7 +3233,7 @@ rb_io_s_new(VALUE klass, SEL sel, int argc, VALUE *argv)
     return rb_io_s_new0(klass, argc, argv);
 }
 
-static inline void
+static void
 argf_init(struct argf *p, VALUE v)
 {
     p->filename = Qnil;
