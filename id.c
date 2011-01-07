@@ -75,6 +75,7 @@ Init_id(void)
     selNew = sel_registerName("new");
     selRespondTo = sel_registerName("respond_to?:");
     selMethodMissing = sel_registerName("method_missing:");
+    selConstMissing = sel_registerName("const_missing:");
     selCopy = sel_registerName("copy");
     selMutableCopy = sel_registerName("mutableCopy");
     sel_zone = sel_registerName("zone");

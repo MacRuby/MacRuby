@@ -83,6 +83,7 @@ extern SEL selInspect;
 extern SEL selNew;
 extern SEL selRespondTo;
 extern SEL selMethodMissing;
+extern SEL selConstMissing;
 extern SEL selCopy;
 extern SEL selMutableCopy;
 extern SEL selToS;

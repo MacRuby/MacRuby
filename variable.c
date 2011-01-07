@@ -1291,11 +1291,11 @@ uninitialized_constant(VALUE klass, ID id)
 }
 
 static VALUE
-const_missing(VALUE klass, ID id)
+call_const_missing(VALUE klass, ID id)
 {
-    return rb_funcall(klass, rb_intern("const_missing"), 1, ID2SYM(id));
+    VALUE arg = ID2SYM(id);
+    return rb_vm_call(klass, selConstMissing, 1, &arg);
 }
-
 
 /*
  * call-seq:
@@ -1542,7 +1542,7 @@ retry:
     if (k != Qnil) {
 	return k;
     }
-    return const_missing(klass, id);
+    return call_const_missing(klass, id);
 }
 
 VALUE
