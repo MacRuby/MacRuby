@@ -554,30 +554,6 @@ rb_io_flush(VALUE io, SEL sel)
  *     f.pos    #=> 17
  */
 
-static inline off_t
-rb_io_read_stream_get_offset(CFReadStreamRef stream)
-{
-    off_t result;
-
-    CFNumberRef pos = CFReadStreamCopyProperty(stream,
-	    kCFStreamPropertyFileCurrentOffset);
-    if (pos == NULL) {
-	return -1;
-    }
-    CFNumberGetValue(pos, kCFNumberLongLongType, (void*)&result);
-    CFRelease(pos);
-
-    return result;
-}
-
-static inline void
-rb_io_read_stream_set_offset(CFReadStreamRef stream, off_t offset)
-{
-    CFNumberRef pos = CFNumberCreate(NULL, kCFNumberSInt64Type,
-	    (const void*)&offset);
-    CFReadStreamSetProperty(stream, kCFStreamPropertyFileCurrentOffset, pos);
-    CFRelease(pos);
-}
 
 static off_t
 ltell(int fd)
