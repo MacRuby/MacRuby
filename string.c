@@ -6534,7 +6534,7 @@ VALUE
 rb_str_subseq(VALUE str, long beg, long len)
 {
     assert(IS_RSTR(str) && beg >= 0 && len >= 0
-	    && RSTR(str)->length_in_bytes <= len + beg);
+	    && RSTR(str)->length_in_bytes >= len + beg);
     VALUE subseq;
     if (len == 0) {
 	subseq = (VALUE)str_new_similar_empty_string(RSTR(str));
