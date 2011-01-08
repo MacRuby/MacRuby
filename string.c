@@ -6669,6 +6669,13 @@ rb_str_modify(VALUE obj)
 }
 
 VALUE
+rb_str_plus(VALUE str1, VALUE str2)
+{
+    str1 = (VALUE)str_need_string(str1);
+    return rstr_plus(str1, 0, str2);
+}
+
+VALUE
 rstr_new_path(const char *path)
 {
     // XXX this should be rewritten using ICU (utrans.h?) to avoid creating
