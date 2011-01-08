@@ -19,10 +19,11 @@ class Gem::Commands::InstallCommand < Gem::Command
 
   def initialize
     defaults = Gem::DependencyInstaller::DEFAULT_OPTIONS.merge({
-      :generate_rdoc     => false,
-      :generate_ri       => false,
+      #:generate_rdoc     => true,
+      #:generate_ri       => true,
+      # XXX MACRUBY rdoc/ri generation disabled by default
+      :generate_rdoc => false, :generate_ri => false,
       :format_executable => false,
-      :test              => false,
       :version           => Gem::Requirement.default,
     })
 
@@ -41,7 +42,7 @@ class Gem::Commands::InstallCommand < Gem::Command
 
   def defaults_str # :nodoc:
     "--both --version '#{Gem::Requirement.default}' --rdoc --ri --no-force\n" \
-    "--no-test --install-dir #{Gem.dir}"
+    "--install-dir #{Gem.dir}"
   end
 
   def description # :nodoc:
@@ -115,6 +116,8 @@ to write the specification by hand.  For example:
 
     get_all_gem_names.each do |gem_name|
       begin
+        next if options[:conservative] && Gem.available?(gem_name, options[:version])
+
         inst = Gem::DependencyInstaller.new options
         inst.install gem_name, options[:version]
 
@@ -127,7 +130,8 @@ to write the specification by hand.  For example:
         alert_error "Error installing #{gem_name}:\n\t#{e.message}"
         exit_code |= 1
       rescue Gem::GemNotFoundException => e
-        alert_error e.message
+        show_lookup_failure e.name, e.version, e.errors, options[:domain]
+
         exit_code |= 2
       end
     end
@@ -151,19 +155,6 @@ to write the specification by hand.  For example:
       if options[:generate_rdoc] then
         installed_gems.each do |gem|
           Gem::DocManager.new(gem, options[:rdoc_args]).generate_rdoc
-        end
-      end
-
-      if options[:test] then
-        installed_gems.each do |spec|
-          gem_spec = Gem::SourceIndex.from_installed_gems.find_name(spec.name, spec.version.version).first
-          result = Gem::Validator.new.unit_test(gem_spec)
-          if result and not result.passed?
-            unless ask_yes_no("...keep Gem?", true)
-              require 'rubygems/uninstaller'
-              Gem::Uninstaller.new(spec.name, :version => spec.version.version).uninstall
-            end
-          end
         end
       end
     end

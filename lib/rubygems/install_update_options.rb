@@ -58,11 +58,6 @@ module Gem::InstallUpdateOptions
       options[:force] = value
     end
 
-    add_option(:"Install/Update", '-t', '--[no-]test',
-               'Run unit tests prior to installation') do |value, options|
-      options[:test] = value
-    end
-
     add_option(:"Install/Update", '-w', '--[no-]wrappers',
                'Use bin wrappers for executables',
                'Not available on dosish platforms') do |value, options|
@@ -104,13 +99,19 @@ module Gem::InstallUpdateOptions
                 "dependencies") do |value, options|
       options[:development] = true
     end
+
+    add_option(:"Install/Update", "--conservative",
+                "Don't attempt to upgrade gems already",
+                "meeting version requirement") do |value, options|
+      options[:conservative] = true
+    end
   end
 
   ##
   # Default options for the gem install command.
 
   def install_update_defaults_str
-    '--rdoc --no-force --no-test --wrappers'
+    '--rdoc --no-force --wrappers'
   end
 
 end

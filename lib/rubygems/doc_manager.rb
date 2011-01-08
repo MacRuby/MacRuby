@@ -4,7 +4,6 @@
 # See LICENSE.txt for permissions.
 #++
 
-require 'fileutils'
 require 'rubygems'
 
 ##
@@ -77,7 +76,7 @@ class Gem::DocManager
       :formatter => RDoc::RI::Formatter,
     }
 
-    driver = RDoc::RI::Driver.new(options).class_cache
+    RDoc::RI::Driver.new(options).class_cache
   end
 
   ##
@@ -85,6 +84,7 @@ class Gem::DocManager
   # RDoc (template etc.) as a String.
 
   def initialize(spec, rdoc_args="")
+    require 'fileutils'
     @spec = spec
     @doc_dir = File.join(spec.installation_path, "doc", spec.full_name)
     @rdoc_args = rdoc_args.nil? ? [] : rdoc_args.split
@@ -179,7 +179,10 @@ class Gem::DocManager
     r = RDoc::RDoc.new
 
     old_pwd = Dir.pwd
-    Dir.chdir(@spec.full_gem_path)
+    Dir.chdir @spec.full_gem_path
+
+    say "rdoc #{args.join ' '}" if Gem.configuration.really_verbose
+
     begin
       r.document args
     rescue Errno::EACCES => e
@@ -193,7 +196,7 @@ class Gem::DocManager
       Gem.configuration.backtrace
       ui.errs.puts "(continuing with the rest of the installation)"
     ensure
-      Dir.chdir(old_pwd)
+      Dir.chdir old_pwd
     end
   end
 

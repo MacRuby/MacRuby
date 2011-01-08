@@ -1,22 +1,20 @@
-#++
-# Copyright (C) 2004 Mauricio Julio Fern·ndez Pradier
-# See LICENSE.txt for additional licensing information.
+# -*- coding: utf-8 -*-
 #--
-
-require 'fileutils'
-require 'find'
-require 'stringio'
-require 'yaml'
-require 'zlib'
+# Copyright (C) 2004 Mauricio Julio Fern√°ndez Pradier
+# See LICENSE.txt for additional licensing information.
+#++
 
 require 'rubygems/security'
 require 'rubygems/specification'
 
+##
 # Wrapper for FileUtils meant to provide logging and additional operations if
 # needed.
+
 class Gem::FileOperations
 
   def initialize(logger = nil)
+    require 'fileutils'
     @logger = logger
   end
 

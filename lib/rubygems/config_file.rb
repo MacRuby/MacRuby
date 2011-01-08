@@ -205,7 +205,7 @@ class Gem::ConfigFile
     dirname = File.dirname(credentials_path)
     Dir.mkdir(dirname) unless File.exists?(dirname)
 
-    require 'yaml'
+    Gem.load_yaml
 
     File.open(credentials_path, 'w') do |f|
       f.write config.to_yaml
@@ -215,9 +215,10 @@ class Gem::ConfigFile
   end
 
   def load_file(filename)
+    Gem.load_yaml
+
     return {} unless filename and File.exists?(filename)
     begin
-      require 'yaml'
       YAML.load(File.read(filename))
     rescue ArgumentError
       warn "Failed to load #{config_file_name}"
@@ -312,7 +313,6 @@ class Gem::ConfigFile
 
   # Writes out this config file, replacing its source.
   def write
-    require 'yaml'
     open config_file_name, 'w' do |io|
       io.write to_yaml
     end

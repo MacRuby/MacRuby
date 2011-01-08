@@ -17,8 +17,7 @@ class Gem::Commands::UpdateCommand < Gem::Command
           'Update the named gems (or all installed gems) in the local repository',
       :generate_rdoc => true,
       :generate_ri   => true,
-      :force         => false,
-      :test          => false
+      :force         => false
 
     add_install_update_options
 
@@ -37,7 +36,7 @@ class Gem::Commands::UpdateCommand < Gem::Command
   end
 
   def defaults_str # :nodoc:
-    "--rdoc --ri --no-force --no-test --install-dir #{Gem.dir}"
+    "--rdoc --ri --no-force --install-dir #{Gem.dir}"
   end
 
   def usage # :nodoc:
@@ -48,8 +47,8 @@ class Gem::Commands::UpdateCommand < Gem::Command
     hig = {}
 
     if options[:system] then
-      # XXX We can't allow people to self-update RubyGems at this point.
-      raise "This MacRuby version of RubyGems cannot be self-updated."
+      # XXX MACRUBY We can't allow people to self-update RubyGems at this point.
+      raise "This version of RubyGems cannot be self-updated."
 
       say "Updating RubyGems"
 
@@ -59,7 +58,7 @@ class Gem::Commands::UpdateCommand < Gem::Command
 
       rubygems_update = Gem::Specification.new
       rubygems_update.name = 'rubygems-update'
-      rubygems_update.version = Gem::Version.new Gem::RubyGemsVersion
+      rubygems_update.version = Gem::Version.new Gem::VERSION
       hig['rubygems-update'] = rubygems_update
 
       options[:user_install] = false
@@ -167,28 +166,14 @@ class Gem::Commands::UpdateCommand < Gem::Command
 
       dependency = Gem::Dependency.new l_spec.name, "> #{l_spec.version}"
 
-      begin
-        fetcher = Gem::SpecFetcher.fetcher
-        spec_tuples = fetcher.find_matching dependency
-      rescue Gem::RemoteFetcher::FetchError => e
-        raise unless fetcher.warn_legacy e do
-          require 'rubygems/source_info_cache'
+      fetcher = Gem::SpecFetcher.fetcher
+      spec_tuples = fetcher.find_matching dependency
 
-          dependency.name = '' if dependency.name == //
-
-          specs = Gem::SourceInfoCache.search_with_source dependency
-
-          spec_tuples = specs.map do |spec, source_uri|
-            [[spec.name, spec.version, spec.original_platform], source_uri]
-          end
-        end
-      end
-
-      matching_gems = spec_tuples.select do |(name, version, platform),|
+      matching_gems = spec_tuples.select do |(name, _, platform),|
         name == l_name and Gem::Platform.match platform
       end
 
-      highest_remote_gem = matching_gems.sort_by do |(name, version),|
+      highest_remote_gem = matching_gems.sort_by do |(_, version),|
         version
       end.last
 

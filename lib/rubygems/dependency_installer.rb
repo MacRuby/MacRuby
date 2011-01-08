@@ -69,6 +69,10 @@ class Gem::DependencyInstaller
 
     @install_dir = options[:install_dir] || Gem.dir
     @cache_dir = options[:cache_dir] || @install_dir
+
+    # Set with any errors that SpecFetcher finds while search through
+    # gemspecs for a dep
+    @errors = nil
   end
 
   ##
@@ -78,6 +82,8 @@ class Gem::DependencyInstaller
   # local gems preferred over remote gems.
 
   def find_gems_with_sources(dep)
+    # Reset the errors
+    @errors = nil
     gems_and_sources = []
 
     if @domain == :both or @domain == :local then
@@ -99,7 +105,7 @@ class Gem::DependencyInstaller
               (requirements.length > 1 or
                 (requirements.first != ">=" and requirements.first != ">"))
 
-        found = Gem::SpecFetcher.fetcher.fetch dep, all, true, dep.prerelease?
+        found, @errors = Gem::SpecFetcher.fetcher.fetch_with_errors dep, all, true, dep.prerelease?
 
         gems_and_sources.push(*found)
 
@@ -126,41 +132,48 @@ class Gem::DependencyInstaller
 
     dependency_list = Gem::DependencyList.new @development
     dependency_list.add(*specs)
+    to_do = specs.dup
 
-    unless @ignore_dependencies then
-      to_do = specs.dup
-      seen = {}
+    add_found_dependencies to_do, dependency_list unless @ignore_dependencies
 
-      until to_do.empty? do
-        spec = to_do.shift
-        next if spec.nil? or seen[spec.name]
-        seen[spec.name] = true
+    @gems_to_install = dependency_list.dependency_order.reverse
+  end
 
-        deps = spec.runtime_dependencies
-        deps |= spec.development_dependencies if @development
+  def add_found_dependencies to_do, dependency_list
+    seen = {}
 
-        deps.each do |dep|
-          results = find_gems_with_sources(dep).reverse
+    until to_do.empty? do
+      spec = to_do.shift
+      next if spec.nil? or seen[spec.name]
+      seen[spec.name] = true
 
-          results.reject! do |dep_spec,|
-            to_do.push dep_spec
+      deps = spec.runtime_dependencies
+      deps |= spec.development_dependencies if @development
 
-            @source_index.any? do |_, installed_spec|
-              dep.name == installed_spec.name and
-                dep.requirement.satisfied_by? installed_spec.version
-            end
+      deps.each do |dep|
+        results = find_gems_with_sources(dep).reverse
+
+        # FIX: throw in everything that satisfies, and let
+        # FIX: dependencylist reduce to the chosen few
+        results.reject! do |dep_spec,|
+          to_do.push dep_spec
+
+          # already locally installed
+          @source_index.any? do |_, installed_spec|
+            dep.name == installed_spec.name and
+              dep.requirement.satisfied_by? installed_spec.version
           end
+        end
 
-          results.each do |dep_spec, source_uri|
-            next if seen[dep_spec.name]
-            @specs_and_sources << [dep_spec, source_uri]
-            dependency_list.add dep_spec
-          end
+        results.each do |dep_spec, source_uri|
+          next if seen[dep_spec.name]
+          @specs_and_sources << [dep_spec, source_uri]
+
+          # FIX: this is the bug
+          dependency_list.add dep_spec
         end
       end
     end
-
-    @gems_to_install = dependency_list.dependency_order.reverse
   end
 
   ##
@@ -204,8 +217,9 @@ class Gem::DependencyInstaller
     end
 
     if spec_and_source.nil? then
-      raise Gem::GemNotFoundException,
-        "could not find gem #{gem_name} locally or in a repository"
+      raise Gem::GemNotFoundException.new(
+        "Could not find a valid gem '#{gem_name}' (#{version}) locally or in a repository",
+        gem_name, version, @errors)
     end
 
     @specs_and_sources = [spec_and_source]

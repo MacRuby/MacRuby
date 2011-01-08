@@ -14,7 +14,7 @@ class Gem::Requirement
     "<"  =>  lambda { |v, r| v < r  },
     ">=" =>  lambda { |v, r| v >= r },
     "<=" =>  lambda { |v, r| v <= r },
-    "~>" =>  lambda { |v, r| v = v.release; v >= r && v < r.bump }
+    "~>" =>  lambda { |v, r| v >= r && v.release < r.bump }
   }
 
   quoted  = OPS.keys.map { |k| Regexp.quote k }.join "|"
@@ -93,7 +93,12 @@ class Gem::Requirement
     requirements.uniq!
 
     requirements << ">= 0" if requirements.empty?
+    @none = (requirements == ">= 0")
     @requirements = requirements.map! { |r| self.class.parse r }
+  end
+
+  def none?
+    @none ||= (to_s == ">= 0")
   end
 
   def as_list # :nodoc:

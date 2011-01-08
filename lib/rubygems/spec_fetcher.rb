@@ -1,8 +1,7 @@
-require 'zlib'
-require 'fileutils'
-
 require 'rubygems/remote_fetcher'
 require 'rubygems/user_interaction'
+require 'rubygems/errors'
+require 'rubygems/text'
 
 ##
 # SpecFetcher handles metadata updates from remote gem repositories.
@@ -10,6 +9,13 @@ require 'rubygems/user_interaction'
 class Gem::SpecFetcher
 
   include Gem::UserInteraction
+  include Gem::Text
+
+  FILES = {
+    :all        => 'specs',
+    :latest     => 'latest_specs',
+    :prerelease => 'prerelease_specs',
+  }
 
   ##
   # The SpecFetcher cache dir.
@@ -42,6 +48,8 @@ class Gem::SpecFetcher
   end
 
   def initialize
+    require 'fileutils'
+
     @dir = File.join Gem.user_home, '.gem', 'specs'
     @update_cache = File.stat(Gem.user_home).uid == Process.uid
 
@@ -49,11 +57,17 @@ class Gem::SpecFetcher
     @latest_specs = {}
     @prerelease_specs = {}
 
+    @caches = {
+      :latest => @latest_specs,
+      :prerelease => @prerelease_specs,
+      :all => @specs
+    }
+
     @fetcher = Gem::RemoteFetcher.fetcher
   end
 
   ##
-  # Retuns the local directory to write +uri+ to.
+  # Returns the local directory to write +uri+ to.
 
   def cache_dir(uri)
     File.join @dir, "#{uri.host}%#{uri.port}", File.dirname(uri.path)
@@ -65,20 +79,18 @@ class Gem::SpecFetcher
   # false, all platforms are returned. If +prerelease+ is true,
   # prerelease versions are included.
 
-  def fetch(dependency, all = false, matching_platform = true, prerelease = false)
-    specs_and_sources = find_matching dependency, all, matching_platform, prerelease
+  def fetch_with_errors(dependency, all = false, matching_platform = true, prerelease = false)
+    specs_and_sources, errors = find_matching_with_errors dependency, all, matching_platform, prerelease
 
-    specs_and_sources.map do |spec_tuple, source_uri|
+    ss = specs_and_sources.map do |spec_tuple, source_uri|
       [fetch_spec(spec_tuple, URI.parse(source_uri)), source_uri]
     end
 
-  rescue Gem::RemoteFetcher::FetchError => e
-    raise unless warn_legacy e do
-      require 'rubygems/source_info_cache'
+    return [ss, errors]
+  end
 
-      return Gem::SourceInfoCache.search_with_source(dependency,
-                                                     matching_platform, all)
-    end
+  def fetch(*args)
+    fetch_with_errors(*args).first
   end
 
   def fetch_spec(spec, source_uri)
@@ -117,15 +129,26 @@ class Gem::SpecFetcher
   # matching released versions are returned.  If +matching_platform+
   # is false, gems for all platforms are returned.
 
-  def find_matching(dependency, all = false, matching_platform = true, prerelease = false)
+  def find_matching_with_errors(dependency, all = false, matching_platform = true, prerelease = false)
     found = {}
+
+    rejected_specs = {}
 
     list(all, prerelease).each do |source_uri, specs|
       found[source_uri] = specs.select do |spec_name, version, spec_platform|
-        dependency =~ Gem::Dependency.new(spec_name, version) and
-          (not matching_platform or Gem::Platform.match(spec_platform))
+        if dependency.match?(spec_name, version)
+          if matching_platform and !Gem::Platform.match(spec_platform)
+            pm = (rejected_specs[dependency] ||= Gem::PlatformMismatch.new(spec_name, version))
+            pm.add_platform spec_platform
+            false
+          else
+            true
+          end
+        end
       end
     end
+
+    errors = rejected_specs.values
 
     specs_and_sources = []
 
@@ -134,30 +157,39 @@ class Gem::SpecFetcher
       specs_and_sources.push(*specs.map { |spec| [spec, uri_str] })
     end
 
-    specs_and_sources
+    [specs_and_sources, errors]
+  end
+
+  def find_matching(*args)
+    find_matching_with_errors(*args).first
   end
 
   ##
-  # Returns Array of gem repositories that were generated with RubyGems less
-  # than 1.2.
+  # Suggests a gem based on the supplied +gem_name+. Returns a string
+  # of the gem name if an approximate match can be found or nil
+  # otherwise. NOTE: for performance reasons only gems which exactly
+  # match the first character of +gem_name+ are considered.
 
-  def legacy_repos
-    Gem.sources.reject do |source_uri|
-      source_uri = URI.parse source_uri
-      spec_path = source_uri + "specs.#{Gem.marshal_version}.gz"
+  def suggest_gems_from_name gem_name
+    gem_name        = gem_name.downcase
+    max             = gem_name.size / 2
+    specs           = list.values.flatten(1) # flatten(1) is 1.8.7 and up
 
-      begin
-        @fetcher.fetch_size spec_path
-      rescue Gem::RemoteFetcher::FetchError
-        begin
-          @fetcher.fetch_size(source_uri + 'yaml') # re-raise if non-repo
-        rescue Gem::RemoteFetcher::FetchError
-          alert_error "#{source_uri} does not appear to be a repository"
-          raise
-        end
-        false
-      end
-    end
+    matches = specs.map { |name, version, platform|
+      next unless Gem::Platform.match platform
+
+      distance = levenshtein_distance gem_name, name.downcase
+
+      next if distance >= max
+
+      return [name] if distance == 0
+
+      [name, distance]
+    }.compact
+
+    matches = matches.uniq.sort_by { |name, dist| dist }
+
+    matches.first(5).map { |name, dist| name }
   end
 
   ##
@@ -175,16 +207,10 @@ class Gem::SpecFetcher
              :latest
            end
 
-    list = {}
+    list  = {}
+    file  = FILES[type]
+    cache = @caches[type]
 
-    file = { :latest => 'latest_specs',
-      :prerelease => 'prerelease_specs',
-      :all => 'specs' }[type]
-
-    cache = { :latest => @latest_specs,
-      :prerelease => @prerelease_specs,
-      :all => @specs }[type]
-    
     Gem.sources.each do |source_uri|
       source_uri = URI.parse source_uri
 
@@ -249,29 +275,6 @@ class Gem::SpecFetcher
     end
 
     specs
-  end
-
-  ##
-  # Warn about legacy repositories if +exception+ indicates only legacy
-  # repositories are available, and yield to the block.  Returns false if the
-  # exception indicates some other FetchError.
-
-  def warn_legacy(exception)
-    uri = exception.uri.to_s
-    if uri =~ /specs\.#{Regexp.escape Gem.marshal_version}\.gz$/ then
-      alert_warning <<-EOF
-RubyGems 1.2+ index not found for:
-\t#{legacy_repos.join "\n\t"}
-
-RubyGems will revert to legacy indexes degrading performance.
-      EOF
-
-      yield
-
-      return true
-    end
-
-    false
   end
 
 end
