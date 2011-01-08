@@ -150,8 +150,6 @@ rb_env_path_tainted(void)
 void
 ruby_setenv(const char *name, const char *value)
 {
-#undef setenv
-#undef unsetenv
     if (value != NULL) {
 	setenv(name, value, 1);
     }

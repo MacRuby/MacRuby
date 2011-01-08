@@ -1,35 +1,25 @@
-/**********************************************************************
-
-  intern.h -
-
-  $Author: nobu $
-  created at: Thu Jun 10 14:22:17 JST 1993
-
-  Copyright (C) 1993-2007 Yukihiro Matsumoto
-  Copyright (C) 2000  Network Applied Communication Laboratory, Inc.
-  Copyright (C) 2000  Information-technology Promotion Agency, Japan
-
-**********************************************************************/
+/*
+ * This file is covered by the Ruby license. See COPYING for more details.
+ *
+ * Copyright (C) 2007-2010, Apple Inc. All rights reserved
+ * Copyright (C) 1993-2007 Yukihiro Matsumoto
+ * Copyright (C) 2000  Network Applied Communication Laboratory, Inc.
+ * Copyright (C) 2000  Information-technology Promotion Agency, Japan
+ */
 
 #ifndef RUBY_INTERN_H
 #define RUBY_INTERN_H 1
 
 #if defined(__cplusplus)
 extern "C" {
-#if 0
-} /* satisfy cc-mode */
-#endif
 #endif
 
-#ifdef HAVE_STDARG_PROTOTYPES
-# include <stdarg.h>
-#else
-# include <varargs.h>
-#endif
+#include <stdarg.h>
+
 #if RUBY_INCLUDED_AS_FRAMEWORK
-#include <MacRuby/ruby/st.h>
+# include <MacRuby/ruby/st.h>
 #else
-#include <ruby/st.h>
+# include <ruby/st.h>
 #endif
 
 /* 
@@ -75,6 +65,7 @@ VALUE rb_ary_replace(VALUE copy, VALUE orig);
 VALUE rb_get_values_at(VALUE, long, int, VALUE*, VALUE(*)(VALUE,long));
 void rb_ary_insert(VALUE, long, VALUE);
 VALUE rb_ary_equal(VALUE, VALUE);
+
 /* bignum.c */
 VALUE rb_big_clone(VALUE);
 void rb_big_2comp(VALUE);
@@ -116,6 +107,7 @@ VALUE rb_big_xor(VALUE, VALUE);
 VALUE rb_big_lshift(VALUE, VALUE);
 VALUE rb_big_rshift(VALUE, VALUE);
 VALUE rb_big_uminus(VALUE x);
+
 /* rational.c */
 VALUE rb_rational_raw(VALUE, VALUE);
 #define rb_rational_raw1(x) rb_rational_raw(x, INT2FIX(1))
@@ -126,6 +118,7 @@ VALUE rb_rational_new(VALUE, VALUE);
 VALUE rb_Rational(VALUE, VALUE);
 #define rb_Rational1(x) rb_Rational(x, INT2FIX(1))
 #define rb_Rational2(x,y) rb_Rational(x, y)
+
 /* complex.c */
 VALUE rb_complex_raw(VALUE, VALUE);
 #define rb_complex_raw1(x) rb_complex_raw(x, INT2FIX(0))
@@ -136,11 +129,10 @@ VALUE rb_complex_new(VALUE, VALUE);
 VALUE rb_Complex(VALUE, VALUE);
 #define rb_Complex1(x) rb_Complex(x, INT2FIX(0))
 #define rb_Complex2(x,y) rb_Complex(x, y)
+
 /* class.c */
 VALUE rb_class_boot(VALUE);
 VALUE rb_class_new(VALUE);
-//VALUE rb_mod_init_copy(VALUE, VALUE);
-//VALUE rb_class_init_copy(VALUE, VALUE);
 VALUE rb_singleton_class_clone(VALUE);
 void rb_singleton_class_attached(VALUE,VALUE);
 VALUE rb_make_metaclass(VALUE, VALUE);
@@ -150,14 +142,8 @@ VALUE rb_define_class_id(ID, VALUE);
 VALUE rb_module_new(void);
 VALUE rb_define_module_id(ID);
 VALUE rb_mod_included_modules(VALUE);
-//VALUE rb_mod_include_p(VALUE, VALUE);
 VALUE rb_mod_ancestors(VALUE);
 VALUE rb_mod_ancestors_nocopy(VALUE);
-//VALUE rb_class_instance_methods(int, VALUE*, VALUE);
-//VALUE rb_class_public_instance_methods(int, VALUE*, VALUE);
-//VALUE rb_class_protected_instance_methods(int, VALUE*, VALUE);
-//VALUE rb_class_private_instance_methods(int, VALUE*, VALUE);
-//VALUE rb_obj_singleton_methods(int, VALUE*, VALUE);
 void rb_define_method_id(VALUE, ID, VALUE (*)(ANYARGS), int);
 void rb_frozen_class_p(VALUE);
 void rb_undef(VALUE, ID);
@@ -165,17 +151,19 @@ void rb_define_protected_method(VALUE, const char*, VALUE (*)(ANYARGS), int);
 void rb_define_private_method(VALUE, const char*, VALUE (*)(ANYARGS), int);
 void rb_define_singleton_method(VALUE, const char*, VALUE(*)(ANYARGS), int);
 VALUE rb_singleton_class(VALUE);
+
 /* compar.c */
 int rb_cmpint(VALUE, VALUE, VALUE);
 NORETURN(void rb_cmperr(VALUE, VALUE));
 VALUE rb_objs_cmp(VALUE x, VALUE y);
+
 /* cont.c */
 VALUE rb_fiber_new(VALUE (*)(ANYARGS), VALUE);
 VALUE rb_fiber_resume(VALUE fib, int argc, VALUE *args);
 VALUE rb_fiber_yield(int argc, VALUE *args);
 VALUE rb_fiber_current(void);
 VALUE rb_fiber_alive_p(VALUE);
-/* enum.c */
+
 /* error.c */
 VALUE rb_exc_new(VALUE, const char*, long);
 VALUE rb_exc_new2(VALUE, const char*);
@@ -189,12 +177,13 @@ PRINTF_ARGS(void rb_compile_error_append(const char*, ...), 1, 2);
 NORETURN(void rb_load_fail(const char*));
 NORETURN(void rb_error_frozen(const char*));
 void rb_check_frozen(VALUE);
+
 /* eval.c */
 VALUE rb_make_exception(int, VALUE *);
 int rb_sourceline(void);
 const char *rb_sourcefile(void);
 
-#if defined(NFDBITS) && defined(HAVE_RB_FD_INIT)
+#include <sys/types.h>
 typedef struct {
     int maxfd;
     fd_set *fdset;
@@ -211,22 +200,6 @@ int rb_fd_select(int, rb_fdset_t *, rb_fdset_t *, rb_fdset_t *, struct timeval *
 
 #define rb_fd_ptr(f)	((f)->fdset)
 #define rb_fd_max(f)	((f)->maxfd)
-
-#else
-
-typedef fd_set rb_fdset_t;
-#define rb_fd_zero(f)	FD_ZERO(f)
-#define rb_fd_set(n, f)	FD_SET(n, f)
-#define rb_fd_clr(n, f)	FD_CLR(n, f)
-#define rb_fd_isset(n, f) FD_ISSET(n, f)
-#define rb_fd_copy(d, s, n) (*(d) = *(s))
-#define rb_fd_ptr(f)	(f)
-#define rb_fd_init(f)	FD_ZERO(f)
-#define rb_fd_term(f)	(void)(f)
-#define rb_fd_max(f)	FD_SETSIZE
-#define rb_fd_select(n, rfds, wfds, efds, timeout)	select(n, rfds, wfds, efds, timeout)
-
-#endif
 
 NORETURN(void rb_exc_raise(VALUE));
 NORETURN(void rb_exc_fatal(VALUE));
@@ -290,6 +263,7 @@ VALUE rb_thread_local_aset(VALUE, ID, VALUE);
 void rb_thread_atfork(void);
 void rb_thread_atfork_before_exec(void);
 VALUE rb_exec_recursive(VALUE(*)(VALUE, VALUE, int),VALUE,VALUE);
+
 /* file.c */
 VALUE rb_file_expand_path(VALUE, VALUE);
 VALUE rb_file_absolute_path(VALUE, VALUE);
@@ -298,6 +272,7 @@ int rb_find_file_ext(VALUE*, const char* const*);
 VALUE rb_find_file(VALUE);
 #define rb_path_skip_prefix(path) (path)
 char *rb_path_end(const char *);
+
 /* gc.c */
 void ruby_set_stack_size(size_t);
 NORETURN(void rb_memerror(void));
@@ -308,9 +283,7 @@ void rb_gc(void);
 void rb_gc_copy_finalizer(VALUE,VALUE);
 void rb_gc_finalize_deferred(void);
 void rb_gc_call_finalizer_at_exit(void);
-//VALUE rb_gc_enable(void);
-//VALUE rb_gc_disable(void);
-//VALUE rb_gc_start(void);
+
 /* hash.c */
 void st_foreach_safe(struct st_table *, int (*)(ANYARGS), st_data_t);
 void rb_hash_foreach(VALUE, int (*)(ANYARGS), VALUE);
@@ -322,7 +295,6 @@ VALUE rb_hash_freeze(VALUE);
 VALUE rb_hash_aref(VALUE, VALUE);
 VALUE rb_hash_lookup(VALUE, VALUE);
 VALUE rb_hash_aset(VALUE, VALUE, VALUE);
-//VALUE rb_hash_delete_if(VALUE);
 VALUE rb_hash_delete(VALUE,VALUE);
 VALUE rb_hash_delete_key(VALUE,VALUE);
 VALUE rb_hash_has_key(VALUE hash, VALUE key);
@@ -334,6 +306,7 @@ struct st_table *rb_hash_tbl(VALUE);
 int rb_path_check(const char*);
 int rb_env_path_tainted(void);
 VALUE rb_env_clear(void);
+
 /* io.c */
 #define rb_defout rb_stdout
 RUBY_EXTERN VALUE rb_fs;
@@ -349,10 +322,12 @@ void rb_write_error(const char*);
 void rb_write_error2(const char*, long);
 int rb_io_mode_modenum(const char *mode);
 void rb_close_before_exec(int lowfd, int maxhint, VALUE noclose_fds);
+
 /* marshal.c */
 VALUE rb_marshal_dump(VALUE, VALUE);
 VALUE rb_marshal_load(VALUE);
 void rb_marshal_define_compat(VALUE newclass, VALUE oldclass, VALUE (*dumper)(VALUE), VALUE (*loader)(VALUE, VALUE));
+
 /* numeric.c */
 void rb_num_zerodiv(void);
 VALUE rb_num_coerce_bin(VALUE, VALUE, ID);
@@ -364,6 +339,7 @@ VALUE rb_fix2str(VALUE, int);
 VALUE rb_fix_minus(VALUE x, VALUE y);
 VALUE rb_fix_uminus(VALUE num);
 VALUE rb_dbl_cmp(double, double);
+
 /* object.c */
 VALUE rb_send_dup(VALUE);
 int rb_eql(VALUE, VALUE);
@@ -374,7 +350,6 @@ VALUE rb_obj_is_kind_of(VALUE, VALUE);
 VALUE rb_obj_alloc(VALUE);
 VALUE rb_obj_clone(VALUE);
 VALUE rb_obj_dup(VALUE);
-//VALUE rb_obj_init_copy(VALUE,VALUE);
 VALUE rb_obj_taint(VALUE);
 VALUE rb_obj_tainted(VALUE);
 VALUE rb_obj_untaint(VALUE);
@@ -383,7 +358,6 @@ VALUE rb_obj_untrust(VALUE);
 VALUE rb_obj_untrusted(VALUE);
 VALUE rb_obj_freeze(VALUE);
 VALUE rb_obj_frozen_p(VALUE);
-//VALUE rb_obj_id(VALUE);
 VALUE rb_obj_class(VALUE);
 VALUE rb_class_inherited_p(VALUE, VALUE);
 VALUE rb_convert_type(VALUE,int,const char*,const char*);
@@ -397,6 +371,7 @@ VALUE rb_Array(VALUE);
 double rb_cstr_to_dbl(const char*, int);
 double rb_str_to_dbl(VALUE, int);
 VALUE rb_check_to_float(VALUE val);
+
 /* parse.y */
 RUBY_EXTERN int   ruby_sourceline;
 RUBY_EXTERN char *ruby_sourcefile;
@@ -415,6 +390,7 @@ void rb_backref_set(VALUE);
 VALUE rb_lastline_get(void);
 void rb_lastline_set(VALUE);
 VALUE rb_sym_all_symbols(void);
+
 /* process.c */
 void rb_last_status_set(int status, rb_pid_t pid);
 VALUE rb_last_status_get(void);
@@ -437,13 +413,16 @@ rb_pid_t rb_waitpid(rb_pid_t pid, int *status, int flags);
 void rb_syswait(rb_pid_t pid);
 rb_pid_t rb_spawn(int, VALUE*);
 VALUE rb_detach_process(rb_pid_t pid);
+
 /* range.c */
 VALUE rb_range_new(VALUE, VALUE, int);
 VALUE rb_range_beg_len(VALUE, long*, long*, long, int);
 int rb_range_values(VALUE range, VALUE *begp, VALUE *endp, int *exclp);
+
 /* random.c */
 unsigned int rb_genrand_int32(void);
 double rb_genrand_real(void);
+
 /* re.c */
 VALUE rb_reg_compile(VALUE str, int options);
 VALUE rb_reg_check_preprocess(VALUE);
@@ -463,6 +442,7 @@ VALUE rb_reg_match(VALUE, VALUE);
 int rb_reg_options(VALUE);
 void rb_set_kcode(const char*);
 const char* rb_get_kcode(void);
+
 /* ruby.c */
 #define rb_argv rb_get_argv()
 RUBY_EXTERN VALUE rb_argv0;
@@ -474,6 +454,7 @@ void ruby_set_argv(int, char**);
 void *ruby_process_options(int, char**);
 void ruby_init_loadpath(void);
 void ruby_incpush(const char*);
+
 /* signal.c */
 #ifdef POSIX_SIGNAL
 #define posix_signal ruby_posix_signal
@@ -484,11 +465,13 @@ void rb_trap_exit(void);
 void rb_trap_exec(void);
 const char *ruby_signal_name(int);
 void ruby_default_signal(int);
+
 /* sprintf.c */
 VALUE rb_f_sprintf(int, const VALUE*);
 PRINTF_ARGS(VALUE rb_sprintf(const char*, ...), 1, 2);
 VALUE rb_vsprintf(const char*, va_list);
 VALUE rb_str_format(int, const VALUE *, VALUE);
+
 /* string.c */
 VALUE rb_str_new(const char*, long);
 VALUE rb_str_new2(const char*);
@@ -568,6 +551,7 @@ VALUE rb_struct_s_members(VALUE);
 VALUE rb_struct_members(VALUE);
 VALUE rb_struct_alloc_noinit(VALUE);
 VALUE rb_struct_define_without_accessor(const char *, VALUE, rb_alloc_func_t, ...);
+
 /* thread.c */
 VALUE rb_thgroup_add(VALUE group, VALUE thread);
 void rb_thread_remove_from_group(VALUE thread);
@@ -579,12 +563,13 @@ VALUE rb_thread_blocking_region(rb_blocking_function_t *func, void *data1,
 VALUE rb_barrier_new(void);
 VALUE rb_barrier_wait(VALUE self);
 VALUE rb_barrier_release(VALUE self);
+
 /* time.c */
 VALUE rb_time_new(time_t, long);
 VALUE rb_time_nano_new(time_t, long);
 struct timeval rb_time_interval(VALUE num);
+
 /* variable.c */
-//VALUE rb_mod_name(VALUE);
 VALUE rb_class_path(VALUE);
 void rb_set_class_path(VALUE, VALUE, const char*);
 void rb_set_class_path2(VALUE, VALUE, const char*, VALUE);
@@ -609,11 +594,9 @@ VALUE rb_iv_set(VALUE, const char*, VALUE);
 VALUE rb_iv_get(VALUE, const char*);
 VALUE rb_attr_get(VALUE, ID);
 VALUE rb_obj_instance_variables(VALUE);
-//VALUE rb_obj_remove_instance_variable(VALUE, VALUE);
 void *rb_mod_const_at(VALUE, void*);
 void *rb_mod_const_of(VALUE, void*);
 VALUE rb_const_list(void*);
-//VALUE rb_mod_constants(int, VALUE *, VALUE);
 VALUE rb_mod_remove_const(VALUE, VALUE);
 int rb_const_defined(VALUE, ID);
 int rb_const_defined_at(VALUE, ID);
@@ -622,31 +605,22 @@ VALUE rb_const_get(VALUE, ID);
 VALUE rb_const_get_at(VALUE, ID);
 VALUE rb_const_get_from(VALUE, ID);
 void rb_const_set(VALUE, ID, VALUE);
-//VALUE rb_mod_const_missing(VALUE,VALUE);
 VALUE rb_cvar_defined(VALUE, ID);
 void rb_cvar_set(VALUE, ID, VALUE);
 VALUE rb_cvar_get(VALUE, ID);
 void rb_cv_set(VALUE, const char*, VALUE);
 VALUE rb_cv_get(VALUE, const char*);
 void rb_define_class_variable(VALUE, const char*, VALUE);
-//VALUE rb_mod_class_variables(VALUE);
-//VALUE rb_mod_remove_cvar(VALUE, VALUE);
-/* objc.m */
+
 /* version.c */
 void ruby_show_version(void);
 void ruby_show_copyright(void);
 
 ID rb_frame_callee(void);
 VALUE rb_time_succ(VALUE);
-void Init_stack(VALUE*);
-void rb_frame_pop(void);
-int rb_frame_method_id_and_class(ID *idp, VALUE *klassp);
 
 #if defined(__cplusplus)
-#if 0
-{ /* satisfy cc-mode */
-#endif
-}  /* extern "C" { */
+} // extern "C" {
 #endif
 
 #endif /* RUBY_INTERN_H */

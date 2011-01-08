@@ -1,12 +1,14 @@
+/*
+ * This file is covered by the Ruby license. See COPYING for more details.
+ *
+ * Copyright (C) 2007-2010, Apple Inc. All rights reserved 
+ */
 
 #ifndef RUBY_MACRUBY_H
 #define RUBY_MACRUBY_H 1
 
 #if defined(__cplusplus)
 extern "C" {
-#if 0
-} /* satisfy cc-mode */
-#endif
 #endif
 
 #include "ruby.h"
@@ -75,34 +77,21 @@ rb_objc_release(void *addr)
 
 /* enumerator.c */
 VALUE rb_enumeratorize(VALUE, SEL, int, VALUE *);
-#define RETURN_ENUMERATOR(obj, argc, argv) do {				\
-	if (!rb_block_given_p())					\
-	    return rb_enumeratorize((VALUE)obj, sel, argc, argv);	\
+#define RETURN_ENUMERATOR(obj, argc, argv) \
+    do {	\
+	if (!rb_block_given_p()) { \
+	    return rb_enumeratorize((VALUE)obj, sel, argc, argv); \
+	} \
     } while (0)
 VALUE rb_f_notimplement(VALUE rcv, SEL sel);
 VALUE rb_method_call(VALUE, SEL, int, VALUE*);
 VALUE rb_file_directory_p(VALUE,SEL,VALUE);
 VALUE rb_obj_id(VALUE obj, SEL sel);
 
-#if WITH_OBJC
 void rb_objc_gc_register_thread(void);
 void rb_objc_gc_unregister_thread(void);
 void rb_objc_set_associative_ref(void *, void *, void *);
 void *rb_objc_get_associative_ref(void *, void *);
-# define rb_gc_mark_locations(x,y)
-# define rb_mark_tbl(x)
-# define rb_mark_set(x)
-# define rb_mark_hash(x)
-# define rb_gc_mark_maybe(x)
-# define rb_gc_mark(x)
-#else
-void rb_gc_mark_locations(VALUE*, VALUE*);
-void rb_mark_tbl(struct st_table*);
-void rb_mark_set(struct st_table*);
-void rb_mark_hash(struct st_table*);
-void rb_gc_mark_maybe(VALUE);
-void rb_gc_mark(VALUE);
-#endif
 
 VALUE rb_io_gets(VALUE, SEL);
 VALUE rb_io_getbyte(VALUE, SEL);
@@ -124,19 +113,7 @@ VALUE rb_class_real(VALUE, bool hide_builtin_foundation_classes);
 void rb_range_extract(VALUE range, VALUE *begp, VALUE *endp, bool *exclude);
 VALUE rb_cvar_get2(VALUE klass, ID id, bool check);
 
-#if WITH_OBJC
-void rb_objc_alias(VALUE, ID, ID);
-VALUE rb_mod_objc_ancestors(VALUE);
 VALUE rb_require_framework(VALUE, SEL, int, VALUE *);
-VALUE rb_objc_resolve_const_value(VALUE, VALUE, ID);
-ID rb_objc_missing_sel(ID, int);
-long rb_objc_flag_get_mask(const void *);
-void rb_objc_flag_set(const void *, int, bool);
-bool rb_objc_flag_check(const void *, int);
-long rb_objc_remove_flags(const void *obj);
-void rb_objc_methods(VALUE, Class);
-bool rb_objc_is_immutable(VALUE);
-#endif
 
 RUBY_EXTERN VALUE rb_cNSObject;
 RUBY_EXTERN VALUE rb_cRubyObject;
@@ -155,11 +132,12 @@ RUBY_EXTERN VALUE rb_cBoxed;
 RUBY_EXTERN VALUE rb_cPointer;
 RUBY_EXTERN VALUE rb_cTopLevel;
 
+long rb_objc_flag_get_mask(const void *);
+void rb_objc_flag_set(const void *, int, bool);
+bool rb_objc_flag_check(const void *, int);
+
 #if defined(__cplusplus)
-#if 0
-{ /* satisfy cc-mode */
-#endif
-}  /* extern "C" { */
+}  // extern "C" {
 #endif
 
 #endif /* RUBY_MACRUBY_H */

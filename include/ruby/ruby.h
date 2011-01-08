@@ -1,35 +1,25 @@
-/**********************************************************************
-
-  ruby/ruby.h -
-
-  $Author: nobu $
-  created at: Thu Jun 10 14:26:32 JST 1993
-
-  Copyright (C) 1993-2008 Yukihiro Matsumoto
-  Copyright (C) 2000  Network Applied Communication Laboratory, Inc.
-  Copyright (C) 2000  Information-technology Promotion Agency, Japan
-
-**********************************************************************/
+/*
+ * This file is covered by the Ruby license. See COPYING for more details.
+ *
+ * Copyright (C) 2007-2010, Apple Inc. All rights reserved
+ * Copyright (C) 1993-2008 Yukihiro Matsumoto
+ * Copyright (C) 2000  Network Applied Communication Laboratory, Inc.
+ * Copyright (C) 2000  Information-technology Promotion Agency, Japan
+ */
 
 #ifndef RUBY_RUBY_H
 #define RUBY_RUBY_H 1
 
 #if defined(__cplusplus)
 extern "C" {
-#if 0
-} /* satisfy cc-mode */
-#endif
 #endif
 
 #ifndef RUBY_LIB
-#if RUBY_INCLUDED_AS_FRAMEWORK
-#include <MacRuby/ruby/config.h>
-#else
-#include "ruby/config.h"
-#endif
-#ifdef RUBY_EXTCONF_H
-#include RUBY_EXTCONF_H
-#endif
+# if RUBY_INCLUDED_AS_FRAMEWORK
+#  include <MacRuby/ruby/config.h>
+# else
+#  include "ruby/config.h"
+# endif
 #endif
 
 #define NORETURN_STYLE_NEW 1
@@ -44,55 +34,30 @@ extern "C" {
 #endif
 
 #ifdef __GNUC__
-#define PRINTF_ARGS(decl, string_index, first_to_check) \
-  decl __attribute__((format(printf, string_index, first_to_check)))
+# define PRINTF_ARGS(decl, string_index, first_to_check) \
+    decl __attribute__((format(printf, string_index, first_to_check)))
 #else
-#define PRINTF_ARGS(decl, string_index, first_to_check) decl
+# define PRINTF_ARGS(decl, string_index, first_to_check) decl
 #endif
 
-#ifdef HAVE_STDLIB_H
-# include <stdlib.h>
-#endif
-
-#ifdef HAVE_STRING_H
-# include <string.h>
-#else
-# include <strings.h>
-#endif
-
-#ifdef HAVE_INTRINSICS_H
-# include <intrinsics.h>
-#endif
-
-#ifdef HAVE_INTTYPES_H
-# include <inttypes.h>
-#endif
-
+#include <stdlib.h>
+#include <string.h>
+#include <inttypes.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <sys/time.h>
 
 #if RUBY_INCLUDED_AS_FRAMEWORK
-#include <MacRuby/ruby/defines.h>
+# include <MacRuby/ruby/defines.h>
 #else
-#include "defines.h"
+# include "defines.h"
 #endif
 
-#if defined(HAVE_ALLOCA_H)
 #include <alloca.h>
-#else
-#  ifdef _AIX
-#pragma alloca
-#  endif
-#endif
-
-#if defined(__VMS)
-# pragma builtins
-# define alloca __alloca
-#endif
 
 #if SIZEOF_LONG == SIZEOF_VOIDP
 typedef unsigned long VALUE;
-#define ID unsigned long
+# define ID unsigned long
 # define SIGNED_VALUE long
 # define SIZEOF_VALUE SIZEOF_LONG
 # define PRIdVALUE "ld"
@@ -117,51 +82,7 @@ typedef unsigned LONG_LONG ID;
 # error ---->> ruby requires sizeof(void*) == sizeof(long) to be compiled. <<----
 #endif
 
-
-#ifdef __STDC__
-# include <limits.h>
-#else
-# ifndef LONG_MAX
-#  ifdef HAVE_LIMITS_H
-#   include <limits.h>
-#  else
-    /* assuming 32bit(2's compliment) long */
-#   define LONG_MAX 2147483647
-#  endif
-# endif
-# ifndef LONG_MIN
-#  define LONG_MIN (-LONG_MAX-1)
-# endif
-# ifndef CHAR_BIT
-#  define CHAR_BIT 8
-# endif
-#endif
-
-#ifdef HAVE_LONG_LONG
-# ifndef LLONG_MAX
-#  ifdef LONG_LONG_MAX
-#   define LLONG_MAX  LONG_LONG_MAX
-#  else
-#   ifdef _I64_MAX
-#    define LLONG_MAX _I64_MAX
-#   else
-    /* assuming 64bit(2's complement) long long */
-#    define LLONG_MAX 9223372036854775807LL
-#   endif
-#  endif
-# endif
-# ifndef LLONG_MIN
-#  ifdef LONG_LONG_MIN
-#   define LLONG_MIN  LONG_LONG_MIN
-#  else
-#   ifdef _I64_MIN
-#    define LLONG_MIN _I64_MIN
-#   else
-#    define LLONG_MIN (-LLONG_MAX-1)
-#   endif
-#  endif
-# endif
-#endif
+#include <limits.h>
 
 #define FIXNUM_MAX (LONG_MAX>>2)
 #define FIXNUM_MIN RSHIFT((long)LONG_MIN,2)
@@ -178,12 +99,10 @@ typedef unsigned LONG_LONG ID;
 
 #define TIMET2NUM(t) LONG2NUM(t)
 
-#ifdef HAVE_LONG_LONG
 #define LL2NUM(v) rb_ll2inum(v)
 #define ULL2NUM(v) rb_ull2inum(v)
-#endif
 
-#if SIZEOF_OFF_T > SIZEOF_LONG && defined(HAVE_LONG_LONG)
+#if SIZEOF_OFF_T > SIZEOF_LONG
 # define OFFT2NUM(v) LL2NUM(v)
 #elif SIZEOF_OFF_T == SIZEOF_LONG
 # define OFFT2NUM(v) LONG2NUM(v)
@@ -191,7 +110,7 @@ typedef unsigned LONG_LONG ID;
 # define OFFT2NUM(v) INT2NUM(v)
 #endif
 
-#if SIZEOF_SIZE_T > SIZEOF_LONG && defined(HAVE_LONG_LONG)
+#if SIZEOF_SIZE_T > SIZEOF_LONG
 # define SIZET2NUM(v) ULL2NUM(v)
 #elif SIZEOF_SIZE_T == SIZEOF_LONG
 # define SIZET2NUM(v) ULONG2NUM(v)
@@ -200,22 +119,22 @@ typedef unsigned LONG_LONG ID;
 #endif
 
 #ifndef PIDT2NUM
-#define PIDT2NUM(v) LONG2NUM(v)
+# define PIDT2NUM(v) LONG2NUM(v)
 #endif
 #ifndef NUM2PIDT
-#define NUM2PIDT(v) NUM2LONG(v)
+# define NUM2PIDT(v) NUM2LONG(v)
 #endif
 #ifndef UIDT2NUM
-#define UIDT2NUM(v) LONG2NUM(v)
+# define UIDT2NUM(v) LONG2NUM(v)
 #endif
 #ifndef NUM2UIDT
-#define NUM2UIDT(v) NUM2LONG(v)
+# define NUM2UIDT(v) NUM2LONG(v)
 #endif
 #ifndef GIDT2NUM
-#define GIDT2NUM(v) LONG2NUM(v)
+# define GIDT2NUM(v) LONG2NUM(v)
 #endif
 #ifndef NUM2GIDT
-#define NUM2GIDT(v) NUM2LONG(v)
+# define NUM2GIDT(v) NUM2LONG(v)
 #endif
 
 #define FIX2LONG(x) RSHIFT((SIGNED_VALUE)x,2)
@@ -439,21 +358,20 @@ VALUE rb_num2ulong(VALUE);
 #define NUM2ULONG(x) rb_num2ulong((VALUE)x)
 #if SIZEOF_INT < SIZEOF_LONG
 long rb_num2int(VALUE);
-#define NUM2INT(x) (FIXNUM_P(x)?FIX2INT(x):rb_num2int((VALUE)x))
+# define NUM2INT(x) (FIXNUM_P(x)?FIX2INT(x):rb_num2int((VALUE)x))
 long rb_fix2int(VALUE);
-#define FIX2INT(x) rb_fix2int((VALUE)x)
+# define FIX2INT(x) rb_fix2int((VALUE)x)
 unsigned long rb_num2uint(VALUE);
-#define NUM2UINT(x) rb_num2uint(x)
+# define NUM2UINT(x) rb_num2uint(x)
 unsigned long rb_fix2uint(VALUE);
-#define FIX2UINT(x) rb_fix2uint(x)
+# define FIX2UINT(x) rb_fix2uint(x)
 #else
-#define NUM2INT(x) ((int)NUM2LONG(x))
-#define NUM2UINT(x) ((unsigned int)NUM2ULONG(x))
-#define FIX2INT(x) ((int)FIX2LONG(x))
-#define FIX2UINT(x) ((unsigned int)FIX2ULONG(x))
+# define NUM2INT(x) ((int)NUM2LONG(x))
+# define NUM2UINT(x) ((unsigned int)NUM2ULONG(x))
+# define FIX2INT(x) ((int)FIX2LONG(x))
+# define FIX2UINT(x) ((unsigned int)FIX2ULONG(x))
 #endif
 
-#ifdef HAVE_LONG_LONG
 LONG_LONG rb_num2ll(VALUE);
 unsigned LONG_LONG rb_num2ull(VALUE);
 static inline long long
@@ -461,17 +379,16 @@ __num2ll(VALUE obj)
 {
     return FIXNUM_P(obj) ? FIX2LONG(obj) : rb_num2ll(obj);
 }
-# define NUM2LL(x) __num2ll((VALUE)x)
-# define NUM2ULL(x) rb_num2ull((VALUE)x)
-#endif
+#define NUM2LL(x) __num2ll((VALUE)x)
+#define NUM2ULL(x) rb_num2ull((VALUE)x)
 
-#if defined(HAVE_LONG_LONG) && SIZEOF_OFF_T > SIZEOF_LONG
+#if SIZEOF_OFF_T > SIZEOF_LONG
 # define NUM2OFFT(x) ((off_t)NUM2LL(x))
 #else
 # define NUM2OFFT(x) NUM2LONG(x)
 #endif
 
-#if defined(HAVE_LONG_LONG) && SIZEOF_SIZE_T > SIZEOF_LONG
+#if SIZEOF_SIZE_T > SIZEOF_LONG
 # define NUM2SIZET(x) ((size_t)NUM2ULL(x))
 #else
 # define NUM2SIZET(x) NUM2ULONG(x)
@@ -570,9 +487,6 @@ struct RData {
 
 #define DATA_PTR(dta) (RDATA(dta)->data)
 
-/*
-#define RUBY_DATA_FUNC(func) ((void (*)(void*))func)
-*/
 typedef void (*RUBY_DATA_FUNC)(void*);
 
 VALUE rb_data_object_alloc(VALUE,void*,RUBY_DATA_FUNC,RUBY_DATA_FUNC);
@@ -864,15 +778,6 @@ void rb_throw_obj(VALUE,VALUE);
 
 VALUE rb_require(const char*);
 
-#ifdef __ia64
-void ruby_init_stack(VALUE*, void*);
-#define ruby_init_stack(addr) ruby_init_stack(addr, rb_ia64_bsp())
-#else
-void ruby_init_stack(VALUE*);
-#endif
-#define RUBY_INIT_STACK \
-    VALUE variable_in_this_stack_frame; \
-    ruby_init_stack(&variable_in_this_stack_frame);
 void ruby_init(void);
 void *ruby_options(int, char**);
 int ruby_run_node(void *);
@@ -1035,51 +940,18 @@ rb_special_const_p(VALUE obj)
 }
 
 #if RUBY_INCLUDED_AS_FRAMEWORK
-#include <MacRuby/ruby/missing.h>
-#include <MacRuby/ruby/intern.h>
-#include <MacRuby/ruby/objc.h>
+# include <MacRuby/ruby/missing.h>
+# include <MacRuby/ruby/intern.h>
+# include <MacRuby/ruby/objc.h>
 #else
-#include "ruby/missing.h"
-#include "ruby/intern.h"
-#endif
-
-#if defined(EXTLIB) && defined(USE_DLN_A_OUT)
-/* hook for external modules */
-static char *dln_libs_to_be_linked[] = { EXTLIB, 0 };
+# include "ruby/missing.h"
+# include "ruby/intern.h"
 #endif
 
 void ruby_sysinit(int *, char ***);
 
 #define RUBY_VM 1 /* YARV */
 #define HAVE_NATIVETHREAD
-int ruby_native_thread_p(void);
-
-#define RUBY_EVENT_NONE     0x00
-#define RUBY_EVENT_LINE     0x01
-#define RUBY_EVENT_CLASS    0x02
-#define RUBY_EVENT_END      0x04
-#define RUBY_EVENT_CALL     0x08
-#define RUBY_EVENT_RETURN   0x10
-#define RUBY_EVENT_C_CALL   0x20
-#define RUBY_EVENT_C_RETURN 0x40
-#define RUBY_EVENT_RAISE    0x80
-#define RUBY_EVENT_ALL      0xff
-#define RUBY_EVENT_VM      0x100
-#define RUBY_EVENT_SWITCH  0x200
-
-typedef unsigned int rb_event_flag_t;
-typedef void (*rb_event_hook_func_t)(rb_event_flag_t, VALUE data, VALUE, ID, VALUE klass);
-
-typedef struct rb_event_hook_struct {
-    rb_event_flag_t flag;
-    rb_event_hook_func_t func;
-    VALUE data;
-    struct rb_event_hook_struct *next;
-} rb_event_hook_t;
-
-void rb_add_event_hook(rb_event_hook_func_t func, rb_event_flag_t events,
-		       VALUE data);
-int rb_remove_event_hook(rb_event_hook_func_t func);
 
 /* locale insensitive functions */
 
@@ -1120,9 +992,7 @@ unsigned long ruby_strtoul(const char *str, char **endptr, int base);
 #define STRTOUL(str, endptr, base) (ruby_strtoul(str, endptr, base))
 
 #if defined(__cplusplus)
-#if 0
-{ /* satisfy cc-mode */
+}  // extern "C" {
 #endif
-}  /* extern "C" { */
-#endif
+
 #endif /* RUBY_RUBY_H */

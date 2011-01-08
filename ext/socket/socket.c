@@ -522,15 +522,11 @@ bsock_send(VALUE sock, SEL sel, int argc, VALUE *argv)
     rb_thread_fd_writable(fd);
   retry:
     if (!NIL_P(to)) {
-        TRAP_BEG;
 	n = sendto(fd, RSTRING_PTR(mesg), RSTRING_LEN(mesg), NUM2INT(flags),
 		   (struct sockaddr*)RSTRING_PTR(to), RSTRING_LEN(to));
-        TRAP_END;
     }
     else {
-        TRAP_BEG;
 	n = send(fd, RSTRING_PTR(mesg), RSTRING_LEN(mesg), NUM2INT(flags));
-        TRAP_END;
     }
     if (n < 0) {
 	if (rb_io_wait_writable(fd)) {
@@ -611,10 +607,8 @@ s_recvfrom(VALUE sock, int argc, VALUE *argv, enum sock_recv_type from)
     if (rb_bstr_length(str) != buflen) {
 	rb_raise(rb_eRuntimeError, "buffer string modified");
     }
-    TRAP_BEG;
     slen = recvfrom(fd, rb_bstr_bytes(str), buflen, flags,
 	    (struct sockaddr *)buf, &alen);
-    TRAP_END;
 
     if (slen < 0) {
 	if (rb_io_wait_readable(fd)) {
@@ -1477,9 +1471,7 @@ s_accept(VALUE klass, int fd, struct sockaddr *sockaddr, socklen_t *len)
 #if defined(_nec_ews)
     fd2 = accept(fd, sockaddr, len);
 #else
-    TRAP_BEG;
     fd2 = accept(fd, sockaddr, len);
-    TRAP_END;
 #endif
     if (fd2 < 0) {
 	switch (errno) {

@@ -288,28 +288,10 @@ rb_f_kill(VALUE self, SEL sel, int argc, VALUE *argv)
     return INT2FIX(i - 1);
 }
 
-rb_atomic_t rb_trap_pending;
-rb_atomic_t rb_trap_immediate;
-int rb_prohibit_interrupt = 1;
-
 VALUE
 rb_get_trap_cmd(int sig)
 {
     return rb_vm_trap_cmd_for_signal(sig);
-}
-
-void
-rb_gc_mark_trap_list(void)
-{
-#ifndef MACOS_UNUSE_SIGNAL
-    int i;
-
-    for (i = 0; i < NSIG; i++) {
-	if (rb_vm_trap_cmd_for_signal(i)) {
-	    rb_gc_mark(rb_vm_trap_cmd_for_signal(i));
-	}
-    }
-#endif /* MACOS_UNUSE_SIGNAL */
 }
 
 sighandler_t
@@ -388,7 +370,7 @@ signal_exec(VALUE cmd, int level, int sig)
 void
 rb_trap_exit(void)
 {
-#ifndef MACOS_UNUSE_SIGNAL
+#if 0//ndef MACOS_UNUSE_SIGNAL
     VALUE trap_exit;
     int safe;
 

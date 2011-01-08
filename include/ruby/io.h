@@ -1,22 +1,15 @@
-/**********************************************************************
-
-  rubyio.h -
-
-  $Author: akr $
-  created at: Fri Nov 12 16:47:09 JST 1993
-
-  Copyright (C) 1993-2007 Yukihiro Matsumoto
-
-**********************************************************************/
+/*
+ * This file is covered by the Ruby license. See COPYING for more details.
+ *
+ * Copyright (C) 2007-2010, Apple Inc. All rights reserved
+ * Copyright (C) 1993-2007 Yukihiro Matsumoto
+ */
 
 #ifndef RUBY_IO_H
 #define RUBY_IO_H 1
 
 #if defined(__cplusplus)
 extern "C" {
-#if 0
-} /* satisfy cc-mode */
-#endif
 #endif
 
 #include <stdio.h>
@@ -57,16 +50,6 @@ typedef struct rb_io_t {
 #define FMODE_TRUNC                 0x00000800
 #define FMODE_TEXTMODE              0x00001000
 #define FMODE_SYNCWRITE (FMODE_SYNC|FMODE_WRITABLE)
-
-#ifndef SEEK_CUR
-# define SEEK_SET 0
-# define SEEK_CUR 1
-# define SEEK_END 2
-#endif
-
-#ifndef O_ACCMODE
-#define O_ACCMODE (O_RDONLY | O_WRONLY | O_RDWR)
-#endif
 
 VALUE rb_io_taint_check(VALUE);
 NORETURN(void rb_eof_error(void));
@@ -112,17 +95,14 @@ rb_io_assert_readable(rb_io_t *io_struct)
     }
 }
 
-// For MRI 1.9 compat.
+// For CRuby 1.9 compat.
 #define HAVE_RB_IO_T 1
 #define rb_io_check_writable rb_io_assert_writable
 #define rb_io_check_readable rb_io_assert_readable
 #define GetOpenFile(obj,fp) (fp = ExtractIOStruct(obj))
 
 #if defined(__cplusplus)
-#if 0
-{ /* satisfy cc-mode */
-#endif
-}  /* extern "C" { */
+}  // extern "C" {
 #endif
 
 #endif /* RUBY_IO_H */

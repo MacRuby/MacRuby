@@ -1,3 +1,11 @@
+/*
+ * This file is covered by the Ruby license. See COPYING for more details.
+ *
+ * Copyright (C) 2007-2010, Apple Inc. All rights reserved 
+ */
+
+#if __OBJC__
+
 #import <Foundation/Foundation.h>
 
 @interface MacRuby : NSObject
@@ -49,3 +57,5 @@
 - (id)performRubySelector:(SEL)sel withArguments:(id)firstArgument, ...;
 
 @end
+
+#endif /* __OBJC__ */

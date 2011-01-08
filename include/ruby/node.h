@@ -1,22 +1,15 @@
-/**********************************************************************
-
-  node.h -
-
-  $Author: matz $
-  created at: Fri May 28 15:14:02 JST 1993
-
-  Copyright (C) 1993-2007 Yukihiro Matsumoto
-
-**********************************************************************/
+/*
+ * This file is covered by the Ruby license. See COPYING for more details.
+ *
+ * Copyright (C) 2007-2010, Apple Inc. All rights reserved
+ * Copyright (C) 1993-2007 Yukihiro Matsumoto
+ */
 
 #ifndef RUBY_NODE_H
 #define RUBY_NODE_H 1
 
 #if defined(__cplusplus)
 extern "C" {
-#if 0
-} /* satisfy cc-mode */
-#endif
 #endif
 
 enum node_type {
@@ -424,7 +417,8 @@ typedef struct RNode {
 #define NEW_DXSTR(s) NEW_NODE(NODE_DXSTR,GC_RETAIN(s),0,0)
 #define NEW_DSYM(s) NEW_NODE(NODE_DSYM,GC_RETAIN(s),0,0)
 #define NEW_EVSTR(n) NEW_NODE(NODE_EVSTR,0,(n),0)
-#if WITH_OBJC && __IN_PARSE_Y__
+#if __IN_PARSE_Y__
+/* named args support */
 # define NEW_CALL(r,m,a) process_named_args(NEW_NODE(NODE_CALL,r,m,a))
 # define NEW_FCALL(m,a) process_named_args(NEW_NODE(NODE_FCALL,0,m,a))
 # define NEW_VCALL(m) process_named_args(NEW_NODE(NODE_VCALL,0,m,0))
@@ -513,10 +507,7 @@ VALUE rb_gvar_set(struct global_entry *, VALUE);
 VALUE rb_gvar_defined(struct global_entry *);
 
 #if defined(__cplusplus)
-#if 0
-{ /* satisfy cc-mode */
-#endif
-}  /* extern "C" { */
+}  // extern "C" {
 #endif
 
 #endif /* RUBY_NODE_H */

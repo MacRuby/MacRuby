@@ -2537,7 +2537,7 @@ rb_realpath_internal(VALUE basedir, VALUE path, int strict)
         }
     }
 
-    curdir = my_getcwd();
+    curdir = ruby_getcwd();
     ptr = (char *)RSTRING_PTR(curdir);
     curdir_names = skiproot(ptr);
     resolved = rb_str_new(ptr, curdir_names - ptr);
@@ -3953,7 +3953,7 @@ path_check_0(VALUE path, int execpath)
     char *p = 0, *s;
 
     if (!is_absolute_path(p0)) {
-	VALUE newpath = my_getcwd();
+	VALUE newpath = ruby_getcwd();
 	rb_str_cat2(newpath, "/");
 	rb_str_cat2(newpath, p0);
 	path = newpath;

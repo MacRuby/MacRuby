@@ -2625,7 +2625,7 @@ rb_cstr_to_dbl(const char *p, int badcheck)
 	return 0.0;
     }
 
-    d = strtod(p, &end);
+    d = ruby_strtod(p, &end);
     if (errno == ERANGE) {
 	OutOfRange();
 	rb_warning("Float %.*s%s out of range", w, p, ellipsis);
@@ -2668,7 +2668,7 @@ rb_cstr_to_dbl(const char *p, int badcheck)
 	    return 0.0;
 	}
 
-	d = strtod(p, &end);
+	d = ruby_strtod(p, &end);
 	if (errno == ERANGE) {
 	    OutOfRange();
 	    rb_warning("Float %.*s%s out of range", w, p, ellipsis);

@@ -2073,7 +2073,6 @@ rb_strftime(char **buf, const char *format, struct tm *time)
 static VALUE
 time_strftime(VALUE time, SEL sel, VALUE format)
 {
-    void rb_enc_copy(VALUE, VALUE);
     struct time_object *tobj;
     char buffer[SMALLBUF], *buf = buffer;
     const char *fmt;
@@ -2117,9 +2116,6 @@ time_strftime(VALUE time, SEL sel, VALUE format)
     }
     str = rb_str_new(buf, len);
     if (buf != buffer) xfree(buf);
-#if !WITH_OBJC
-    rb_enc_copy(str, format);
-#endif
     return str;
 }
 

@@ -106,24 +106,6 @@ typedef struct {
 static st_table *compat_allocator_tbl;
 static VALUE compat_allocator_tbl_wrapper;
 
-static int
-mark_marshal_compat_i(st_data_t key, st_data_t value)
-{
-#if !WITH_OBJC
-    marshal_compat_t *p = (marshal_compat_t *)value;
-#endif
-    rb_gc_mark(p->newclass);
-    rb_gc_mark(p->oldclass);
-    return ST_CONTINUE;
-}
-
-static void
-mark_marshal_compat_t(void *tbl)
-{
-    if (!tbl) return;
-    st_foreach(tbl, mark_marshal_compat_i, 0);
-}
-
 static rb_alloc_func_t
 rb_get_alloc_func(VALUE klass)
 {
@@ -175,18 +157,6 @@ check_dump_arg(struct dump_arg *arg)
     if (!DATA_PTR(arg->wrapper)) {
 	rb_raise(rb_eRuntimeError, "Marshal.dump reentered");
     }
-}
-
-static void
-mark_dump_arg(void *ptr)
-{
-#if !WITH_OBJC
-    struct dump_arg *p = ptr;
-    if (!ptr)
-        return;
-#endif
-    rb_mark_set(p->data);
-    rb_mark_hash(p->compat_tbl);
 }
 
 static VALUE
@@ -1009,7 +979,7 @@ type_error:
     GC_WB(&arg->data, st_init_numtable());
     arg->taint = Qfalse;
     GC_WB(&arg->compat_tbl, st_init_numtable());
-    GC_WB(&arg->wrapper, Data_Wrap_Struct(rb_cData, mark_dump_arg, 0, arg));
+    GC_WB(&arg->wrapper, Data_Wrap_Struct(rb_cData, NULL, 0, arg));
     arg->encodings = 0;
     GC_WB(&c_arg->obj, obj);
     GC_WB(&c_arg->arg, arg);
@@ -1436,7 +1406,7 @@ format_error:
 	    }
 	    else {
 		char *e;
-		d = strtod(ptr, &e);
+		d = ruby_strtod(ptr, &e);
 		d = load_mantissa(d, e, strlen(ptr) - (e - ptr));
 	    }
 	    v = DOUBLE2NUM(d);
@@ -1774,7 +1744,7 @@ marshal_load(VALUE self, SEL sel, int argc, VALUE *argv)
     GC_WB(&arg->src, port);
     arg->offset = 0;
     GC_WB(&arg->compat_tbl, st_init_numtable());
-    GC_WB(&arg->compat_tbl_wrapper, Data_Wrap_Struct(rb_cData, NULL/*rb_mark_tbl*/, 0, arg->compat_tbl));
+    GC_WB(&arg->compat_tbl_wrapper, Data_Wrap_Struct(rb_cData, NULL, 0, arg->compat_tbl));
 
     major = r_byte(arg);
     minor = r_byte(arg);
@@ -1861,7 +1831,7 @@ Init_marshal(void)
 
     compat_allocator_tbl = st_init_numtable();
     compat_allocator_tbl_wrapper =
-	Data_Wrap_Struct(rb_cData, mark_marshal_compat_t, 0, compat_allocator_tbl);
+	Data_Wrap_Struct(rb_cData, NULL, 0, compat_allocator_tbl);
     GC_RETAIN(compat_allocator_tbl_wrapper);
 }
 

@@ -451,9 +451,7 @@ val_setter(VALUE val, ID id, void *data, struct global_variable *var)
 static void
 val_marker(VALUE data)
 {
-    if (data) {
-	rb_gc_mark_maybe(data);
-    }
+    // Do nothing.
 }
 
 static VALUE
@@ -478,39 +476,13 @@ var_setter(VALUE val, ID id, VALUE *var)
 static void
 var_marker(VALUE *var)
 {
-    if (var != NULL) {
-	rb_gc_mark_maybe(*var);
-    }
+    // Do nothing.
 }
 
 void
 readonly_setter(VALUE val, ID id, void *var)
 {
     rb_name_error(id, "%s is a read-only variable", rb_id2name(id));
-}
-
-static int
-mark_global_entry(ID key, struct global_entry *entry)
-{
-    struct trace_var *trace;
-    struct global_variable *var = entry->var;
-
-    (*var->marker)(var->data);
-    trace = var->trace;
-    while (trace) {
-	if (trace->data) {
-	    rb_gc_mark_maybe(trace->data);
-	}
-	trace = trace->next;
-    }
-    return ST_CONTINUE;
-}
-
-void
-rb_gc_mark_global_tbl(void)
-{
-    if (rb_global_tbl)
-        st_foreach_safe(rb_global_tbl, mark_global_entry, 0);
 }
 
 static ID

@@ -7,9 +7,6 @@
 
 #if defined(__cplusplus)
 extern "C" {
-#if 0
-} /* satisfy cc-mode */
-#endif
 #endif
 
 #if SIZEOF_LONG == SIZEOF_VOIDP
@@ -27,9 +24,6 @@ typedef unsigned LONG_LONG st_data_t;
 # else
 #  define CHAR_BIT 8
 # endif
-#endif
-#ifndef _
-# define _(args) args
 #endif
 #ifndef ANYARGS
 # ifdef __cplusplus
@@ -91,10 +85,7 @@ int st_strcasecmp(const char *s1, const char *s2);
 int st_strncasecmp(const char *s1, const char *s2, size_t n);
 
 #if defined(__cplusplus)
-#if 0
-{ /* satisfy cc-mode */
-#endif
-}  /* extern "C" { */
+}  // extern "C" {
 #endif
 
 #endif /* RUBY_ST_H */

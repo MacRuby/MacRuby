@@ -25,6 +25,9 @@
 
 #define FUNCNAME_PATTERN "Init_%s"
 
+// In file.c
+int eaccess(const char *path, int mode);
+
 static int
 init_funcname_len(char **buf, const char *file)
 {

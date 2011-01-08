@@ -1,20 +1,15 @@
-/************************************************
-
-  defines.h -
-
-  $Author: nobu $
-  created at: Wed May 18 00:21:44 JST 1994
-
-************************************************/
+/*
+ * This file is covered by the Ruby license. See COPYING for more details.
+ *
+ * Copyright (C) 2007-2010, Apple Inc. All rights reserved
+ * Copyright (C) 1993-2007 Yukihiro Matsumoto
+ */ 
 
 #ifndef RUBY_DEFINES_H
 #define RUBY_DEFINES_H 1
 
 #if defined(__cplusplus)
 extern "C" {
-#if 0
-} /* satisfy cc-mode */
-#endif
 #endif
 
 #define RUBY
@@ -108,17 +103,6 @@ void xfree(void*);
 # define BDIGIT_DBL_SIGNED long
 #endif
 
-#ifdef __CYGWIN__
-#undef _WIN32
-#endif
-
-#if defined(MSDOS) || defined(_WIN32) || defined(__human68k__) || defined(__EMX__)
-#define DOSISH 1
-#ifndef _WIN32_WCE
-# define DOSISH_DRIVE_LETTER
-#endif
-#endif
-
 #if defined(__NeXT__) || defined(__APPLE__)
 /* Do not trust WORDS_BIGENDIAN from configure since -arch compiler flag may
    result in a different endian.  Instead trust __BIG_ENDIAN__ and
@@ -129,98 +113,16 @@ void xfree(void*);
 #endif
 #endif
 
-#ifdef __NeXT__
-/* NextStep, OpenStep, Rhapsody */
-#ifndef S_IRUSR
-#define S_IRUSR 0000400        /* read permission, owner */
-#endif
-#ifndef S_IRGRP
-#define S_IRGRP 0000040        /* read permission, group */
-#endif
-#ifndef S_IROTH
-#define S_IROTH 0000004        /* read permission, other */
-#endif
-#ifndef S_IWUSR
-#define S_IWUSR 0000200        /* write permission, owner */
-#endif
-#ifndef S_IWGRP
-#define S_IWGRP 0000020        /* write permission, group */
-#endif
-#ifndef S_IWOTH
-#define S_IWOTH 0000002        /* write permission, other */
-#endif
-#ifndef S_IXUSR
-#define S_IXUSR 0000100        /* execute/search permission, owner */
-#endif
-#ifndef S_IXGRP
-#define S_IXGRP 0000010        /* execute/search permission, group */
-#endif
-#ifndef S_IXOTH
-#define S_IXOTH 0000001        /* execute/search permission, other */
-#endif
-#ifndef S_IRWXU
-#define S_IRWXU 0000700        /* read, write, execute permissions, owner */
-#endif
-#ifndef S_IRWXG
-#define S_IRWXG 0000070        /* read, write, execute permissions, group */
-#endif
-#ifndef S_IRWXO
-#define S_IRWXO 0000007        /* read, write, execute permissions, other */
-#endif
-#ifndef S_ISBLK
-#define S_ISBLK(mode)  (((mode) & (0170000)) == (0060000))
-#endif
-#ifndef S_ISCHR
-#define S_ISCHR(mode)  (((mode) & (0170000)) == (0020000))
-#endif
-#ifndef S_ISDIR
-#define S_ISDIR(mode)  (((mode) & (0170000)) == (0040000))
-#endif
-#ifndef S_ISFIFO
-#define S_ISFIFO(mode) (((mode) & (0170000)) == (0010000))
-#endif
-#ifndef S_ISREG
-#define S_ISREG(mode)  (((mode) & (0170000)) == (0100000))
-#endif
-#ifndef __APPLE__
-/* NextStep, OpenStep (but not Rhapsody) */
-#ifndef GETPGRP_VOID
-#define GETPGRP_VOID 1
-#endif
-#ifndef WNOHANG
-#define WNOHANG 01
-#endif
-#ifndef WUNTRACED
-#define WUNTRACED 02
-#endif
-#ifndef X_OK
-#define X_OK 1
-#endif
-#endif /* __APPLE__ */
-#endif /* NeXT */
-
-#ifdef _WIN32
-#include "ruby/win32.h"
-#endif
-
-#if defined(__VMS)
-#include "vms/vms.h"
-#endif
-
-#if defined(__BEOS__)
-#include <net/socket.h> /* intern.h needs fd_set definition */
-#endif
-
 #ifdef RUBY_EXPORT
-#undef RUBY_EXTERN
+# undef RUBY_EXTERN
 #endif
 
 #ifndef RUBY_EXTERN
-#define RUBY_EXTERN extern
+# define RUBY_EXTERN extern
 #endif
 
 #ifndef EXTERN
-#define EXTERN RUBY_EXTERN	/* deprecated */
+# define EXTERN RUBY_EXTERN	/* deprecated */
 #endif
 
 #ifndef RUBY_MBCHAR_MAXSIZE
@@ -228,76 +130,27 @@ void xfree(void*);
         /* MB_CUR_MAX will not work well in C locale */
 #endif
 
-#if defined(sparc) || defined(__sparc__)
-static inline void
-flush_register_windows(void)
-{
-    asm
-#ifdef __GNUC__
-	volatile
-#endif
-# if defined(__sparc_v9__) || defined(__sparcv9) || defined(__arch64__)
-	("flushw")
-# else
-	("ta 0x03")
-# endif /* trap always to flush register windows if we are on a Sparc system */
-	;
-}
-#  define FLUSH_REGISTER_WINDOWS flush_register_windows()
-#elif defined(__ia64)
-void *rb_ia64_bsp(void);
-void rb_ia64_flushrs(void);
-#  define FLUSH_REGISTER_WINDOWS rb_ia64_flushrs()
-#else
-#  define FLUSH_REGISTER_WINDOWS ((void)0)
-#endif
-
-#if defined(DOSISH)
-#define PATH_SEP ";"
-#elif defined(riscos)
-#define PATH_SEP ","
-#else
 #define PATH_SEP ":"
-#endif
 #define PATH_SEP_CHAR PATH_SEP[0]
-
-#if defined(__human68k__)
-#define PATH_ENV "path"
-#else
 #define PATH_ENV "PATH"
-#endif
 
-#if defined(DOSISH) && !defined(__human68k__) && !defined(__EMX__)
-#define ENV_IGNORECASE
-#endif
-
-#ifndef CASEFOLD_FILESYSTEM
-# if defined DOSISH || defined __VMS
-#   define CASEFOLD_FILESYSTEM 1
-# else
-#   define CASEFOLD_FILESYSTEM 0
-# endif
-#endif
+#define CASEFOLD_FILESYSTEM 0
 
 #ifndef DLEXT_MAXLEN
-#define DLEXT_MAXLEN 4
+# define DLEXT_MAXLEN 4
 #endif
 
 #ifndef RUBY_PLATFORM
-#define RUBY_PLATFORM "unknown-unknown"
+# define RUBY_PLATFORM "unknown-unknown"
 #endif
 
-#define WITH_OBJC 1 /* TODO: this should be set by configure */
+#define WITH_OBJC 1
+#define __MACRUBY__ 1
 
 #define force_inline __attribute__((always_inline))
 
-#define __MACRUBY__ 1
-
 #if defined(__cplusplus)
-#if 0
-{ /* satisfy cc-mode */
-#endif
-}  /* extern "C" { */
+} // extern "C" {
 #endif
 
 #endif /* RUBY_DEFINES_H */

@@ -746,7 +746,7 @@ dir_s_chdir(VALUE obj, SEL sel, int argc, VALUE *argv)
 
     if (rb_block_given_p()) {
 	struct chdir_data args;
-	VALUE cwd = my_getcwd();
+	VALUE cwd = ruby_getcwd();
 
 	args.old_path = cwd;
 	GC_RETAIN(args.old_path);
@@ -774,7 +774,7 @@ static VALUE
 dir_s_getwd(VALUE dir, SEL sel)
 {
     rb_secure(4);
-    return my_getcwd();
+    return ruby_getcwd();
 }
 
 static void

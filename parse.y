@@ -7112,7 +7112,7 @@ parser_yylex(struct parser_params *parser)
 		yyerror(tmp);
 	    }
 	    if (is_float) {
-		double d = strtod(tok(), 0);
+		double d = ruby_strtod(tok(), 0);
 		if (errno == ERANGE) {
 		    rb_warningS("Float %s out of range", tok());
 		    errno = 0;
@@ -9370,36 +9370,8 @@ parser_initialize(struct parser_params *parser)
 }
 
 #ifdef RIPPER
-#define parser_mark ripper_parser_mark
 #define parser_free ripper_parser_free
 #endif
-
-static void
-parser_mark(void *ptr)
-{
-#if !WITH_OBJC
-    struct parser_params *p = (struct parser_params*)ptr;
-#endif
-
-    rb_gc_mark((VALUE)p->parser_lex_strterm);
-    rb_gc_mark(p->parser_lex_input);
-    rb_gc_mark(p->parser_lex_lastline);
-    rb_gc_mark(p->parser_lex_nextline);
-#ifndef RIPPER
-    rb_gc_mark((VALUE)p->parser_eval_tree_begin) ;
-    rb_gc_mark((VALUE)p->parser_eval_tree) ;
-    rb_gc_mark(p->debug_lines);
-#else
-    rb_gc_mark(p->parser_ruby_sourcefile_string);
-    rb_gc_mark(p->delayed);
-    rb_gc_mark(p->value);
-    rb_gc_mark(p->result);
-    rb_gc_mark(p->parsing_thread);
-#endif
-#ifdef YYMALLOC
-    rb_gc_mark((VALUE)p->heap);
-#endif
-}
 
 static void
 parser_free(void *ptr)
@@ -9512,7 +9484,7 @@ rb_parser_new(void)
     }
 #endif
 
-    return Data_Wrap_Struct(c, parser_mark, parser_free, p);
+    return Data_Wrap_Struct(c, NULL, parser_free, p);
 }
 
 VALUE
@@ -9866,7 +9838,7 @@ ripper_s_allocate(VALUE klass)
 
     p = ALLOC_N(struct parser_params, 1);
     MEMZERO(p, struct parser_params, 1);
-    self = Data_Wrap_Struct(klass, parser_mark, parser_free, p);
+    self = Data_Wrap_Struct(klass, NULL, parser_free, p);
     p->value = self;
     return self;
 }

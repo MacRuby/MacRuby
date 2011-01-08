@@ -601,7 +601,6 @@ rb_waitpid_blocking(void *data)
     struct waitpid_arg *arg = data;
 #endif
 
-    TRAP_BEG;
 #if defined NO_WAITPID
     result = wait(data);
 #elif defined HAVE_WAITPID
@@ -609,7 +608,6 @@ rb_waitpid_blocking(void *data)
 #else  /* HAVE_WAIT4 */
     result = wait4(arg->pid, arg->st, arg->flags, NULL);
 #endif
-    TRAP_END;
     return (VALUE)result;
 }
 
@@ -2122,7 +2120,7 @@ rb_run_exec_options(const struct rb_exec_arg *e, struct rb_exec_arg *s)
     obj = rb_ary_entry(options, EXEC_OPTION_CHDIR);
     if (!NIL_P(obj)) {
         if (!NIL_P(soptions)) {
-            VALUE cwd = my_getcwd();
+            VALUE cwd = ruby_getcwd();
             rb_ary_store(soptions, EXEC_OPTION_CHDIR,
                          hide_obj(cwd));
         }
