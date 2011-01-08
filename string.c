@@ -920,7 +920,8 @@ str_concat_string(rb_str_t *self, rb_str_t *str)
 }
 
 static void
-str_concat_string_part(rb_str_t *self, rb_str_t *str, long start, long len)
+str_concat_string_part(rb_str_t *self, rb_str_t *str, long start, long len,
+	character_boundaries_cache_t *cache_for_str)
 {
     assert(len >= 0 && start >= 0);
     if (len == 0) {
@@ -931,18 +932,15 @@ str_concat_string_part(rb_str_t *self, rb_str_t *str, long start, long len)
     str_reset_flags(self);
     self->encoding = enc;
 
-    character_boundaries_cache_t local_cache;
-    reset_character_boundaries_cache(&local_cache);
-
     character_boundaries_t first_boundaries =
-	str_get_character_boundaries(str, start, &local_cache);
+	str_get_character_boundaries(str, start, cache_for_str);
     character_boundaries_t last_boundaries;
     if (len == 1) {
 	last_boundaries = first_boundaries;
     }
     else {
 	last_boundaries = str_get_character_boundaries(str, start+len-1,
-		&local_cache);
+		cache_for_str);
     }
 
     if ((first_boundaries.start_offset_in_bytes == -1) ||
@@ -3639,14 +3637,19 @@ rstr_chop(VALUE str, SEL sel)
 
 static VALUE
 rb_reg_regsub(VALUE str, VALUE src, VALUE regexp, rb_match_result_t *results,
-	int results_count)
+	int results_count, character_boundaries_cache_t *cache_for_src)
 {
     VALUE val = 0;
 
     RB_STR_GET_UCHARS(str, str_chars, str_chars_len);
 
     long pos = 0;
-    long src_chars_len = -1;
+
+    // if we already have a cache, we will make a local copy just before
+    // using it to be sure not to have to start from scratch later
+    // (as for instance with "\\2\\1" would make us do)
+    character_boundaries_cache_t local_cache_for_src;
+    reset_character_boundaries_cache(&local_cache_for_src);
 
     for (long i = 0; i < str_chars_len; i++) {
 	UChar c = str_chars[i];
@@ -3680,16 +3683,29 @@ rb_reg_regsub(VALUE str, VALUE src, VALUE regexp, rb_match_result_t *results,
 		break;
 
 	    case '`':
+		if (cache_for_src != NULL) {
+		    local_cache_for_src = *cache_for_src;
+		}
 		str_concat_string_part(RSTR(val), RSTR(src),
-			0, results[0].beg);
+			0, results[0].beg, cache_for_src);
 		break;
 
 	    case '\'':
-		if (src_chars_len == -1) {
-		    src_chars_len = str_length(RSTR(src));
+		{
+		    long src_chars_len;
+		    if (cache_for_src == NULL) {
+			src_chars_len = str_length_with_cache(RSTR(src),
+				&local_cache_for_src);
+		    }
+		    else {
+			src_chars_len = str_length_with_cache(RSTR(src),
+				cache_for_src);
+			local_cache_for_src = *cache_for_src;
+		    }
+		    str_concat_string_part(RSTR(val), RSTR(src),
+			    results[0].end, src_chars_len - results[0].end,
+			    cache_for_src);
 		}
-		str_concat_string_part(RSTR(val), RSTR(src),
-			results[0].end, src_chars_len - results[0].end);
 		break;
 
 	    case '+':
@@ -3717,8 +3733,12 @@ rb_reg_regsub(VALUE str, VALUE src, VALUE regexp, rb_match_result_t *results,
 	    if (results[no].beg == -1) {
 		continue;
 	    }
+	    if (cache_for_src != NULL) {
+		local_cache_for_src = *cache_for_src;
+	    }
 	    str_concat_string_part(RSTR(val), RSTR(src),
-		    results[no].beg, results[no].end - results[no].beg);
+		    results[no].beg, results[no].end - results[no].beg,
+		    cache_for_src);
 	}
     }
 
@@ -3796,7 +3816,7 @@ rstr_sub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 	    }
 	}
 	else {
-	    repl = rb_reg_regsub(repl, str, pat, results, count);
+	    repl = rb_reg_regsub(repl, str, pat, results, count, NULL);
 	}
 
 	rstr_modify(str);
@@ -3915,6 +3935,9 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 
     VALUE matcher = rb_reg_matcher_new(pat, str);
 
+    character_boundaries_cache_t local_cache_for_str;
+    reset_character_boundaries_cache(&local_cache_for_str);
+
     while (true) {
         const long pos = rb_reg_matcher_search(pat, matcher, offset, false);
 	if (pos < 0) {
@@ -3923,12 +3946,20 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 		return bang ? Qnil : rstr_dup(str, 0);
 	    }
 	    if (last < len) {
-		VALUE substr = rstr_substr(str, last, len - last);
+		VALUE substr = rstr_substr_with_cache(str, last, len - last,
+			&local_cache_for_str);
 		if (substr != Qnil) {
 		    str_concat_string(RSTR(dest), RSTR(substr));
 		}
 	    }
 	    break;
+	}
+
+	if (pos - last > 0) {
+	    // this concatenation must be done before calling the block
+	    // or doing the replacement or else the cache can't be used
+	    str_concat_string_part(RSTR(dest), RSTR(str), last, pos - last,
+		    &local_cache_for_str);
 	}
 
 	match = rb_backref_get();
@@ -3940,11 +3971,15 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 	if (block_given || !NIL_P(hash)) {
             if (block_given) {
 		rb_match_busy(match);
-		val = rb_obj_as_string(rb_yield(rb_reg_nth_match(0, match)));
+		VALUE to_yield = rb_reg_nth_match_with_cache(0, match,
+			&local_cache_for_str);
+		val = rb_obj_as_string(rb_yield(to_yield));
             }
             else {
-                val = rb_hash_aref(hash, rstr_substr(str, results[0].beg,
-			    results[0].end - results[0].beg));
+                val = rb_hash_aref(hash, rstr_substr_with_cache(str,
+			    results[0].beg,
+			    results[0].end - results[0].beg,
+			    &local_cache_for_str));
                 val = rb_obj_as_string(val);
             }
 	    if (bang) {
@@ -3956,13 +3991,10 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 	    }
 	}
 	else {
-	    val = rb_reg_regsub(repl, str, pat, results, count);
+	    val = rb_reg_regsub(repl, str, pat, results, count,
+		    &local_cache_for_str);
 	}
 
-	if (pos - last > 0) {
-	    str_concat_string(RSTR(dest),
-		    RSTR(rstr_substr(str, last, pos - last)));
-	}
 	str_concat_string(RSTR(dest), str_need_string(val));
 
 	if (OBJ_TAINTED(val)) {
