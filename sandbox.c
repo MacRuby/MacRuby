@@ -31,6 +31,7 @@ rb_sandbox_init(VALUE obj, SEL sel, VALUE profile)
 {
     rb_sandbox_t *box;
 
+    StringValue(profile);
     Data_Get_Struct(obj, rb_sandbox_t, box);
     GC_WB(&box->profile, ruby_strdup(RSTRING_PTR(profile)));
     box->flags = 0;
