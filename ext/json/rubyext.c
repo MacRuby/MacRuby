@@ -8,7 +8,7 @@
  *
  */
 
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 #include "ruby/intern.h"
 #include "ruby/node.h"
 #include "ruby/io.h"

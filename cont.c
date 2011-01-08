@@ -9,7 +9,7 @@
 
 **********************************************************************/
 
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 
 enum context_type {
     CONTINUATION_CONTEXT = 0,

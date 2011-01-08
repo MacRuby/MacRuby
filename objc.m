@@ -7,7 +7,7 @@
  */
 
 #include <Foundation/Foundation.h>
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 #include "ruby/node.h"
 #include "ruby/encoding.h"
 #include "ruby/objc.h"

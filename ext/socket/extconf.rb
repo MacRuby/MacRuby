@@ -1,5 +1,7 @@
 require 'mkmf'
 
+$INCFLAGS << ' -I../..'
+
 case RUBY_PLATFORM
 when /(ms|bcc)win32|mingw/
   test_func = "WSACleanup"

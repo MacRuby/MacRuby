@@ -7,7 +7,7 @@
  * Copyright (C) 1993-2007 Yukihiro Matsumoto
  */
 
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 #include "ruby/node.h"
 #include "vm.h"
 #include "id.h"

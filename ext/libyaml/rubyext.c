@@ -6,7 +6,7 @@
  * Copyright (C) 2009-2010, Apple Inc. All rights reserved.
  */
 
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 #include "ruby/intern.h"
 #include "ruby/node.h"
 #include "ruby/io.h"

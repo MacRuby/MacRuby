@@ -15,7 +15,7 @@
 
 /* #define BIGDECIMAL_DEBUG 1 */
 #include "bigdecimal.h"
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 
 #include <ctype.h>
 #include <stdio.h>

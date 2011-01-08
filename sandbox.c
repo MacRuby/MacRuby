@@ -7,7 +7,7 @@
  */
 
 #include <sandbox.h>
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 #include "ruby/util.h"
 
 static VALUE rb_cSandbox;

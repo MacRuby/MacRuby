@@ -12,7 +12,7 @@
 // Notes:
 // AFAICT, we need to add support for newline decorators.
 
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 #include "ruby/encoding.h"
 #include "encoding.h"
 

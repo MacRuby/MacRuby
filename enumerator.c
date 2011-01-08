@@ -12,7 +12,7 @@
 
 ************************************************/
 
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 #include "id.h"
 
 /*

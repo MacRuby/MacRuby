@@ -8,7 +8,7 @@
 
 #import <Foundation/Foundation.h>
 
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 #include "ruby/node.h"
 #include "objc.h"
 #include "vm.h"

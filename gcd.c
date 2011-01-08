@@ -8,7 +8,7 @@
 
 #define GCD_BLOCKS_COPY_DVARS 1
 
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 #include "gcd.h"
 #include <unistd.h>
 #include "ruby/intern.h"

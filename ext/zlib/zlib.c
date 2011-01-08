@@ -7,7 +7,7 @@
  * Copyright (C) UENO Katsuhiro 2000-2003
  */
 
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 #include "ruby/intern.h"
 #include "ruby/node.h"
 #include "ruby/io.h"

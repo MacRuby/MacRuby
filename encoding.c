@@ -11,7 +11,7 @@
 
 #include <string.h>
 
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 #include "ruby/encoding.h"
 #include "encoding.h"
 #include "symbol.h"

@@ -4,8 +4,8 @@
  * Copyright (C) 2007-2010, Apple Inc. All rights reserved 
  */
 
-#ifndef RUBY_MACRUBY_H
-#define RUBY_MACRUBY_H 1
+#ifndef __MACRUBY_INTERNAL_H
+#define __MACRUBY_INTERNAL_H 1
 
 #if defined(__cplusplus)
 extern "C" {
@@ -140,4 +140,4 @@ bool rb_objc_flag_check(const void *, int);
 }  // extern "C" {
 #endif
 
-#endif /* RUBY_MACRUBY_H */
+#endif /* __MACRUBY_INTERNAL_H */

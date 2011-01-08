@@ -13,7 +13,7 @@
 
 ************************************************/
 
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 
 #define RUBY_DIGEST_API_VERSION	2
 

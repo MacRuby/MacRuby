@@ -24,7 +24,7 @@ using namespace llvm;
 #include <sys/socket.h>
 #include <sys/un.h>
 
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 #include "ruby/node.h"
 #include "vm.h"
 #include "compiler.h"

@@ -9,7 +9,7 @@
 
 **********************************************************************/
 
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 #include "ruby/node.h"
 #include "ruby/util.h"
 #include "vm.h"

@@ -13,7 +13,7 @@
 
 // TODO: rewrite me!
 
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 #include "ruby/signal.h"
 #include "ruby/node.h"
 #include "id.h"

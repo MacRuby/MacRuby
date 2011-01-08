@@ -13,7 +13,7 @@
 #include <ctype.h>
 #include <errno.h>
 
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 #include "ruby/node.h"
 #include "vm.h"
 #include "encoding.h"

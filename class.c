@@ -9,7 +9,7 @@
  * Copyright (C) 2000 Information-technology Promotion Agency, Japan
  */
 
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 #include "ruby/signal.h"
 #include "ruby/node.h"
 #include "ruby/st.h"

@@ -9,7 +9,7 @@
 
 **********************************************************************/
 
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 
 #include "objc.h"
 #include "encoding.h"

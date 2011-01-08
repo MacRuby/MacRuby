@@ -9,7 +9,7 @@
 
 #include "unicode/uregex.h"
 #include "unicode/ustring.h"
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 #include "ruby/encoding.h"
 #include "encoding.h"
 #include "objc.h"

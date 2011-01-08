@@ -1,5 +1,7 @@
 require "mkmf"
 
+$INCFLAGS << ' -I../..'
+
 $readline_headers = ["stdio.h"]
 
 def have_readline_header(header)

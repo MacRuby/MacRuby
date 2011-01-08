@@ -9,7 +9,7 @@
 #include "ruby/config.h"
 #include "ruby/defines.h"
 #include "ruby/st.h"
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 #endif
 
 #include <stdio.h>

@@ -9,7 +9,7 @@
 
 **********************************************************************/
 
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 #include "version.h"
 #include "revision.h"
 #include <stdio.h>

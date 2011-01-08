@@ -7,7 +7,7 @@
  */
 
 #include <sys/stat.h>
-#include "ruby/macruby.h"
+#include "macruby_internal.h"
 #include "ruby/node.h"
 #include "vm.h"
 #include "dln.h"
