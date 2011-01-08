@@ -1,13 +1,9 @@
-/**********************************************************************
-
-  ruby/mvm.h -
-
-  $Author$
-  created at: Sun 10 12:06:15 Jun JST 2007
-
-  Copyright (C) 2007-2008 Yukihiro Matsumoto
-
-**********************************************************************/
+/*
+ * This file is covered by the Ruby license. See COPYING for more details.
+ *
+ * Copyright (C) 2007-2010, Apple Inc. All rights reserved
+ * Copyright (C) 2007-2008 Yukihiro Matsumoto
+ */
 
 #ifndef RUBY_H
 #define RUBY_H 1
@@ -26,5 +22,4 @@
 
 #include <ruby/ruby.h>
 
-extern void ruby_set_debug_option(const char *);
 #endif /* RUBY_H */
