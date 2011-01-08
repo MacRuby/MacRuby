@@ -235,7 +235,7 @@ class Builder
     # * install
     # * clean
     def make_command(target)
-      cmd = "cd #{dir} && /usr/bin/make top_srcdir=#{srcdir} ruby=\"#{srcdir}/miniruby -I#{srcdir} -I#{srcdir}/lib\" extout=#{srcdir}/.ext hdrdir=#{srcdir}/include arch_hdrdir=#{srcdir}/include hdrdir2=#{srcdir}"
+      cmd = "cd #{dir} && /usr/bin/make top_srcdir=#{srcdir} ruby=\"#{srcdir}/miniruby -I#{srcdir} -I#{srcdir}/lib\" extout=#{srcdir}/.ext hdrdir=#{srcdir}/include arch_hdrdir=#{srcdir}/include"
       cmd << (target == :all ? " libdir=#{srcdir}" : " #{target}")
       cmd
     end
