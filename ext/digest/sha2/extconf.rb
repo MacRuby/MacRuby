@@ -19,6 +19,8 @@ have_header("unistd.h")
 
 $preload = %w[digest]
 
+$CFLAGS << ' -Wno-deprecated-declarations'
+
 if have_type("uint64_t", "defs.h", $defs.join(' '))
   create_makefile("digest/sha2")
 end

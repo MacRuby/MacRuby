@@ -25,4 +25,6 @@ have_header("unistd.h")
 
 $preload = %w[digest]
 
+$CFLAGS << ' -Wno-deprecated-declarations'
+
 create_makefile("digest/sha1")
