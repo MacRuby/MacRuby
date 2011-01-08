@@ -6,11 +6,10 @@
  * Copyright (C) 2009-2010, Apple Inc. All rights reserved.
  */
 
-#include "ruby/macruby.h"
-
 #define GCD_BLOCKS_COPY_DVARS 1
 
-#include <dispatch/dispatch.h>
+#include "ruby/macruby.h"
+#include "gcd.h"
 #include <unistd.h>
 #include "ruby/intern.h"
 #include "ruby/node.h"
@@ -115,6 +114,13 @@ Check_Queue(VALUE object)
 	rb_raise(rb_eArgError, "expected Queue object, but got %s",
 		rb_class2name(CLASS_OF(object)));
     }
+}
+
+dispatch_queue_t
+rb_get_dispatch_queue_object(VALUE queue)
+{
+    Check_Queue(queue);
+    return (dispatch_queue_t)dispatch_object_imp((void *)queue, 0);
 }
 
 static inline void
