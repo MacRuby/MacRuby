@@ -935,13 +935,13 @@ str_concat_string_part(rb_str_t *self, rb_str_t *str, long start, long len)
     reset_character_boundaries_cache(&local_cache);
 
     character_boundaries_t first_boundaries =
-	str_get_character_boundaries(self, start, &local_cache);
+	str_get_character_boundaries(str, start, &local_cache);
     character_boundaries_t last_boundaries;
     if (len == 1) {
 	last_boundaries = first_boundaries;
     }
     else {
-	last_boundaries = str_get_character_boundaries(self, start+len-1,
+	last_boundaries = str_get_character_boundaries(str, start+len-1,
 		&local_cache);
     }
 
