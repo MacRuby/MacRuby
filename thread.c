@@ -41,11 +41,11 @@ thread_s_new(int argc, VALUE *argv, VALUE klass)
 #endif
 
 static VALUE
-thread_s_alloc(VALUE rcv, SEL sel)
+thread_s_alloc(VALUE self, SEL sel)
 {
     rb_vm_thread_t *t = (rb_vm_thread_t *)xmalloc(sizeof(rb_vm_thread_t));
     t->thread = 0;
-    return Data_Wrap_Struct(rb_cThread, NULL, NULL, t);
+    return Data_Wrap_Struct(self, NULL, NULL, t);
 }
 
 static IMP
@@ -1183,7 +1183,7 @@ thgroup_s_alloc(VALUE self, SEL sel)
     mutex_initialize(mutex, 0);
     GC_WB(&t->mutex, mutex);
 
-    return Data_Wrap_Struct(rb_cThGroup, NULL, NULL, t);
+    return Data_Wrap_Struct(self, NULL, NULL, t);
 }
 
 /*
@@ -1375,7 +1375,7 @@ static VALUE
 mutex_s_alloc(VALUE self, SEL sel)
 {
     rb_vm_mutex_t *t = (rb_vm_mutex_t *)xmalloc(sizeof(rb_vm_mutex_t));
-    return Data_Wrap_Struct(rb_cMutex, NULL, NULL, t);
+    return Data_Wrap_Struct(self, NULL, NULL, t);
 }
 
 static VALUE
