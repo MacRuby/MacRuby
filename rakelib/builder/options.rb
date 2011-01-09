@@ -84,7 +84,7 @@ unless File.exist?(LLVM_CONFIG)
   exit 1
 end
 
-if OPTZ_LEVEL < 0 || OPTZ_LEVEL > 3
+if OPTZ_LEVEL < 0 || OPTZ_LEVEL > 4
   $stderr.puts "Incorrect optimization level: #{OPTZ_LEVEL}"
   exit 1
 end
