@@ -421,7 +421,7 @@ rb_mod_alias_method(VALUE mod, SEL sel, VALUE newname, VALUE oldname)
 static void
 secure_visibility(VALUE self)
 {
-    if (rb_safe_level() >= 4 && !OBJ_TAINTED(self)) {
+    if (rb_safe_level() >= 4 && !OBJ_UNTRUSTED(self)) {
 	rb_raise(rb_eSecurityError,
 		 "Insecure: can't change method visibility");
     }
