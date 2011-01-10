@@ -150,7 +150,7 @@ rb_undef(VALUE klass, ID id)
     if (klass == rb_cObject) {
 	rb_secure(4);
     }
-    if (rb_safe_level() >= 4 && !OBJ_TAINTED(klass)) {
+    if (rb_safe_level() >= 4 && !OBJ_UNTRUSTED(klass)) {
 	rb_raise(rb_eSecurityError, "Insecure: can't undef `%s'",
 		rb_id2name(id));
     }
