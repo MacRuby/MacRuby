@@ -3972,6 +3972,19 @@ ruby_each_words(const char *str, void (*func)(const char*, int, void*), void *ar
     }
 }
 
+#if defined(__clang__)
+// Strangely, this function used by the LLVM runtime isn't exported when we
+// build with clang.
+void
+__eprintf(const char* format, const char* assertion_expression,
+	const char* line, const char* file)
+{
+    fprintf(stderr, format, assertion_expression, line, file);
+    fflush(stderr);
+    abort();
+}
+#endif // __clang__
+
 #ifdef __cplusplus
 }
 #endif
