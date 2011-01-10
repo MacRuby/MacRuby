@@ -1,3 +1,1 @@
 fails:Kernel#public_method returns a method object if we repond_to_missing? method
-fails:Kernel#public_method raises a NameError when called on a private method
-fails:Kernel#public_method raises a NameError when called on a protected method

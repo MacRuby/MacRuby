@@ -670,6 +670,26 @@ mnew(VALUE klass, VALUE obj, ID id, VALUE mclass, int scope)
     rb_vm_method_t *m = rb_vm_get_method(klass, obj, id, scope);
     assert(m != NULL);
 
+    if (m->node) {
+	const int flag = m->node->flags & NOEX_MASK;
+	if (scope && flag != NOEX_PUBLIC) {
+	    const char *v = "";
+	    switch (flag) {
+	      case NOEX_PRIVATE:
+		v = "private";
+		break;
+	      case NOEX_PROTECTED:
+		v = "protected";
+		break;
+	    }
+	    rb_name_error(id, "method `%s' for %s `%s' is %s",
+			  rb_id2name(id),
+			  (TYPE(klass) == T_MODULE) ? "module" : "class",
+			  rb_class2name(klass),
+			  v);
+	}
+    }
+
     return Data_Wrap_Struct(mclass, NULL, NULL, m);
 }
 
