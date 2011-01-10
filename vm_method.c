@@ -14,7 +14,7 @@ remove_method(VALUE klass, ID mid)
     if (klass == rb_cObject) {
 	rb_secure(4);
     }
-    if (rb_safe_level() >= 4 && !OBJ_TAINTED(klass)) {
+    if (rb_safe_level() >= 4 && !OBJ_UNTRUSTED(klass)) {
 	rb_raise(rb_eSecurityError, "Insecure: can't remove method");
     }
     if (OBJ_FROZEN(klass)) {
