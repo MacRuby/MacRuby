@@ -203,7 +203,9 @@ class Gem::Package::TarInput
   # times.  And that's the way it is.
 
   def zipped_stream(entry)
-    if defined? Rubinius or defined? Maglev then
+    # XXX MACRUBY we also enter the first condition
+    if true#defined? Rubinius or defined? Maglev then
+      require 'stringio'
       # these implementations have working Zlib
       zis = Zlib::GzipReader.new entry
       dis = zis.read
