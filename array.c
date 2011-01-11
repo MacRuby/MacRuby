@@ -2365,17 +2365,13 @@ rary_times(VALUE ary, SEL sel, VALUE times)
 	if (ARY_MAX_SIZE/len < n) {
 	    rb_raise(rb_eArgError, "argument too big");
 	}
+	rary_reserve(ary2, n * len);
 	for (long i = 0; i < len; i++) {
 	    rary_concat(ary2, ary, 0, n);
 	}
     }
 
-    if (OBJ_TAINTED(ary)) {
-	OBJ_TAINT(ary2);
-    }
-    if (OBJ_UNTRUSTED(ary)) {
-	OBJ_UNTRUST(ary2);
-    }
+    OBJ_INFECT(ary2, ary);
     return ary2;
 }
 
