@@ -222,3 +222,28 @@ describe "A Pointer object" do
     10.times { |i| ptr3[i].should == i }
   end
 end
+
+describe "A pointer magic cookie" do
+  before :all do
+    @ptr = Pointer.magic_cookie(42);
+  end
+
+  it "has a type of ^v" do
+    @ptr.type.should == '^v'
+  end
+
+  it "can be passed as a void* argument" do
+    val = NSValue.valueWithPointer(@ptr)
+    ptr = Pointer.new(:long)
+    val.getValue(ptr)
+    ptr[0].should == 42
+  end
+
+  it "cannot be accessed" do
+    lambda { @ptr[0] }.should raise_error(ArgumentError)
+    lambda { @ptr[0]=42 }.should raise_error(ArgumentError)
+    lambda { @ptr.cast!(:float) }.should raise_error(ArgumentError)
+    lambda { @ptr - 1 }.should raise_error(ArgumentError)
+    lambda { @ptr + 1 }.should raise_error(ArgumentError)
+  end
+end
