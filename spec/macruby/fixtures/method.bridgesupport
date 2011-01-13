@@ -37,6 +37,8 @@
         <retval type='I'/>
       </arg>
     </method>
+    <method selector='methodAcceptingObjects:' variadic='true' sentinel='0'/>
+    <method selector='methodAcceptingObject:and:' variadic='true' sentinel='0'/>
   </class>
   <informal_protocol name='Foo'>
     <method type="i@:i" selector="informalProtocolMethod1:"/>

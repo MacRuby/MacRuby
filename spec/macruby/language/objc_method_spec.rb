@@ -472,6 +472,13 @@ describe "A pure Objective-C method" do
     o.class.should == Method
     o.should == NSString.method(:hash)
   end
+
+  it "declared as variadic, can be messaged" do
+    @o.methodAcceptingObjects(1, nil).should == [1]
+    @o.methodAcceptingObjects(1, 2, 3, nil).should == [1, 2, 3]
+    @o.methodAcceptingObject(1, and:2, nil).should == [1, 2]
+    @o.methodAcceptingObject(1, and:2, 3, nil).should == [1, 2, 3]
+  end
 end
 
 describe "A pure MacRuby method" do

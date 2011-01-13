@@ -808,6 +808,45 @@ extern id objc_msgSend(id self, SEL op, ...);
     return _my_block(x, y);
 }
 
+- (NSArray *)methodAcceptingObjects:(id)obj1, ...
+{
+    NSMutableArray *ary = [NSMutableArray new];
+    [ary addObject:obj1];
+
+    va_list ar;
+    va_start(ar, obj1);
+    while (true) {
+        id val = va_arg(ar, id);
+	if (val == nil) {
+	    break;
+	}
+	[ary addObject:val];
+    }
+    va_end(ar);
+
+    return ary;
+}
+
+- (NSArray *)methodAcceptingObject:(id)obj1 and:obj2, ...
+{
+    NSMutableArray *ary = [NSMutableArray new];
+    [ary addObject:obj1];
+    [ary addObject:obj2];
+ 
+    va_list ar;
+    va_start(ar, obj2);
+    while (true) {
+        id val = va_arg(ar, id);
+	if (val == nil) {
+	    break;
+	}
+	[ary addObject:val];
+    }
+    va_end(ar);
+
+    return ary;
+}
+
 @end
 
 CFNumberRef functionMultiplicatingByTwoViaFctPtr(CFNumberRef nb, CFNumberRef (*multiplier)(CFNumberRef))
