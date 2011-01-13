@@ -903,6 +903,30 @@ rb_pointer_s_new(VALUE rcv, SEL sel, int argc, VALUE *argv)
 	    xmalloc(GET_CORE()->get_sizeof(type_str) * rlen), rlen);
 }
 
+static VALUE
+rb_pointer_s_magic_cookie(VALUE rcv, SEL sel, VALUE val)
+{
+    long magic_cookie = NUM2LONG(val);
+
+    rb_vm_pointer_t *ptr = (rb_vm_pointer_t *)xmalloc(sizeof(rb_vm_pointer_t));
+    ptr->type = rb_str_new2("^v");
+    ptr->type_size = sizeof(void *);
+    ptr->convert_to_rval = NULL;
+    ptr->convert_to_ocval = NULL;
+    ptr->val = (void *)magic_cookie;
+    ptr->len = 1;
+
+    return Data_Wrap_Struct(rb_cPointer, NULL, NULL, ptr);
+}
+
+static void
+check_no_magic_cookie(rb_vm_pointer_t *ptr)
+{
+    if (ptr->convert_to_rval == NULL || ptr->convert_to_ocval == NULL) {
+	rb_raise(rb_eArgError, "cannot access magic cookie pointers");
+    }
+}
+
 static inline void *
 pointer_val(rb_vm_pointer_t *ptr, VALUE idx)
 {
@@ -922,6 +946,7 @@ rb_pointer_aref(VALUE rcv, SEL sel, VALUE idx)
     rb_vm_pointer_t *ptr;
     Data_Get_Struct(rcv, rb_vm_pointer_t, ptr);
 
+    check_no_magic_cookie(ptr);
     return ptr->convert_to_rval(pointer_val(ptr, idx));
 }
 
@@ -931,8 +956,8 @@ rb_pointer_aset(VALUE rcv, SEL sel, VALUE idx, VALUE val)
     rb_vm_pointer_t *ptr;
     Data_Get_Struct(rcv, rb_vm_pointer_t, ptr);
 
+    check_no_magic_cookie(ptr);
     ptr->convert_to_ocval(val, pointer_val(ptr, idx));
-
     return val;
 }
 
@@ -957,8 +982,8 @@ rb_pointer_cast(VALUE rcv, SEL sel, VALUE type)
     rb_vm_pointer_t *ptr;
     Data_Get_Struct(rcv, rb_vm_pointer_t, ptr);
 
+    check_no_magic_cookie(ptr);
     rb_pointer_init_type(ptr, type);
-
     return rcv;
 }
 
@@ -967,6 +992,8 @@ rb_pointer_offset(VALUE rcv, long off)
 {
     rb_vm_pointer_t *ptr;
     Data_Get_Struct(rcv, rb_vm_pointer_t, ptr);
+
+    check_no_magic_cookie(ptr);
 
     size_t new_len = 0;
     if (ptr->len > 0) {
@@ -1509,6 +1536,8 @@ Init_BridgeSupport(void)
 	    (void *)rb_pointer_s_new, -1);
     rb_objc_define_method(*(VALUE *)rb_cPointer, "new_with_type",
 	    (void *)rb_pointer_s_new, -1);
+    rb_objc_define_method(*(VALUE *)rb_cPointer, "magic_cookie",
+	    (void *)rb_pointer_s_magic_cookie, 1);
     rb_objc_define_method(rb_cPointer, "[]", (void *)rb_pointer_aref, 1);
     rb_objc_define_method(rb_cPointer, "[]=", (void *)rb_pointer_aset, 2);
     rb_objc_define_method(rb_cPointer, "assign", (void *)rb_pointer_assign, 1);
