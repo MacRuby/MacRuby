@@ -265,7 +265,18 @@ static VALUE
 rb_mod_method_defined(VALUE mod, SEL sel, VALUE mid)
 {
     ID id = rb_to_id(mid);
-    return rb_obj_respond_to2(Qnil, mod, id, true, false) ? Qtrue : Qfalse;
+    if (rb_obj_respond_to2(Qnil, mod, id, true, false)) {
+	rb_vm_method_node_t *node;
+	if (rb_vm_lookup_method2((Class)mod, id, NULL, NULL, &node)) {
+	    if (node != NULL) {
+		if (node->flags & NOEX_PRIVATE) {
+		    return Qfalse;
+		}
+	    }
+	    return Qtrue;
+	}
+    }
+    return Qfalse;
 }
 
 #define VISI_CHECK(x,f) (((x)&NOEX_MASK) == (f))
