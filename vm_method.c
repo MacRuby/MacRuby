@@ -313,7 +313,7 @@ check_method_visibility(VALUE mod, ID id, int visi)
     rb_vm_method_node_t *node;
     if (rb_vm_lookup_method2((Class)mod, id, NULL, NULL, &node)) {
 	if (node != NULL) {
-	    if (node->flags & rb_vm_noex_flag(visi)) {
+	    if ((node->flags & NOEX_MASK) == visi) {
 		return Qtrue;
 	    }
 	}
