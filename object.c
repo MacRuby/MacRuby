@@ -1098,6 +1098,9 @@ immediate:
 	    }
 	    st_insert(immediate_frozen_tbl, obj, (st_data_t)Qtrue);
 	}
+	else if ((type = TYPE(obj)) == T_CLASS || type == T_MODULE) {
+	    RCLASS_SET_VERSION_FLAG(obj, RCLASS_IS_FROZEN);
+	}
 	else if (NATIVE(obj)) {
 	    switch (TYPE(obj)) {
 		case T_SYMBOL:
@@ -1123,9 +1126,6 @@ immediate:
 		default:
 		    rb_objc_flag_set((const void *)obj, FL_FREEZE, true);
 	    }
-	}
-	else if ((type = TYPE(obj)) == T_CLASS || type == T_MODULE) {
-	    RCLASS_SET_VERSION_FLAG(obj, RCLASS_IS_FROZEN);
 	}
 	else {
 	    FL_SET(obj, FL_FREEZE);
