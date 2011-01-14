@@ -1089,3 +1089,9 @@ vm_init_c_block(struct ruby_block_literal *b, void *imp, VALUE proc)
     b->descriptor = &ruby_block_descriptor_value;
     GC_WB(&b->ruby_proc, proc);
 }
+
+PRIMITIVE VALUE
+vm_ruby_block_literal_proc(struct ruby_block_literal *b)
+{
+    return b->ruby_proc;
+}

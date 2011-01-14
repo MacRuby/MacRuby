@@ -816,6 +816,21 @@ describe "A Proc object" do
     res.should == ['zero', 'one', 'two'] 
   end
 
+  it "can be used when an Objective-C method takes a Block as argument (nested)" do
+    ary1 = ['zero', 'one', 'two', 'three', 'four']
+    ary2 = ['zero', 'un', 'deux', 'trois', 'quatre']
+    res = []
+    ary1.enumerateObjectsUsingBlock(Proc.new { |obj, idx, stop|
+      res << obj
+      ary2.enumerateObjectsUsingBlock(Proc.new { |obj, idx, stop|
+        res << obj
+        stop.assign(true) if idx == 1
+      })
+      stop.assign(true) if idx == 2
+    })
+    res.should == ['zero', 'zero', 'un', 'one', 'zero', 'un', 'two', 'zero', 'un'] 
+  end
+
   it "is properly retained/released when transformed as a Block" do
     o = TestMethod.new
     o.methodSavingBlockReference(Proc.new { |x, y| x * y })

@@ -274,6 +274,7 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     rvalToSelFunc = get_function("vm_rval_to_sel");
     rvalToCharPtrFunc = get_function("vm_rval_to_charptr");
     initBlockFunc = get_function("vm_init_c_block");
+    blockProcFunc = get_function("vm_ruby_block_literal_proc");
     setCurrentMRIMethodContext = NULL;
 
     VoidTy = Type::getVoidTy(context);
@@ -5249,11 +5250,17 @@ Value *
 RoxorCompiler::compile_lambda_to_funcptr(const char *type,
 	Value *val, Value *slot, bool is_block)
 {
-    GlobalVariable *proc_gvar =
-	new GlobalVariable(*RoxorCompiler::module,
+    GlobalVariable *proc_gvar = NULL;
+    if (!is_block) {
+	// When compiling a function pointer closure, the Proc object we
+	// want to call must be preserved as a global variable.
+	// This isn't needed for C blocks because we can retrieve the Proc
+	// object from the block literal argument.
+	proc_gvar = new GlobalVariable(*RoxorCompiler::module,
 		RubyObjTy, false, GlobalValue::InternalLinkage,
 		nilVal, "");
-    new StoreInst(val, proc_gvar, bb);
+	new StoreInst(val, proc_gvar, bb);
+    }
 
     const size_t buf_len = strlen(type + 1) + 1;
     assert(buf_len > 1);
@@ -5267,8 +5274,7 @@ RoxorCompiler::compile_lambda_to_funcptr(const char *type,
     std::vector<const Type *> arg_types;
 
     if (is_block) {
-	// The Block ABI specifies that the first argument is a pointer
-	// to the block literal, which we don't really care about.
+	// The block literal argument.
 	arg_types.push_back(PtrTy);	
     }
 
@@ -5295,6 +5301,10 @@ RoxorCompiler::compile_lambda_to_funcptr(const char *type,
     bb = BasicBlock::Create(context, "EntryBlock", f);
 
     Function::arg_iterator arg = f->arg_begin();
+    Value *block_lit = NULL;
+    if (is_block) {
+	block_lit = arg++;
+    }
 
     Value *argv;
     if (argc == 0) {
@@ -5304,12 +5314,7 @@ RoxorCompiler::compile_lambda_to_funcptr(const char *type,
     else {
 	argv = new AllocaInst(RubyObjTy, ConstantInt::get(Int32Ty, argc),
 		"", bb);
-	int off = 0;
-	if (is_block) {
-	    // Skip block literal argument.
-	    off++;
-	    arg++;
-	}
+	const int off = is_block ? 1 : 0;
 	for (int i = 0; i < argc; i++) {
 	    Value *index = ConstantInt::get(Int32Ty, i);
 	    Value *aslot = GetElementPtrInst::Create(argv, index, "", bb);
@@ -5317,6 +5322,16 @@ RoxorCompiler::compile_lambda_to_funcptr(const char *type,
 		    arg_types[i + off], arg++);
 	    new StoreInst(rval, aslot, bb);
 	}
+    }
+
+    Value *proc;
+    if (is_block) {
+	block_lit = new BitCastInst(block_lit,
+		PointerType::getUnqual(BlockLiteralTy), "", bb);
+	proc = CallInst::Create(blockProcFunc, block_lit, "", bb);
+    }
+    else {
+	proc = new LoadInst(proc_gvar, "", bb);
     }
 
     // VALUE rb_proc_check_and_call(
@@ -5329,7 +5344,7 @@ RoxorCompiler::compile_lambda_to_funcptr(const char *type,
 		    RubyObjTy, Int32Ty, RubyObjPtrTy, NULL));
 
     Value *args[] = {
-	new LoadInst(proc_gvar, "", bb),
+	proc,
 	ConstantInt::get(Int32Ty, argc),
 	argv
     };
