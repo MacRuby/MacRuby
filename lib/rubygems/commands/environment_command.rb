@@ -13,7 +13,6 @@ class Gem::Commands::EnvironmentCommand < Gem::Command
           gempath         display path used to search for gems
           version         display the gem format version
           remotesources   display the remote gem servers
-          platform        display the supporte gem platforms
           <omitted>       display everything
     EOF
     return args.gsub(/^\s+/, '')
@@ -33,6 +32,8 @@ is a YAML file with the following YAML keys:
             levels
   :update_sources: Enable/disable automatic updating of repository metadata
   :backtrace: Print backtrace when RubyGems encounters an error
+  :bulk_threshold: Switch to a bulk update when this many sources are out of
+                   date (legacy setting)
   :gempath: The paths in which to look for gems
   gem_command: A string containing arguments for the specified gem command
 
@@ -75,8 +76,6 @@ lib/rubygems/defaults/operating_system.rb
       out << Gem.path.join(File::PATH_SEPARATOR)
     when /^remotesources/ then
       out << Gem.sources.join("\n")
-    when /^platform/ then
-      out << Gem.platforms.join(File::PATH_SEPARATOR)
     when nil then
       out = "RubyGems Environment:\n"
 

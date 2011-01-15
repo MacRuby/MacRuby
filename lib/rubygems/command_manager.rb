@@ -56,6 +56,7 @@ class Gem::CommandManager
     register_command :install
     register_command :list
     register_command :lock
+    register_command :mirror
     register_command :outdated
     register_command :owner
     register_command :pristine

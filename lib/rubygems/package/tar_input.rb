@@ -4,8 +4,8 @@
 # See LICENSE.txt for additional licensing information.
 #--
 
-require 'zlib'
-Gem.load_yaml
+require "yaml"
+require "zlib"
 
 class Gem::Package::TarInput
 
@@ -205,8 +205,8 @@ class Gem::Package::TarInput
   def zipped_stream(entry)
     # XXX MACRUBY we also enter the first condition
     if true#defined? Rubinius or defined? Maglev then
-      require 'stringio'
       # these implementations have working Zlib
+      require 'stringio'
       zis = Zlib::GzipReader.new entry
       dis = zis.read
       is = StringIO.new(dis)

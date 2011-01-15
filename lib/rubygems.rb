@@ -5,23 +5,7 @@
 # See LICENSE.txt for permissions.
 #++
 
-gem_preluded = defined? Gem
-
-if defined?(Gem::QuickLoader) then
-  Gem::QuickLoader.load_full_rubygems_library
-
-  class << Gem
-    remove_method :try_activate if Gem.respond_to?(:try_activate, true)
-
-    def try_activate(path)
-      spec = Gem.searcher.find(path)
-      return false unless spec
-
-      Gem.activate(spec.name, "= #{spec.version}")
-      return true
-    end
-  end
-end
+gem_disabled = !defined? Gem
 
 require 'rubygems/defaults'
 require 'rbconfig'
@@ -274,6 +258,9 @@ module Gem
       activate dep_gem, :sources => [spec, *sources]
     end
 
+    # bin directory must come before library directories
+    spec.require_paths.unshift spec.bindir if spec.bindir
+
     require_paths = spec.require_paths.map do |path|
       File.join spec.full_gem_path, path
     end
@@ -440,7 +427,7 @@ module Gem
 
   def self.dir
     @gem_home ||= nil
-    set_home(ENV['GEM_HOME'] || default_dir) unless @gem_home
+    set_home(ENV['GEM_HOME'] || Gem.configuration.home || default_dir) unless @gem_home
     @gem_home
   end
 
@@ -656,16 +643,6 @@ module Gem
   end
 
   ##
-  # Loads YAML, preferring Psych
-
-  def self.load_yaml
-    require 'psych'
-  rescue ::LoadError
-  ensure
-    require 'yaml'
-  end
-
-  ##
   # The file name and line number of the caller of the caller of this method.
 
   def self.location_of_caller
@@ -690,7 +667,7 @@ module Gem
     @gem_path ||= nil
 
     unless @gem_path then
-      paths = [ENV['GEM_PATH'] || default_path]
+      paths = [ENV['GEM_PATH'] || Gem.configuration.path || default_path]
 
       if defined?(APPLE_GEM_HOME) and not ENV['GEM_PATH'] then
         paths << APPLE_GEM_HOME
@@ -1116,6 +1093,11 @@ module Gem
 
   MARSHAL_SPEC_DIR = "quick/Marshal.#{Gem.marshal_version}/"
 
+  ##
+  # Location of legacy YAML quick gemspecs on remote repositories
+
+  YAML_SPEC_DIR = 'quick/'
+
   autoload :Version, 'rubygems/version'
   autoload :Requirement, 'rubygems/requirement'
   autoload :Dependency, 'rubygems/dependency'
@@ -1126,7 +1108,6 @@ module Gem
   autoload :SourceIndex, 'rubygems/source_index'
   autoload :Platform, 'rubygems/platform'
   autoload :Builder, 'rubygems/builder'
-  autoload :ConfigFile, 'rubygems/config_file'
 end
 
 module Kernel
@@ -1183,25 +1164,25 @@ end
 
 require 'rubygems/exceptions'
 
-unless gem_preluded then
+begin
+  ##
+  # Defaults the operating system (or packager) wants to provide for RubyGems.
+
+  require 'rubygems/defaults/operating_system'
+rescue LoadError
+end
+
+if defined?(RUBY_ENGINE) then
   begin
     ##
-    # Defaults the operating system (or packager) wants to provide for RubyGems.
+    # Defaults the ruby implementation wants to provide for RubyGems
 
-    require 'rubygems/defaults/operating_system'
+    require "rubygems/defaults/#{RUBY_ENGINE}"
   rescue LoadError
   end
-
-  if defined?(RUBY_ENGINE) then
-    begin
-      ##
-      # Defaults the ruby implementation wants to provide for RubyGems
-
-      require "rubygems/defaults/#{RUBY_ENGINE}"
-    rescue LoadError
-    end
-  end
 end
+
+require 'rubygems/config_file'
 
 ##
 # Enables the require hook for RubyGems.
@@ -1209,7 +1190,6 @@ end
 # Ruby 1.9 allows --disable-gems, so we require it when we didn't detect a Gem
 # constant at rubygems.rb load time.
 
-require 'rubygems/custom_require' unless gem_preluded and RUBY_VERSION > '1.9'
+require 'rubygems/custom_require' if gem_disabled or RUBY_VERSION < '1.9'
 
 Gem.clear_paths
-

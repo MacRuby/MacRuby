@@ -22,9 +22,8 @@ class Gem::OldFormat
 
   def initialize(gem_path)
     require 'fileutils'
+    require 'yaml'
     require 'zlib'
-    Gem.load_yaml
-
     @gem_path = gem_path
   end
 
