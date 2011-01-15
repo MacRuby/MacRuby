@@ -625,6 +625,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		case 'U':
 		    base = 10;
 		    complete = true;
+		    sharp_flag = false;
 		    break;
 
 		case 'x':
