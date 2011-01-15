@@ -782,6 +782,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 	    if (base != 0) {
 		bool sign_pad = false;
 		unsigned long num_index = 0;
+		unsigned long sharp_beg = 0;
 		VALUE zero_pad = rb_str_new2("0");
 
 		VALUE num = rb_Integer(arg);
@@ -793,6 +794,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		}
 		if (IS_NEG(num)) {
 		    num_index = 1;
+		    sharp_beg = 1;
 		    if (!sign_pad && negative_pad != 0) {
 			zero_pad = negative_pad;
 			num = rb_big_clone(num);
@@ -820,6 +822,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		    rb_str_update(arg, 0, num_index, negative_pad);
 		    rb_str_update(arg, 0, 0, rb_str_new2(".."));
 		    num_index = 2;
+		    sharp_beg = 0;
 		}
 		if (precision_flag) {
 		    pad_format_value(arg, num_index,
@@ -828,7 +831,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 			    zero_pad);
 		}
 		if (sharp_flag && rb_cmpint(num, Qfalse, Qfalse) != 0) {
-		    rb_str_update(arg, sign_pad, 0, (VALUE)sharp_pad);
+		    rb_str_update(arg, sharp_beg, 0, (VALUE)sharp_pad);
 		    num_index += 2;
 		}
 		if (sign_pad && RBIGNUM_POSITIVE_P(num)) {
