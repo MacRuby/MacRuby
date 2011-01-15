@@ -1,13 +1,9 @@
-/**********************************************************************
-
-  prec.c -
-
-  $Author: akr $
-  created at: Tue Jan 26 02:40:41 2000
-
-  Copyright (C) 1993-2007 Yukihiro Matsumoto
-
-**********************************************************************/
+/*
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2007-2011, Apple Inc. All rights reserved.
+ * Copyright (C) 1993-2007 Yukihiro Matsumoto
+ */
 
 #include "macruby_internal.h"
 

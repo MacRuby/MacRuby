@@ -1,15 +1,11 @@
-/**********************************************************************
-
-  dir.c -
-
-  $Author: nobu $
-  created at: Wed Jan  5 09:51:01 JST 1994
-
-  Copyright (C) 1993-2007 Yukihiro Matsumoto
-  Copyright (C) 2000  Network Applied Communication Laboratory, Inc.
-  Copyright (C) 2000  Information-technology Promotion Agency, Japan
-
-**********************************************************************/
+/*
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2007-2011, Apple Inc. All rights reserved.
+ * Copyright (C) 1993-2007 Yukihiro Matsumoto
+ * Copyright (C) 2000  Network Applied Communication Laboratory, Inc.
+ * Copyright (C) 2000  Information-technology Promotion Agency, Japan
+ */
 
 #include "macruby_internal.h"
 #include "ruby/node.h"

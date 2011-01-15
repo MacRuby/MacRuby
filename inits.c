@@ -1,13 +1,9 @@
-/**********************************************************************
-
-  inits.c -
-
-  $Author: tadf $
-  created at: Tue Dec 28 16:01:58 JST 1993
-
-  Copyright (C) 1993-2007 Yukihiro Matsumoto
-
-**********************************************************************/
+/*
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2007-2011, Apple Inc. All rights reserved.
+ * Copyright (C) 1993-2007 Yukihiro Matsumoto
+ */
 
 #include "macruby_internal.h"
 

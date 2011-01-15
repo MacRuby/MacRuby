@@ -3,7 +3,7 @@
 #
 # This file is covered by the Ruby license.
 #
-# Copyright (C) 2009-2010, Apple Inc
+# Copyright (C) 2009-2011, Apple Inc
 
 require 'optparse'
 require 'rbconfig'

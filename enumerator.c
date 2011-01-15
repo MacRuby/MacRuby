@@ -1,16 +1,9 @@
-/************************************************
-
-  enumerator.c - provides Enumerator class
-
-  $Author: knu $
-
-  Copyright (C) 2001-2003 Akinori MUSHA
-
-  $Idaemons: /home/cvs/rb/enumerator/enumerator.c,v 1.1.1.1 2001/07/15 10:12:48 knu Exp $
-  $RoughId: enumerator.c,v 1.6 2003/07/27 11:03:24 nobu Exp $
-  $Id: enumerator.c 16614 2008-05-26 08:49:08Z knu $
-
-************************************************/
+/*
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2007-2011, Apple Inc. All rights reserved.
+ * Copyright (C) 2001-2003 Akinori MUSHA
+ */
 
 #include "macruby_internal.h"
 #include "id.h"

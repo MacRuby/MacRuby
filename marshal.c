@@ -1,13 +1,9 @@
-/**********************************************************************
-
-  marshal.c -
-
-  $Author: mame $
-  created at: Thu Apr 27 16:30:01 JST 1995
-
-  Copyright (C) 1993-2007 Yukihiro Matsumoto
-
-**********************************************************************/
+/*
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2007-2011, Apple Inc. All rights reserved.
+ * Copyright (C) 1993-2007 Yukihiro Matsumoto
+ */
 
 #include "macruby_internal.h"
 #include "ruby/io.h"

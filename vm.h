@@ -3,7 +3,7 @@
  *
  * This file is covered by the Ruby license. See COPYING for more details.
  * 
- * Copyright (C) 2008-2010, Apple Inc. All rights reserved.
+ * Copyright (C) 2008-2011, Apple Inc. All rights reserved.
  */
 
 #ifndef __VM_H_

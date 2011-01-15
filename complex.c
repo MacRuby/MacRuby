@@ -1,9 +1,9 @@
 /*
-  complex.c: Coded by Tadayoshi Funaba 2008,2009
-
-  This implementation is based on Keiju Ishitsuka's Complex library
-  which is written in ruby.
-*/
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2009-2011, Apple Inc. All rights reserved.
+ * Copyright (C) 2008-2009, Tadayoshi Funaba
+ */
 
 #include "macruby_internal.h"
 #include <math.h>

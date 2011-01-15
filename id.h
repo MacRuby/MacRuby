@@ -1,13 +1,9 @@
-/**********************************************************************
-
-  id.h - 
-
-  $Author: ko1 $
-  created at: Thu Jul 12 04:38:07 2007
-
-  Copyright (C) 2007 Koichi Sasada
-
-**********************************************************************/
+/*
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2007-2011, Apple Inc. All rights reserved.
+ * Copyright (C) 2007 Koichi Sasada
+ */
 
 #ifndef RUBY_ID_H
 #define RUBY_ID_H

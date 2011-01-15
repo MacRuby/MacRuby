@@ -1,15 +1,11 @@
-/**********************************************************************
-
-  signal.c -
-
-  $Author: mame $
-  created at: Tue Dec 20 10:13:44 JST 1994
-
-  Copyright (C) 1993-2007 Yukihiro Matsumoto
-  Copyright (C) 2000  Network Applied Communication Laboratory, Inc.
-  Copyright (C) 2000  Information-technology Promotion Agency, Japan
-
-**********************************************************************/
+/*
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2007-2011, Apple Inc. All rights reserved.
+ * Copyright (C) 1993-2007 Yukihiro Matsumoto
+ * Copyright (C) 2000  Network Applied Communication Laboratory, Inc.
+ * Copyright (C) 2000  Information-technology Promotion Agency, Japan
+ */
 
 // TODO: rewrite me!
 

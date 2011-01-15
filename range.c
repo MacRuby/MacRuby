@@ -1,13 +1,9 @@
-/**********************************************************************
-
-  range.c -
-
-  $Author: matz $
-  created at: Thu Aug 19 17:46:47 JST 1993
-
-  Copyright (C) 1993-2007 Yukihiro Matsumoto
-
-**********************************************************************/
+/*
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2007-2011, Apple Inc. All rights reserved.
+ * Copyright (C) 1993-2007 Yukihiro Matsumoto
+ */
 
 #include "macruby_internal.h"
 #include "ruby/encoding.h"

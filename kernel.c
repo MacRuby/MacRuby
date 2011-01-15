@@ -5,7 +5,7 @@
  *
  * This file is covered by the Ruby license. See COPYING for more details.
  * 
- * Copyright (C) 2010, Apple Inc. All rights reserved.
+ * Copyright (C) 2011, Apple Inc. All rights reserved.
  */
 
 #include "macruby_internal.h"

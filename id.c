@@ -1,13 +1,9 @@
-/**********************************************************************
-
-  id.c - 
-
-  $Author: ko1 $
-  created at: Thu Jul 12 04:37:51 2007
-
-  Copyright (C) 2004-2007 Koichi Sasada
-
-**********************************************************************/
+/*
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2007-2011, Apple Inc. All rights reserved.
+ * Copyright (C) 2004-2007 Koichi Sasada
+ */
 
 #include "macruby_internal.h"
 #include "ruby/node.h"

@@ -1,13 +1,9 @@
-/**********************************************************************
-
-  dln.c -
-
-  $Author: nobu $
-  created at: Tue Jan 18 17:05:06 JST 1994
-
-  Copyright (C) 1993-2007 Yukihiro Matsumoto
-
-**********************************************************************/
+/*
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2007-2011, Apple Inc. All rights reserved.
+ * Copyright (C) 1993-2007 Yukihiro Matsumoto
+ */
 
 #include "macruby_internal.h"
 #include "ruby/node.h"

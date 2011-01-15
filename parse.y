@@ -1,13 +1,9 @@
-/**********************************************************************
-
-  parse.y -
-
-  $Author: mame $
-  created at: Fri May 28 18:02:42 JST 1993
-
-  Copyright (C) 1993-2007 Yukihiro Matsumoto
-
-**********************************************************************/
+/*
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2007-2010, Apple Inc. All rights reserved.
+ * Copyright (C) 1993-2007 Yukihiro Matsumoto
+ */
 
 %{
 
