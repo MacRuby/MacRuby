@@ -792,7 +792,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		float f;
 
 		from = NEXTFROM;
-		f = RFLOAT_VALUE(rb_Float(from));
+		f = RFLOAT_VALUE(rb_to_float(from));
 		rb_bstr_concat(data, (const UInt8 *)&f, sizeof(float));
 	    }
 	    break;
@@ -803,7 +803,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		FLOAT_CONVWITH(ftmp);
 
 		from = NEXTFROM;
-		f = RFLOAT_VALUE(rb_Float(from));
+		f = RFLOAT_VALUE(rb_to_float(from));
 		f = HTOVF(f,ftmp);
 		rb_bstr_concat(data, (const UInt8 *)&f, sizeof(float));
 	    }
@@ -815,7 +815,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		DOUBLE_CONVWITH(dtmp);
 
 		from = NEXTFROM;
-		d = RFLOAT_VALUE(rb_Float(from));
+		d = RFLOAT_VALUE(rb_to_float(from));
 		d = HTOVD(d,dtmp);
 		rb_bstr_concat(data, (const UInt8 *)&d, sizeof(double));
 	    }
@@ -827,7 +827,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		double d;
 
 		from = NEXTFROM;
-		d = RFLOAT_VALUE(rb_Float(from));
+		d = RFLOAT_VALUE(rb_to_float(from));
 		rb_bstr_concat(data, (const UInt8 *)&d, sizeof(double));
 	    }
 	    break;
@@ -838,7 +838,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		FLOAT_CONVWITH(ftmp);
 
 		from = NEXTFROM;
-		f = RFLOAT_VALUE(rb_Float(from));
+		f = RFLOAT_VALUE(rb_to_float(from));
 		f = HTONF(f,ftmp);
 		rb_bstr_concat(data, (const UInt8 *)&f, sizeof(float));
 	    }
@@ -850,7 +850,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		DOUBLE_CONVWITH(dtmp);
 
 		from = NEXTFROM;
-		d = RFLOAT_VALUE(rb_Float(from));
+		d = RFLOAT_VALUE(rb_to_float(from));
 		d = HTOND(d,dtmp);
 		rb_bstr_concat(data, (const UInt8 *)&d, sizeof(double));
 	    }

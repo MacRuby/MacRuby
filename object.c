@@ -2755,6 +2755,20 @@ rb_f_float(VALUE obj, SEL sel, VALUE arg)
 }
 
 VALUE
+rb_to_float(VALUE val)
+{
+    if (TYPE(val) ==  T_FLOAT) return val;
+    if (!rb_obj_is_kind_of(val, rb_cNumeric)) {
+	rb_raise(rb_eTypeError, "can't convert %s into Float",
+		 NIL_P(val) ? "nil" :
+		 val ==  Qtrue ? "true" :
+		 val ==  Qfalse ? "false" :
+		 rb_obj_classname(val));
+    }
+    return rb_convert_type(val, T_FLOAT, "Float", "to_f");
+}
+
+VALUE
 rb_check_to_float(VALUE val)
 {
     if (TYPE(val) == T_FLOAT) {
