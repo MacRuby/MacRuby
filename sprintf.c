@@ -548,7 +548,6 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		    if (precision_flag) {
 			rb_raise(rb_eArgError, "precision given twice");
 		    }
-		    zero_flag = false;
 		    precision_flag = true;
 		    if (format_str[++i] == '*') {
 			if (format_str[++i] == '<' || format_str[i] == '{') {
@@ -633,6 +632,9 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		    base = 16;
 		    negative_pad = rb_str_new2("f");
 		    sharp_pad = rb_str_new2("0x");
+		    if (precision_flag) {
+			zero_flag = false;
+		    }
 		    complete = true;
 		    break;
 
