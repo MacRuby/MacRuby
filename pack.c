@@ -1666,6 +1666,7 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 		s += QUAD_SIZE;
 		UNPACK_PUSH(rb_quad_unpack(tmp, 0));
 	    }
+	    PACK_ITEM_ADJUST();
 	    break;
 
 	  case 'n':
