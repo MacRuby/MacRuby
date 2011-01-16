@@ -624,8 +624,11 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		case 'u':
 		case 'U':
 		    base = 10;
-		    complete = true;
 		    sharp_flag = false;
+		    if (precision_flag) {
+			zero_flag = false;
+		    }
+		    complete = true;
 		    break;
 
 		case 'x':
