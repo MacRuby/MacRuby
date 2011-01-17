@@ -3076,7 +3076,7 @@ rstr_scan(VALUE self, SEL sel, VALUE pat)
 		VALUE substr = rb_reg_nth_match_with_cache(i, match,
 			&local_cache);
 		if (tainted) {
-		    OBJ_TAINT(tainted);
+		    OBJ_TAINT(substr);
 		}
 		rb_ary_push(scan_result, substr);
 	    }
