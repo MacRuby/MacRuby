@@ -985,12 +985,14 @@ rary_aset(VALUE ary, SEL sel, int argc, VALUE *argv)
     long offset, beg, len;
 
     if (argc == 3) {
+	rary_modify(ary);
 	rary_splice(ary, NUM2LONG(argv[0]), NUM2LONG(argv[1]), argv[2]);
 	return argv[2];
     }
     if (argc != 2) {
 	rb_raise(rb_eArgError, "wrong number of arguments (%d for 2)", argc);
     }
+    rary_modify(ary);
     if (FIXNUM_P(argv[0])) {
 	offset = FIX2LONG(argv[0]);
     }
