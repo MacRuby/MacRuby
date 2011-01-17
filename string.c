@@ -1686,6 +1686,7 @@ rstr_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE orig;
     if (argc > 0 && rb_scan_args(argc, argv, "01", &orig) == 1) {
+	rstr_modify(self);
 	if (self != orig) {
 	    rstr_replace(self, 0, orig);
 	}
