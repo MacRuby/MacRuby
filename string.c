@@ -3034,6 +3034,7 @@ rstr_scan(VALUE self, SEL sel, VALUE pat)
 {
     const bool block_given = rb_block_given_p();
 
+    const bool untrusted = OBJ_UNTRUSTED(self) || OBJ_UNTRUSTED(pat);
     pat = get_pat(pat, true);
     const bool tainted = OBJ_TAINTED(self) || OBJ_TAINTED(pat);
 
@@ -3069,6 +3070,9 @@ rstr_scan(VALUE self, SEL sel, VALUE pat)
 	    if (tainted) {
 		OBJ_TAINT(scan_result);
 	    }
+	    if (untrusted) {
+		OBJ_UNTRUST(scan_result);
+	    }
 	}
 	else {
 	    scan_result = rb_ary_new2(count);
@@ -3077,6 +3081,9 @@ rstr_scan(VALUE self, SEL sel, VALUE pat)
 			&local_cache);
 		if (tainted) {
 		    OBJ_TAINT(substr);
+		}
+		if (untrusted) {
+		    OBJ_UNTRUST(substr);
 		}
 		rb_ary_push(scan_result, substr);
 	    }
