@@ -4681,13 +4681,18 @@ rstr_each_line(VALUE str, SEL sel, int argc, VALUE *argv)
 	paragraph = true;
     }
 
-    const long len = str_length(RSTR(str));
+    character_boundaries_cache_t local_cache;
+    reset_character_boundaries_cache(&local_cache);
+
+    const long len = str_length_with_cache(RSTR(str), &local_cache);
     const bool tainted = OBJ_TAINTED(str);
 
     long pos = 0;
-    do {
-	long off = str_index_for_string(RSTR(str), rs_str, pos, -1, false);
+    while (true) {
+	long off = str_index_for_string_with_cache(RSTR(str), rs_str, pos, -1,
+		false, &local_cache);
 	if (paragraph && off >= 0) {
+	    // XXX this is slow if str is UTF-8 multibyte.
 	    int i;
 	    for (i = off + 1; i < len; i++) {
 		UChar c = str_get_uchar(RSTR(str), i);
@@ -4709,7 +4714,8 @@ rstr_each_line(VALUE str, SEL sel, int argc, VALUE *argv)
 	    substr_len = off - pos + 1;
 	}
 
-	VALUE substr = rstr_substr(str, pos, substr_len);
+	VALUE substr = rstr_substr_with_cache(str, pos, substr_len,
+		&local_cache);
 	if (tainted) {
 	    OBJ_TAINT(substr);
 	}
@@ -4721,7 +4727,6 @@ rstr_each_line(VALUE str, SEL sel, int argc, VALUE *argv)
 	}
 	pos = off + 1;
     }
-    while (true);
 
     return str;
 }
