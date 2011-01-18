@@ -1080,7 +1080,7 @@ str_offset_in_bytes_for_string(rb_str_t *self, rb_str_t *searched,
 static long
 str_index_for_string_with_cache(rb_str_t *self, rb_str_t *searched,
 	long start_index, long end_index, bool backward_search,
-	character_boundaries_cache_t *local_cache)
+	character_boundaries_cache_t *cache)
 {
     str_must_have_compatible_encoding(self, searched);
 
@@ -1094,7 +1094,7 @@ str_index_for_string_with_cache(rb_str_t *self, rb_str_t *searched,
     }
     else {
 	character_boundaries_t boundaries = str_get_character_boundaries(self,
-		start_index, local_cache);
+		start_index, cache);
 	if (boundaries.start_offset_in_bytes == -1) {
 	    if (boundaries.end_offset_in_bytes == -1) {
 		return -1;
@@ -1109,12 +1109,12 @@ str_index_for_string_with_cache(rb_str_t *self, rb_str_t *searched,
 
     long end_offset_in_bytes;
     if (end_index < 0
-	    || end_index == str_length_with_cache(self, local_cache)) {
+	    || end_index == str_length_with_cache(self, cache)) {
 	end_offset_in_bytes = self->length_in_bytes;
     }
     else {
 	character_boundaries_t boundaries = str_get_character_boundaries(self,
-		end_index, local_cache);
+		end_index, cache);
 	if (boundaries.start_offset_in_bytes == -1) {
 	    if (boundaries.end_offset_in_bytes == -1) {
 		return -1;
@@ -1134,7 +1134,8 @@ str_index_for_string_with_cache(rb_str_t *self, rb_str_t *searched,
     if (offset_in_bytes < 0 || offset_in_bytes >= self->length_in_bytes) {
 	return -1;
     }
-    if (self->encoding->single_byte_encoding) {
+    if (self->encoding->single_byte_encoding
+	    || (self->encoding->ascii_compatible && str_is_ascii_only(self))) {
 	return offset_in_bytes;
     }
     else if (IS_UTF16_ENC(self->encoding)) {
@@ -1146,7 +1147,7 @@ str_index_for_string_with_cache(rb_str_t *self, rb_str_t *searched,
 	((offset_in_bytes - start_offset_in_bytes) / 2);
     while (true) {
 	character_boundaries_t boundaries = str_get_character_boundaries(self,
-		index_guess, local_cache);
+		index_guess, cache);
 	assert(boundaries.start_offset_in_bytes <= offset_in_bytes);
 	if (boundaries.start_offset_in_bytes == offset_in_bytes) {
 	    break;
