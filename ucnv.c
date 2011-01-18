@@ -272,61 +272,6 @@ str_ucnv_get_character_boundaries(rb_str_t *self, long index, bool ucs2_mode)
     return boundaries;
 }
 
-long
-str_ucnv_offset_in_bytes_to_index(rb_str_t *self, long offset_in_bytes,
-	bool ucs2_mode)
-{
-    // the code has many similarities with str_length
-    USE_CONVERTER(cnv, self->encoding);
-
-    const char *current_position = self->bytes;
-    const char *searched_position = current_position + offset_in_bytes;
-    const char *end = current_position + self->length_in_bytes;
-    long index = 0;
-    for (;;) {
-	const char *character_start_position = current_position;
-	// iterate through the string one Unicode code point at a time
-	UErrorCode err = U_ZERO_ERROR;
-	UChar32 c = ucnv_getNextUChar(cnv, &current_position, end, &err);
-	if (err == U_INDEX_OUTOFBOUNDS_ERROR) {
-	    // end of the string
-	    // should not happen because str_offset_in_bytes_to_index
-	    // checks before that offset_in_bytes is inferior to the length
-	    // in bytes
-	    abort();
-	}
-	else if (U_FAILURE(err)) {
-	    long min_char_size = self->encoding->min_char_size;
-	    long converted_width = current_position - character_start_position;
-	    long to_add = div_round_up(converted_width, min_char_size);
-	    if (searched_position < character_start_position + to_add) {
-		long difference = searched_position - character_start_position;
-		index += (difference / min_char_size);
-		break;
-	    }
-	    index += to_add;
-	}
-	else {
-	    if (searched_position < current_position) {
-		break;
-	    }
-	    if (ucs2_mode && !U_IS_BMP(c)) {
-		index += 2;
-	    }
-	    else {
-		++index;
-	    }
-	}
-	if (searched_position == current_position) {
-	    break;
-	}
-    }
-
-    ucnv_close(cnv);
-
-    return index;
-}
-
 void
 str_ucnv_transcode_to_utf16(struct rb_encoding *src_enc,
 	rb_str_t *self, long *pos,

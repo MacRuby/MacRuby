@@ -574,7 +574,8 @@ str_cannot_cut_surrogate(void))
 }
 
 static character_boundaries_t
-str_get_character_boundaries(rb_str_t *self, long index, character_boundaries_cache_t *cache)
+str_get_character_boundaries(rb_str_t *self, long index,
+	character_boundaries_cache_t *cache)
 {
     character_boundaries_t boundaries = {-1, -1};
 
@@ -1030,28 +1031,6 @@ str_case_compare(rb_str_t *self, rb_str_t *str)
     return self->length_in_bytes > str->length_in_bytes ? 1 : -1;
 }
 
-
-static long
-str_offset_in_bytes_to_index(rb_str_t *self, long offset_in_bytes)
-{
-    if ((offset_in_bytes >= self->length_in_bytes) || (offset_in_bytes < 0)) {
-	return -1;
-    }
-    if (offset_in_bytes == 0) {
-	return 0;
-    }
-
-    if (self->encoding->single_byte_encoding) {
-	return offset_in_bytes;
-    }
-    else if (IS_UTF16_ENC(self->encoding)) {
-	return BYTES_TO_UCHARS(offset_in_bytes);
-    }
-    else {
-	return str_ucnv_offset_in_bytes_to_index(self, offset_in_bytes, true);
-    }
-}
-
 static long
 str_offset_in_bytes_for_string(rb_str_t *self, rb_str_t *searched,
 	long start_offset_in_bytes, long end_offset_in_bytes,
@@ -1071,8 +1050,7 @@ str_offset_in_bytes_for_string(rb_str_t *self, rb_str_t *searched,
 	return -1;
     }
 
-    long increment = self->encoding->min_char_size;
-
+    const long increment = self->encoding->min_char_size;
     if (backward_search) {
 	for (long offset = end_offset_in_bytes - increment;
 		offset >= start_offset_in_bytes;
@@ -1100,8 +1078,9 @@ str_offset_in_bytes_for_string(rb_str_t *self, rb_str_t *searched,
 }
 
 static long
-str_index_for_string(rb_str_t *self, rb_str_t *searched, long start_index,
-	long end_index, bool backward_search)
+str_index_for_string_with_cache(rb_str_t *self, rb_str_t *searched,
+	long start_index, long end_index, bool backward_search,
+	character_boundaries_cache_t *local_cache)
 {
     str_must_have_compatible_encoding(self, searched);
 
@@ -1109,16 +1088,13 @@ str_index_for_string(rb_str_t *self, rb_str_t *searched, long start_index,
 	return start_index;
     }
 
-    character_boundaries_cache_t local_cache;
-    reset_character_boundaries_cache(&local_cache);
-
     long start_offset_in_bytes;
     if (start_index == 0) {
 	start_offset_in_bytes = 0;
     }
     else {
 	character_boundaries_t boundaries = str_get_character_boundaries(self,
-		start_index, &local_cache);
+		start_index, local_cache);
 	if (boundaries.start_offset_in_bytes == -1) {
 	    if (boundaries.end_offset_in_bytes == -1) {
 		return -1;
@@ -1132,12 +1108,13 @@ str_index_for_string(rb_str_t *self, rb_str_t *searched, long start_index,
     }
 
     long end_offset_in_bytes;
-    if (end_index < 0 || end_index == str_length(self)) {
+    if (end_index < 0
+	    || end_index == str_length_with_cache(self, local_cache)) {
 	end_offset_in_bytes = self->length_in_bytes;
     }
     else {
 	character_boundaries_t boundaries = str_get_character_boundaries(self,
-		end_index, &local_cache);
+		end_index, local_cache);
 	if (boundaries.start_offset_in_bytes == -1) {
 	    if (boundaries.end_offset_in_bytes == -1) {
 		return -1;
@@ -1153,10 +1130,42 @@ str_index_for_string(rb_str_t *self, rb_str_t *searched, long start_index,
     const long offset_in_bytes = str_offset_in_bytes_for_string(self,
 	    searched, start_offset_in_bytes, end_offset_in_bytes,
 	    backward_search);
-    if (offset_in_bytes == -1) {
+
+    if (offset_in_bytes < 0 || offset_in_bytes >= self->length_in_bytes) {
 	return -1;
     }
-    return str_offset_in_bytes_to_index(RSTR(self), offset_in_bytes);
+    if (self->encoding->single_byte_encoding) {
+	return offset_in_bytes;
+    }
+    else if (IS_UTF16_ENC(self->encoding)) {
+	return BYTES_TO_UCHARS(offset_in_bytes);
+    }
+
+    // Slow path: convert the bytes index to a character index, by guessing.
+    long index_guess = start_index +
+	((offset_in_bytes - start_offset_in_bytes) / 2);
+    while (true) {
+	character_boundaries_t boundaries = str_get_character_boundaries(self,
+		index_guess, local_cache);
+	assert(boundaries.start_offset_in_bytes <= offset_in_bytes);
+	if (boundaries.start_offset_in_bytes == offset_in_bytes) {
+	    break;
+	}
+	long new_guess = (offset_in_bytes
+		- boundaries.start_offset_in_bytes) / 2;
+	index_guess = new_guess > index_guess ? new_guess : index_guess + 1;
+    }
+    return index_guess;
+}
+
+static long
+str_index_for_string(rb_str_t *self, rb_str_t *searched, long start_index,
+	long end_index, bool backward_search)
+{
+    character_boundaries_cache_t local_cache;
+    reset_character_boundaries_cache(&local_cache);
+    return str_index_for_string_with_cache(self, searched, start_index,
+	    end_index, backward_search, &local_cache);
 }
 
 static bool
@@ -3155,7 +3164,9 @@ static VALUE str_strip(VALUE str, int direction);
 static VALUE
 rstr_split(VALUE str, SEL sel, int argc, VALUE *argv)
 {
-    const long len = str_length(RSTR(str));
+    character_boundaries_cache_t local_cache;
+    reset_character_boundaries_cache(&local_cache);
+    const long len = str_length_with_cache(RSTR(str), &local_cache);
     int lim = 0;
 
     VALUE spat, limit;
@@ -3208,7 +3219,8 @@ fs_set:
 	for (long i = 0; i < chars_len; i++) {
 	    UChar c = chars[i];
 	    if (c == ' ' || c == '\t' || c == '\n' || c == '\v') {
-		VALUE substr = rstr_substr(str, beg, i - beg);
+		VALUE substr = rstr_substr_with_cache(str, beg, i - beg,
+			&local_cache);
 		str_strip(substr, 0);
 		if (rb_str_chars_len(substr) > 0) {
 		    rb_ary_push(result, substr); 
@@ -3224,7 +3236,7 @@ fs_set:
     else if (spat_string) {
 	if (spat_len == 0) {
 	    do {
-		VALUE substr = rstr_substr(str, beg, 1);
+		VALUE substr = rstr_substr_with_cache(str, beg, 1, &local_cache);
 		rb_ary_push(result, substr);
 		beg++;
 		if (beg >= len) {
@@ -3237,12 +3249,13 @@ fs_set:
 	    rb_str_t *spat_str = str_need_string(spat);
 	    const long spat_len = str_length(spat_str);
 	    do {
-		const long pos = str_index_for_string(RSTR(str), spat_str,
-			beg, -1, false);
+		const long pos = str_index_for_string_with_cache(RSTR(str),
+			spat_str, beg, -1, false, &local_cache);
 		if (pos == -1) {
 		    break;
 		}
-		rb_ary_push(result, rstr_substr(str, beg, pos - beg));
+		rb_ary_push(result, rstr_substr_with_cache(str, beg, pos - beg,
+			    &local_cache));
 		beg = pos + spat_len;
 	    }
 	    while (limit == Qnil || --lim > 1);
@@ -3268,7 +3281,8 @@ again:
 		if (last_null) {
 		    VALUE substr;
 		    if (beg + 1 <= len) {
-			substr = rstr_substr(str, beg, 1);
+			substr = rstr_substr_with_cache(str, beg, 1,
+				&local_cache);
 		    }
 		    else {
 			substr = rb_str_new(NULL, 0);
@@ -3283,7 +3297,9 @@ again:
 		}
 	    }
 	    else {
-		rb_ary_push(result, rstr_substr(str, beg, pos - beg));
+		VALUE substr = rstr_substr_with_cache(str, beg, pos - beg,
+			&local_cache);
+		rb_ary_push(result, substr);
 		beg = start = results[0].end;
 	    }
 	    last_null = false;
@@ -3297,8 +3313,8 @@ again:
 		    substr = rb_str_new(NULL, 0);
 		}
 		else {
-		    substr = rstr_substr(str, results[i].beg,
-			    results[i].end - results[i].beg);
+		    substr = rstr_substr_with_cache(str, results[i].beg,
+			    results[i].end - results[i].beg, &local_cache);
 		}
 		rb_ary_push(result, substr);
 	    }
@@ -4671,9 +4687,9 @@ rstr_each_line(VALUE str, SEL sel, int argc, VALUE *argv)
     long pos = 0;
     do {
 	long off = str_index_for_string(RSTR(str), rs_str, pos, -1, false);
-	if(paragraph && off >= 0) {
+	if (paragraph && off >= 0) {
 	    int i;
-	    for(i = off + 1; i < len; i++) {
+	    for (i = off + 1; i < len; i++) {
 		UChar c = str_get_uchar(RSTR(str), i);
 		if (c != '\n') {
 		    break;
