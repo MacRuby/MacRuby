@@ -289,7 +289,8 @@ str_append_uchar32(rb_str_t *self, UChar32 c)
 	if (len > 0) {
 	    str_resize_bytes(self, self->length_in_bytes + len);
 	    U8_APPEND_UNSAFE(self->bytes, self->length_in_bytes, c);
-	    self->length_in_bytes += len;
+	    // U8_APPEND_UNSAFE increments length_in_bytes
+	    // by the number of bytes appended
 	}
     }
     else if (IS_NATIVE_UTF32_ENC(self->encoding)) {
