@@ -662,7 +662,7 @@ env_replace(VALUE env, SEL sel, VALUE hash)
 }
 
 static int
-env_update_i(VALUE key, VALUE val)
+env_update_i(VALUE key, VALUE val, VALUE ctx)
 {
     if (key != Qundef) {
 	if (rb_block_given_p()) {

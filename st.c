@@ -631,13 +631,14 @@ st_foreach(st_table *table, int (*func)(ANYARGS), st_data_t arg)
 
     if (table->entries_packed) {
         for (i = 0; i < table->num_entries; i++) {
-            int j;
+            //int j;
             st_data_t key, val;
             key = (st_data_t)table->bins[i*2];
             val = (st_data_t)table->bins[i*2+1];
             retval = (*func)(key, val, arg);
             switch (retval) {
 	      case ST_CHECK:	/* check if hash is modified during iteration */
+#if 0 // XXX disabled because unused and causes clang errors
                 for (j = 0; j < table->num_entries; j++) {
                     if ((st_data_t)table->bins[j*2] == key)
                         break;
@@ -648,6 +649,7 @@ st_foreach(st_table *table, int (*func)(ANYARGS), st_data_t arg)
                     return 1;
                 }
 		/* fall through */
+#endif
 	      case ST_CONTINUE:
 		break;
 	      case ST_STOP:
@@ -669,6 +671,7 @@ st_foreach(st_table *table, int (*func)(ANYARGS), st_data_t arg)
 	    retval = (*func)(ptr->key, ptr->record, arg);
 	    switch (retval) {
 	      case ST_CHECK:	/* check if hash is modified during iteration */
+#if 0 // XXX disabled because unused and causes clang errors
 		i = ptr->hash % table->num_bins;
 		for (tmp = table->bins[i]; tmp != ptr; tmp = tmp->next) {
 		    if (!tmp) {
@@ -678,6 +681,7 @@ st_foreach(st_table *table, int (*func)(ANYARGS), st_data_t arg)
 		    }
 		}
 		/* fall through */
+#endif
 	      case ST_CONTINUE:
 		ptr = ptr->fore;
 		break;

@@ -78,7 +78,6 @@ rb_hash(VALUE obj)
 typedef int st_foreach_func(st_data_t, st_data_t, st_data_t);
 
 struct foreach_safe_arg {
-    st_table *tbl;
     st_foreach_func *func;
     st_data_t arg;
 };
@@ -101,7 +100,6 @@ st_foreach_safe(st_table *table, int (*func)(ANYARGS), st_data_t a)
 {
     struct foreach_safe_arg arg;
 
-    arg.tbl = table;
     arg.func = (st_foreach_func *)func;
     arg.arg = a;
     st_foreach(table, foreach_safe_i, (st_data_t)&arg);
