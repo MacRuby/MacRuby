@@ -41,11 +41,14 @@ rb_klass_is_rhash(VALUE klass)
 static inline void
 rhash_modify(VALUE hash)
 {
-    if (OBJ_FROZEN(hash)) {
-	rb_error_frozen("hash");
-    }
-    if (!OBJ_UNTRUSTED(hash) && rb_safe_level() >=  4) {
-	rb_raise(rb_eSecurityError, "Insecure: can't modify hash");
+    const long mask = RBASIC(hash)->flags;
+    if ((mask & FL_FREEZE) == FL_FREEZE) {
+	rb_raise(rb_eRuntimeError, "can't modify frozen/immutable hash");
+    } 
+    if ((mask & FL_UNTRUSTED) == FL_UNTRUSTED) {
+	if (rb_safe_level() >= 4) {
+	    rb_raise(rb_eSecurityError, "Insecure: can't modify hash");
+	}
     }
 }
 
