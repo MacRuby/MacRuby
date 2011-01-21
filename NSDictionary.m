@@ -116,12 +116,12 @@ nshash_inspect(id rcv, SEL sel)
 }
 
 static VALUE
-nshash_equal(id rcv, SEL sel, id other)
+nshash_equal(id rcv, SEL sel, VALUE other)
 {
-    if (![other isKindOfClass:(id)rb_cNSHash]) {
+    if (TYPE(other) != T_HASH) {
 	return Qfalse;
     }
-    return [rcv isEqualToDictionary:other] ? Qtrue : Qfalse;
+    return [rcv isEqualToDictionary:(id)other] ? Qtrue : Qfalse;
 }
 
 static inline VALUE
