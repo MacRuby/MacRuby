@@ -434,6 +434,12 @@ static long str_length(rb_str_t *self)
     return str_length_with_cache(self, NULL);
 }
 
+NORETURN(static void
+str_invalid_byte_sequence(rb_str_t *str))
+{
+    rb_raise(rb_eArgError, "invalid byte sequence in %s", str->encoding->public_name);
+}
+
 // Note that each_uchar32 iterates on Unicode characters
 // With a character not in the BMP the callback will only be called once!
 static void
@@ -443,7 +449,7 @@ str_each_uchar32(rb_str_t *self, each_uchar32_callback_t callback)
 	bool stop = false;
 	for (long i = 0; i < self->length_in_bytes; ++i) {
 	    UChar32 c = (uint8_t)self->bytes[i];
-	    if (c > 127) {
+	    if (!IS_BINARY_ENC(self->encoding) && c > 127) {
 		c = U_SENTINEL;
 	    }
 	    callback(c, i, 1, &stop);
@@ -3452,7 +3458,11 @@ rstr_ord(VALUE str, SEL sel)
     if (RSTR(str)->length_in_bytes == 0) {
 	rb_raise(rb_eArgError, "empty string");
     }
-    return INT2NUM(rb_str_get_uchar(str, 0));
+    UChar c = rb_str_get_uchar(str, 0);
+    if (c == (UChar)U_SENTINEL) {
+	str_invalid_byte_sequence(RSTR(str));
+    }
+    return INT2NUM(c);
 }
 
 /*
@@ -4767,6 +4777,9 @@ rstr_each_char(VALUE str, SEL sel)
     __block VALUE return_value = str;
 
     str_each_uchar32(RSTR(str), ^(UChar32 c, long start_index, long char_len, bool *stop) {
+	if (c == U_SENTINEL) {
+	    str_invalid_byte_sequence(RSTR(str));
+	}
 	VALUE charstr = (VALUE)str_new_copy_of_part(RSTR(str),
 	    start_index, char_len);
 	rb_yield(charstr);
@@ -4835,8 +4848,7 @@ rstr_each_codepoint(VALUE str, SEL sel)
     __block VALUE return_value = str;
     str_each_uchar32(RSTR(str), ^(UChar32 c, long start_index, long char_len, bool *stop) {
 	if (c == U_SENTINEL) {
-	    rb_raise(rb_eArgError, "invalid byte sequence in %s",
-		RSTR(str)->encoding->public_name);
+	    str_invalid_byte_sequence(RSTR(str));
 	}
 	rb_yield(INT2NUM(c));
 	VALUE v = rb_vm_pop_broken_value();
