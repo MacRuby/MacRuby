@@ -4777,9 +4777,6 @@ rstr_each_char(VALUE str, SEL sel)
     __block VALUE return_value = str;
 
     str_each_uchar32(RSTR(str), ^(UChar32 c, long start_index, long char_len, bool *stop) {
-	if (c == U_SENTINEL) {
-	    str_invalid_byte_sequence(RSTR(str));
-	}
 	VALUE charstr = (VALUE)str_new_copy_of_part(RSTR(str),
 	    start_index, char_len);
 	rb_yield(charstr);
