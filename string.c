@@ -2842,6 +2842,9 @@ str_inspect(rb_str_t *str, bool dump)
     __block UChar32 prev = 0;
     str_each_uchar32(str, ^(UChar32 c, long start_index, long char_len, bool *stop) {
 	bool print = iswprint(c);
+	if (IS_BINARY_ENC(str->encoding) && c > 127) {
+	    print = false;
+	}
 	if (dump && prev == '#') {
 	    inspect_append(result, prev, (c == '$' || c == '@' || c == '{'));
 	}
