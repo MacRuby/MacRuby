@@ -690,7 +690,6 @@ recache2:
 		    strncpy(tmp, selname, p - selname + 1);
 		    tmp[p - selname + 1] = '\0';
 		    sel = sel_registerName(tmp);
-		    free(tmp);
 		    VALUE h = rb_hash_new();
 		    bool ok = true;
 		    p += 1;
@@ -705,6 +704,8 @@ recache2:
 			p = p2 + 1; 
 			rb_hash_aset(h, ID2SYM(rb_intern(tmp)), argv[i]);
 		    }
+		    free(tmp);
+		    tmp = NULL;
 		    if (ok) {
 			argc = 2;
 			((VALUE *)argv)[1] = h; // bad, I know...
