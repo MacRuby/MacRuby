@@ -1479,19 +1479,9 @@ vm_alias_method(Class klass, Method method, ID name, bool noargs)
     if (UNAVAILABLE_IMP(imp)) {
 	return;
     }
+
     const char *types = method_getTypeEncoding(method);
-
-    const char *name_str = rb_id2name(name);
-    SEL sel;
-    if (noargs) {
-	sel = sel_registerName(name_str);
-    }
-    else {
-	char tmp[100];
-	snprintf(tmp, sizeof tmp, "%s:", name_str);
-	sel = sel_registerName(tmp);
-    }
-
+    SEL sel = rb_vm_id_to_sel(name, noargs ? 0 : 1);
     rb_vm_method_node_t *node = GET_CORE()->method_node_get(method);
     if (node != NULL) {
 	GET_CORE()->add_method(klass, sel, imp, node->ruby_imp,

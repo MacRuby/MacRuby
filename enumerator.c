@@ -7,6 +7,8 @@
 
 #include "macruby_internal.h"
 #include "id.h"
+#include "ruby/node.h"
+#include "vm.h"
 
 /*
  * Document-class: Enumerable::Enumerator
@@ -77,15 +79,7 @@ obj_to_enum(VALUE obj, SEL sel, int argc, VALUE *argv)
     }
 
     ID meth_id = rb_to_id(meth);
-    SEL enum_sel;
-    if (argc > 0) {
-	char buf[100];
-	snprintf(buf, sizeof buf, "%s:", rb_id2name(meth_id));
-	enum_sel = sel_registerName(buf);
-    }
-    else {
-	enum_sel = sel_registerName(rb_id2name(meth_id));
-    }
+    SEL enum_sel = rb_vm_id_to_sel(meth_id, argc);
     return rb_enumeratorize(obj, enum_sel, argc, argv);
 }
 
@@ -251,15 +245,7 @@ enumerator_initialize(VALUE obj, SEL sel, int argc, VALUE *argv)
 	--argc;
     }
     ID meth_id = rb_to_id(meth);
-    SEL meth_sel;
-    if (argc == 0) {
-	meth_sel = sel_registerName(rb_id2name(meth_id));
-    }
-    else {
-	char buf[100];
-	snprintf(buf, sizeof buf, "%s:", rb_id2name(meth_id));
-	meth_sel = sel_registerName(buf);
-    }
+    SEL meth_sel = rb_vm_id_to_sel(meth_id, argc);
     return enumerator_init(obj, recv, meth_sel, argc, argv);
 }
 

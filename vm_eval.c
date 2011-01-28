@@ -26,17 +26,8 @@ rb_call(VALUE recv, ID mid, int argc, const VALUE *argv, int scope,
 	sel = selAlloc;
     }
     else {
-	const char *midstr = rb_id2name(mid);
-	if (argc > 0 && midstr[strlen(midstr) - 1] != ':') {
-	    char buf[100];
-	    snprintf(buf, sizeof buf, "%s:", midstr);
-	    sel = sel_registerName(buf);
-	}
-	else {
-	    sel = sel_registerName(midstr);
-	}
+	sel = rb_vm_id_to_sel(mid, argc);
     }
-
     rb_vm_block_t *block = pass_current_block ? rb_vm_current_block() : NULL;
     return rb_vm_call2(block, recv, CLASS_OF(recv), sel, argc, argv);
 }
@@ -280,15 +271,7 @@ VALUE
 rb_block_call(VALUE obj, ID mid, int argc, VALUE *argv,
 	VALUE (*bl_proc) (ANYARGS), VALUE data2)
 {
-    SEL sel;
-    if (argc == 0) {
-	sel = sel_registerName(rb_id2name(mid));
-    }
-    else {
-	char buf[100];
-	snprintf(buf, sizeof buf, "%s:", rb_id2name(mid));
-	sel = sel_registerName(buf);
-    }
+    SEL sel = rb_vm_id_to_sel(mid, argc);
     return rb_objc_block_call(obj, sel, argc, argv, bl_proc, data2);
 }
 

@@ -979,17 +979,6 @@ rb_obj_singleton_methods(VALUE obj, SEL sel, int argc, VALUE *argv)
     return ary;
 }
 
-static SEL
-name_to_sel(const char *name, const int arity)
-{
-    if (arity > 0) {
-	char buf[100];
-	snprintf(buf, sizeof buf, "%s:", name);
-	return sel_registerName(buf);
-    }
-    return sel_registerName(name);
-}
-
 static void
 rb_objc_add_method(VALUE klass, const char *name, void *imp, const int arity,
 		   const int noex, bool direct)
@@ -1001,7 +990,7 @@ rb_objc_add_method(VALUE klass, const char *name, void *imp, const int arity,
     NODE *body = rb_vm_cfunc_node_from_imp((Class)klass, arity, (IMP)imp, noex);
     GC_RETAIN(body);
 
-    rb_vm_define_method((Class)klass, name_to_sel(name, arity), (IMP)imp,
+    rb_vm_define_method((Class)klass, rb_vm_name_to_sel(name, arity), (IMP)imp,
 	    body, direct);
 }
 

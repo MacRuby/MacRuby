@@ -340,19 +340,11 @@ RoxorAOTCompiler::RoxorAOTCompiler(void)
 SEL
 RoxorCompiler::mid_to_sel(ID mid, int arity)
 {
-    SEL sel;
-    const char *mid_str = rb_id2name(mid);
-    char buf[100];
-    if (mid_str[strlen(mid_str) - 1] != ':' && arity > 0) {
-	snprintf(buf, sizeof buf, "%s:", mid_str);
+    SEL sel = rb_vm_id_to_sel(mid, arity);
+    if (rb_objc_ignored_sel(sel)) {
+	char buf[100];
+	snprintf(buf, sizeof buf, "__hidden__%s", rb_id2name(mid));
 	sel = sel_registerName(buf);
-    }
-    else {
-	sel = sel_registerName(mid_str);
-	if (rb_objc_ignored_sel(sel)) {
-	    snprintf(buf, sizeof buf, "__hidden__%s", mid_str);
-	    sel = sel_registerName(buf);
-	}
     }
     return sel;
 }
