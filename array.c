@@ -1842,6 +1842,7 @@ rary_delete_element(VALUE ary, VALUE item, bool use_equal)
 VALUE
 rary_delete(VALUE ary, SEL sel, VALUE item)
 {
+    rary_modify(ary);
     const bool changed = rary_delete_element(ary, item, true);
     if (!changed) {
 	if (rb_block_given_p()) {
@@ -1849,8 +1850,6 @@ rary_delete(VALUE ary, SEL sel, VALUE item)
 	}
 	return Qnil;
     }
-
-    rary_modify(ary);
     return item;
 }
 
