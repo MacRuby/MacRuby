@@ -1799,7 +1799,7 @@ rary_keep_if(VALUE ary, SEL sel)
  */
 
 static bool
-rary_delete_element(VALUE ary, VALUE item, bool use_equal)
+rary_delete_element(VALUE ary, VALUE item, bool use_equal, bool check_modify)
 {
     VALUE *p = rary_ptr(ary);
     VALUE *t = p;
@@ -1808,6 +1808,10 @@ rary_delete_element(VALUE ary, VALUE item, bool use_equal)
     if (use_equal) {
 	while (t < end) {
 	    if (RTEST(rb_equal_fast(*t, item))) {
+		if (check_modify) {
+		    rary_modify(ary);
+		    check_modify = false;
+		}
 		t++;
 	    }
 	    else {
@@ -1820,6 +1824,10 @@ rary_delete_element(VALUE ary, VALUE item, bool use_equal)
     else {
 	while (t < end) {
 	    if (*t == item) {
+		if (check_modify) {
+		    rary_modify(ary);
+		    check_modify = false;
+		}
 		t++;
 	    }
 	    else {
@@ -1842,8 +1850,7 @@ rary_delete_element(VALUE ary, VALUE item, bool use_equal)
 VALUE
 rary_delete(VALUE ary, SEL sel, VALUE item)
 {
-    rary_modify(ary);
-    const bool changed = rary_delete_element(ary, item, true);
+    const bool changed = rary_delete_element(ary, item, true, true);
     if (!changed) {
 	if (rb_block_given_p()) {
 	    return rb_yield(item);
@@ -2836,7 +2843,7 @@ static VALUE
 rary_compact_bang(VALUE ary, SEL sel)
 {
     rary_modify(ary);
-    return rary_delete_element(ary, Qnil, false) ? ary : Qnil;
+    return rary_delete_element(ary, Qnil, false, false) ? ary : Qnil;
 }
 
 /*
