@@ -1178,6 +1178,7 @@ thgroup_s_alloc(VALUE self, SEL sel)
 	    sizeof(rb_thread_group_t));
     t->enclosed = false;
     GC_WB(&t->threads, rb_ary_new());
+    OBJ_UNTRUST(t->threads);
 
     VALUE mutex = mutex_s_alloc(rb_cMutex, 0);
     mutex_initialize(mutex, 0);
@@ -1416,6 +1417,7 @@ rb_mutex_trylock(VALUE self, SEL sel)
 	m->thread = current;
 	if (current->mutexes == Qnil) {
 	    GC_WB(&current->mutexes, rb_ary_new());
+	    OBJ_UNTRUST(current->mutexes);
 	}
 	rb_ary_push(current->mutexes, self);
 	return Qtrue;
@@ -1447,6 +1449,7 @@ rb_mutex_lock(VALUE self, SEL sel)
     m->thread = current;
     if (current->mutexes == Qnil) {
 	GC_WB(&current->mutexes, rb_ary_new());
+	OBJ_UNTRUST(current->mutexes);
     }
     rb_ary_push(current->mutexes, self);
 
