@@ -1050,49 +1050,29 @@ str_case_compare(rb_str_t *self, rb_str_t *str)
 }
 
 static long
-str_offset_in_bytes_for_string(rb_str_t *self, rb_str_t *searched,
-	long start_offset_in_bytes, long end_offset_in_bytes,
-	bool backward_search)
+str_offset_in_bytes_to_index(rb_str_t *self, long offset_in_bytes)
 {
-    if (start_offset_in_bytes >= self->length_in_bytes) {
+    if ((offset_in_bytes >= self->length_in_bytes) || (offset_in_bytes < 0)) {
 	return -1;
     }
-    if (self == searched && start_offset_in_bytes == 0) {
+    if (offset_in_bytes == 0) {
 	return 0;
     }
-    if (searched->length_in_bytes == 0) {
-	return backward_search ? end_offset_in_bytes : start_offset_in_bytes;
-    }
-    str_must_have_compatible_encoding(self, searched);
-    if (searched->length_in_bytes > self->length_in_bytes) {
-	return -1;
-    }
 
-    const long increment = self->encoding->min_char_size;
-    if (backward_search) {
-	for (long offset = end_offset_in_bytes - increment;
-		offset >= start_offset_in_bytes;
-		offset -= increment) {
-	    if (memcmp(self->bytes + offset, searched->bytes,
-			searched->length_in_bytes) == 0) {
-		return offset;
-	    }
+    if (self->encoding->single_byte_encoding
+	    || (self->encoding->ascii_compatible && str_is_ascii_only(self))) {
+	return offset_in_bytes;
+    }
+    else if (IS_UTF16_ENC(self->encoding)) {
+	if (!ODD_NUMBER(offset_in_bytes)) {
+	    // if we are in the middle of a character, there's no valid index
+	    return -1;
 	}
+	return BYTES_TO_UCHARS(offset_in_bytes);
     }
     else {
-	const long max_offset_in_bytes = end_offset_in_bytes
-	    - searched->length_in_bytes + 1;
-
-	for (long offset = start_offset_in_bytes;
-		offset < max_offset_in_bytes;
-		offset += increment) {
-	    if (memcmp(self->bytes + offset, searched->bytes,
-			searched->length_in_bytes) == 0) {
-		return offset;
-	    }
-	}
+	return str_ucnv_offset_in_bytes_to_index(self, offset_in_bytes, true);
     }
-    return -1;
 }
 
 static long
@@ -1104,6 +1084,9 @@ str_index_for_string_with_cache(rb_str_t *self, rb_str_t *searched,
 
     if (searched->length_in_bytes == 0 && self->length_in_bytes == 0) {
 	return start_index;
+    }
+    if (searched->length_in_bytes > self->length_in_bytes) {
+	return -1;
     }
 
     long start_offset_in_bytes;
@@ -1125,10 +1108,23 @@ str_index_for_string_with_cache(rb_str_t *self, rb_str_t *searched,
 	start_offset_in_bytes = boundaries.start_offset_in_bytes;
     }
 
-    long end_offset_in_bytes;
+    if (self == searched) {
+	if (start_offset_in_bytes == 0) {
+	    return 0;
+	}
+	else {
+	    return -1;
+	}
+    }
+
+    if (start_offset_in_bytes >= self->length_in_bytes) {
+	return -1;
+    }
+
+    long last_offset_in_bytes;
     if (end_index < 0
 	    || end_index == str_length_with_cache(self, cache)) {
-	end_offset_in_bytes = self->length_in_bytes;
+	last_offset_in_bytes = self->length_in_bytes;
     }
     else {
 	character_boundaries_t boundaries = str_get_character_boundaries(self,
@@ -1142,15 +1138,23 @@ str_index_for_string_with_cache(rb_str_t *self, rb_str_t *searched,
 		str_cannot_cut_surrogate();
 	    }
 	}
-	end_offset_in_bytes = boundaries.end_offset_in_bytes;
+	last_offset_in_bytes = boundaries.start_offset_in_bytes;
+    }
+    long min_end_offset = self->length_in_bytes - searched->length_in_bytes;
+    if (last_offset_in_bytes > min_end_offset) {
+	last_offset_in_bytes = min_end_offset;
     }
 
     if (!backward_search) {
+	if (searched->length_in_bytes == 0) {
+	    assert(start_index >= 0);
+	    return start_index;
+	}
 	__block long returned_index = -1;
 	__block long current_index = start_index;
 	str_each_uchar32_starting_from(self, start_offset_in_bytes,
 		^(UChar32 c, long character_start_offset, long char_len, bool *stop) {
-	    if (end_offset_in_bytes - character_start_offset < searched->length_in_bytes) {
+	    if (character_start_offset > last_offset_in_bytes) {
 		// not enough characters left: we could not find the string
 		*stop = true;
 		return;
@@ -1166,36 +1170,40 @@ str_index_for_string_with_cache(rb_str_t *self, rb_str_t *searched,
 	return returned_index;
     }
 
-    const long offset_in_bytes = str_offset_in_bytes_for_string(self,
-	    searched, start_offset_in_bytes, end_offset_in_bytes,
-	    backward_search);
-
-    if (offset_in_bytes < 0 || offset_in_bytes >= self->length_in_bytes) {
-	return -1;
-    }
-    if (self->encoding->single_byte_encoding
-	    || (self->encoding->ascii_compatible && str_is_ascii_only(self))) {
-	return offset_in_bytes;
-    }
-    else if (IS_UTF16_ENC(self->encoding)) {
-	return BYTES_TO_UCHARS(offset_in_bytes);
-    }
-
-    // Slow path: convert the bytes index to a character index, by guessing.
-    long index_guess = start_index +
-	((offset_in_bytes - start_offset_in_bytes) / 2);
-    while (true) {
-	character_boundaries_t boundaries = str_get_character_boundaries(self,
-		index_guess, cache);
-	assert(boundaries.start_offset_in_bytes <= offset_in_bytes);
-	if (boundaries.start_offset_in_bytes == offset_in_bytes) {
-	    break;
+    // backward search
+    if (searched->length_in_bytes == 0) {
+	if (end_index < 0) {
+	    return str_length_with_cache(self, cache);
 	}
-	long new_guess = (offset_in_bytes
-		- boundaries.start_offset_in_bytes) / 2;
-	index_guess = new_guess > index_guess ? new_guess : index_guess + 1;
+	else {
+	    return end_index;
+	}
     }
-    return index_guess;
+
+    for (;;) {
+	long offset_found = -1;
+	for (long offset = last_offset_in_bytes;
+		offset >= start_offset_in_bytes;
+		--offset) {
+	    if (memcmp(self->bytes + offset, searched->bytes,
+			searched->length_in_bytes) == 0) {
+		offset_found = offset;
+		break;
+	    }
+	}
+	if (offset_found < 0) {
+	    // not found
+	    return -1;
+	}
+
+	long index = str_offset_in_bytes_to_index(RSTR(self), offset_found);
+	if (index != -1) {
+	    // the offset was valid, at the start of a character
+	    return index;
+	}
+
+	last_offset_in_bytes = offset_found - 1;
+    }
 }
 
 static long
