@@ -924,6 +924,20 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 	    else {
 		len = len / 3 * 3;
 	    }
+
+	    // Try to guess the final size of the bytestring and pre-allocate
+	    // its content, to avoid too much frequent memory reallocations
+	    // during the encoding loop.
+	    do {
+	    	const long datalen = rb_bstr_length(data);
+		const long newdatalen = datalen
+		    + ((plen / len)
+			    * (len * 4 / 3 + 6));
+		rb_bstr_resize(data, newdatalen);
+		rb_bstr_set_length(data, datalen);
+	    }
+	    while (false);
+
 	    while (plen > 0) {
 		long todo;
 
@@ -1055,7 +1069,7 @@ static const char b64_table[] =
 static void
 encodes(VALUE data, const char *s, long len, int type, int tail_lf)
 {
-    char *buff = (char *)malloc(len * 4 / 3 + 6);
+    char buff[4096];
     long i = 0;
     const char *trans = type == 'u' ? uu_table : b64_table;
     int padding;
@@ -1097,7 +1111,6 @@ encodes(VALUE data, const char *s, long len, int type, int tail_lf)
 	buff[i++] = '\n';
     }
     rb_bstr_concat(data, (const UInt8 *)buff, i);
-    free(buff);
 }
 static const char hex_table[] = "0123456789ABCDEF";
 
