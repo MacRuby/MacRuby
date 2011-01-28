@@ -623,7 +623,7 @@ class StringScanner
     return nil if rest_size < 0
 
     if headonly
-      headonly_pattern = Regexp.new('^' + pattern.source, pattern.options)
+      headonly_pattern = Regexp.new('\A' + pattern.source, pattern.options)
       @match = headonly_pattern.match rest
     else
       @match = pattern.match rest
