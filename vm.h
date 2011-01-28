@@ -98,6 +98,27 @@ rb_vm_node_flags(NODE *node)
     return flags;
 }
 
+static inline SEL
+rb_vm_name_to_sel(const char *name, int arity)
+{
+    SEL sel;
+    if (arity > 0 && name[strlen(name) - 1] != ':') {
+	char buf[100];
+	snprintf(buf, sizeof buf, "%s:", name);
+	sel = sel_registerName(buf);
+    }
+    else {
+	sel = sel_registerName(name);
+    }
+    return sel;
+}
+
+static inline SEL
+rb_vm_id_to_sel(ID mid, int arity)
+{
+    return rb_vm_name_to_sel(rb_id2name(mid), arity);
+}
+
 typedef struct rb_vm_method_node {
     rb_vm_arity_t arity;
     Class klass;

@@ -1002,29 +1002,17 @@ rb_mod_define_method(VALUE mod, SEL sel, int argc, VALUE *argv)
     }
 
     if (rb_obj_is_method(body)) {
-	// TODO
-	abort();
-#if 0
-	struct METHOD *method = (struct METHOD *)DATA_PTR(body);
-	VALUE rclass = method->rclass;
-	if (rclass != mod) {
-	    if (RCLASS_SINGLETON(rclass)) {
-		rb_raise(rb_eTypeError,
-			 "can't bind singleton method to a different class");
-	    }
-	    if (!RTEST(rb_class_inherited_p(mod, rclass))) {
-		rb_raise(rb_eTypeError,
-			 "bind argument must be a subclass of %s",
-			 rb_class2name(rclass));
-	    }
+	rb_vm_method_t *data;
+	Data_Get_Struct(body, rb_vm_method_t, data);
+	if (data->node == NULL) {
+	    rb_raise(rb_eArgError, "cannot use Method object of pure Objective-C method");
 	}
-	node = method->body;
-#endif
+	SEL msel = rb_vm_id_to_sel(id, data->arity);
+	rb_vm_define_method2((Class)mod, msel, data->node, data->node->flags, false);
     }
     else {
 	rb_vm_block_t *proc;
 	GetProcPtr(body, proc);
-
 	rb_vm_define_method3((Class)mod, id, proc);
     }
 
