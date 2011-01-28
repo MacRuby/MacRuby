@@ -3778,6 +3778,13 @@ rb_vm_debug(void)
 
 extern "C"
 void
+rb_vm_print_exception(VALUE exc)
+{
+    printf("%s", rb_str_cstr(rb_format_exception_message(exc)));
+}
+
+extern "C"
+void
 rb_vm_print_current_exception(void)
 {
     VALUE exc = GET_VM()->current_exception();
@@ -3785,7 +3792,7 @@ rb_vm_print_current_exception(void)
 	printf("uncaught Objective-C/C++ exception...\n");
 	std::terminate();
     }
-    printf("%s", rb_str_cstr(rb_format_exception_message(exc)));
+    rb_vm_print_exception(exc);
 }
 
 extern "C"

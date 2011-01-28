@@ -55,9 +55,9 @@ rb_end_proc_call_try(VALUE proc)
 }
 
 static VALUE
-rb_end_proc_call_catch(VALUE data)
+rb_end_proc_call_catch(VALUE data, VALUE exc)
 {
-    rb_vm_print_current_exception();
+    rb_vm_print_exception(exc);
     return Qnil;
 }
 

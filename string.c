@@ -425,11 +425,11 @@ str_length_with_cache(rb_str_t *self, character_boundaries_cache_t *cache)
     if (cache != NULL) {
 	cache->cached_length = length;
     }
-
     return length;
 }
 
-static long str_length(rb_str_t *self)
+static long
+str_length(rb_str_t *self)
 {
     return str_length_with_cache(self, NULL);
 }
