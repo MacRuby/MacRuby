@@ -2678,6 +2678,11 @@ RoxorCompiler::compile_scope(NODE *node)
     Function *f = Function::Create(ft, GlobalValue::InternalLinkage,
 	    "ruby_scope", module);
 
+    NODE *old_ensure_node = ensure_node;
+    BasicBlock *old_ensure_bb = ensure_bb;
+    ensure_node = NULL;
+    ensure_bb = NULL;
+
     AllocaInst *old_dispatch_argv = dispatch_argv;
     BasicBlock *old_rescue_invoke_bb = rescue_invoke_bb;
     BasicBlock *old_rescue_rethrow_bb = rescue_rethrow_bb;
@@ -2984,6 +2989,8 @@ RoxorCompiler::compile_scope(NODE *node)
     rescue_rethrow_bb = old_rescue_rethrow_bb;
     rescue_invoke_bb = old_rescue_invoke_bb;
 
+    ensure_node = old_ensure_node;
+    ensure_bb = old_ensure_bb;
     dispatch_argv = old_dispatch_argv;
     bb = old_bb;
     entry_bb = old_entry_bb;
@@ -4581,6 +4588,10 @@ RoxorCompiler::compile_node0(NODE *node)
 		BasicBlock *old_current_loop_body_bb = current_loop_body_bb;
 		BasicBlock *old_current_loop_end_bb = current_loop_end_bb;
 		PHINode *old_current_loop_exit_val = current_loop_exit_val;
+		NODE *old_ensure_node = ensure_node;
+		BasicBlock *old_ensure_bb = ensure_bb;
+		ensure_node = NULL;
+		ensure_bb = NULL;
 
 		current_loop_begin_bb = loopBB;
 		current_loop_body_bb = bodyBB;
@@ -4601,6 +4612,8 @@ RoxorCompiler::compile_node0(NODE *node)
 
 		Value *retval = current_loop_exit_val;
 
+		ensure_bb = old_ensure_bb;
+		ensure_node = old_ensure_node;
 		current_loop_begin_bb = old_current_loop_begin_bb;
 		current_loop_body_bb = old_current_loop_body_bb;
 		current_loop_end_bb = old_current_loop_end_bb;
