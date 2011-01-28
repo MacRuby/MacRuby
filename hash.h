@@ -45,7 +45,7 @@ rhash_modify(VALUE hash)
     if ((mask & FL_FREEZE) == FL_FREEZE) {
 	rb_raise(rb_eRuntimeError, "can't modify frozen/immutable hash");
     } 
-    if ((mask & FL_UNTRUSTED) == FL_UNTRUSTED) {
+    if ((mask & FL_UNTRUSTED) != FL_UNTRUSTED) {
 	if (rb_safe_level() >= 4) {
 	    rb_raise(rb_eSecurityError, "Insecure: can't modify hash");
 	}

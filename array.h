@@ -45,11 +45,14 @@ rb_klass_is_rary(VALUE klass)
 static inline void
 rary_modify(VALUE ary)
 {
-    if (OBJ_FROZEN(ary)) {
-	rb_error_frozen("array");
+    const long mask = RBASIC(ary)->flags;
+    if ((mask & FL_FREEZE) == FL_FREEZE) {
+        rb_raise(rb_eRuntimeError, "can't modify frozen/immutable array");
     }
-    if (!OBJ_UNTRUSTED(ary) && rb_safe_level() >= 4) {
-	rb_raise(rb_eSecurityError, "Insecure: can't modify array");
+    if ((mask & FL_UNTRUSTED) != FL_UNTRUSTED) {
+        if (rb_safe_level() >= 4) {
+            rb_raise(rb_eSecurityError, "Insecure: can't modify array");
+        }
     }
 }
 
