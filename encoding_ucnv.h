@@ -25,7 +25,9 @@ long str_ucnv_length(rb_str_t *self, bool ucs2_mode);
 character_boundaries_t str_ucnv_get_character_boundaries(rb_str_t *self, long index, bool ucs2_mode);
 void str_ucnv_transcode_to_utf16(struct rb_encoding *src_enc, rb_str_t *self, long *pos, UChar **utf16, long *utf16_length);
 void str_ucnv_transcode_from_utf16(struct rb_encoding *dst_enc, UChar *utf16, long utf16_length, long *utf16_pos, char **bytes, long *bytes_length);
-void str_ucnv_each_uchar32(rb_str_t *self, each_uchar32_callback_t callback);
+void str_ucnv_each_uchar32_starting_from(rb_str_t *self,
+	long start_offset_in_bytes,
+	each_uchar32_callback_t callback);
 
 #if defined(__cplusplus)
 } // extern "C"

@@ -138,12 +138,14 @@ str_ucnv_length(rb_str_t *self, bool ucs2_mode)
 void rb_ensure_b(void (^b_block)(void), void (^e_block)(void));
 
 void
-str_ucnv_each_uchar32(rb_str_t *self, each_uchar32_callback_t callback)
+str_ucnv_each_uchar32_starting_from(rb_str_t *self,
+	long start_offset_in_bytes,
+	each_uchar32_callback_t callback)
 {
     USE_CONVERTER(cnv, self->encoding);
 
     rb_ensure_b(^{
-	const char *pos = self->bytes;
+	const char *pos = self->bytes + start_offset_in_bytes;
 	const char *end = pos + self->length_in_bytes;
 	bool stop = false;
 	for (;;) {

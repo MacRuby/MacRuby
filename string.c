@@ -442,12 +442,15 @@ str_invalid_byte_sequence(rb_str_t *str))
 
 // Note that each_uchar32 iterates on Unicode characters
 // With a character not in the BMP the callback will only be called once!
+// start_offset_in_bytes MUST be at a character boundary
 static void
-str_each_uchar32(rb_str_t *self, each_uchar32_callback_t callback)
+str_each_uchar32_starting_from(rb_str_t *self,
+	long start_offset_in_bytes,
+	each_uchar32_callback_t callback)
 {
     if (IS_BINARY_ENC(self->encoding) || IS_ASCII_ENC(self->encoding)) {
 	bool stop = false;
-	for (long i = 0; i < self->length_in_bytes; ++i) {
+	for (long i = start_offset_in_bytes; i < self->length_in_bytes; ++i) {
 	    UChar32 c = (uint8_t)self->bytes[i];
 	    if (!IS_BINARY_ENC(self->encoding) && c > 127) {
 		c = U_SENTINEL;
@@ -460,7 +463,7 @@ str_each_uchar32(rb_str_t *self, each_uchar32_callback_t callback)
     }
     else if (IS_UTF8_ENC(self->encoding)) {
 	bool stop = false;
-	for (int i = 0; i < self->length_in_bytes; ) {
+	for (int i = start_offset_in_bytes; i < self->length_in_bytes; ) {
 	    UChar32 c;
 	    int old_i = i;
 	    U8_NEXT(self->bytes, i, self->length_in_bytes, c);
@@ -482,6 +485,7 @@ str_each_uchar32(rb_str_t *self, each_uchar32_callback_t callback)
 	};
     }
     else if (IS_NATIVE_UTF16_ENC(self->encoding)) {
+	assert(!ODD_NUMBER(start_offset_in_bytes));
 	bool stop = false;
 	long length = BYTES_TO_UCHARS(self->length_in_bytes);
 	UChar *uchars = (UChar *)self->bytes;
@@ -500,8 +504,15 @@ str_each_uchar32(rb_str_t *self, each_uchar32_callback_t callback)
 	};
     }
     else {
-	str_ucnv_each_uchar32(self, callback);
+	str_ucnv_each_uchar32_starting_from(self,
+		start_offset_in_bytes, callback);
     }
+}
+
+static void
+str_each_uchar32(rb_str_t *self, each_uchar32_callback_t callback)
+{
+    str_each_uchar32_starting_from(self, 0, callback);
 }
 
 static UChar
@@ -1134,6 +1145,27 @@ str_index_for_string_with_cache(rb_str_t *self, rb_str_t *searched,
 	end_offset_in_bytes = boundaries.end_offset_in_bytes;
     }
 
+    if (!backward_search) {
+	__block long returned_index = -1;
+	__block long current_index = start_index;
+	str_each_uchar32_starting_from(self, start_offset_in_bytes,
+		^(UChar32 c, long character_start_offset, long char_len, bool *stop) {
+	    if (end_offset_in_bytes - character_start_offset < searched->length_in_bytes) {
+		// not enough characters left: we could not find the string
+		*stop = true;
+		return;
+	    }
+	    if (memcmp(self->bytes + character_start_offset,
+		    searched->bytes, searched->length_in_bytes) == 0) {
+		returned_index = current_index;
+		*stop = true;
+		return;
+	    }
+	    ++current_index;
+	});
+	return returned_index;
+    }
+
     const long offset_in_bytes = str_offset_in_bytes_for_string(self,
 	    searched, start_offset_in_bytes, end_offset_in_bytes,
 	    backward_search);
@@ -1179,8 +1211,8 @@ str_index_for_string(rb_str_t *self, rb_str_t *searched, long start_index,
 static bool
 str_include_string(rb_str_t *self, rb_str_t *searched)
 {
-    return str_offset_in_bytes_for_string(self, searched, 0,
-	    self->length_in_bytes, true) != -1;
+    return str_index_for_string_with_cache(self, searched,
+	0, -1, false, NULL) != -1;
 }
 
 rb_str_t *
