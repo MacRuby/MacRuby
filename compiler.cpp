@@ -73,6 +73,7 @@ RoxorCompiler *RoxorCompiler::shared = NULL;
     __save_state(int, return_from_block);\
     __save_state(int, return_from_block_ids);\
     __save_state(PHINode *, ensure_pn);\
+    __save_state(NODE *, ensure_node);\
     __save_state(bool, block_declaration);\
     __save_state(AllocaInst *, dispatch_argv);
 
@@ -106,6 +107,7 @@ RoxorCompiler *RoxorCompiler::shared = NULL;
     __restore_state(return_from_block);\
     __restore_state(return_from_block_ids);\
     __restore_state(ensure_pn);\
+    __restore_state(ensure_node);\
     __restore_state(block_declaration);\
     __restore_state(dispatch_argv);
 
@@ -138,6 +140,7 @@ RoxorCompiler *RoxorCompiler::shared = NULL;
     return_from_block = -1;\
     return_from_block_ids = 0;\
     ensure_pn = NULL;\
+    ensure_node = NULL;\
     block_declaration = false;\
     dispatch_argv = NULL;
 
@@ -1993,10 +1996,13 @@ RoxorCompiler::compile_jump(NODE *node)
 		compile_landing_pad_footer();
 	    }
 	    if (within_loop) {
+		if (ensure_node != NULL) {
+		    compile_node(ensure_node);
+		}
 		BranchInst::Create(current_loop_begin_bb, bb);
 	    }
 	    else if (within_block) {
-		ReturnInst::Create(context, val, bb);
+		compile_simple_return(val);
 	    }
 	    else {
 		rb_raise(rb_eLocalJumpError, "unexpected next");
@@ -4488,6 +4494,9 @@ RoxorCompiler::compile_node0(NODE *node)
 		Value *old_has_ensure =
 		    compile_set_has_ensure(ConstantInt::get(Int8Ty, 1));
 
+		NODE *old_ensure_node = ensure_node;
+		ensure_node = node->nd_ensr;
+
 		rescue_invoke_bb = new_rescue_invoke_bb;
 		rescue_rethrow_bb = new_rescue_rethrow_bb;
 		DEBUG_LEVEL_INC();
@@ -4496,6 +4505,8 @@ RoxorCompiler::compile_node0(NODE *node)
 		rescue_rethrow_bb = old_rescue_rethrow_bb;
 		rescue_invoke_bb = old_rescue_invoke_bb;
 		BranchInst::Create(ensure_normal_bb, bb);
+
+		ensure_node = old_ensure_node;
 
 		if (new_rescue_invoke_bb->use_empty()
 			&& new_rescue_rethrow_bb->use_empty()) {

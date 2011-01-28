@@ -127,6 +127,8 @@ class RoxorCompiler {
 	BasicBlock *rescue_invoke_bb;
 	BasicBlock *rescue_rethrow_bb;
 	BasicBlock *ensure_bb;
+	PHINode *ensure_pn;
+	NODE *ensure_node;
 	bool current_rescue;
 	NODE *current_block_node;
 	Function *current_block_func;
@@ -139,7 +141,6 @@ class RoxorCompiler {
 	PHINode *current_loop_exit_val;
 	int return_from_block;
 	int return_from_block_ids;
-	PHINode *ensure_pn;
 	bool block_declaration;
 	AllocaInst *dispatch_argv;
 
