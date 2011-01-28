@@ -156,6 +156,7 @@ describe "IRB::Source::Reflector" do
   end
   
   it "returns the code block indentation level" do
+    reflect("]").level.should == 0
     reflect("").level.should == 0
     reflect("class A").level.should == 1
     reflect("class A; def foo").level.should == 2
