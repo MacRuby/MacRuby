@@ -674,8 +674,6 @@ class TestHash < Test::Unit::TestCase
   end
 
   def test_security_check
-    skip("[BUG : #1076] Abort")
-
     h = {}
     assert_raise(SecurityError) do
       Thread.new do

@@ -766,8 +766,6 @@ class TestFileExhaustive < Test::Unit::TestCase
   end
 
   def test_find_file
-    skip("[BUG : #1076] Abort")
-
     assert_raise(SecurityError) do
       Thread.new do
         $SAFE = 4

@@ -1019,8 +1019,6 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_close_read_security_error
-    skip("[BUG : #1076] Abort")
-
     with_pipe do |r, w|
       assert_raise(SecurityError) do
         safe_4 { r.close_read }
@@ -1045,8 +1043,6 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_close_write_security_error
-    skip("[BUG : #1076] Abort")
-
     with_pipe do |r, w|
       assert_raise(SecurityError) do
         safe_4 { r.close_write }
@@ -1259,8 +1255,6 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_close_security_error
-    skip("[BUG : #1076] Abort")
-
     with_pipe do |r, w|
       assert_raise(SecurityError) do
         safe_4 { r.close }
@@ -1420,8 +1414,6 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_reopen
-    skip("[BUG : #1076] Abort")
-
     t = make_tempfile
 
     with_pipe do |r, w|

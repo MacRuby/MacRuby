@@ -87,8 +87,6 @@ class TestDir < Test::Unit::TestCase
   end
 
   def test_rewind
-    skip("[BUG : #1076] Abort")
-
     d = Dir.open(@root)
     a = (0..5).map { d.read }
     d.rewind

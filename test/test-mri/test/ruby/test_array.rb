@@ -1630,8 +1630,6 @@ class TestArray < Test::Unit::TestCase
   end
 
   def test_modify_check
-    skip("[BUG : #1076] Abort")
-
     a = []
     a.freeze
     assert_raise(RuntimeError) { a.shift }

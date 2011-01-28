@@ -40,8 +40,6 @@ class Readline::TestHistory < Test::Unit::TestCase
   end
 
   def test_safe_level_4
-    skip("[BUG : #1076] Abort")
-
     method_args =
       [
        ["[]", [0]],
