@@ -1263,6 +1263,49 @@ str_extract_uchars_range(rb_str_t *self, long range_start_offset_in_uchars,
 	    buffer[i] = source_bytes[i];
 	}
     }
+    else if (IS_UTF8_ENC(self->encoding)) {
+	long pos_in_src = 0;
+	long pos_in_dst = 0;
+	for (int i = 0; i < self->length_in_bytes; ) {
+	    UChar32 c;
+	    int old_i = i;
+	    U8_NEXT(self->bytes, i, self->length_in_bytes, c);
+	    if (c == U_SENTINEL) {
+		int diff = i - old_i;
+		if (pos_in_src + diff > range_start_offset_in_uchars) {
+		    int start = range_start_offset_in_uchars - pos_in_src;
+		    if (start < 0) {
+			start = 0;
+		    }
+		    for (int j = start; j < diff && pos_in_dst < range_length_in_uchars; ++j) {
+			buffer[pos_in_dst++] = self->bytes[old_i+j];
+		    }
+		}
+		pos_in_src += diff;
+	    }
+	    else if (U_IS_BMP(c)) {
+		if (pos_in_src >= range_start_offset_in_uchars) {
+		    buffer[pos_in_dst++] = c;
+		}
+		++pos_in_src;
+	    }
+	    else {
+		if (pos_in_src >= range_start_offset_in_uchars) {
+		    buffer[pos_in_dst++] = U16_LEAD(c);
+		    if (pos_in_dst < range_length_in_uchars) {
+			buffer[pos_in_dst++] = U16_TRAIL(c);
+		    }
+		}
+		else if (pos_in_src + 1 >= range_length_in_uchars) {
+		    buffer[pos_in_dst++] = U16_TRAIL(c);
+		}
+		pos_in_src += 2;
+	    }
+	    if (pos_in_dst >= range_length_in_uchars) {
+		break;
+	    }
+	}
+    }
     else if (IS_NATIVE_UTF16_ENC(self->encoding)) {
 	memcpy(buffer,
 		&self->bytes[UCHARS_TO_BYTES(range_start_offset_in_uchars)],
@@ -1308,6 +1351,9 @@ str_extract_uchars_range(rb_str_t *self, long range_start_offset_in_uchars,
 		pos_in_src++;
 	    }
 	    else {
+		if (pos_in_src + 1 == range_start_offset_in_uchars) {
+		    buffer[pos_in_dst++] = U16_TRAIL(c);
+		}
 		pos_in_src += 2;
 	    }
 	    if (pos_in_dst >= range_length_in_uchars) {
@@ -2586,7 +2632,7 @@ rstr_concat(VALUE self, SEL sel, VALUE other)
 	    return self;
     }
 
-    if (RSTR(self)->encoding == rb_encodings[ENCODING_UTF8]) {
+    if (IS_UTF8_ENC(RSTR(self)->encoding)) {
 	const int bytelen = U8_LENGTH(codepoint);
 	if (bytelen <= 0) {
 	    goto out_of_range;
