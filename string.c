@@ -368,6 +368,9 @@ str_dup(rb_str_t *source)
 {
     rb_str_t *destination = str_alloc(rb_cRubyString);
     str_replace_with_string(destination, source);
+    if (source->flags & STRING_ASCII_ONLY_SET) {
+	str_set_ascii_only(destination, str_is_ascii_only(source));
+    }
     return destination;
 }
 
@@ -579,6 +582,11 @@ str_new_copy_of_part(rb_str_t *self, long offset_in_bytes,
     GC_WB(&str->bytes, xmalloc(length_in_bytes));
     memcpy(str->bytes, &self->bytes[offset_in_bytes],
 	    length_in_bytes);
+    if ((self->flags & STRING_ASCII_ONLY_SET) && (self->flags & STRING_ASCII_ONLY)) {
+	// if the source string is ASCII only,
+	// then a part of that string is also ASCII only
+	str_set_ascii_only(str, true);
+    }
     return str;
 }
 
@@ -5729,9 +5737,14 @@ failed:
 	    goto failed;
 	}
     }
-    const long len = rb_str_chars_len(str);
-    VALUE elems[] = { rstr_substr(str, 0, pos), sep,
-	rstr_substr(str, pos + seplen, len - pos - seplen) };
+    character_boundaries_cache_t local_cache;
+    reset_character_boundaries_cache(&local_cache);
+    const long len = str_length_with_cache(RSTR(str), &local_cache);
+    VALUE elems[] = {
+	rstr_substr_with_cache(str, 0, pos, &local_cache),
+	sep,
+	rstr_substr_with_cache(str, pos + seplen, len - pos - seplen, &local_cache)
+    };
     return rb_ary_new4(3, elems);
 }
 
@@ -5751,7 +5764,9 @@ failed:
 static VALUE
 rstr_rpartition(VALUE str, SEL sel, VALUE sep)
 {
-    const long len = rb_str_chars_len(str);
+    character_boundaries_cache_t local_cache;
+    reset_character_boundaries_cache(&local_cache);
+    const long len = str_length_with_cache(RSTR(str), &local_cache);
     long pos = len;
     bool regex = false;
 
@@ -5778,8 +5793,11 @@ failed:
 	}
     }
     const long seplen = rb_str_chars_len(sep);
-    VALUE elems[] = { rstr_substr(str, 0, pos), sep,
-	rstr_substr(str, pos + seplen, len - pos - seplen) };
+    VALUE elems[] = {
+	rstr_substr_with_cache(str, 0, pos, &local_cache),
+	sep,
+	rstr_substr_with_cache(str, pos + seplen, len - pos - seplen, &local_cache)
+    };
     return rb_ary_new4(3, elems);
 }
 
