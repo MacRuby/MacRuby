@@ -554,9 +554,22 @@ rb_objc_convert_immediate(id obj)
 	}
 	else if (k == (Class)rb_cNSDate) {
 	    @try {
-		CFAbsoluteTime time = CFDateGetAbsoluteTime((CFDateRef)obj);
-		VALUE arg = DBL2NUM(time + CF_REFERENCE_DATE);
+		CFAbsoluteTime time = CFDateGetAbsoluteTime((CFDateRef)obj) + CF_REFERENCE_DATE;
+#if __LP64__
+		VALUE arg = DBL2NUM(time);
 		return rb_vm_call(rb_cTime, sel_at, 1, &arg);
+#else
+		// immediate floats have not enough precision in 32-bit
+		// so instead of using Time.at(time in float),
+		// we use Time.at(sec, usec)
+		double integral, fractional;
+		fractional = modf(time, &integral);
+		VALUE args[] = {
+		    LONG2NUM((long)integral),
+		    LONG2NUM((long)(fractional * 1e6 + 0.5))
+		};
+		return rb_vm_call(rb_cTime, sel_at, 2, args);
+#endif
 	    }
 	    @catch (NSException *e) {
 		// Some NSDates might return an exception (example: uninitialized objects).
