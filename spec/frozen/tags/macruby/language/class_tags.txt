@@ -1,0 +1,2 @@
+fails:A class definition raises a TypeError if inheriting from a metaclass
+fails:A class definition extending an object (sclass) can use return to cause the enclosing method to return

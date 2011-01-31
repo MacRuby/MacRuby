@@ -1,0 +1,3 @@
+fails:Object#instance_exec sets class variables in the receiver
+fails:Object#instance_exec raises a TypeError when defining methods on an immediate
+fails:Object#instance_exec raises a TypeError when defining methods on numerics

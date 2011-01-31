@@ -1,0 +1,1 @@
+fails:StringScanner#match? effects pre_match

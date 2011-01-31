@@ -1,0 +1,1 @@
+fails:Digest::SHA384#size returns the length of the digest
