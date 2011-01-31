@@ -1955,6 +1955,7 @@ rstr_setbyte(VALUE self, SEL sel, VALUE idx, VALUE value)
     if (index < 0) {
 	index += RSTR(self)->length_in_bytes;
     }
+    str_reset_flags(RSTR(self));
     RSTR(self)->bytes[index] = byte;
     return value;
 }
