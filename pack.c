@@ -432,6 +432,14 @@ static unsigned long utf8_to_uv(const char*,long*);
  *       Z     |  Same as ``a'', except that null is added with *
  */
 
+#define PRE_ALLOCATE(bstr, len) \
+    do { \
+	const long datalen = rb_bstr_length(data); \
+	rb_bstr_resize(bstr, datalen + len); \
+	rb_bstr_set_length(bstr, datalen); \
+    } \
+    while (0)
+
 static VALUE
 pack_pack(VALUE ary, SEL sel, VALUE fmt)
 {
@@ -546,12 +554,14 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 	      case 'A':         /* arbitrary binary string (ASCII space padded) */
 	      case 'Z':         /* null terminated string  */
 		if (plen >= len) {
+		    PRE_ALLOCATE(data, len + 1);
 		    rb_bstr_concat(data, (const UInt8 *)ptr, len);
 		    if (p[-1] == '*' && type == 'Z') {
 			rb_bstr_concat(data, (const UInt8 *)nul10, 1);
 		    }
 		}
 		else {
+		    PRE_ALLOCATE(data, len);
 		    rb_bstr_concat(data, (const UInt8 *)ptr, plen);
 		    len -= plen;
 		    while (len >= 10) {
@@ -571,6 +581,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 			j = (len - plen + 1)/2;
 			len = plen;
 		    }
+		    PRE_ALLOCATE(data, len);
 		    for (i=0; i++ < len; ptr++) {
 			if (*ptr & 1)
 			    byte |= 128;
@@ -602,6 +613,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 			j = (len - plen + 1)/2;
 			len = plen;
 		    }
+		    PRE_ALLOCATE(data, len);
 		    for (i=0; i++ < len; ptr++) {
 			byte |= *ptr & 1;
 			if (i & 7)
@@ -632,6 +644,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 			j = (len + 1) / 2 - (plen + 1) / 2;
 			len = plen;
 		    }
+		    PRE_ALLOCATE(data, len);
 		    for (i=0; i++ < len; ptr++) {
 			if (ISALPHA(*ptr))
 			    byte |= (((*ptr & 15) + 9) & 15) << 4;
@@ -663,6 +676,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 			j = (len + 1) / 2 - (plen + 1) / 2;
 			len = plen;
 		    }
+		    PRE_ALLOCATE(data, len);
 		    for (i=0; i++ < len; ptr++) {
 			if (ISALPHA(*ptr))
 			    byte |= ((*ptr & 15) + 9) & 15;
@@ -689,6 +703,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 	  case 'c':		/* signed char */
 	  case 'C':		/* unsigned char */
+	    PRE_ALLOCATE(data, len);
 	    while (len-- > 0) {
 		char c;
 
@@ -700,6 +715,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 	  case 's':		/* signed short */
 	  case 'S':		/* unsigned short */
+	    PRE_ALLOCATE(data, len * NATINT_LEN(short,2));
 	    while (len-- > 0) {
 		short s;
 
@@ -711,6 +727,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 	  case 'i':		/* signed int */
 	  case 'I':		/* unsigned int */
+	    PRE_ALLOCATE(data, len * NATINT_LEN(int,4));
 	    while (len-- > 0) {
 		long i;
 
@@ -722,6 +739,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 	  case 'l':		/* signed long */
 	  case 'L':		/* unsigned long */
+	    PRE_ALLOCATE(data, len * NATINT_LEN(long,4));
 	    while (len-- > 0) {
 		long l;
 
@@ -733,6 +751,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 	  case 'q':		/* signed quad (64bit) int */
 	  case 'Q':		/* unsigned quad (64bit) int */
+	    PRE_ALLOCATE(data, len * QUAD_SIZE);
 	    while (len-- > 0) {
 		char tmp[QUAD_SIZE];
 
@@ -743,6 +762,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 	    break;
 
 	  case 'n':		/* unsigned short (network byte-order)  */
+	    PRE_ALLOCATE(data, len * NATINT_LEN(short,2));
 	    while (len-- > 0) {
 		unsigned short s;
 
@@ -754,6 +774,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 	    break;
 
 	  case 'N':		/* unsigned long (network byte-order) */
+	    PRE_ALLOCATE(data, len * NATINT_LEN(long,4));
 	    while (len-- > 0) {
 		unsigned long l;
 
@@ -765,6 +786,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 	    break;
 
 	  case 'v':		/* unsigned short (VAX byte-order) */
+	    PRE_ALLOCATE(data, len * NATINT_LEN(short,2));
 	    while (len-- > 0) {
 		unsigned short s;
 
@@ -776,6 +798,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 	    break;
 
 	  case 'V':		/* unsigned long (VAX byte-order) */
+	    PRE_ALLOCATE(data, len * NATINT_LEN(long,4));
 	    while (len-- > 0) {
 		unsigned long l;
 
@@ -788,6 +811,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 	  case 'f':		/* single precision float in native format */
 	  case 'F':		/* ditto */
+	    PRE_ALLOCATE(data, len * sizeof(float));
 	    while (len-- > 0) {
 		float f;
 
@@ -798,6 +822,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 	    break;
 
 	  case 'e':		/* single precision float in VAX byte-order */
+	    PRE_ALLOCATE(data, len * sizeof(float));
 	    while (len-- > 0) {
 		float f;
 		FLOAT_CONVWITH(ftmp);
@@ -810,6 +835,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 	    break;
 
 	  case 'E':		/* double precision float in VAX byte-order */
+	    PRE_ALLOCATE(data, len * sizeof(double));
 	    while (len-- > 0) {
 		double d;
 		DOUBLE_CONVWITH(dtmp);
@@ -823,6 +849,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 	  case 'd':		/* double precision float in native format */
 	  case 'D':		/* ditto */
+	    PRE_ALLOCATE(data, len * sizeof(double));
 	    while (len-- > 0) {
 		double d;
 
@@ -833,6 +860,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 	    break;
 
 	  case 'g':		/* single precision float in network byte-order */
+	    PRE_ALLOCATE(data, len * sizeof(float));
 	    while (len-- > 0) {
 		float f;
 		FLOAT_CONVWITH(ftmp);
@@ -845,6 +873,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 	    break;
 
 	  case 'G':		/* double precision float in network byte-order */
+	    PRE_ALLOCATE(data, len * sizeof(double));
 	    while (len-- > 0) {
 		double d;
 		DOUBLE_CONVWITH(dtmp);
@@ -858,6 +887,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 
 	  case 'x':		/* null byte */
 	  grow:
+	    PRE_ALLOCATE(data, len);
 	    while (len >= 10) {
 		rb_bstr_concat(data, (const UInt8 *)nul10, 10);
 		len -= 10;
@@ -890,6 +920,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 	    break;
 
 	  case 'U':		/* Unicode character */
+	    PRE_ALLOCATE(data, 6 * len);
 	    while (len-- > 0) {
 		SIGNED_VALUE l;
 		char buf[8];
@@ -925,18 +956,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		len = len / 3 * 3;
 	    }
 
-	    // Try to guess the final size of the bytestring and pre-allocate
-	    // its content, to avoid too much frequent memory reallocations
-	    // during the encoding loop.
-	    do {
-	    	const long datalen = rb_bstr_length(data);
-		const long newdatalen = datalen
-		    + ((plen / len)
-			    * (len * 4 / 3 + 6));
-		rb_bstr_resize(data, newdatalen);
-		rb_bstr_set_length(data, datalen);
-	    }
-	    while (false);
+	    PRE_ALLOCATE(data, (plen / len) * (len * 4 / 3 + 6));
 
 	    while (plen > 0) {
 		long todo;
@@ -973,6 +993,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 	    len = 1;
 	    /* FALL THROUGH */
 	  case 'p':		/* pointer to string */
+	    PRE_ALLOCATE(data, len * sizeof(char *));
 	    while (len-- > 0) {
 		char *t;
 		from = NEXTFROM;
@@ -992,6 +1013,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 	    break;
 
 	  case 'w':		/* BER compressed integer  */
+	    // TODO: data bstr pre-allocation
 	    while (len-- > 0) {
 		unsigned long ul;
 		VALUE bufdata = rb_bstr_new();
