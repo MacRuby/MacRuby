@@ -46,6 +46,36 @@ module ReturnSpecs
     end
   end
 
+  class SavedInnerBlock
+    def add(&b)
+      @block = b
+    end
+
+    def outer
+      yield
+      @block.call
+    end
+
+    def inner
+      yield
+    end
+
+    def start
+      outer do
+        inner do
+          add do
+            ScratchPad.record :before_return
+            return :return_value
+          end
+        end
+      end
+
+      ScratchPad.record :bottom_of_start
+
+      return false
+    end
+  end
+
   class ThroughDefineMethod
     lamb = proc { |x| x.call }
     define_method :foo, lamb

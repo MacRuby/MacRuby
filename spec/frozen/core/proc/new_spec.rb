@@ -1,5 +1,5 @@
-require File.expand_path('../fixtures/procs.rb', __FILE__)
 require File.expand_path('../../../spec_helper', __FILE__)
+require File.expand_path('../fixtures/common', __FILE__)
 
 describe "Proc.new with an associated block" do
   it "returns a proc that represents the block" do
@@ -46,6 +46,24 @@ describe "Proc.new with an associated block" do
       end
     end
   end
+  
+  # JRUBY-5261; Proc sets up the block during .new, not in #initialize
+  describe "called on a subclass of Proc that does not 'super' in 'initialize'" do
+    before :each do
+      @subclass = Class.new(Proc) do
+        attr_reader :ok
+        def initialize
+          @ok = true
+        end
+      end
+    end
+    
+    it "still constructs a functional proc" do
+      proc = @subclass.new {'ok'}
+      proc.call.should == 'ok'
+      proc.ok.should == true
+    end
+  end
 
   # This raises a ThreadError on 1.8 HEAD. Reported as bug #1707
   it "raises a LocalJumpError when context of the block no longer exists" do
@@ -78,6 +96,28 @@ describe "Proc.new with an associated block" do
     some_method.should == :proc_return_value
   end
 
+  it "returns a subclass of Proc" do
+    obj = ProcSpecs::MyProc.new { }
+    obj.should be_kind_of(ProcSpecs::MyProc)
+  end
+
+  it "calls initialize on the Proc object" do
+    obj = ProcSpecs::MyProc2.new(:a, 2) { }
+    obj.first.should == :a
+    obj.second.should == 2
+  end
+
+  it "returns a new Proc instance from the block passed to the containing method" do
+    prc = ProcSpecs.new_proc_in_method { "hello" }
+    prc.should be_an_instance_of(Proc)
+    prc.call.should == "hello"
+  end
+
+  it "returns a new Proc instance from the block passed to the containing method" do
+    prc = ProcSpecs.new_proc_subclass_in_method { "hello" }
+    prc.should be_an_instance_of(ProcSpecs::ProcSubclass)
+    prc.call.should == "hello"
+  end
 end
 
 describe "Proc.new without a block" do
@@ -86,13 +126,11 @@ describe "Proc.new without a block" do
   end
 
   it "raises an ArgumentError if invoked from within a method with no block" do
-    lambda {
-      ProcSpecs.new_proc_in_method
-    }.should raise_error(ArgumentError)
+    lambda { ProcSpecs.new_proc_in_method }.should raise_error(ArgumentError)
   end
 
-  it "returns a new Proc instance from the block passed to the containing method" do
-    ProcSpecs.new_proc_in_method { "hello" }.call.should == "hello"
+  it "raises an ArgumentError if invoked on a subclass from within a method with no block" do
+    lambda { ProcSpecs.new_proc_subclass_in_method }.should raise_error(ArgumentError)
   end
 
 end

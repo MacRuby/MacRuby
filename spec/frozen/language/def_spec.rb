@@ -24,7 +24,7 @@ end
 describe "Defining an 'initialize_copy' method" do
   it "should make it private" do
     class DefInitializeCopySpec
-      def initialize_copy(obj)
+      def initialize_copy
       end
     end
     DefInitializeCopySpec.should have_private_instance_method(:initialize_copy, false)
@@ -453,11 +453,10 @@ describe "A method definition in an eval" do
   end
 end
 
-describe "A method definition that sets more than one default parameter all to the same value" do
+describe "a method definition that sets more than one default parameter all to the same value" do
   def foo(a=b=c={})
     [a,b,c]
   end
-
   it "assigns them all the same object by default" do
     foo.should == [{},{},{}]
     a, b, c = foo
@@ -488,6 +487,22 @@ describe "A method definition that sets more than one default parameter all to t
     bar(3).should == [3,nil,nil,2]
     bar(3,4).should == [3,nil,nil,4]
     lambda { bar(3,4,5) }.should raise_error(ArgumentError)
+  end
+end
+
+describe "The def keyword" do
+  describe "within a closure" do
+    it "looks outside the closure for the visibility" do
+      module DefSpecsLambdaVisibility
+        private
+
+        lambda {
+          def some_method; end
+        }.call
+      end
+
+      DefSpecsLambdaVisibility.should have_private_instance_method("some_method")
+    end
   end
 end
 

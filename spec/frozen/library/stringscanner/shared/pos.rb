@@ -33,14 +33,17 @@ describe :strscan_pos_set, :shared => true do
     @s.send(@method, 5)
     @s.rest.should == "is a test"
   end
-  
-  it "modify the scan pointer with a negative value in range" do
+
+  it "positions from the end if the argument is negative" do
     @s.send(@method, -2)
+    @s.rest.should == "st"
     @s.pos.should == 12
-  end   
-  
-  it "modify the scan pointer with a negative value out of range" do
-    lambda { @s.send(@method, -15) }.should raise_error(RangeError)
+  end
+
+  it "raises a RangeError if position too far backward" do
+    lambda {
+      @s.send(@method, -20)
+    }.should raise_error(RangeError)
   end
 
   it "raises a RangeError when the passed argument is out of range" do

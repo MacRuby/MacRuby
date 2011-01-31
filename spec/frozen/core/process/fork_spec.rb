@@ -10,15 +10,9 @@ describe "Process.fork" do
       end
     end
   end
-  
-  compliant_on :macruby do
-    it "is not implemented" do
-      Process.respond_to?(:fork).should be_false
-    end
-  end
 
   platform_is_not :windows do
-    not_supported_on :jruby, :macruby do
+    not_supported_on :jruby do
       before :each do
         @file = tmp('i_exist')
         rm_r @file

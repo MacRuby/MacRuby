@@ -4,3 +4,4 @@ fails:Module#define_method when given an UnboundMethod works for singleton class
 fails:Module#define_method defines the given method as an instance method with the given name in self
 fails:Module#define_method calls #method_added after the method is added to the Module
 fails:Module#define_method accepts a Method (still bound)
+fails:Module#define_method supports being called with a splat

@@ -35,7 +35,7 @@ describe :stringio_each_separator, :shared => true do
     io.send(@method, nil) {|s| seen << s}
     seen.should == ["2 1 2 1 2"]
   end
-  
+
   ruby_bug "", "1.8.8" do
     it "yields each paragraph when passed an empty String as separator" do
       seen = []

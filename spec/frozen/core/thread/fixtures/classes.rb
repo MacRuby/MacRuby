@@ -6,6 +6,13 @@ unless defined? Channel
 end
 
 module ThreadSpecs
+
+  class SubThread < Thread
+    def initialize(*args)
+      super { args.first << 1 }
+    end
+  end
+
   class Status
     attr_reader :thread, :inspect, :status
     def initialize(thread)
@@ -98,7 +105,7 @@ module ThreadSpecs
       t.kill
       Status.new t
     ensure
-      Thread.critical = false if Thread.respond_to? :critical     
+      Thread.critical = false if Thread.respond_to? :critical
     end
   end
   
@@ -143,7 +150,6 @@ module ThreadSpecs
         yield
       end
     end
-    t
   end
   
   def self.dying_thread_with_outer_ensure(kill_method_name=:kill)

@@ -14,16 +14,24 @@ describe "Array#shuffle" do
       different.should be_true # Will fail once in a blue moon (4!^10)
     end
 
-    it "returns subclass instances with Array subclass" do
-      ArraySpecs::MyArray[1, 2, 3].shuffle.should be_an_instance_of(ArraySpecs::MyArray)
-    end
-
     it "is not destructive" do
       a = [1, 2, 3]
       10.times do
         a.shuffle
         a.should == [1, 2, 3]
       end
+    end
+  end
+
+  ruby_version_is "1.8.7" ... "1.9.3" do
+    it "returns subclass instances with Array subclass" do
+      ArraySpecs::MyArray[1, 2, 3].shuffle.should be_an_instance_of(ArraySpecs::MyArray)
+    end
+  end
+
+  ruby_version_is "1.9.3" do
+    it "does not return subclass instances with Array subclass" do
+      ArraySpecs::MyArray[1, 2, 3].shuffle.should be_an_instance_of(Array)
     end
   end
 end

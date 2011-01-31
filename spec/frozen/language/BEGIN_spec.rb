@@ -1,7 +1,7 @@
 require File.expand_path('../../spec_helper', __FILE__)
 
 describe "The BEGIN keyword" do
-  ruby_version_is "" ... "1.9" do
+  ruby_version_is "" .. "1.9" do
     it "runs in a new isolated scope" do
       lambda {
         eval "BEGIN { var_in_begin = 'foo' }; var_in_begin"

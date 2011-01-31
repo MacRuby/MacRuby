@@ -1,0 +1,2 @@
+fails:String#scan taints the results if the String argument is tainted
+fails:String#scan with pattern and block taints the results if the String argument is tainted

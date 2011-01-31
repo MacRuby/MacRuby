@@ -31,17 +31,6 @@ with_feature :encoding do
     end
 
     it "accepts any object as encoding name, if it responds to #to_str" do
-      obj = Object.new
-      def obj.encoding_name=(name); @name; end
-      def obj.to_str; @name; end
-
-      Encoding.list.each do |enc|
-        obj.encoding_name = enc.name
-        Encoding.find(obj).should == enc
-      end
-    end
-
-    it "accepts any object as encoding name, if it responds to #to_str" do
       obj = Class.new do
         attr_writer :encoding_name
         def to_str; @encoding_name; end
@@ -61,6 +50,33 @@ with_feature :encoding do
 
     it "raises an ArgumentError if the given encoding does not exist" do
       lambda { Encoding.find('dh2dh278d') }.should raise_error(ArgumentError)
+    end
+    
+    # Not sure how to do a better test, since locale depends on weird platform-specific stuff
+    it "supports the 'locale' encoding alias" do
+      enc = Encoding.find('locale')
+      enc.should_not == nil
+    end
+    
+    it "returns default external encoding for the 'external' encoding alias" do
+      enc = Encoding.find('external')
+      enc.should == Encoding.default_external
+    end
+    
+    it "returns default internal encoding for the 'internal' encoding alias" do
+      enc = Encoding.find('internal')
+      enc.should == Encoding.default_internal
+    end
+    
+    platform_is_not :windows do
+      it "uses default external encoding for the 'filesystem' encoding alias" do
+        enc = Encoding.find('filesystem')
+        enc.should == Encoding.default_external
+      end
+    end
+    
+    platform_is :windows do
+      it "needs to be reviewed for spec completeness"
     end
   end
 end

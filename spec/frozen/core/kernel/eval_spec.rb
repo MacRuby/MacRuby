@@ -245,7 +245,7 @@ describe "Kernel#eval" do
 
   it "should perform top level evaluations from inside a block" do
     # The class Object bit is needed to workaround some mspec oddness
-    class ::Object
+    class Object
       [1].each { eval "Const = 1"}
       Const.should == 1
       remove_const :Const
@@ -281,6 +281,12 @@ describe "Kernel#eval" do
       aliased_eval('x += 40')
       x.should == 42
     end
+  end
+
+  # See http://jira.codehaus.org/browse/JRUBY-5163
+  it "uses the receiver as self inside the eval" do
+    eval("self").should equal(self)
+    Kernel.eval("self").should equal(Kernel)
   end
 end
 

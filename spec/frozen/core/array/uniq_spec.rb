@@ -80,8 +80,16 @@ describe "Array#uniq" do
     a[1].tainted?.should == true
   end
 
-  it "returns subclass instance on Array subclasses" do
-    ArraySpecs::MyArray[1, 2, 3].uniq.should be_kind_of(ArraySpecs::MyArray)
+  ruby_version_is "" ... "1.9.3" do
+    it "returns subclass instance on Array subclasses" do
+      ArraySpecs::MyArray[1, 2, 3].uniq.should be_kind_of(ArraySpecs::MyArray)
+    end
+  end
+
+  ruby_version_is "1.9.3" do
+    it "does not return subclass instance on Array subclasses" do
+      ArraySpecs::MyArray[1, 2, 3].uniq.should be_kind_of(Array)
+    end
   end
 end
 

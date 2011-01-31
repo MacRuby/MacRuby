@@ -26,7 +26,7 @@ describe "StringIO#initialize when passed [Object, mode]" do
     io.send(:initialize, "example", "r+")
     io.closed_read?.should be_false
     io.closed_write?.should be_false
-    
+
     io = StringIO.allocate
     io.send(:initialize, "example", "rb+")
     io.closed_read?.should be_false
@@ -111,7 +111,7 @@ describe "StringIO#initialize when passed [Object, mode]" do
   end
 
   ruby_version_is "" ... "1.9" do
-     it "raises a TypeError when passed a frozen String in truncate mode as StringIO backend" do
+    it "raises a TypeError when passed a frozen String in truncate mode as StringIO backend" do
       io = StringIO.allocate
       lambda { io.send(:initialize, "example".freeze, IO::TRUNC) }.should raise_error(TypeError)
     end

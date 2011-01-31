@@ -20,7 +20,7 @@ end
 describe "BigDecimal#mod_part_of_divmod" do
   # BigDecimal#divmod[1] behaves exactly like #modulo
   before :all do
-    class ::BigDecimal
+    class BigDecimal
       def mod_part_of_divmod(arg)
         divmod(arg)[1]
       end
@@ -28,7 +28,7 @@ describe "BigDecimal#mod_part_of_divmod" do
   end
 
   after :all do
-    class ::BigDecimal
+    class BigDecimal
       undef mod_part_of_divmod
     end
   end

@@ -16,7 +16,7 @@ describe :kernel_String, :shared => true do
   end
 
   it "converts a constant to a String" do
-    @object.send(@method, Object).should == Object.to_s
+    @object.send(@method, Object).should == "Object"
   end
 
   it "calls #to_s to convert an arbitrary object to a String" do

@@ -37,7 +37,7 @@ describe "Dir.pwd" do
       DirSpecs.clear_dirs
 
       begin
-        str = "\u{e9}" #Unicode é
+        str = [0xe9].pack 'U' #Unicode é
         Dir.mkdir str
         File.exist?(str).should == true
 

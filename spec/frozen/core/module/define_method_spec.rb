@@ -55,6 +55,20 @@ describe "Module#define_method" do
     o.test1.should == o.another_test
   end
 
+  it "supports being called with a splat" do
+    class DefineMethodSpecClass
+      define_method(:splat_test) { |a,b,*c| c }
+    end
+
+    o = DefineMethodSpecClass.new
+
+    lambda {
+      o.splat_test
+    }.should raise_error(ArgumentError)
+
+    o.splat_test(1,2,3,4).should == [3,4]
+  end
+
   it "calls #method_added after the method is added to the Module" do
     DefineMethodSpecClass.should_receive(:method_added).with(:test_ma)
 
@@ -127,5 +141,16 @@ describe "Module#define_method" do
 
   it "is private" do
     Module.should have_private_instance_method(:define_method)
+  end
+  
+  it "returns a Proc" do
+    class DefineMethodSpecClass
+      method = define_method("return_test") { || true }
+      method.is_a?(Proc).should be_true
+      # check if it is a lambda:
+      lambda {
+        method.call :too_many_arguments
+      }.should raise_error(ArgumentError)
+    end
   end
 end

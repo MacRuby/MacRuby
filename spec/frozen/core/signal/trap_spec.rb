@@ -32,6 +32,7 @@ describe "Signal.trap" do
     it "uses the command argument when passed both a command and block" do
       Signal.trap(:HUP, @proc) { ScratchPad.record :block_trap }
       Process.kill :HUP, Process.pid
+      sleep 0.5
       ScratchPad.recorded.should == :proc_trap
     end
   end
@@ -82,4 +83,24 @@ describe "Signal.trap" do
     Signal.trap :HUP, "IGNORE"
     Signal.trap(:HUP, "IGNORE").should == "IGNORE"
   end
+
+  describe "the special EXIT signal code" do
+
+    it "accepts the EXIT code" do
+      code = "trap(:EXIT, proc { print 1 })"
+      ruby_exe(code).should == "1"
+    end
+
+    it "runs the proc before at_exit handlers" do
+      code = "at_exit {print 1}; trap(:EXIT, proc {print 2}); at_exit {print 3}"
+      ruby_exe(code).should == "231"
+    end
+
+    it "can unset the handler" do
+      code = "trap(:EXIT, proc { print 1 }); trap(:EXIT, 'DEFAULT')"
+      ruby_exe(code).should == ""
+    end
+
+  end
+
 end

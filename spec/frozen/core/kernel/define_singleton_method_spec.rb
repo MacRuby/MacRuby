@@ -4,11 +4,9 @@ require File.expand_path('../fixtures/classes', __FILE__)
 ruby_version_is '1.9' do
   describe "Kernel#define_singleton_method" do
     describe "when given an UnboundMethod" do
-      before :all do
-        class DefineSingletonMethodSpecClass
-          MY_CONST = 42
-          define_singleton_method(:another_test_method, self.method(:constants))
-        end
+      class DefineSingletonMethodSpecClass
+        MY_CONST = 42
+        define_singleton_method(:another_test_method, self.method(:constants))
       end
 
       it "correctly calls the new method" do

@@ -92,11 +92,6 @@ describe "Array#sort" do
     a.sort { -1 }.should be_kind_of(Array)
   end
 
-  it "returns subclass instance on Array subclasses" do
-    ary = ArraySpecs::MyArray[1, 2, 3]
-    ary.sort.should be_kind_of(ArraySpecs::MyArray)
-  end
-
   it "does not freezes self during being sorted" do
     a = [1, 2, 3]
     a.sort { |x,y| a.frozen?.should == false; x <=> y }
@@ -104,6 +99,23 @@ describe "Array#sort" do
 
   it "returns the specified value when it would break in the given block" do
     [1, 2, 3].sort{ break :a }.should == :a
+  end
+
+  it "uses the sign of Bignum block results as the sort result" do
+    a = [1, 2, 5, 10, 7, -4, 12]
+    begin
+      class Bignum;
+        alias old_spaceship <=>
+        def <=>(other)
+          raise
+        end
+      end
+      a.sort {|n, m| (n - m) * (2 ** 200)}.should == [-4, 1, 2, 5, 7, 10, 12]
+    ensure
+      class Bignum
+        alias <=> old_spaceship
+      end
+    end
   end
 
   it "compares values returned by block with 0" do
@@ -126,6 +138,20 @@ describe "Array#sort" do
   it "handles a large array that has been pruned" do
     pruned = ArraySpecs::LargeArray.dup.delete_if { |n| n !~ /^test./ }
     pruned.sort.should == ArraySpecs::LargeTestArraySorted
+  end
+
+  ruby_version_is "" ... "1.9.3" do
+    it "returns subclass instance on Array subclasses" do
+      ary = ArraySpecs::MyArray[1, 2, 3]
+      ary.sort.should be_kind_of(ArraySpecs::MyArray)
+    end
+  end
+
+  ruby_version_is "1.9.3" do
+    it "does not return subclass instance on Array subclasses" do
+      ary = ArraySpecs::MyArray[1, 2, 3]
+      ary.sort.should be_kind_of(Array)
+    end
   end
 end
 

@@ -8,3 +8,5 @@ fails:Proc#parameters regards named parameters in lambdas as required
 fails:Proc#parameters sets the first element of each sub-Array to :rest for parameters prefixed with asterisks
 fails:Proc#parameters sets the first element of each sub-Array to :block for parameters prefixed with ampersands
 fails:Proc#parameters sets the second element of each sub-Array to the name of the argument
+fails:Proc#parameters ignores unnamed rest args
+fails:Proc#parameters adds nameless rest arg for "star" argument

@@ -253,6 +253,11 @@ describe "The return keyword" do
       ScratchPad.recorded.should == :before_return
     end
 
+    it "causes the method to return even when the immediate parent has already returned" do
+      ReturnSpecs::SavedInnerBlock.new.start.should == :return_value
+      ScratchPad.recorded.should == :before_return
+    end
+
   end
 
   describe "within two blocks" do

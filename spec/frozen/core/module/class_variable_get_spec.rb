@@ -13,6 +13,12 @@ describe "Module#class_variable_get" do
     c.send(:class_variable_get, "@@mvar").should == :mvar
   end
 
+  it "allows '@@' to be a valid class variable name" do
+    c = Class.new { class_variable_set '@@', :foo }
+    c.send(:class_variable_get, "@@").should == :foo
+    c.send(:class_variable_get, :"@@").should == :foo
+  end
+
   it "raises a NameError for a class variables with the given name defined in an extended module" do
     c = Class.new
     c.extend ModuleSpecs::MVars
@@ -31,6 +37,13 @@ describe "Module#class_variable_get" do
 
   it "returns class variables defined in the metaclass and accessed by instance methods" do
     ModuleSpecs::CVars.new.meta.should == :meta
+  end
+
+  it "returns a class variable defined in a metaclass" do
+    obj = mock("metaclass class variable")
+    meta = obj.metaclass
+    meta.send :class_variable_set, :@@var, :cvar_value
+    meta.send(:class_variable_get, :@@var).should == :cvar_value
   end
 
   ruby_version_is ""..."1.9" do

@@ -23,10 +23,6 @@ describe :strscan_peek, :shared => true do
     lambda { @s.send(@method, bignum_value) }.should raise_error(RangeError)
   end
 
-  it "raises a TypeError when the passed argument is not a Fixnum" do
-    lambda { @s.send(@method, "test") }.should raise_error(TypeError)
-  end
-
   it "returns an instance of String when passed a String subclass" do
     cls = Class.new(String)
     sub = cls.new("abc")

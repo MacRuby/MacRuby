@@ -2,3 +2,4 @@ fails:Array#pack with format 'C' encodes the least significant eight bits of a p
 fails:Array#pack with format 'C' encodes the least significant eight bits of a negative number
 fails:Array#pack with format 'c' encodes the least significant eight bits of a positive number
 fails:Array#pack with format 'c' encodes the least significant eight bits of a negative number
+fails:Array#pack with format 'c' calls #to_str to coerce the directives string

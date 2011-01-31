@@ -22,7 +22,6 @@ class ObjectSpecDupInitCopy
 end
 
 describe :object_dup_clone, :shared => true do
-  
   it "returns a new object duplicated from the original" do
     o = ObjectSpecDup.new
     o2 = ObjectSpecDup.new
@@ -33,11 +32,6 @@ describe :object_dup_clone, :shared => true do
 
     o3.obj.should == 10
     o2.obj.should == :original
-  end
-  
-  it "produces distinct objects" do
-    o = ObjectSpecDup.new
-    o.should_not.eql? o.send(@method)
   end
 
   it "produces a shallow copy, contained objects are not recursively dupped" do

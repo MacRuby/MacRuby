@@ -6,11 +6,11 @@ describe "StringIO#initialize_copy" do
     @io      = StringIO.new("StringIO example")
     @orig_io = StringIO.new("Original StringIO")
   end
-
+  
   it "is private" do
     StringIO.should have_private_instance_method(:initialize_copy)
   end
-
+  
   it "returns self" do
     @io.send(:initialize_copy, @orig_io).should equal(@io)
   end

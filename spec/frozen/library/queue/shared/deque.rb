@@ -24,8 +24,6 @@ describe :queue_deq, :shared => true do
       v = 1
     end
 
-    Thread.pass while th.status and th.status != "sleep"
-
     v.should == 0
     q << Object.new
     th.join

@@ -1,1 +1,2 @@
 fails:The super keyword calls the superclass method when initial method is defined_method'd
+fails:The super keyword raises an error error when super method does not exist
