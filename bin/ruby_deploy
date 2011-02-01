@@ -13,6 +13,7 @@ class Deployer
 
   def initialize(argv)
     @stdlib = []
+    @gems = []
 
     OptionParser.new do |opts|
       opts.banner = "Usage: #{NAME} [options] application-bundle"
@@ -20,6 +21,7 @@ class Deployer
       opts.on('--embed',         'Embed MacRuby inside the bundle') { @embed = true }
       opts.on('--no-stdlib',     'Do not embed the standard library') { @no_stdlib = true }
       opts.on('--stdlib [LIB]',  'Embed only LIB from the standard library') { |lib| @stdlib << lib }
+      opts.on('--gem [GEM]',     'Embed GEM and its dependencies') { |gem| @gems << gem }
       opts.on('--verbose',       'Log actions to standard out') { @verbose = true }
       opts.on('-v', '--version', 'Display the version') do
         puts RUBY_DESCRIPTION
@@ -105,10 +107,33 @@ class Deployer
     fix_install_name if File.exist?(app_macruby)
   end
 
+  def gem_deps_libdirs(gem_name)
+    # Locate gem spec.
+    require 'rubygems'
+    gemspecs = Gem.source_index.find_name(gem_name)
+    if gemspecs.size == 0
+      die "Cannot locate gem `#{gem_name}' in #{Gem.path}"
+    end
+    gemspec = gemspecs.last
+
+    # Load dependencies libdirs first.
+    gem_libdirs = []
+    gemspec.runtime_dependencies.each do |dep|
+      gem_libdirs.concat(gem_deps_libdirs(dep.name))
+    end
+
+    # Load the gem libdirs.
+    gem_libdirs.concat(gemspec.require_paths.map { |x| File.join(gemspec.full_gem_path, x) })
+    return gem_libdirs
+  end
+
   STDLIB_PATTERN = "lib/ruby/{,site_ruby/}1.9.*{,/universal-darwin*}"
   KEEP_STDLIB_PATTERN = "{%s}{,{.,/**/*.}{rb,rbo,bundle}}"
 
   def embed
+    # Prepare the list of gems to embed.
+    gems_libdirs_to_embed = @gems.map { |x| gem_deps_libdirs(x) }.flatten
+
     # Copy MacRuby.framework inside MyApp.app/Contents/Frameworks.
     mkdir_p(app_frameworks)
     rm_rf(app_macruby)
@@ -117,7 +142,7 @@ class Deployer
     # Delete unnecessary things in the MacRuby.framework copy.
     dirs = ['bin', 'include', 'lib/libmacruby-static.a', 'share']
     dirs << 'lib/ruby' if @no_stdlib
-    dirs << 'lib/ruby/Gems' # TODO add gems support
+    dirs << 'lib/ruby/Gems'
     dirs.each { |x| rm_rf(File.join(app_macruby_usr, x)) }
 
     # Only keep specific libs from stdlib.
@@ -126,6 +151,15 @@ class Deployer
       all, keep = ["**/*", KEEP_STDLIB_PATTERN % @stdlib.join(',')].map { |p| Dir.glob(File.join(lib, p)) }
       keep.reject! { |f| File.extname(f) == '.rb' && keep.include?("#{f}o") } # only keep .rbo for duplicates
       all.select { |f| keep.grep(/^#{f}/).empty? }.each { |x| rm_rf(x) }
+    end
+
+    # Copy the gems libdirs.
+    unless gems_libdirs_to_embed.empty?
+      gems_libdirs_dest = File.join(app_macruby_usr, 'lib', 'ruby', 'site_ruby', RUBY_VERSION)
+      mkdir_p(gems_libdirs_dest)
+      gems_libdirs_to_embed.each do |libdir|
+        execute("/usr/bin/ditto #{libdir} #{gems_libdirs_dest}")
+      end 
     end
 
     # Only keep the Current version of the MacRuby.framework copy.
