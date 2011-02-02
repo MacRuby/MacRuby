@@ -1,1 +1,0 @@
-fails:Array#product when given an empty block returns self

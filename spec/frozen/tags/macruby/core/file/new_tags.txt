@@ -1,3 +1,1 @@
-fails:File.new returns a new File with modus fd 
-fails:File.new raises an Errno::EBADF if the first parameter is an invalid file descriptor
 fails:File.new can't alter mode or permissions when opening a file

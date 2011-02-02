@@ -1,4 +1,3 @@
-fails:Integer#chr without argument interprets self as a codepoint in the corresponding character set
 fails:Integer#chr without argument raises a RangeError is self is greater than 255 and the internal encoding is nil
 fails:Integer#chr without argument infers the encoding from Encoding.default_internal
 fails:Integer#chr with an encoding argument accepts an Encoding object as an argument

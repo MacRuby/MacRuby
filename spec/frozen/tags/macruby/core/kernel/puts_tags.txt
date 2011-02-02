@@ -1,1 +1,0 @@
-fails:Kernel#puts calls to_s before writing non-string objects
