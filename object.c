@@ -765,6 +765,11 @@ rb_obj_dummy2(VALUE self, SEL sel, VALUE other)
     return Qnil;
 }
 
+// In order to mimic 1.9, we allow Floats to be tainted and untrusted, even
+// though they are technically immediates.
+static st_table *immediate_flags_tbl = 0;
+
+
 /*
  *  call-seq:
  *     obj.tainted?    => true or false
@@ -775,13 +780,19 @@ rb_obj_dummy2(VALUE self, SEL sel, VALUE other)
 static VALUE
 rb_obj_tainted_p(VALUE obj, SEL sel)
 {
-    if (SPECIAL_CONST_P(obj))
+    if (SPECIAL_CONST_P(obj)) {
+	if (immediate_flags_tbl && FIXFLOAT_P(obj)) {
+	    VALUE flags = 0;
+	    if (st_lookup(immediate_flags_tbl, obj, &flags) && (flags & FL_TAINT)) {
+		return Qtrue;
+	    }
+	}
 	return Qfalse;
+    }
     else if (NATIVE(obj)) {
 	switch (TYPE(obj)) {
 	    case T_SYMBOL:
 		return Qfalse;
-
 	    case T_ARRAY:
 		if (rb_klass_is_rary(*(VALUE *)obj)) {
 		    return RBASIC(obj)->flags & FL_TAINT ? Qtrue : Qfalse;
@@ -827,13 +838,26 @@ rb_obj_taint_m(VALUE obj, SEL sel)
 {
     rb_secure(4);
     if (SPECIAL_CONST_P(obj)) {
+	if (!FIXFLOAT_P(obj)) {
+	    return obj;
+	}
+	else if (!immediate_flags_tbl) {
+	    immediate_flags_tbl = st_init_numtable();
+	    GC_RETAIN(immediate_flags_tbl);
+	    st_insert(immediate_flags_tbl, obj, (st_data_t)FL_TAINT);
+	}
+	else {
+	    VALUE flags = 0;
+	    st_lookup(immediate_flags_tbl, obj, &flags);
+	    flags |= FL_TAINT;
+	    st_insert(immediate_flags_tbl, obj, (st_data_t)flags);
+	}
 	return obj;
     }
     else if (NATIVE(obj)) {
 	switch (TYPE(obj)) {
 	    case T_SYMBOL:
-		break;
-
+		return obj;
 	    case T_ARRAY:
 		if (rb_klass_is_rary(*(VALUE *)obj)) {
 		    RBASIC(obj)->flags |= FL_TAINT;
@@ -883,11 +907,19 @@ static VALUE
 rb_obj_untaint_m(VALUE obj, SEL sel)
 {
     rb_secure(3);
-    if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
+    if (SPECIAL_CONST_P(obj)) {
+	if (immediate_flags_tbl && FIXFLOAT_P(obj)) {
+	    VALUE flags = 0;
+	    st_lookup(immediate_flags_tbl, obj, &flags);
+	    flags &= ~FL_TAINT;
+	    st_insert(immediate_flags_tbl, obj, (st_data_t)flags);
+	}
+	return obj;
+    }
+    else if (NATIVE(obj)) {
 	switch (TYPE(obj)) {
 	    case T_SYMBOL:
-		break;
-
+		return obj;
 	    case T_ARRAY:
 		if (rb_klass_is_rary(*(VALUE *)obj)) {
 		    RBASIC(obj)->flags &= ~FL_TAINT;
@@ -928,11 +960,19 @@ rb_obj_untaint(VALUE obj)
 static VALUE
 rb_obj_untrusted_imp(VALUE obj, SEL sel)
 {
-    if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
+    if (SPECIAL_CONST_P(obj)) {
+	if (immediate_flags_tbl && FIXFLOAT_P(obj)) {
+	    VALUE flags = 0;
+	    if (st_lookup(immediate_flags_tbl, obj, &flags) && (flags && FL_UNTRUSTED)) {
+		return Qtrue;
+	    }
+	}
+	return Qfalse;
+    }
+    else if (NATIVE(obj)) {
 	switch (TYPE(obj)) {
 	    case T_SYMBOL:
-		return Qfalse;
-
+		return Qfalse;	
 	    case T_ARRAY:
 		if (rb_klass_is_rary(*(VALUE *)obj)) {
 		    return RBASIC(obj)->flags & FL_UNTRUSTED ? Qtrue : Qfalse;
@@ -971,11 +1011,27 @@ rb_obj_trust_imp(VALUE obj, SEL sel)
 	if (OBJ_FROZEN(obj)) {
 	    rb_error_frozen("object");
 	}
-	if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
+	else if (SPECIAL_CONST_P(obj)) {
+	    if(!FIXFLOAT_P(obj)) {
+		return obj;
+	    }
+	    else if(!immediate_flags_tbl) {
+		immediate_flags_tbl = st_init_numtable();
+		GC_RETAIN(immediate_flags_tbl);
+		st_insert(immediate_flags_tbl, obj, FL_UNTRUSTED);
+	    }
+	    else {
+		VALUE flags = 0;
+		st_lookup(immediate_flags_tbl, obj, &flags);
+		flags &= ~FL_UNTRUSTED;
+		st_insert(immediate_flags_tbl, obj, (st_data_t)flags);
+	    }
+	    return obj;
+	}
+	else if (NATIVE(obj)) {
 	    switch (TYPE(obj)) {
 		case T_SYMBOL:
-		    break;
-
+		    return obj;
 		case T_ARRAY:
 		    if (rb_klass_is_rary(*(VALUE *)obj)) {
 			RBASIC(obj)->flags &= ~FL_UNTRUSTED;
@@ -1017,11 +1073,27 @@ rb_obj_untrust_imp(VALUE obj, SEL sel)
 	if (OBJ_FROZEN(obj)) {
 	    rb_error_frozen("object");
 	}
-	if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
+	else if (SPECIAL_CONST_P(obj)) {
+	    if (!FIXFLOAT_P(obj)) {
+		return obj;
+	    }
+	    else if (!immediate_flags_tbl) {
+		immediate_flags_tbl = st_init_numtable();
+		GC_RETAIN(immediate_flags_tbl);
+		st_insert(immediate_flags_tbl, obj, (st_data_t)FL_UNTRUSTED);
+	    }
+	    else {
+		VALUE flags = 0;
+		st_lookup(immediate_flags_tbl, obj, &flags);
+		flags |= FL_UNTRUSTED;
+		st_insert(immediate_flags_tbl, obj, (st_data_t)flags);
+	    }
+	    return obj;
+	}
+	else if (NATIVE(obj)) {
 	    switch (TYPE(obj)) {
 		case T_SYMBOL:
-		    break;
-
+		    return Qfalse;
 		case T_ARRAY:
 		    if (rb_klass_is_rary(*(VALUE *)obj)) {
 			RBASIC(obj)->flags |= FL_UNTRUSTED;
@@ -1061,8 +1133,6 @@ rb_obj_infect(VALUE obj1, VALUE obj2)
     OBJ_INFECT(obj1, obj2);
 }
 
-static st_table *immediate_frozen_tbl = 0;
-
 /*
  *  call-seq:
  *     obj.freeze    => obj
@@ -1092,11 +1162,18 @@ rb_obj_freeze_m(VALUE obj, SEL sel)
 	}
 	else if (SPECIAL_CONST_P(obj)) {
 immediate:
-	    if (!immediate_frozen_tbl) {
-		immediate_frozen_tbl = st_init_numtable();
-		GC_RETAIN(immediate_frozen_tbl);
+	    if (!immediate_flags_tbl) {
+		immediate_flags_tbl = st_init_numtable();
+	 	GC_RETAIN(immediate_flags_tbl);
+		st_insert(immediate_flags_tbl, obj, (st_data_t)FL_FREEZE);
+	    } 
+	    else {
+		VALUE flags = 0;
+		st_lookup(immediate_flags_tbl, obj, &flags);
+		flags |= FL_FREEZE;
+		st_insert(immediate_flags_tbl, obj, (st_data_t)flags);
 	    }
-	    st_insert(immediate_frozen_tbl, obj, (st_data_t)Qtrue);
+	    return obj;
 	}
 	else if ((type = TYPE(obj)) == T_CLASS || type == T_MODULE) {
 	    RCLASS_SET_VERSION_FLAG(obj, RCLASS_IS_FROZEN);
@@ -1156,11 +1233,11 @@ rb_obj_frozen(VALUE obj, SEL sel)
 {
     if (SPECIAL_CONST_P(obj)) {
 immediate:
-	if (!immediate_frozen_tbl) {
-	    return Qfalse;
-	}
-	if (st_lookup(immediate_frozen_tbl, obj, 0)) {
-	    return Qtrue;
+	if (immediate_flags_tbl) {
+	    VALUE flags = 0;
+	    if (st_lookup(immediate_flags_tbl, obj, &flags) && (flags & FL_FREEZE)) {
+	    	return Qtrue;
+	    }
 	}
 	return Qfalse;
     }
