@@ -377,6 +377,10 @@ rb_thread_kill(VALUE thread, SEL sel)
 static VALUE
 rb_thread_s_kill(VALUE obj, SEL sel, VALUE th)
 {
+    if (!rb_obj_is_kind_of(th, rb_cThread)) {
+	rb_raise(rb_eTypeError, "wrong argument type %s (expected Thread)",
+		rb_obj_classname(th));
+    }
     return rb_thread_kill(th, 0);
 }
 
