@@ -40,6 +40,9 @@ class Gem::Package::TarWriter
     # number of bytes will be more than #limit
 
     def write(data)
+      # XXX MACRUBY mainly because our File.open won't honor 'b'.
+      data = data.force_encoding('BINARY')
+
       if data.size + @written > @limit
         raise FileOverflow, "You tried to feed more data than fits in the file."
       end
