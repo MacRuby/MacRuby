@@ -427,3 +427,15 @@ Init_NSString(void)
     rb_objc_define_method(rb_cString, "to_data", rstr_only, 0);
     rb_objc_define_method(rb_cString, "pointer", rstr_only, 0);
 }
+
+const char *
+nsstr_cstr(VALUE str)
+{
+    return [(NSString *)str UTF8String];
+}
+
+long
+nsstr_clen(VALUE str)
+{
+    return [(NSString *)str lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
+}

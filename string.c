@@ -6333,24 +6333,7 @@ rb_str_cstr(VALUE str)
 	str_ensure_null_terminator(RSTR(str));
 	return RSTR(str)->bytes;
     }
-
-    // CFString code path, hopefully this should not happen very often.
-    const char *cptr = (const char *)CFStringGetCStringPtr((CFStringRef)str, 0);
-    if (cptr != NULL) {
-	return cptr;
-    }
-
-    const long max = CFStringGetMaximumSizeForEncoding(
-	    CFStringGetLength((CFStringRef)str),
-	    kCFStringEncodingUTF8);
-    char *cptr2 = (char *)xmalloc(max + 1);
-    if (!CFStringGetCString((CFStringRef)str, cptr2, max + 1,
-		kCFStringEncodingUTF8)) {
-	// Probably an UTF16 string...
-	xfree(cptr2);
-	return NULL;
-    }
-    return cptr2;
+    return nsstr_cstr(str);
 }
 
 long
@@ -6359,7 +6342,7 @@ rb_str_clen(VALUE str)
     if (IS_RSTR(str)) {
 	return RSTR(str)->length_in_bytes;
     }
-    return CFStringGetLength((CFStringRef)str);
+    return nsstr_clen(str);
 }
 
 char *

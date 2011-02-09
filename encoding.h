@@ -378,6 +378,9 @@ str_check_ascii_compatible(VALUE str)
 
 VALUE rstr_new_path(const char *path);
 
+const char *nsstr_cstr(VALUE str);
+long nsstr_clen(VALUE str);
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
