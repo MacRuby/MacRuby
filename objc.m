@@ -107,6 +107,18 @@ rb_objc_supports_forwarding(VALUE recv, SEL sel)
     return false;
 }
 
+static const char *
+fileSystemPath(NSString *str)
+{
+    @try {
+	return [str fileSystemRepresentation];
+    }
+    @catch (id exc) {
+	// Sometimes, -fileSystemRepresentation can fail.
+    }
+    return [str UTF8String];
+}
+
 VALUE
 rb_home_dir(VALUE user_name)
 {
@@ -127,7 +139,7 @@ rb_home_dir(VALUE user_name)
 	    return Qnil;
 	}
     }
-    return rb_str_new2([home_dir fileSystemRepresentation]);
+    return rb_str_new2(fileSystemPath(home_dir));
 }
 
 static bool
@@ -176,7 +188,7 @@ file_expand_path(VALUE fname, VALUE dname, bool absolute)
 	}
     }
 
-    return rb_str_new2([res fileSystemRepresentation]);
+    return rb_str_new2(fileSystemPath(res));
 }
 
 VALUE
@@ -310,7 +322,7 @@ rb_require_framework(VALUE recv, SEL sel, int argc, VALUE *argv)
 success:
 
     if (cstr == NULL) {
-	cstr = [path fileSystemRepresentation];
+	cstr = fileSystemPath(path);
     }
 
     bundle = [NSBundle bundleWithPath:path];
@@ -674,7 +686,7 @@ rb_objc_load_loaded_frameworks_bridgesupport(void)
     for (NSBundle *b in [NSBundle allFrameworks]) {
 	if ([b isLoaded]) {
 	    NSString *path = [b bundlePath];
-	    rb_objc_search_and_load_bridge_support([path fileSystemRepresentation]);	
+	    rb_objc_search_and_load_bridge_support(fileSystemPath(path));
 	}
     }
 #endif
