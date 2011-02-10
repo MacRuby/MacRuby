@@ -139,6 +139,10 @@ class Deployer
     rm_rf(app_macruby)
     cp_r(@macruby_framework_path, app_frameworks)
 
+    # Delete the Current framework symlink in the MacRuby.framework copy
+    # as it seems to cause the AppStore validation process to fail.
+    rm_rf(File.join(app_macruby, 'Versions', 'Current'))
+
     # Delete unnecessary things in the MacRuby.framework copy.
     dirs = ['bin', 'include', 'lib/libmacruby-static.a', 'share']
     dirs << 'lib/ruby' if @no_stdlib
