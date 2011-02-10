@@ -171,7 +171,7 @@ class Deployer
     }
 
     # Wait with fixing install name until all binaries are available.
-    fix_install_name unless @compile
+    fix_install_name
   end
 
   # Hack the application binaries to link against the MacRuby.framework copy.
