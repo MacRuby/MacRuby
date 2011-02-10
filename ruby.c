@@ -1235,6 +1235,8 @@ ruby_process_options(int argc, char **argv)
     rb_define_readonly_boolean("$-l", opt->do_line);
     rb_define_readonly_boolean("$-a", opt->do_split);
 
+    errno = 0; // Reset errno value.
+
     return tree;
 }
 
