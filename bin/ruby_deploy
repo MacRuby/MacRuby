@@ -22,7 +22,8 @@ class Deployer
       opts.on('--no-stdlib',     'Do not embed the standard library') { @no_stdlib = true }
       opts.on('--stdlib [LIB]',  'Embed only LIB from the standard library') { |lib| @stdlib << lib }
       opts.on('--gem [GEM]',     'Embed GEM and its dependencies') { |gem| @gems << gem }
-      opts.on('--verbose',       'Log actions to standard out') { @verbose = true }
+      opts.on('--bs',            'Embed the system BridgeSupport files') { @embed_bs = true }
+      opts.on('--verbose',       'Log all commands to standard out') { @verbose = true }
       opts.on('-v', '--version', 'Display the version') do
         puts RUBY_DESCRIPTION
         exit 1
@@ -52,8 +53,11 @@ class Deployer
     die "Nothing to do, please specify --compile or --embed" if !@compile and !@embed
     die "--no-stdlib can only be used with --embed" if @no_stdlib and !@embed
     die "--stdlib can only be used with --embed" if !@stdlib.empty? and !@embed
+    die "--bs can only be used with --embed" if @embed_bs and !@embed
+    log "Deployment started"
     embed if @embed
     compile if @compile
+    log "Deployment ended"
   end
 
   private
@@ -61,7 +65,7 @@ class Deployer
   # FileUtils::Verbose doesn't work with MacRuby yet. However, it doesn't print
   # out failures anyways, just the command. Use the command-line tools directly
   # to circumvent this.
-  { :cp_r => 'cp -R', :mkdir_p => 'mkdir -p', :rm_rf => 'rm -rf' }.each do |name, cmd|
+  { :cp => 'cp', :cp_r => 'cp -R', :mkdir_p => 'mkdir -p', :rm_rf => 'rm -rf' }.each do |name, cmd|
     module_eval <<-END, __FILE__, __LINE__ + 1
       def #{name}(*args)
         execute "#{cmd} \#{args.map { |a| "'\#{a}'" }.join(' ')}"
@@ -71,6 +75,14 @@ class Deployer
 
   def app_frameworks
     File.join(@app_bundle, 'Contents/Frameworks')
+  end
+
+  def app_resources
+    File.join(@app_bundle, 'Contents/Resources')
+  end
+
+  def app_bs
+    File.join(app_resources, 'BridgeSupport')
   end
 
   def app_macruby
@@ -92,6 +104,7 @@ class Deployer
   MACRUBYC = File.join(RbConfig::CONFIG['bindir'], 'macrubyc')
 
   def compile
+    log "Compiling files"
     compile_files.each do |source|
       base = File.basename(source, '.rb')
       next if base == 'rb_main'
@@ -135,6 +148,7 @@ class Deployer
     gems_libdirs_to_embed = @gems.map { |x| gem_deps_libdirs(x) }.flatten
 
     # Copy MacRuby.framework inside MyApp.app/Contents/Frameworks.
+    log "Embedding MacRuby.framework"
     mkdir_p(app_frameworks)
     rm_rf(app_macruby)
     cp_r(@macruby_framework_path, app_frameworks)
@@ -144,6 +158,7 @@ class Deployer
     rm_rf(File.join(app_macruby, 'Versions', 'Current'))
 
     # Delete unnecessary things in the MacRuby.framework copy.
+    log "Trimming MacRuby.framework"
     dirs = ['bin', 'include', 'lib/libmacruby-static.a', 'share']
     dirs << 'lib/ruby' if @no_stdlib
     dirs << 'lib/ruby/Gems'
@@ -159,6 +174,7 @@ class Deployer
 
     # Copy the gems libdirs.
     unless gems_libdirs_to_embed.empty?
+      log "Embed RubyGems libdirs: #{gems_libdirs_to_embed.join(', ')}"
       gems_libdirs_dest = File.join(app_macruby_usr, 'lib', 'ruby', 'site_ruby', RUBY_VERSION)
       mkdir_p(gems_libdirs_dest)
       gems_libdirs_to_embed.each do |libdir|
@@ -174,12 +190,22 @@ class Deployer
       rm_rf(x)
     }
 
+    # Copy the system BridgeSupport files if asked
+    if @embed_bs
+      log "Embed BridgeSupport system files"
+      mkdir_p(app_bs)
+      Dir.glob('/System/Library/Frameworks/**/BridgeSupport/*.{bridgesupport,dylib}').each do |path|
+        cp(path, app_bs)
+      end
+    end
+
     # Wait with fixing install name until all binaries are available.
     fix_install_name
   end
 
   # Hack the application binaries to link against the MacRuby.framework copy.
   def fix_install_name
+    log "Fix install path of binaries"
     patterns = [File.join(@app_bundle, 'Contents/MacOS/*'),
                 File.join(app_macruby_usr, 'lib/ruby/**/*.{bundle,rbo}'),
                 File.join(@app_bundle, 'Contents/Resources/*.rbo')]
@@ -211,6 +237,10 @@ class Deployer
   def die(*args)
     $stderr.puts args
     exit 1
+  end
+
+  def log(msg)
+    $stderr.puts "*** #{msg}"
   end
 end
 
