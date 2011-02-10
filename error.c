@@ -1053,6 +1053,18 @@ errno_missing(VALUE self, SEL sel, VALUE id)
 }
 
 /*
+ * call-seq:
+ *   Errno.code   => Fixnum
+ *
+ * Returns the current errno value.
+ */
+static VALUE
+errno_code(VALUE self, SEL sel)
+{
+    return INT2FIX(errno);
+}
+
+/*
  *  Descendants of class <code>Exception</code> are used to communicate
  *  between <code>raise</code> methods and <code>rescue</code>
  *  statements in <code>begin/end</code> blocks. <code>Exception</code>
@@ -1129,6 +1141,7 @@ Init_Exception(void)
 
     rb_mErrno = rb_define_module("Errno");
     rb_objc_define_method(*(VALUE *)rb_mErrno, "const_missing", errno_missing, 1);
+    rb_objc_define_method(*(VALUE *)rb_mErrno, "code", errno_code, 0);
 
     rb_objc_define_module_function(rb_mKernel, "warn", rb_warn_m, 1);
 }
