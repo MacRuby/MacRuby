@@ -4799,6 +4799,37 @@ rb_vm_get_current_class(void)
     return GET_VM()->get_current_class();
 }
 
+extern "C"
+bool
+rb_vm_generate_objc_class_name(const char *name, char *buf, size_t buflen)
+{
+    RoxorCoreLock lock;
+
+    if (name == NULL) {
+	static unsigned long anon_count = 1;
+	if (anon_count == ULONG_MAX) {
+	    return false;
+	}
+	snprintf(buf, buflen, "RBAnonymous%ld", ++anon_count);
+    }
+    else {
+	if (objc_getClass(name) != NULL) {
+	    unsigned long count = 1;
+	    snprintf(buf, buflen, "RB%s", name);
+	    while (objc_getClass(buf) != NULL) {
+		if (count == ULONG_MAX) {
+		    return false;
+		}
+		snprintf(buf, buflen, "RB%s%ld", name, ++count);
+	    }
+	}
+	else {
+	    strncpy(buf, name, buflen);
+	}
+    }
+    return true;
+}
+
 static VALUE
 builtin_ostub1(IMP imp, id self, SEL sel, int argc, VALUE *argv)
 {

@@ -491,6 +491,9 @@ Class rb_vm_get_current_class(void);
 
 bool rb_vm_aot_feature_load(const char *name);
 
+bool rb_vm_generate_objc_class_name(const char *name, char *buf,
+	size_t buflen);
+
 void rb_vm_raise(VALUE exception);
 void rb_vm_raise_current_exception(void);
 VALUE rb_vm_current_exception(void);

@@ -148,23 +148,9 @@ rb_define_object_special_methods(VALUE klass)
 static VALUE
 rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
 {
-    char ocname[128];
-
-    if (name == NULL) {
-	static long anon_count = 1;
-    	snprintf(ocname, sizeof ocname, "RBAnonymous%ld", ++anon_count);
-    }
-    else {
-	if (objc_getClass(name) != NULL) {
-	    long count = 1;
-	    snprintf(ocname, sizeof ocname, "RB%s", name);
-	    while (objc_getClass(ocname) != NULL) {
-		snprintf(ocname, sizeof ocname, "RB%s%ld", name, ++count);
-	    }
-	}
-	else {
-	    strncpy(ocname, name, sizeof ocname);
-	}
+    char ocname[512] = { '\0' };
+    if (!rb_vm_generate_objc_class_name(name, ocname, sizeof ocname)) {
+	goto no_more_classes;
     }
 
     if (super == 0) {
@@ -172,7 +158,9 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
     }
 
     Class ocklass = objc_allocateClassPair((Class)super, ocname, sizeof(id));
-    assert(ocklass != NULL);
+    if (ocklass == NULL) {
+	goto no_more_classes;
+    }
 
     long version_flag = RCLASS_IS_RUBY_CLASS;
     if (flags == T_MODULE) {
@@ -187,6 +175,9 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
     }
 
     return (VALUE)ocklass;
+
+no_more_classes:
+    rb_raise(rb_eRuntimeError, "can't create new classes");
 }
 
 VALUE
