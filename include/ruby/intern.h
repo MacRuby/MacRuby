@@ -559,8 +559,9 @@ void rb_thread_remove_from_group(VALUE thread);
 typedef void rb_unblock_function_t(void *);
 typedef VALUE rb_blocking_function_t(void *);
 VALUE rb_thread_blocking_region(rb_blocking_function_t *func, void *data1,
-				rb_unblock_function_t *ubf, void *data2);
-#define RB_UBF_DFL ((rb_unblock_function_t *)-1)
+	rb_unblock_function_t *ubf, void *data2);
+#define RUBY_UBF_IO ((rb_unblock_function_t *)-1)
+#define RUBY_UBF_PROCESS ((rb_unblock_function_t *)-1)
 VALUE rb_barrier_new(void);
 VALUE rb_barrier_wait(VALUE self);
 VALUE rb_barrier_release(VALUE self);

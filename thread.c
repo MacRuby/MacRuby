@@ -1664,3 +1664,12 @@ Init_Thread(void)
 
     rb_eThreadError = rb_define_class("ThreadError", rb_eStandardError);
 }
+
+VALUE
+rb_thread_blocking_region(rb_blocking_function_t *func, void *data1,
+	rb_unblock_function_t *ubf, void *data2)
+{
+    // For compatibility with CRuby. We do not have a global lock to release,
+    // so we can just call the function directly.
+    return func(data1);
+}
