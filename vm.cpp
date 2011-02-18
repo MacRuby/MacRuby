@@ -472,7 +472,6 @@ RoxorVM::RoxorVM(const RoxorVM &vm)
 
     mcache = (struct mcache *)calloc(VM_MCACHE_SIZE, sizeof(struct mcache));
     assert(mcache != NULL);
-    memcpy(mcache, vm.mcache, sizeof(struct mcache) * VM_MCACHE_SIZE);
 }
 
 RoxorVM::~RoxorVM(void)
@@ -1941,6 +1940,15 @@ RoxorCore::resolve_methods(std::map<Class, rb_vm_method_source_t *> *map,
 	else {
 	    ++iter;
 	}
+    }
+
+    // If the map is empty, there is no point in keeping it.
+    if (map->size() == 0) {
+	std::map<SEL, std::map<Class, rb_vm_method_source_t *> *>::iterator
+	    iter = method_sources.find(sel);
+	assert(iter != method_sources.end());
+	method_sources.erase(iter);
+	delete map;	
     }
 
     return did_something;
