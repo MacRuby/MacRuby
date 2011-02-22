@@ -762,6 +762,7 @@ RoxorCore::constant_cache_get(ID path)
     if (iter == ccache.end()) {
 	struct ccache *cache = (struct ccache *)malloc(sizeof(struct ccache));
 	cache->outer = 0;
+	cache->outer_mask = 0;
 	cache->val = Qundef;
 	ccache[path] = cache;
 	return cache;
@@ -1233,21 +1234,31 @@ retry:
 
 extern "C"
 VALUE
-rb_vm_const_lookup(VALUE outer, ID path, bool lexical, bool defined)
+rb_vm_const_lookup_level(VALUE outer, uint64_t outer_mask, ID path,
+	bool lexical, bool defined)
 {
     rb_vm_check_if_module(outer);
+
     if (lexical) {
 	// Let's do a lexical lookup before a hierarchical one, by looking for
 	// the given constant in all modules under the given outer.
 	GET_CORE()->lock();
 	struct rb_vm_outer *o = GET_CORE()->get_outer((Class)outer);
+	uint64_t n = 0;
 	while (o != NULL && o->klass != (Class)rb_cNSObject) {
-	    VALUE val = rb_const_get_direct((VALUE)o->klass, path);
-	    if (val != Qundef) {
-		GET_CORE()->unlock();
-		return defined ? Qtrue : val;
+	    // If the current outer isn't in the mask, it means we can use it
+	    // for const lookup. The outer mask is used when performing const
+	    // lookups inside modules defined using the :: notation
+	    // (ex: class A::B; class C; class D::E; ...)
+	    if (!(outer_mask & (1 << n))) {
+		VALUE val = rb_const_get_direct((VALUE)o->klass, path);
+		if (val != Qundef) {
+		    GET_CORE()->unlock();
+		    return defined ? Qtrue : val;
+		}
 	    }
 	    o = o->outer;
+	    n++;
 	}
 	GET_CORE()->unlock();
     }
@@ -1360,25 +1371,6 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
 	}
     }
 
-    // Prepare the constant outer.
-    VALUE const_outer;
-    if (flags & DEFINE_OUTER) {
-	const_outer = outer;
-    }
-    else if (flags & DEFINE_SUB_OUTER) {
-	// The Foo::Bar case, the outer here is the outer of the outer.
-	rb_vm_outer_t *o = GET_CORE()->get_outer((Class)outer);
-	if (o != NULL && o->outer != NULL) {
-	    const_outer = (VALUE)o->outer->klass;
-	}
-	else {
-	    const_outer = rb_cObject;
-	}
-    }
-    else {
-	const_outer = rb_cObject;
-    }
-
     VALUE klass = get_klass_const(outer, path, dynamic_class);
     if (klass != Qundef) {
 	// Constant is already defined.
@@ -1388,9 +1380,17 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
 			rb_class2name(klass));
 	    }
 	}
-	rb_vm_set_outer(klass, const_outer);
     }
     else {
+	// Prepare the constant outer.
+	VALUE const_outer;
+	if ((flags & DEFINE_OUTER) || (flags & DEFINE_SUB_OUTER)) {
+	    const_outer = outer;
+	}
+	else {
+	    const_outer = rb_cObject;
+	}
+
 	// Define the constant.
 	if (flags & DEFINE_MODULE) {
 	    assert(super == 0);

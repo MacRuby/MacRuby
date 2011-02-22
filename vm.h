@@ -319,7 +319,15 @@ int rb_vm_thread_safe_level(rb_vm_thread_t *thread);
 VALUE rb_vm_top_self(void);
 void rb_vm_const_is_defined(ID path);
 VALUE rb_vm_resolve_const_value(VALUE val, VALUE klass, ID name);
-VALUE rb_vm_const_lookup(VALUE outer, ID path, bool lexical, bool defined);
+
+VALUE rb_vm_const_lookup_level(VALUE outer, uint64_t outer_mask, ID path,
+	bool lexical, bool defined);
+static inline VALUE
+rb_vm_const_lookup(VALUE outer, ID path, bool lexical, bool defined)
+{
+    return rb_vm_const_lookup_level(outer, 0, path, lexical, defined);
+}
+
 bool rb_vm_lookup_method(Class klass, SEL sel, IMP *pimp,
 	rb_vm_method_node_t **pnode);
 bool rb_vm_lookup_method2(Class klass, ID mid, SEL *psel, IMP *pimp,
@@ -564,6 +572,7 @@ struct icache *rb_vm_ivar_slot_allocate(void);
 
 struct ccache {
     VALUE outer;
+    uint64_t outer_mask;
     VALUE val;
 };
 

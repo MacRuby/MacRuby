@@ -139,9 +139,10 @@ vm_cvar_set(VALUE klass, ID id, VALUE val, unsigned char dynamic_class)
 }
 
 PRIMITIVE VALUE
-vm_get_const(VALUE outer, void *cache_p, ID path, int flags)
+vm_get_const(VALUE outer, uint64_t outer_mask, void *cache_p, ID path,
+	int flags)
 {
-    struct ccache *cache = (struct ccache *) cache_p;
+    struct ccache *cache = (struct ccache *)cache_p;
     const bool lexical_lookup = (flags & CONST_LOOKUP_LEXICAL);
     const bool dynamic_class = (flags & CONST_LOOKUP_DYNAMIC_CLASS);
 
@@ -153,15 +154,17 @@ vm_get_const(VALUE outer, void *cache_p, ID path, int flags)
     }
 
     VALUE val;
-    if (cache->outer == outer && cache->val != Qundef) {
+    if (cache->outer == outer && cache->outer_mask == outer_mask
+	    && cache->val != Qundef) {
 	val = cache->val;
     }
     else {
-	val = rb_vm_const_lookup(outer, path, lexical_lookup, false);
+	val = rb_vm_const_lookup_level(outer, outer_mask, path,
+		lexical_lookup, false);
 	cache->outer = outer;
+	cache->outer_mask = outer_mask;
 	cache->val = val;
     }
-
     return val;
 }
 

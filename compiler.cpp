@@ -75,7 +75,8 @@ RoxorCompiler *RoxorCompiler::shared = NULL;
     __save_state(PHINode *, ensure_pn);\
     __save_state(NODE *, ensure_node);\
     __save_state(bool, block_declaration);\
-    __save_state(AllocaInst *, dispatch_argv);
+    __save_state(AllocaInst *, dispatch_argv);\
+    __save_state(uint64_t, outer_mask);
 
 #define restore_compiler_state() \
     __restore_state(current_line);\
@@ -109,7 +110,8 @@ RoxorCompiler *RoxorCompiler::shared = NULL;
     __restore_state(ensure_pn);\
     __restore_state(ensure_node);\
     __restore_state(block_declaration);\
-    __restore_state(dispatch_argv);
+    __restore_state(dispatch_argv);\
+    __restore_state(outer_mask);
 
 #define reset_compiler_state() \
     bb = NULL;\
@@ -142,7 +144,8 @@ RoxorCompiler *RoxorCompiler::shared = NULL;
     ensure_pn = NULL;\
     ensure_node = NULL;\
     block_declaration = false;\
-    dispatch_argv = NULL;
+    dispatch_argv = NULL;\
+    outer_mask = 0;
 
 RoxorCompiler::RoxorCompiler(bool _debug_mode)
 {
@@ -1510,7 +1513,7 @@ RoxorCompiler::compile_constant_declaration(NODE *node, Value *val)
     }
     else {
 	assert(node->nd_else != NULL);
-	args[0] = compile_class_path(node->nd_else, &flags);
+	args[0] = compile_class_path(node->nd_else, &flags, NULL);
 	assert(node->nd_else->nd_mid > 0);
 	args[1] = compile_id(node->nd_else->nd_mid);
     }
@@ -1612,11 +1615,14 @@ RoxorCompiler::compile_const(ID id, Value *outer)
 
     Value *args[] = {
 	outer,
+	ConstantInt::get(Int64Ty, outer_mask),
 	compile_ccache(id),
 	compile_id(id),
 	ConstantInt::get(Int32Ty, flags)
     };
-    return compile_protected_call(getConstFunc, args, args + 4);
+    Instruction *insn = compile_protected_call(getConstFunc, args, args + 5);
+    attach_current_line_metadata(insn);
+    return insn;
 }
 
 Value *
@@ -2067,12 +2073,15 @@ RoxorCompiler::compile_set_has_ensure(Value *val)
 }
 
 Value *
-RoxorCompiler::compile_class_path(NODE *node, int *flags)
+RoxorCompiler::compile_class_path(NODE *node, int *flags, int *outer_level)
 {
     if (nd_type(node) == NODE_COLON3) {
 	// ::Foo
 	if (flags != NULL) {
 	    *flags = 0;
+	}
+	if (outer_level != NULL) {
+	    *outer_level = 0;
 	}
 	return compile_nsobject();
     }
@@ -2081,11 +2090,22 @@ RoxorCompiler::compile_class_path(NODE *node, int *flags)
 	if (flags != NULL) {
 	    *flags = DEFINE_SUB_OUTER;
 	}
+	if (outer_level != NULL) {
+	    // Count the number of outers minus the current one.
+	    int level = 0;
+	    for (NODE *n = node; n != NULL; n = n->nd_next) {
+		level++;
+	    }
+	    *outer_level = level + 1;
+	}
 	return compile_node(node->nd_head);
     }
     else {
 	if (flags != NULL) {
 	    *flags = DEFINE_OUTER;
+	}
+	if (outer_level != NULL) {
+	    *outer_level = 0;
 	}
 	return compile_current_class();
     }
@@ -3842,7 +3862,8 @@ RoxorCompiler::compile_node0(NODE *node)
 	    {
 		assert(node->nd_cpath != NULL);
 
-		Value *classVal;
+		Value *classVal = NULL;
+		int current_outer_level = 0;
 		if (nd_type(node) == NODE_SCLASS) {
 		    classVal =
 			compile_singleton_class(compile_node(node->nd_recv));
@@ -3865,7 +3886,8 @@ RoxorCompiler::compile_node0(NODE *node)
 		    }
 
 		    int flags = 0;
-		    Value *cpath = compile_class_path(node->nd_cpath, &flags);
+		    Value *cpath = compile_class_path(node->nd_cpath, &flags,
+			&current_outer_level);
 		    if (nd_type(node) == NODE_MODULE) {
 			flags |= DEFINE_MODULE;
 		    }
@@ -3914,12 +3936,25 @@ RoxorCompiler::compile_node0(NODE *node)
 			    = ivars_slots_cache;
 			old_ivars_slots_cache.clear();
 
+			uint64_t old_outer_mask = outer_mask;
+			if (current_outer_level > 0) {
+			    outer_mask <<= current_outer_level;
+			    for (int i = 0; i < current_outer_level; i++) {
+				outer_mask |= (1 << i + 1);
+			    } 
+			}
+			else {
+			    outer_mask <<= 1;
+			}
+
 			DEBUG_LEVEL_INC();
 			Value *val = compile_node(body);
 			assert(Function::classof(val));
 			Function *f = cast<Function>(val);
 			GET_CORE()->optimize(f);
 			DEBUG_LEVEL_DEC();
+
+			outer_mask = old_outer_mask;
 
 			ivars_slots_cache = old_ivars_slots_cache;
 
@@ -4635,13 +4670,13 @@ RoxorCompiler::compile_node0(NODE *node)
 	    {
 		assert(node->nd_mid > 0);
 		if (rb_is_const_id(node->nd_mid)) {
-		    // Constant
+		    // Constant.
 		    assert(node->nd_head != NULL);
 		    return compile_const(node->nd_mid,
 			    compile_node(node->nd_head));
 		}
 		else {
-		    // Method call
+		    // Method call.
 		    abort(); // TODO
 		}
 	    }
