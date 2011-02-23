@@ -16,7 +16,7 @@ class Builder
         <key>CFBundleIconFile</key>
         <string></string>
         <key>CFBundleIdentifier</key>
-        <string>com.apple.macruby</string>
+        <string>org.macruby</string>
         <key>CFBundleInfoDictionaryVersion</key>
         <string>#{MACRUBY_VERSION}</string>
         <key>CFBundlePackageType</key>
