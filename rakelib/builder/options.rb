@@ -25,7 +25,7 @@ ARCHS =
     $stderr.puts "Getting archs from RC_ARCHS!"
     s.strip.split(/\s+/)
   else
-    b.option('archs', `arch`.include?('ppc') ? 'ppc' : %w{i386 x86_64}) { |x| x.split(',') }
+    b.option('archs', `arch`.include?('ppc') ? 'ppc' : %w{x86_64}) { |x| x.split(',') }
   end
 
 llvm_default_path = '/usr/local'
@@ -219,7 +219,7 @@ module Rake
 
     Example:
 
-      $ rake all archs="i386,ppc" framework_instdir="~/Library/Frameworks"
+      $ rake all archs="i386,x86_64" framework_instdir="~/Library/Frameworks"
 
 }
     end
