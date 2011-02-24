@@ -2091,12 +2091,14 @@ RoxorCompiler::compile_class_path(NODE *node, int *flags, int *outer_level)
 	    *flags = DEFINE_SUB_OUTER;
 	}
 	if (outer_level != NULL) {
-	    // Count the number of outers minus the current one.
+	    // Count the number of outers.
 	    int level = 0;
-	    for (NODE *n = node; n != NULL; n = n->nd_next) {
+	    NODE *n = node;
+	    while (n != NULL && nd_type(n) == NODE_COLON2) {
+		n = n->nd_head;
 		level++;
 	    }
-	    *outer_level = level + 1;
+	    *outer_level = level;
 	}
 	return compile_node(node->nd_head);
     }
@@ -3936,16 +3938,12 @@ RoxorCompiler::compile_node0(NODE *node)
 			    = ivars_slots_cache;
 			old_ivars_slots_cache.clear();
 
-			uint64_t old_outer_mask = outer_mask;
-			if (current_outer_level > 0) {
-			    outer_mask <<= current_outer_level;
-			    for (int i = 0; i < current_outer_level; i++) {
-				outer_mask |= (1 << i + 1);
-			    } 
-			}
-			else {
-			    outer_mask <<= 1;
-			}
+			// Increase the outer mask.
+			int old_outer_mask = outer_mask;
+			outer_mask <<= current_outer_level + 1;
+			for (int i = 0; i < current_outer_level; i++) {
+			    outer_mask |= (1 << (i + 1));
+			} 
 
 			DEBUG_LEVEL_INC();
 			Value *val = compile_node(body);
@@ -4861,6 +4859,9 @@ RoxorCompiler::set_fname(const char *_fname)
 Function *
 RoxorCompiler::compile_main_function(NODE *node, bool *can_interpret_p)
 {
+    save_compiler_state();
+    reset_compiler_state();
+
     should_interpret = true;
     can_interpret = false;
 
@@ -4871,7 +4872,7 @@ RoxorCompiler::compile_main_function(NODE *node, bool *can_interpret_p)
     if (can_interpret_p != NULL) {
 	*can_interpret_p = should_interpret;
     }
-
+    restore_compiler_state();
     return func;
 }
 
