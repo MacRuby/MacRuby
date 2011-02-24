@@ -1244,7 +1244,7 @@ rb_vm_const_lookup_level(VALUE outer, uint64_t outer_mask, ID path,
 	// the given constant in all modules under the given outer.
 	GET_CORE()->lock();
 	struct rb_vm_outer *o = GET_CORE()->get_outer((Class)outer);
-	uint64_t n = 0;
+	unsigned int n = 0;
 	while (o != NULL && o->klass != (Class)rb_cNSObject) {
 	    // If the current outer isn't in the mask, it means we can use it
 	    // for const lookup. The outer mask is used when performing const
