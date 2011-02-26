@@ -253,7 +253,7 @@ get_boolean_attribute(xmlTextReaderPtr reader, const char *name,
   return ret;
 }
 
-#define MAX_ENCODE_LEN 2048
+#define MAX_ENCODE_LEN 4096
 
 #ifndef MIN
 # define MIN(a, b) (((a) < (b)) ? (a) : (b))
