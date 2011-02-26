@@ -76,7 +76,12 @@ void xfree(void*);
 
 #include <AvailabilityMacros.h>
 
-#if SIZEOF_INT*2 <= SIZEOF_LONG_LONG
+#if defined(__LP64__) && (MAC_OS_X_VERSION_MAX_ALLOWED >= 1060)
+# define BDIGIT uint64_t
+# define SIZEOF_BDIGITS 8
+# define BDIGIT_DBL __uint128_t
+# define BDIGIT_DBL_SIGNED __int128_t
+#elif SIZEOF_INT*2 <= SIZEOF_LONG_LONG
 # define BDIGIT unsigned int
 # define SIZEOF_BDIGITS SIZEOF_INT
 # define BDIGIT_DBL unsigned LONG_LONG

@@ -349,6 +349,8 @@ nurat_s_alloc(VALUE klass, SEL sel)
     return nurat_s_new_internal(klass, ZERO, ONE);
 }
 
+#define rb_raise_zerodiv() rb_raise(rb_eZeroDivError, "divided by 0")
+
 #if 0
 static VALUE
 nurat_s_new_bang(int argc, VALUE *argv, VALUE klass)
@@ -373,7 +375,7 @@ nurat_s_new_bang(int argc, VALUE *argv, VALUE klass)
 	    den = f_negate(den);
 	    break;
 	  case 0:
-	    rb_num_zerodiv();
+	    rb_raise_zerodiv();
 	    break;
 	}
 	break;
@@ -444,7 +446,7 @@ nurat_s_canonicalize_internal(VALUE klass, VALUE num, VALUE den)
 	den = f_negate(den);
 	break;
       case 0:
-	rb_num_zerodiv();
+	rb_raise_zerodiv();
 	break;
     }
 
@@ -468,7 +470,7 @@ nurat_s_canonicalize_internal_no_reduce(VALUE klass, VALUE num, VALUE den)
 	den = f_negate(den);
 	break;
       case 0:
-	rb_num_zerodiv();
+	rb_raise_zerodiv();
 	break;
     }
 
@@ -852,10 +854,9 @@ nurat_div(VALUE self, SEL sel, VALUE other)
     switch (TYPE(other)) {
       case T_FIXNUM:
       case T_BIGNUM:
+	if (f_zero_p(other))
+	    rb_raise_zerodiv();
 	{
-	    if (f_zero_p(other)) {
-		rb_num_zerodiv();
-	    }
 	    get_dat1(self);
 
 	    return f_muldiv(self,
@@ -865,10 +866,9 @@ nurat_div(VALUE self, SEL sel, VALUE other)
       case T_FLOAT:
 	return rb_funcall(f_to_f(self), '/', 1, other);
       case T_RATIONAL:
+	if (f_zero_p(other))
+	    rb_raise_zerodiv();
 	{
-	    if (f_zero_p(other)) {
-		rb_num_zerodiv();
-	    }
 	    get_dat2(self, other);
 
 	    if (f_one_p(self))
@@ -1587,7 +1587,7 @@ nurat_marshal_load(VALUE self, SEL sel, VALUE a)
     dat->den = RARRAY_AT(ary ,1);
     rb_copy_generic_ivar(self, ary);
     if (f_zero_p(dat->den)) {
-	rb_num_zerodiv();
+	rb_raise_zerodiv();
     }
     return self;
 }
