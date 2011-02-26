@@ -828,7 +828,7 @@ name_err_mesg_to_str(VALUE obj, SEL sel)
 	    desc = "false";
 	    break;
 	  default:
-	    d = rb_protect(safe_inspect, obj, 0);
+	    d = rb_protect(safe_inspect, obj, NULL);
 	    if (NIL_P(d) || RSTRING_LEN(d) > 65) {
 		d = rb_any_to_s(obj);
 	    }

@@ -487,7 +487,10 @@ static VALUE protect_exc = Qnil;
 static VALUE
 protect_rescue(VALUE obj, VALUE exc)
 {
-    *(int *)obj = 1;
+   int *state = (int *)obj;
+   if (state != NULL) {
+	*state = 1;
+   }
     GC_RETAIN(exc);
     protect_exc = exc;
     return Qnil;
