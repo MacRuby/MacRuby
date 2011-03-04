@@ -2170,8 +2170,8 @@ rary_transpose(VALUE ary, SEL sel)
 static VALUE
 rary_replace(VALUE rcv, SEL sel, VALUE other)
 {
-    other = to_ary(other);
     rary_modify(rcv);
+    other = to_ary(other);
     rary_remove_all(RARY(rcv));
     rary_concat(rcv, other, 0, RARRAY_LEN(other));
     return rcv;
