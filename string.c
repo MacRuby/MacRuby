@@ -2533,6 +2533,8 @@ rstr_rindex(VALUE self, SEL sel, int argc, VALUE *argv)
 static VALUE
 rstr_plus(VALUE self, SEL sel, VALUE other)
 {
+    StringValue(other);
+
     rb_str_t *newstr = str_dup(RSTR(self));
     rb_str_t *otherstr = str_need_string(other);
     str_concat_string(newstr, otherstr);
