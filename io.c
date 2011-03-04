@@ -3597,9 +3597,7 @@ rb_f_readlines(VALUE rcv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_s_try_convert(VALUE dummy, SEL sel, VALUE obj)
 {
-    return rb_respond_to(obj, rb_intern("to_io"))
-	?  rb_funcall3(obj, rb_intern("to_io"), 0, 0)
-	: Qnil;
+    return rb_io_check_io(obj);
 }
 
 /*
