@@ -1023,12 +1023,12 @@ rary_aset(VALUE ary, SEL sel, int argc, VALUE *argv)
 static VALUE
 rary_insert_m(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
+    if (argc < 1) {
+	rb_raise(rb_eArgError, "wrong number of arguments (at least 1)");
+    }
     rary_modify(ary);
     if (argc == 1) {
 	return ary;
-    }
-    if (argc < 1) {
-	rb_raise(rb_eArgError, "wrong number of arguments (at least 1)");
     }
     long pos = NUM2LONG(argv[0]);
     if (pos == -1) {
