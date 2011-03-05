@@ -760,7 +760,9 @@ static int
 delete_if_i(VALUE key, VALUE value, VALUE ary)
 {
     if (key != Qundef) {
-	if (RTEST(rb_yield_values(2, key, value))) {
+	const bool ok = RTEST(rb_yield_values(2, key, value));
+	ST_STOP_IF_BROKEN();
+	if (ok) {
 	    rb_ary_push(ary, key);
 	}
     }
@@ -850,7 +852,9 @@ static int
 select_i(VALUE key, VALUE value, VALUE result)
 {
     if (key != Qundef) {
-	if (RTEST(rb_yield_values(2, key, value))) {
+	const bool ok = RTEST(rb_yield_values(2, key, value));
+	ST_STOP_IF_BROKEN();
+	if (ok) {
 	    rb_hash_aset(result, key, value);
 	}
     }
@@ -1011,6 +1015,7 @@ each_value_i(VALUE key, VALUE value)
 {
     if (key != Qundef) {
 	rb_yield(value);
+	ST_STOP_IF_BROKEN();
     }
     return ST_CONTINUE;
 }
@@ -1044,6 +1049,7 @@ each_key_i(VALUE key, VALUE value)
 {
     if (key != Qundef) {
 	rb_yield(key);
+	ST_STOP_IF_BROKEN();
     }
     return ST_CONTINUE;
 }
@@ -1079,6 +1085,7 @@ each_pair_i(VALUE key, VALUE value)
 {
     if (key != Qundef) {
 	rb_yield(rb_assoc_new(key, value));
+	ST_STOP_IF_BROKEN();
     }
     return ST_CONTINUE;
 }
@@ -1488,6 +1495,7 @@ update_block_i(VALUE key, VALUE value, VALUE hash)
     if (key != Qundef) {
 	if (rhash_has_key(hash, 0, key)) {
 	    value = rb_yield_values(3, key, rhash_aref(hash, 0, key), value);
+	    ST_STOP_IF_BROKEN();
 	}
 	rhash_aset(hash, 0, key, value);
     }
