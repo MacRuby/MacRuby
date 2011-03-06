@@ -1353,7 +1353,6 @@ ary_reverse(VALUE ary, long pos1, long pos2)
 VALUE
 ary_rotate(VALUE ary, long cnt)
 {
-    rb_ary_modify(ary);
     if (cnt != 0) {
 	long len = RARY(ary)->len;
 	if (len > 0 && (cnt = rotate_count(cnt, len)) > 0) {
@@ -1399,6 +1398,7 @@ rary_rotate_bang(VALUE ary, SEL sel, int argc, VALUE *argv)
     if (!NIL_P(n)) {
 	cnt = NUM2LONG(n);
     }
+    rb_ary_modify(ary);
     ary_rotate(ary, cnt);
     return ary;
 }
