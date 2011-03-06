@@ -1319,7 +1319,17 @@ rary_reverse_bang(VALUE ary, SEL sel)
 static VALUE
 rary_reverse(VALUE ary, SEL sel)
 {
-    return rary_reverse_bang(rary_dup(ary, 0), 0);
+    VALUE dup = rary_dup(ary, 0);
+
+    if (RARY(dup)->len > 1) {
+	for (size_t i = 0; i < RARY(dup)->len / 2; i++) {
+	    const size_t j = RARY(dup)->len - i - 1;
+	    VALUE elem = rary_elt(dup, i);
+	    rary_elt_set(dup, i, rary_elt(dup, j));
+	    rary_elt_set(dup, j, elem);
+	}
+    }
+    return dup;
 }
 
 static inline long
