@@ -2292,7 +2292,7 @@ rary_fill(VALUE ary, SEL sel, int argc, VALUE *argv)
 	return ary;
     }
     end = beg + len;
-    if (end < 0) {
+    if (beg >= ARY_MAX_SIZE || len > ARY_MAX_SIZE - beg) {
 	rb_raise(rb_eArgError, "argument too big");
     }
 
