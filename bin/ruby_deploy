@@ -214,6 +214,13 @@ class Deployer
         execute("#{@install_name_tool} -change #{macruby_usr}/lib/libmacruby.dylib @executable_path/../Frameworks/MacRuby.framework/Versions/#{@macruby_install_version}/usr/lib/libmacruby.dylib '#{bin}'")
       end
     end
+    log "Fix identification name of libmacruby"
+    patterns = [ File.join(app_macruby_usr, 'lib/libmacruby*.dylib') ]
+    patterns.each do |pat|
+      Dir.glob(pat).each do |bin|
+        execute("#{@install_name_tool} -id @executable_path/../Frameworks/MacRuby.framework/Versions/#{@macruby_install_version}/usr/lib/libmacruby.dylib '#{bin}'")
+      end
+    end
   end
 
   def execute(line, error_message = nil)
