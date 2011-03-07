@@ -870,18 +870,6 @@ rhash_select(VALUE hash, SEL sel)
     return result;
 }
 
-/*
- *  call-seq:
- *     hsh.keep_if {| key, value | block }  -> hsh
- *     hsh.keep_if                          -> an_enumerator
- *
- *  Deletes every key-value pair from <i>hsh</i> for which <i>block</i>
- *  evaluates to false.
- *
- *  If no block is given, an enumerator is returned instead.
- *
- */
-
 static int
 keep_if_i(VALUE key, VALUE value, VALUE hash)
 {
@@ -894,6 +882,43 @@ keep_if_i(VALUE key, VALUE value, VALUE hash)
     }
     return ST_CONTINUE;
 }
+
+/*
+ *  call-seq:
+ *     hsh.select! {| key, value | block }  -> hsh or nil
+ *     hsh.select!                          -> an_enumerator
+ *
+ *  Equivalent to <code>Hash#keep_if</code>, but returns
+ *  <code>nil</code> if no changes were made.
+ */
+
+static VALUE
+rhash_select_bang(VALUE hash, SEL sel)
+{
+    RETURN_ENUMERATOR(hash, 0, 0);
+    rhash_modify(hash);
+    if (!RHASH(hash)->tbl) {
+        return Qnil;
+    }
+    const long n = rhash_len(hash);
+    rb_hash_foreach(hash, keep_if_i, hash);
+    if (n == rhash_len(hash)) {
+	return Qnil;
+    }
+    return hash;
+}
+
+/*
+ *  call-seq:
+ *     hsh.keep_if {| key, value | block }  -> hsh
+ *     hsh.keep_if                          -> an_enumerator
+ *
+ *  Deletes every key-value pair from <i>hsh</i> for which <i>block</i>
+ *  evaluates to false.
+ *
+ *  If no block is given, an enumerator is returned instead.
+ *
+ */
 
 VALUE
 rhash_keep_if(VALUE hash, SEL sel)
@@ -1866,6 +1891,7 @@ Init_Hash(void)
     rb_objc_define_method(rb_cRubyHash, "delete_if", rhash_delete_if, 0);
     rb_objc_define_method(rb_cRubyHash, "keep_if", rhash_keep_if, 0);
     rb_objc_define_method(rb_cRubyHash, "select", rhash_select, 0);
+    rb_objc_define_method(rb_cRubyHash, "select!", rhash_select_bang, 0);
     rb_objc_define_method(rb_cRubyHash, "reject", rhash_reject, 0);
     rb_objc_define_method(rb_cRubyHash, "reject!", rhash_reject_bang, 0);
     rb_objc_define_method(rb_cRubyHash, "clear", rhash_clear, 0);
