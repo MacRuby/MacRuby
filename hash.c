@@ -897,15 +897,9 @@ rhash_select_bang(VALUE hash, SEL sel)
 {
     RETURN_ENUMERATOR(hash, 0, 0);
     rhash_modify(hash);
-    if (!RHASH(hash)->tbl) {
-        return Qnil;
-    }
     const long n = rhash_len(hash);
     rb_hash_foreach(hash, keep_if_i, hash);
-    if (n == rhash_len(hash)) {
-	return Qnil;
-    }
-    return hash;
+    return n == rhash_len(hash) ? Qnil : hash;
 }
 
 /*
