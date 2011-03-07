@@ -178,7 +178,7 @@ class Deployer
       gems_libdirs_dest = File.join(app_macruby_usr, 'lib', 'ruby', 'site_ruby', RUBY_VERSION)
       mkdir_p(gems_libdirs_dest)
       gems_libdirs_to_embed.each do |libdir|
-        execute("/usr/bin/ditto #{libdir} #{gems_libdirs_dest}")
+        execute("/usr/bin/ditto \"#{libdir}\" \"#{gems_libdirs_dest}\"")
       end 
     end
 
