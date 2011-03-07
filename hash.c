@@ -872,6 +872,40 @@ rhash_select(VALUE hash, SEL sel)
 
 /*
  *  call-seq:
+ *     hsh.keep_if {| key, value | block }  -> hsh
+ *     hsh.keep_if                          -> an_enumerator
+ *
+ *  Deletes every key-value pair from <i>hsh</i> for which <i>block</i>
+ *  evaluates to false.
+ *
+ *  If no block is given, an enumerator is returned instead.
+ *
+ */
+
+static int
+keep_if_i(VALUE key, VALUE value, VALUE hash)
+{
+    if (key != Qundef) {
+	const bool ok = RTEST(rb_yield_values(2, key, value));
+	ST_STOP_IF_BROKEN();
+	if (!ok) {
+	    return ST_DELETE;
+	}
+    }
+    return ST_CONTINUE;
+}
+
+VALUE
+rhash_keep_if(VALUE hash, SEL sel)
+{
+    RETURN_ENUMERATOR(hash, 0, 0);
+    rhash_modify(hash);
+    rhash_foreach(hash, keep_if_i, hash);
+    return hash;
+}
+
+/*
+ *  call-seq:
  *     hsh.clear -> hsh
  *
  *  Removes all key-value pairs from <i>hsh</i>.
@@ -1123,12 +1157,8 @@ rhash_to_a(VALUE hash, SEL sel)
 {
     VALUE ary = rb_ary_new();
     rhash_foreach(hash, to_a_i, ary);
-    if (OBJ_TAINTED(hash)) {
-	OBJ_TAINT(ary);
-    }
-    if (OBJ_UNTRUSTED(hash)) {
-	OBJ_UNTRUST(ary);
-    }
+    OBJ_INFECT(ary, hash);
+
     return ary;
 }
 
@@ -1834,6 +1864,7 @@ Init_Hash(void)
     rb_objc_define_method(rb_cRubyHash, "shift", rhash_shift, 0);
     rb_objc_define_method(rb_cRubyHash, "delete", rhash_delete, 1);
     rb_objc_define_method(rb_cRubyHash, "delete_if", rhash_delete_if, 0);
+    rb_objc_define_method(rb_cRubyHash, "keep_if", rhash_keep_if, 0);
     rb_objc_define_method(rb_cRubyHash, "select", rhash_select, 0);
     rb_objc_define_method(rb_cRubyHash, "reject", rhash_reject, 0);
     rb_objc_define_method(rb_cRubyHash, "reject!", rhash_reject_bang, 0);
