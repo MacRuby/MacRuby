@@ -4745,10 +4745,14 @@ extern "C"
 void
 rb_vm_thread_cancel(rb_vm_thread_t *t)
 {
+    RoxorCoreLock lock;
+
     if (t->status != THREAD_KILLED && t->status != THREAD_DEAD) {
 	t->status = THREAD_KILLED;
 	if (t->thread == pthread_self()) {
+	    lock.unlock();
 	    rb_vm_thread_throw_kill();
+	    return;
 	}
 	else {
 	    pthread_assert(pthread_mutex_lock(&t->sleep_mutex));
@@ -4767,6 +4771,7 @@ rb_vm_thread_cancel(rb_vm_thread_t *t)
 	    pthread_assert(pthread_mutex_unlock(&t->sleep_mutex));
 	}
     }
+    lock.unlock();
 }
 
 extern "C"
