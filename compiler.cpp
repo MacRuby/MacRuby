@@ -3098,22 +3098,52 @@ rescan_args:
 	const unsigned long argc = args == NULL ? 0 : args->nd_alen;
 
 	if (f->arg_size() - 2 == argc) {
+	    // We check a global variable that we initialize to 0 in order
+	    // to verify that the current method did not overwrite itself.
+	    // This can happen. In this case, we do a normal dispatch.
+	    SEL sel = mid_to_sel(mid, positive_arity ? 1 : 0);
+	    GlobalVariable *gvar = GET_CORE()->redefined_op_gvar(sel, true);
+	    new StoreInst(ConstantInt::get(Type::getInt8Ty(context), 0), gvar,
+		    f->getEntryBlock().getFirstNonPHI());
+	    Value *isNotRedefined = new ICmpInst(*bb, ICmpInst::ICMP_EQ,
+		    new LoadInst(gvar, "", bb), ConstantInt::get(Int8Ty, 0));
+
+	    BasicBlock *thenBB = BasicBlock::Create(context, "op_not_redef", f);
+	    BasicBlock *elseBB = BasicBlock::Create(context, "op_dispatch", f);
+	    BasicBlock *mergeBB = BasicBlock::Create(context, "op_merge", f);
+
+	    BranchInst::Create(thenBB, elseBB, isNotRedefined, bb);
+
+	    // Compile optimized recursive call.
+	    bb = thenBB;
 	    std::vector<Value *> params;
-
 	    Function::arg_iterator arg = f->arg_begin();
-
 	    params.push_back(arg++); // self
 	    params.push_back(arg++); // sel 
-
 	    for (NODE *n = args; n != NULL; n = n->nd_next) {
 		params.push_back(compile_node(n->nd_head));
 	    }
-
 	    CallInst *inst = CallInst::Create(f, params.begin(), params.end(),
 		    "", bb);
-	    // Promote for tail call elimitation.
-	    inst->setTailCall(true);
-	    return cast<Value>(inst);
+	    inst->setTailCall(true); // Promote for tail call elimitation.
+	    Value *optz_value = cast<Value>(inst);
+	    thenBB = bb;
+	    BranchInst::Create(mergeBB, bb);
+
+	    // Compile regular dispatch call.
+	    bb = elseBB;
+	    ID old_current_mid = current_mid;
+	    current_mid = 0; // To force a normal dispatch compilation.
+	    Value *unoptz_value = compile_call(node);
+	    current_mid = old_current_mid;
+	    elseBB = bb;
+	    BranchInst::Create(mergeBB, bb);
+
+	    bb = mergeBB;
+	    PHINode *pn = PHINode::Create(RubyObjTy, "", bb);
+	    pn->addIncoming(optz_value, thenBB);
+	    pn->addIncoming(unoptz_value, elseBB);
+	    return pn;
 	}
     }
 

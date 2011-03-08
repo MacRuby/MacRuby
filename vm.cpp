@@ -907,8 +907,8 @@ RoxorCore::should_invalidate_inline_op(SEL sel, Class klass)
 	return true;
     }
 
-    printf("invalid inline op `%s' to invalidate!\n", sel_getName(sel));
-    abort();
+    // Assume yes by default.
+    return true;
 }
 
 static ID
