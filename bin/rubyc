@@ -8,73 +8,100 @@
 require 'optparse'
 require 'rbconfig'
 
+
+##
+# The MacRuby::Compiler class is a lower level interface to the MacRuby
+# compiler logic. It supports the same options that macrubyc does,
+# except with slightly different names:
+#
+# :output:: name of the file to output
+# :static:: boolean indicating if the output should be a standalone static
+#           executable
+#   :frameworks:: an array of frameworks to link a static executable against
+#   :sdk:: path to an SDK to use during static compilation
+# :dylib:: boolean indicating whether to create a dynamic library
+# :linkf:: array of options for linking (e.g. '-compatibility_version 0.9')
+# :bundle:: boolean indicating the output should be compiled, assembled, and
+#           linked as a loadable object file
+# :dont_link:: boolean indicating if the output file should be linked
+# :archs:: array of architectures to compile for; see Compiler::VALID_ARCHS
+# :files:: array of files to compile
+# :internal:: used internally by the MacRuby build system to set miniruby
+#             as the compiler
+#
+# Example usage with <tt>macrubyc</tt>:
+#   `macrubyc -C -o program.rbo program.rb`
+#
+# becomes:
+#   load File.join(RbConfig::CONFIG['bindir'], 'macrubyc')
+#   instance = Compiler.new( bundle: true, output: 'program.rbo', files: ['program.rb'] )
+#   instance.run
+
 class Compiler
-  NAME = File.basename(__FILE__)
   VALID_ARCHS = ['i386', 'x86_64']
 
-  def initialize(argv)
-    @archs = []
-    @internal = argv.delete('--internal')
-    @frameworks = %w{Foundation}
-    @linkf = []
+  # Misc.
+  TMPDIR = (ENV['TMPDIR'] or '/tmp')
 
-    # Parse arguments.
-    OptionParser.new do |opts|
-      opts.banner = "Usage: #{NAME} [options] file..."
-      opts.on('-c', 'Compile and assemble, but do not link') { @dont_link = true }
-      opts.on('-o <file>', 'Place the output into <file>') { |output| @output = output }
-      opts.on('--static', "Create a standalone static executable") { @static = true }
-      opts.on('--framework <name>', "Link standalone static executable with given framework") { |p| @frameworks << p }
-      opts.on('--sdk <path>', "Use SDK when compiling standalone static executable") { |x| @sdk = x }
-      opts.on('--dylib', "Create a dynamic library") { @dylib = true }
-      opts.on('--compatibility_version <VERSION>', "Compatibility Version for linking") { |ver| @linkf << "-compatibility_version #{ver}" }
-      opts.on('--current_version <VERSION>', "Current Version for linking") { |ver| @linkf << "-current_version #{ver}" }
-      opts.on('--install_name <NAME>', "Install Name for linking") { |name| @linkf << "-install_name #{name}" }
-      opts.on('-C', 'Compile, assemble and link a loadable object file') { @bundle = true }
-      opts.on('-a', '--arch <ARCH>', 'Compile for specified CPU architecture') { |arch| @archs << arch }
-      opts.on('-v', '--version', 'Display the version') { puts RUBY_DESCRIPTION; exit 1 }
-      opts.on('-V', '--verbose', 'Print every command line executed') { @verbose = true }
-      opts.on('-h', '--help', 'Display this information') { die opts }
-      begin
-        opts.parse!(argv)
-      rescue OptionParser::InvalidOption => e
-        die e, opts
+  def self.locate(progname, must_be_in_bindir=false)
+    path = File.join(RbConfig::CONFIG['bindir'], progname)
+    unless File.exist?(path)
+      if must_be_in_bindir
+        raise "Can't locate program `#{progname}' in #{Config::CONFIG['bindir']}"
       end
-      die opts if argv.empty?
-      @files = argv
-      @archs.uniq!
-      @archs << RUBY_ARCH if @archs.empty?
-      @archs.each do |arch|
-        if not VALID_ARCHS.include?(arch)
-          die "Invalid CPU architecture `#{arch}'. Possible values are: " + VALID_ARCHS.join(", ")
-        end
+      path = `which #{progname}`.strip
+      raise "Can't locate program `#{progname}'" if path.empty?
+    end
+    path
+  end
+
+  # Locate necessary programs.
+  GCC  = locate('gcc')
+  GCXX = locate('g++')
+  NM = locate('nm')
+  LIPO = locate('lipo')
+  STRIP = locate('strip')
+  MACRUBY = locate('macruby')
+  MACRUBY_LLC = locate('llc', true)
+  LLC = File.join(RbConfig::CONFIG['LLVM_PATH'], 'bin/llc')
+
+  def initialize(opts)
+    @frameworks = ['Foundation'] | (opts[:foundation] || [])
+    @archs = (opts[:archs] || []).uniq
+    @files = opts[:files] || []
+    @dont_link = opts[:dont_link]
+    @output = opts[:output]
+    @static = opts[:static]
+    @sdk = opts[:sdk]
+    @dylib = opts[:dylib]
+    @linkf = opts[:linkf]
+    @bundle = opts[:bundle]
+    @internal = opts[:internal]
+
+    @archs << RUBY_ARCH if @archs.empty?
+    @archs.each do |arch|
+      if not VALID_ARCHS.include?(arch)
+        raise ArgumentError, "Invalid CPU architecture `#{arch}'. Possible values are: " + VALID_ARCHS.join(", ")
       end
-      if @sdk and !File.exist?(@sdk)
-        die "Given SDK path `#{@sdk}' doesn't exist."
-      end
-      if @static and RbConfig::CONFIG['ENABLE_STATIC'] != 'yes'
-        die "This version of MacRuby does not support static compilation."
-      end
-      @frameworks.uniq!
     end
 
-    # Locate necessary programs.
-    @macruby = locate(@internal ? './miniruby' : 'macruby')
-    if @internal
-      @llc = File.join(RbConfig::CONFIG['LLVM_PATH'], 'bin/llc')
-      die "llc not found as #{@llc}" unless File.exist?(@llc)
-    else
-      @llc = locate('llc', true)
+    if @sdk and !File.exist?(@sdk)
+      raise ArgumentError, "Given SDK path `#{@sdk}' doesn't exist."
     end
-    @gcc = locate('gcc')
-    @gcxx = locate('g++')
-    @nm = locate('nm')
-    @lipo = locate('lipo')
-    @strip = locate('strip')
+    if @static and RbConfig::CONFIG['ENABLE_STATIC'] != 'yes'
+      raise ArgumentError, "This version of MacRuby does not support static compilation."
+    end
 
-    # Misc.
-    @tmpdir = (ENV['TMPDIR'] or '/tmp')
     @tmpfiles = []
+
+    if @internal
+      @macruby = self.class.locate('./miniruby')
+      @llc = LLC
+      raise "llc not found as #{@llc}" unless File.exist?(@llc)
+    else
+      @llc = MACRUBY_LLC
+      @macruby = MACRUBY
+    end
 
     @llc_flags = '-relocation-model=pic -disable-fp-elim '
     if system("#{@llc} -help | grep jit-enable-eh >& /dev/null")
@@ -83,6 +110,7 @@ class Compiler
       @llc_flags << '-enable-eh'
     end
   end
+
 
   def run
     @uses_bs_flags = ''
@@ -105,15 +133,15 @@ class Compiler
       end
     end
     if @dont_link or @bundle
-      die "Cannot specify --static when not building an executable" if @static
-      die "Cannot specify -c or -C when building a dynamic library" if @dylib
-      die "Cannot specify -c and -C at the same time" if @bundle and @dont_link
+      raise ArgumentError, "Cannot specify --static when not building an executable" if @static
+      raise ArgumentError, "Cannot specify -c or -C when building a dynamic library" if @dylib
+      raise ArgumentError, "Cannot specify -c and -C at the same time" if @bundle and @dont_link
       if @files.size > 1 and @output
-        die "Cannot specify -o with -c or -C and multiple input files"
+        raise ArgumentError, "Cannot specify -o with -c or -C and multiple input files"
       end
       @files.each do |file|
         if File.extname(file) != '.rb'
-          die "Given input file `#{file}' must be a Ruby source file (.rb)"
+          raise ArgumentError, "Given input file `#{file}' must be a Ruby source file (.rb)"
         end
         if @bundle
           compile_bundle(file, @output)
@@ -122,9 +150,9 @@ class Compiler
         end
       end
     else
-      die "Cannot specify --static and --dylib at the same time" if @dylib and @static
+      raise ArgumentError, "Cannot specify --static and --dylib at the same time" if @dylib and @static
       objs = @files.map do |file|
-        die "Given input file `#{file} must exist" unless File.exist?(file)
+        raise ArgumentError, "Given input file `#{file} must exist" unless File.exist?(file)
         case File.extname(file)
           when '.rb'
             compile_object(file, nil)
@@ -133,16 +161,18 @@ class Compiler
           when '.dylib'
             [file, nil]
           else
-            die "Given input file `#{file}' must be either a Ruby source file (.rb) or a Mach-O object file (.o) or dynamic library (.dylib)"
+            raise ArgumentError, "Given input file `#{file}' must be either a Ruby source file (.rb) or a Mach-O object file (.o) or dynamic library (.dylib)"
         end
       end
       if @dylib
-	die "-o must be specified when building a dynamic library" unless @output
+	raise ArgumentError, "-o must be specified when building a dynamic library" unless @output
         compile_dylib(objs, @output)
       else
         compile_executable(objs, @output)
       end
     end
+  ensure
+    cleanup
   end
 
   def cleanup
@@ -152,9 +182,10 @@ class Compiler
   private
 
   def compile_object(path, output)
-    base = File.basename(path, '.rb') 
+    base = File.basename(path, '.rb')
     output ||= File.join(File.dirname(path), base + '.o')
 
+    # @todo replace UUID generation with CFUUIDCreateString(nil, CFUUIDCreate(nil)) ?
     # Generate init function (must be unique).
     uuid = `uuidgen`.strip.gsub('-', '')
     init_func = "MREP_#{uuid}"
@@ -180,7 +211,7 @@ class Compiler
 
       # Compile the assembly.
       tmp_obj = gen_tmpfile(base + arch, 'o')
-      execute("#{@gcc} -fexceptions -c -arch #{arch} \"#{asm}\" -o \"#{tmp_obj}\"")
+      execute("#{GCC} -fexceptions -c -arch #{arch} \"#{asm}\" -o \"#{tmp_obj}\"")
       tmp_objs << tmp_obj
     end
 
@@ -188,7 +219,7 @@ class Compiler
     cli_tmp_objs = tmp_objs.map do |obj|
       '"' + obj + '"'
     end
-    execute("#{@lipo} -create #{cli_tmp_objs.join(' ')} -output \"#{output}\"")
+    execute("#{LIPO} -create #{cli_tmp_objs.join(' ')} -output \"#{output}\"")
 
     [output, init_func]
   end
@@ -215,7 +246,7 @@ EOS
     main = gen_tmpfile('main', 'c')
     File.open(main, 'w') { |io| io.write(main_txt) }
     linkf = @internal ? "-L. -lmacruby" : "-L#{RbConfig::CONFIG['libdir']} -lmacruby"
-    execute("#{@gcxx} \"#{main}\" -fexceptions -dynamic -bundle -undefined suppress -flat_namespace #{arch_flags} #{linkf} \"#{obj}\" -o \"#{output}\"")
+    execute("#{GCXX} \"#{main}\" -fexceptions -dynamic -bundle -undefined suppress -flat_namespace #{arch_flags} #{linkf} \"#{obj}\" -o \"#{output}\"")
     strip(output)
   end
 
@@ -241,15 +272,15 @@ EOS
     main = gen_tmpfile('main', 'c')
     File.open(main, 'w') { |io| io.write(main_txt) }
     @linkf << @internal ? "-L. -lmacruby" : "-L#{RbConfig::CONFIG['libdir']} -lmacruby"
-    objs = objs_data.map { |obj, f| "\"#{obj}\"" }.join(' ') 
-    execute("#{@gcxx} \"#{main}\" -dynamiclib -dynamic -undefined suppress -flat_namespace #{arch_flags} #{@linkf.join(' ')} #{objs} -o \"#{output}\"")
+    objs = objs_data.map { |obj, f| "\"#{obj}\"" }.join(' ')
+    execute("#{GCXX} \"#{main}\" -dynamiclib -dynamic -undefined suppress -flat_namespace #{arch_flags} #{@linkf.join(' ')} #{objs} -o \"#{output}\"")
     strip(output)
   end
 
   def compile_executable(objs_data, output)
     output ||= 'a.out'
     raise if objs_data.empty?
-    die "first object file must be a Ruby source file or object" if objs_data[0][1] == nil
+    raise "first object file must be a Ruby source file or object" if objs_data[0][1] == nil
 
     # Generate main file.
     main_txt = <<EOS
@@ -314,7 +345,7 @@ EOS
     main = gen_tmpfile('main', 'mm')
     File.open(main, 'w') { |io| io.write(main_txt) }
     main_o = gen_tmpfile('main', 'o')
-    execute("#{@gcxx} \"#{main}\" -c #{arch_flags} -o \"#{main_o}\" -fobjc-gc")
+    execute("#{GCXX} \"#{main}\" -c #{arch_flags} -o \"#{main_o}\" -fobjc-gc")
     objs.unshift(main_o)
 
     # Link all objects into executable.
@@ -329,7 +360,7 @@ EOS
     linkf << (@static ?
       "#{path} #{RbConfig::CONFIG['LIBRUBYARG_STATIC_REALLY']}" :
       "#{path} -lmacruby")
-    line = "#{@gcxx} -o \"#{output}\" #{arch_flags} #{linkf} "
+    line = "#{GCXX} -o \"#{output}\" #{arch_flags} #{linkf} "
     objs.each { |o| line << " \"#{o}\"" }
     execute(line)
     strip(output)
@@ -341,25 +372,13 @@ EOS
     unless $?.success?
       die_str = "Error when executing `#{line}'"
       die_str += "\n#{ret}" unless ret.empty?
-      die die_str
+      raise die_str
     end
     ret
   end
 
   def strip(bin)
-    execute("#{@strip} -x \"#{bin}\"")
-  end
-
-  def locate(progname, must_be_in_bindir=false)
-    path = File.join(Config::CONFIG['bindir'], progname)
-    unless File.exist?(path)
-      if must_be_in_bindir
-        die "Can't locate program `#{progname}' in #{Config::CONFIG['bindir']}"
-      end
-      path = `which #{progname}`.strip
-      die "Can't locate program `#{progname}'" if path.empty?
-    end
-    path
+    execute("#{STRIP} -x \"#{bin}\"")
   end
 
   def llc_arch(arch)
@@ -376,7 +395,7 @@ EOS
   end
 
   def find_init_func(obj)
-    output = `#{@nm} -j "#{obj}"`
+    output = `#{NM} -j "#{obj}"`
     output.scan(/^_MREP_.*$/).reject { |func|
       # Ignore non-main functions.
       func.include?('ruby_scope')
@@ -401,20 +420,63 @@ EOS
   end
 
   def gen_tmpfile(base, ext)
-    file = File.join(@tmpdir, "#{base}-#{$$}.#{ext}")
+    file = File.join(TMPDIR, "#{base}-#{$$}.#{ext}")
     @tmpfiles << file
     file
   end
+end
+
+
+### Execute only if not being required
+if __FILE__ == $0
+
+  NAME = File.basename(__FILE__)
 
   def die(*args)
     $stderr.puts args
     exit 1
   end
-end
 
-app = Compiler.new(ARGV)
-begin
-  app.run
-ensure
-  app.cleanup
+  options = { frameworks: [], linkf: [], archs: [] }
+  options[:internal] = ARGV.delete('--internal')
+
+  OptionParser.new do |opts|
+    opts.banner = "Usage: #{NAME} [options] file..."
+
+    opts.on('-c',                                'Compile and assemble, but do not link')                  { options[:dont_link] = true }
+    opts.on('-o <file>',                         'Place the output into <file>')                           { |output| options[:output] = output }
+    opts.on('--static',                          'Create a standalone static executable')                  { options[:static] = true }
+    opts.on('--framework <name>',                'Link standalone static executable with given framework') { |p| options[:frameworks] << p }
+    opts.on('--sdk <path>',                      'Use SDK when compiling standalone static executable')    { |x| options[:sdk] = x }
+    opts.on('--dylib',                           'Create a dynamic library')                               { options[:dylib] = true }
+    opts.on('--compatibility_version <VERSION>', 'Compatibility Version for linking')                      { |ver| options[:linkf] << "-compatibility_version #{ver}" }
+    opts.on('--current_version <VERSION>',       'Current Version for linking')                            { |ver| options[:linkf] << "-current_version #{ver}" }
+    opts.on('--install_name <NAME>',             'Install Name for linking')                               { |name| options[:linkf] << "-install_name #{name}" }
+    opts.on('-C',                                'Compile, assemble and link a loadable object file')      { options[:bundle] = true }
+    opts.on('-a', '--arch <ARCH>',               'Compile for specified CPU architecture')                 { |arch| options[:archs] << arch }
+    opts.on('-V', '--verbose',                   'Print every command line executed')                      { options[:verbose] = true }
+
+    opts.on('-v', '--version', 'Display the version') {
+      puts RUBY_DESCRIPTION
+      exit 1
+    }
+    opts.on('-h', '--help', 'Display this information') {
+      die opts
+    }
+
+    begin
+      opts.parse!(ARGV)
+    rescue OptionParser::InvalidOption => e
+      die e, opts
+    end
+    die opts if ARGV.empty?
+    options[:files] = ARGV
+  end
+
+  app = MacRuby::Compiler.new(options)
+  begin
+    app.run
+  rescue Exception => e
+    die e.message
+  end
 end
