@@ -60,6 +60,8 @@ unless File.exist?(default_CXX)
 end
 CXX = b.option('CXX', default_CXX)
 
+EXTRA_CFLAGS = b.option('CFLAGS', '')
+
 # Everything below this comment should *not* be modified.
 
 if ENV['build_as_embeddable']
@@ -152,8 +154,8 @@ class BuilderConfig
     sdk = opt.delete(:sdk)
     has_libauto = sdk ? File.exist?("#{sdk}/usr/lib/libauto.dylib") : true
     archflags = archs.map { |x| "-arch #{x}" }.join(' ')
-    @cflags = "-std=c99 -I. -I./include -pipe -fno-common -fexceptions -fblocks -g -O#{OPTZ_LEVEL} -Wall -Wno-deprecated-declarations -Werror #{archflags}"
-    @cxxflags = "-I. -I./include -fblocks -g -Wall -Wno-deprecated-declarations -Werror #{archflags}"
+    @cflags = "-std=c99 -I. -I./include -pipe -fno-common -fexceptions -fblocks -g -O#{OPTZ_LEVEL} -Wall -Wno-deprecated-declarations -Werror #{archflags} #{EXTRA_CFLAGS}"
+    @cxxflags = "-I. -I./include -fblocks -g -Wall -Wno-deprecated-declarations -Werror #{archflags} #{EXTRA_CFLAGS}"
     @ldflags = '-lpthread -ldl -lxml2 -lobjc -licucore -framework Foundation'
     @ldflags << " -lauto" if has_libauto
     if opt.delete(:static)
