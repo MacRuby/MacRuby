@@ -1,0 +1,427 @@
+require 'rbconfig'
+
+class MacRuby
+
+##
+#--
+# @todo macruby (the binary) plays a part in the compilation so it
+#       would be beneficial to bring its logic in here, if we can
+#++
+#
+# The MacRuby::Compiler class is a lower level interface to the MacRuby
+# compiler logic. It supports the same options that macrubyc does,
+# except with slightly different names:
+#
+# output:: name of the file to output
+# static:: boolean indicating if the output should be a standalone static
+#          executable
+#   frameworks:: an array of frameworks to link a static executable against
+#   sdk:: path to an SDK to use during static compilation
+# dylib:: boolean indicating whether to create a dynamic library
+# linkf:: array of options for linking (e.g. '-compatibility_version 0.9')
+# bundle:: boolean indicating the output should be compiled, assembled, and
+#          linked as a loadable object file
+# dont_link:: boolean indicating if the output file should be linked
+# archs:: array of architectures to compile for; see Compiler::VALID_ARCHS
+# files:: array of files to compile
+# internal:: used internally by the MacRuby build system to set miniruby
+#            as the compiler
+#
+# Example usage with <tt>macrubyc</tt>:
+#   `macrubyc -C -o program.rbo program.rb`
+#
+# becomes:
+#   require 'macruby/compiler'
+#   instance = MacRuby::Compiler.new( bundle: true, output: 'program.rbo', files: ['program.rb'] )
+#   instance.run
+
+class Compiler
+  VALID_ARCHS = ['i386', 'x86_64']
+
+  # Misc.
+  TMPDIR = (ENV['TMPDIR'] or '/tmp')
+
+  def self.locate(progname, must_be_in_bindir=false)
+    path = File.join(RbConfig::CONFIG['bindir'], progname)
+    unless File.exist?(path)
+      if must_be_in_bindir
+        raise "Can't locate program `#{progname}' in #{Config::CONFIG['bindir']}"
+      end
+      path = `which #{progname}`.strip
+      raise "Can't locate program `#{progname}'" if path.empty?
+    end
+    path
+  end
+
+  # Locate necessary programs.
+  GCC  = locate('gcc')
+  GCXX = locate('g++')
+  NM = locate('nm')
+  LIPO = locate('lipo')
+  STRIP = locate('strip')
+  MACRUBY = locate('macruby')
+  MACRUBY_LLC = locate('llc', true)
+  LLC = File.join(RbConfig::CONFIG['LLVM_PATH'], 'bin/llc')
+
+  def initialize(opts)
+    @frameworks = ['Foundation'] | (opts[:foundation] || [])
+    @archs = (opts[:archs] || []).uniq
+    @files = opts[:files] || []
+    @dont_link = opts[:dont_link]
+    @output = opts[:output]
+    @static = opts[:static]
+    @sdk = opts[:sdk]
+    @dylib = opts[:dylib]
+    @linkf = opts[:linkf]
+    @bundle = opts[:bundle]
+    @internal = opts[:internal]
+
+    @archs << RUBY_ARCH if @archs.empty?
+    @archs.each do |arch|
+      if not VALID_ARCHS.include?(arch)
+        raise ArgumentError, "Invalid CPU architecture `#{arch}'. Possible values are: " + VALID_ARCHS.join(", ")
+      end
+    end
+
+    if @sdk and !File.exist?(@sdk)
+      raise ArgumentError, "Given SDK path `#{@sdk}' doesn't exist."
+    end
+    if @static and RbConfig::CONFIG['ENABLE_STATIC'] != 'yes'
+      raise ArgumentError, "This version of MacRuby does not support static compilation."
+    end
+
+    @tmpfiles = []
+
+    if @internal
+      @macruby = self.class.locate('./miniruby')
+      @llc = LLC
+      raise "llc not found as #{@llc}" unless File.exist?(@llc)
+    else
+      @llc = MACRUBY_LLC
+      @macruby = MACRUBY
+    end
+
+    @llc_flags = '-relocation-model=pic -disable-fp-elim '
+    if system("#{@llc} -help | grep jit-enable-eh >& /dev/null")
+      @llc_flags << '-jit-enable-eh'
+    else
+      @llc_flags << '-enable-eh'
+    end
+  end
+
+
+  def run
+    @uses_bs_flags = ''
+    if @static
+      $stderr.puts "Warning: static compilation is currently a work in progress and provided for development only. The compilation process may simply fail or generate non-functional machine code objects. Use it at your own risk."
+      # BridgeSupport compilation is only enabled during static compilation.
+      @frameworks.each do |f|
+        p =
+          if File.exist?(f)
+  	  "#{f}/Resources/BridgeSupport/#{File.basename(f)}Full.bridgesupport"
+          else
+            base = (@sdk || '')
+            File.join(base, "/System/Library/Frameworks/#{f}.framework/Resources/BridgeSupport/#{f}Full.bridgesupport")
+          end
+        if File.exist?(p)
+          @uses_bs_flags << "--uses-bs #{p} "
+        else
+          $stderr.puts "Couldn't locate the Full BridgeSupport file for framework `#{f}' at path `#{p}', compilation might generate a unusable binary!"
+        end
+      end
+    end
+    if @dont_link or @bundle
+      raise ArgumentError, "Cannot specify --static when not building an executable" if @static
+      raise ArgumentError, "Cannot specify -c or -C when building a dynamic library" if @dylib
+      raise ArgumentError, "Cannot specify -c and -C at the same time" if @bundle and @dont_link
+      if @files.size > 1 and @output
+        raise ArgumentError, "Cannot specify -o with -c or -C and multiple input files"
+      end
+      @files.each do |file|
+        if File.extname(file) != '.rb'
+          raise ArgumentError, "Given input file `#{file}' must be a Ruby source file (.rb)"
+        end
+        if @bundle
+          compile_bundle(file, @output)
+        else
+          compile_object(file, @output)
+        end
+      end
+    else
+      raise ArgumentError, "Cannot specify --static and --dylib at the same time" if @dylib and @static
+      objs = @files.map do |file|
+        raise ArgumentError, "Given input file `#{file} must exist" unless File.exist?(file)
+        case File.extname(file)
+          when '.rb'
+            compile_object(file, nil)
+          when '.o'
+            [file, find_init_func(file)]
+          when '.dylib'
+            [file, nil]
+          else
+            raise ArgumentError, "Given input file `#{file}' must be either a Ruby source file (.rb) or a Mach-O object file (.o) or dynamic library (.dylib)"
+        end
+      end
+      if @dylib
+	raise ArgumentError, "-o must be specified when building a dynamic library" unless @output
+        compile_dylib(objs, @output)
+      else
+        compile_executable(objs, @output)
+      end
+    end
+  ensure
+    cleanup
+  end
+
+  def cleanup
+    @tmpfiles.each { |x| File.delete(x) if File.exist?(x) }
+  end
+
+  private
+
+  def compile_object(path, output)
+    base = File.basename(path, '.rb')
+    output ||= File.join(File.dirname(path), base + '.o')
+
+    # @todo replace UUID generation with CFUUIDCreateString(nil, CFUUIDCreate(nil)) ?
+    # Generate init function (must be unique).
+    uuid = `uuidgen`.strip.gsub('-', '')
+    init_func = "MREP_#{uuid}"
+
+    tmp_objs = []
+    @archs.each do |arch|
+      # Locate the kernel bitcode file if needed.
+      env = ''
+      if @sdk
+        kernel_path = File.join(@sdk, "usr/lib/libmacruby-kernel-#{arch}.bc")
+        if File.exist?(kernel_path)
+          env = "/usr/bin/env VM_KERNEL_PATH=\"#{kernel_path}\""
+        end
+      end
+
+      # Compile the file into LLVM bitcode.
+      bc = gen_tmpfile(base + arch, 'bc')
+      execute("#{env} arch -#{arch} #{@macruby} #{@uses_bs_flags} --emit-llvm \"#{bc}\" #{init_func} \"#{path}\"")
+
+      # Compile the bitcode as assembly.
+      asm = gen_tmpfile(base + arch, 's')
+      execute("#{@llc} \"#{bc}\" -o=\"#{asm}\" -march=#{llc_arch(arch)} #{@llc_flags}")
+
+      # Compile the assembly.
+      tmp_obj = gen_tmpfile(base + arch, 'o')
+      execute("#{GCC} -fexceptions -c -arch #{arch} \"#{asm}\" -o \"#{tmp_obj}\"")
+      tmp_objs << tmp_obj
+    end
+
+    # Link the architecture objects.
+    cli_tmp_objs = tmp_objs.map do |obj|
+      '"' + obj + '"'
+    end
+    execute("#{LIPO} -create #{cli_tmp_objs.join(' ')} -output \"#{output}\"")
+
+    [output, init_func]
+  end
+
+  def compile_bundle(file, output)
+    base = File.basename(file, '.rb')
+    obj = gen_tmpfile(base, 'o')
+    obj, init_func = compile_object(file, obj)
+
+    output ||= File.join(File.dirname(file), base + '.rbo')
+
+    # Generate main file.
+    main_txt = <<EOS
+extern "C" {
+  void rb_mrep_register(void *);
+  void *#{init_func}(void *, void *);
+  __attribute__((constructor)) static void __init__(void) {
+    rb_mrep_register((void *)#{init_func});
+  }
+}
+EOS
+
+    # Build.
+    main = gen_tmpfile('main', 'c')
+    File.open(main, 'w') { |io| io.write(main_txt) }
+    linkf = @internal ? "-L. -lmacruby" : "-L#{RbConfig::CONFIG['libdir']} -lmacruby"
+    execute("#{GCXX} \"#{main}\" -fexceptions -dynamic -bundle -undefined suppress -flat_namespace #{arch_flags} #{linkf} \"#{obj}\" -o \"#{output}\"")
+    strip(output)
+  end
+
+  def compile_dylib(objs_data, output)
+    # Generate main file.
+    main_txt = <<EOS
+extern "C" {
+  void rb_vm_aot_feature_provide(const char *, void *);
+EOS
+    objs_data.each do |obj, init_func|
+      next if init_func == nil
+      main_txt << "void *#{init_func}(void *, void *);\n"
+    end
+    main_txt << <<EOS
+__attribute__((constructor)) static void __init__(void) {
+EOS
+    objs_data.each do |obj, init_func|
+      main_txt << "rb_vm_aot_feature_provide(\"#{feature_name(obj)}\", (void *)#{init_func});\n"
+    end
+    main_txt << "}}"
+
+    # Build.
+    main = gen_tmpfile('main', 'c')
+    File.open(main, 'w') { |io| io.write(main_txt) }
+    @linkf << @internal ? "-L. -lmacruby" : "-L#{RbConfig::CONFIG['libdir']} -lmacruby"
+    objs = objs_data.map { |obj, f| "\"#{obj}\"" }.join(' ')
+    execute("#{GCXX} \"#{main}\" -dynamiclib -dynamic -undefined suppress -flat_namespace #{arch_flags} #{@linkf.join(' ')} #{objs} -o \"#{output}\"")
+    strip(output)
+  end
+
+  def compile_executable(objs_data, output)
+    output ||= 'a.out'
+    raise if objs_data.empty?
+    raise "first object file must be a Ruby source file or object" if objs_data[0][1] == nil
+
+    # Generate main file.
+    main_txt = <<EOS
+extern "C" {
+    void ruby_sysinit(int *, char ***);
+    void ruby_init(void);
+    void ruby_init_loadpath(void);
+    void ruby_script(const char *);
+    void ruby_set_argv(int, char **);
+    void rb_vm_init_compiler(void);
+    void rb_vm_init_jit(void);
+    void rb_vm_aot_feature_provide(const char *, void *);
+    void *rb_vm_top_self(void);
+    void rb_vm_print_current_exception(void);
+    void rb_exit(int);
+EOS
+    objs_data.each do |obj, init_func|
+      next if init_func == nil
+      main_txt << "void *#{init_func}(void *, void *);\n"
+    end
+    main_txt << <<EOS
+}
+
+int
+main(int argc, char **argv)
+{
+    const char *progname = argv[0];
+    ruby_sysinit(&argc, &argv);
+    if (argc > 0) {
+	argc--;
+        argv++;
+    }
+    ruby_init();
+    ruby_init_loadpath();
+    ruby_set_argv(argc, argv);
+    rb_vm_init_compiler();
+    rb_vm_init_jit();
+    ruby_script(progname);
+    try {
+EOS
+    objs_data[1..-1].each do |obj, init_func|
+      next if init_func == nil
+      main_txt << "rb_vm_aot_feature_provide(\"#{feature_name(obj)}\", (void *)#{init_func});\n"
+    end
+    main_txt << <<EOS
+        void *self = rb_vm_top_self();
+        #{objs_data[0][1]}(self, 0);
+    }
+    catch (...) {
+	rb_vm_print_current_exception();
+	rb_exit(1);
+    }
+    rb_exit(0);
+}
+EOS
+
+    # Prepare objects.
+    objs = []
+    objs_data.each { |o, _| objs << o }
+
+    # Compile main file.
+    main = gen_tmpfile('main', 'mm')
+    File.open(main, 'w') { |io| io.write(main_txt) }
+    main_o = gen_tmpfile('main', 'o')
+    execute("#{GCXX} \"#{main}\" -c #{arch_flags} -o \"#{main_o}\" -fobjc-gc")
+    objs.unshift(main_o)
+
+    # Link all objects into executable.
+    path = @internal ? "-L." : "-L#{RbConfig::CONFIG['libdir']}"
+    linkf = ""
+    if @sdk
+      path = ''
+      linkf << "-F#{@sdk}/System/Library/Frameworks -L#{@sdk}/usr/lib "
+    end
+    linkf << "-lobjc -licucore -lauto "
+    @frameworks.each { |f| linkf << "-framework #{f} " }
+    linkf << (@static ?
+      "#{path} #{RbConfig::CONFIG['LIBRUBYARG_STATIC_REALLY']}" :
+      "#{path} -lmacruby")
+    line = "#{GCXX} -o \"#{output}\" #{arch_flags} #{linkf} "
+    objs.each { |o| line << " \"#{o}\"" }
+    execute(line)
+    strip(output)
+  end
+
+  def execute(line)
+    $stderr.puts line if @verbose
+    ret = `#{line}`
+    unless $?.success?
+      die_str = "Error when executing `#{line}'"
+      die_str += "\n#{ret}" unless ret.empty?
+      raise die_str
+    end
+    ret
+  end
+
+  def strip(bin)
+    execute("#{STRIP} -x \"#{bin}\"")
+  end
+
+  def llc_arch(arch)
+    # LLVM uses a different convention for architecture names.
+    case arch
+      when 'i386'; 'x86'
+      when 'x86_64'; 'x86-64'
+      else; arch
+    end
+  end
+
+  def arch_flags
+    @archs.map { |x| "-arch #{x}" }.join(' ')
+  end
+
+  def find_init_func(obj)
+    output = `#{NM} -j "#{obj}"`
+    output.scan(/^_MREP_.*$/).reject { |func|
+      # Ignore non-main functions.
+      func.include?('ruby_scope')
+    }.map { |func|
+      # Ignore the very first character (_).
+      func[1..-1]
+    }[0]
+  end
+
+  def feature_name(obj)
+    # Remove trailing ./ if exists.
+    if obj[0..1] == './'
+      obj[0..1] = ''
+    end
+
+    if obj[0] == '/'
+      $stderr.puts "warning: object file path `#{obj}' is absolute and not relative, this might cause a problem later at runtime"
+    end
+
+    # Strip the extension.
+    obj = obj.sub(/#{File.extname(obj)}$/, '')
+  end
+
+  def gen_tmpfile(base, ext)
+    file = File.join(TMPDIR, "#{base}-#{$$}.#{ext}")
+    @tmpfiles << file
+    file
+  end
+end
+
+end
