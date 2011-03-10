@@ -79,7 +79,11 @@ class RoxorCompiler {
 	void generate_location_path(std::string &path, DILocation loc);
 
     protected:
+#if __SUPPORT_LLVM_29__
+	DIBuilder *debug_info;
+#else
 	DIFactory *debug_info;
+#endif
 	DICompileUnit debug_compile_unit;
 	DISubprogram debug_subprogram;
 

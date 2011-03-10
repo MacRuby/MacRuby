@@ -150,7 +150,11 @@ RoxorCompiler *RoxorCompiler::shared = NULL;
 RoxorCompiler::RoxorCompiler(bool _debug_mode)
 {
     assert(RoxorCompiler::module != NULL);
+#if __SUPPORT_LLVM_29__
+    debug_info = new DIBuilder(*RoxorCompiler::module);
+#else
     debug_info = new DIFactory(*RoxorCompiler::module);
+#endif
 
     can_interpret = false;
     debug_mode = _debug_mode;
@@ -835,8 +839,18 @@ void
 RoxorCompiler::attach_current_line_metadata(Instruction *insn)
 {
     if (fname != NULL) {
+#if __SUPPORT_LLVM_29__
+	Value *args[] = {
+	    ConstantInt::get(Int32Ty, current_line),
+	    ConstantInt::get(Int32Ty, 0),
+	    debug_compile_unit,
+	    DILocation(NULL) 
+	};
+	DILocation loc = DILocation(MDNode::get(context, args, 4));
+#else
 	DILocation loc = debug_info->CreateLocation(current_line, 0,
 		debug_compile_unit, DILocation(NULL));
+#endif
 	insn->setMetadata(dbg_mdkind, loc);
     }
 }
@@ -4880,8 +4894,14 @@ RoxorCompiler::set_fname(const char *_fname)
 	    assert(strlen(dir) > 0);
 	    assert(strlen(base) > 0);
 
+#if __SUPPORT_LLVM_29__
+	    debug_info->createCompileUnit(DW_LANG_Ruby, base, dir,
+		    RUBY_DESCRIPTION, true, "", 1);
+	    debug_compile_unit = DICompileUnit(debug_info->getCU());
+#else
 	    debug_compile_unit = debug_info->CreateCompileUnit(DW_LANG_Ruby,
 		    base, dir, RUBY_DESCRIPTION, false, false, "");
+#endif
 	}
     }
 }

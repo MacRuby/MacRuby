@@ -21,6 +21,9 @@
 # include <llvm/Instructions.h>
 # include <llvm/PassManager.h>
 # include <llvm/Analysis/DebugInfo.h>
+# if __SUPPORT_LLVM_29__
+#  include <llvm/Analysis/DIBuilder.h>
+# endif
 # include <llvm/Analysis/Verifier.h>
 # include <llvm/Target/TargetData.h>
 # include <llvm/CodeGen/MachineFunction.h>
@@ -35,6 +38,9 @@
 # include <llvm/Transforms/Scalar.h>
 # include <llvm/Transforms/IPO.h>
 # include <llvm/Support/raw_ostream.h>
+# if __SUPPORT_LLVM_29__
+#  include <llvm/Support/system_error.h>
+# endif
 # include <llvm/Support/PrettyStackTrace.h>
 # include <llvm/Support/MemoryBuffer.h>
 # include <llvm/Support/StandardPasses.h>
@@ -4923,11 +4929,23 @@ Init_PreVM(void)
     // To not corrupt stack pointer (essential for backtracing).
     llvm::NoFramePointerElim = true;
 
-    MemoryBuffer *mbuf;
+    MemoryBuffer *mbuf = NULL;
     const char *kernel_file = getenv("VM_KERNEL_PATH");
     if (kernel_file != NULL) {
 	std::string err;
+#if __SUPPORT_LLVM_29__
+	OwningPtr<MemoryBuffer> MB;
+	error_code errcode = MemoryBuffer::getFile(kernel_file, MB);
+	if (errcode) {
+	    err = errcode.message();
+	}
+	else {
+	    mbuf = MB.take();
+	    assert(mbuf != NULL);
+	}
+#else
 	mbuf = MemoryBuffer::getFile(kernel_file, &err);
+#endif
 	if (mbuf == NULL) {
 	    printf("can't open given kernel file `%s': %s\n", kernel_file,
 		    err.c_str());

@@ -17,6 +17,9 @@
 #include <llvm/Instructions.h>
 #include <llvm/Intrinsics.h>
 #include <llvm/Analysis/DebugInfo.h>
+#if __SUPPORT_LLVM_29__
+# include <llvm/Analysis/DIBuilder.h>
+#endif
 #include <llvm/ExecutionEngine/JIT.h>
 #include <llvm/PassManager.h>
 #include <llvm/Target/TargetData.h>
