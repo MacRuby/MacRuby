@@ -339,7 +339,7 @@ class RoxorCompiler {
 
 	Value *compile_node0(NODE *node);
 	Function *compile_scope(NODE *node);
-	Value *compile_call(NODE *node);
+	Value *compile_call(NODE *node, bool use_tco=true);
 	Value *compile_yield(NODE *node);
 	Instruction *compile_protected_call(Value *imp, Value **args_begin,
 		Value **args_end);

@@ -3041,7 +3041,7 @@ RoxorCompiler::compile_scope(NODE *node)
 }
 
 Value *
-RoxorCompiler::compile_call(NODE *node)
+RoxorCompiler::compile_call(NODE *node, bool use_tco)
 {
     NODE *recv = node->nd_recv;
     NODE *args = node->nd_args;
@@ -3105,8 +3105,9 @@ rescan_args:
     }
 
     // Recursive method call optimization. Not for everyone.
-    if (!block_given && !super_call && !splat_args && !block_declaration
-	    && positive_arity && mid == current_mid && recv == NULL) {
+    if (use_tco && !block_given && !super_call && !splat_args
+	    && !block_declaration && positive_arity && mid == current_mid
+	    && recv == NULL) {
 
 	Function *f = bb->getParent();
 	const unsigned long argc = args == NULL ? 0 : args->nd_alen;
@@ -3146,10 +3147,7 @@ rescan_args:
 
 	    // Compile regular dispatch call.
 	    bb = elseBB;
-	    ID old_current_mid = current_mid;
-	    current_mid = 0; // To force a normal dispatch compilation.
-	    Value *unoptz_value = compile_call(node);
-	    current_mid = old_current_mid;
+	    Value *unoptz_value = compile_call(node, false);
 	    elseBB = bb;
 	    BranchInst::Create(mergeBB, bb);
 
