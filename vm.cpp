@@ -865,9 +865,11 @@ RoxorCore::redefined_op_gvar(SEL sel, bool create)
     GlobalVariable *gvar = NULL;
     if (iter == redefined_ops_gvars.end()) {
 	if (create) {
+	    // TODO: if OPTZ_LEVEL is 3, force global variables to always be
+	    // true and read-only.
 	    gvar = new GlobalVariable(*RoxorCompiler::module,
 		    Type::getInt8Ty(context),
-		    ruby_aot_compile ? true : false,
+		    false,
 		    GlobalValue::InternalLinkage,
 		    ConstantInt::get(Type::getInt8Ty(context), 0),
 		    "");
