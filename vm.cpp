@@ -21,7 +21,7 @@
 # include <llvm/Instructions.h>
 # include <llvm/PassManager.h>
 # include <llvm/Analysis/DebugInfo.h>
-# if __SUPPORT_LLVM_29__
+# if !defined(LLVM_TOT)
 #  include <llvm/Analysis/DIBuilder.h>
 # endif
 # include <llvm/Analysis/Verifier.h>
@@ -38,7 +38,7 @@
 # include <llvm/Transforms/Scalar.h>
 # include <llvm/Transforms/IPO.h>
 # include <llvm/Support/raw_ostream.h>
-# if __SUPPORT_LLVM_29__
+# if !defined(LLVM_TOT)
 #  include <llvm/Support/system_error.h>
 # endif
 # include <llvm/Support/PrettyStackTrace.h>
@@ -4935,7 +4935,7 @@ Init_PreVM(void)
     const char *kernel_file = getenv("VM_KERNEL_PATH");
     if (kernel_file != NULL) {
 	std::string err;
-#if __SUPPORT_LLVM_29__
+#if !defined(LLVM_TOT)
 	OwningPtr<MemoryBuffer> MB;
 	error_code errcode = MemoryBuffer::getFile(kernel_file, MB);
 	if (errcode) {

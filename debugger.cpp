@@ -15,7 +15,7 @@
 #include <llvm/Instructions.h>
 #include <llvm/Intrinsics.h>
 #include <llvm/Analysis/DebugInfo.h>
-#if __SUPPORT_LLVM_29__
+#if !defined(LLVM_TOT)
 # include <llvm/Analysis/DIBuilder.h>
 #endif
 #include <llvm/ExecutionEngine/JIT.h>

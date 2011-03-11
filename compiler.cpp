@@ -150,7 +150,7 @@ RoxorCompiler *RoxorCompiler::shared = NULL;
 RoxorCompiler::RoxorCompiler(bool _debug_mode)
 {
     assert(RoxorCompiler::module != NULL);
-#if __SUPPORT_LLVM_29__
+#if !defined(LLVM_TOT)
     debug_info = new DIBuilder(*RoxorCompiler::module);
 #else
     debug_info = new DIFactory(*RoxorCompiler::module);
@@ -839,7 +839,7 @@ void
 RoxorCompiler::attach_current_line_metadata(Instruction *insn)
 {
     if (fname != NULL) {
-#if __SUPPORT_LLVM_29__
+#if !defined(LLVM_TOT)
 	Value *args[] = {
 	    ConstantInt::get(Int32Ty, current_line),
 	    ConstantInt::get(Int32Ty, 0),
@@ -4892,7 +4892,7 @@ RoxorCompiler::set_fname(const char *_fname)
 	    assert(strlen(dir) > 0);
 	    assert(strlen(base) > 0);
 
-#if __SUPPORT_LLVM_29__
+#if !defined(LLVM_TOT)
 	    debug_info->createCompileUnit(DW_LANG_Ruby, base, dir,
 		    RUBY_DESCRIPTION, true, "", 1);
 	    debug_compile_unit = DICompileUnit(debug_info->getCU());

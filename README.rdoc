@@ -16,22 +16,22 @@ http://macruby.org
 
 === Requirements
 
-* An Intel machine. PowerPC machines are not supported anymore, but may still
-  work. An Intel 64-bit machine (Intel Core Duo 2) is recommended.
+* An Intel 64-bit machine. PowerPC and Intel 32-bit machines are not supported
+  anymore, but may still work.
 
 * Mac OS X 10.6 or later.
 
-* LLVM ToT, compiled for both i386 and x86_64.
+* LLVM ToT, compiled for x86_64.
 
   LLVM is a moving target and breaks periodically. We recommend to install
-  revision tag 2.8, being sure to specify the correct C and C++ compilers through 
-  environment variables. 
+  revision 127367 of branch 2.9, being sure to specify the correct C and
+  C++ compilers through environment variables. 
 
-    $ svn co https://llvm.org/svn/llvm-project/llvm/tags/RELEASE_28 llvm-2.8
-    $ cd llvm-2.8
-    $ env UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" CC=/usr/bin/gcc CXX=/usr/bin/g++ ./configure --enable-bindings=none --enable-optimized --with-llvmgccdir=/tmp
-    $ env UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" CC=/usr/bin/gcc CXX=/usr/bin/g++ make
-    $ sudo env UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" CC=/usr/bin/gcc CXX=/usr/bin/g++ make install
+    $ svn co https://llvm.org/svn/llvm-project/llvm/branches/release_29@127367 llvm-2.9
+    $ cd llvm-2.9
+    $ env CC=/usr/bin/gcc CXX=/usr/bin/g++ ./configure --enable-bindings=none --enable-optimized --with-llvmgccdir=/tmp
+    $ env CC=/usr/bin/gcc CXX=/usr/bin/g++ make
+    $ sudo env CC=/usr/bin/gcc CXX=/usr/bin/g++ make install
 
   Note that compiling LLVM can take quite a while. If you have a machine with
   multiple cores, which is quite likely, you might want to speed up the process
@@ -40,14 +40,14 @@ http://macruby.org
   option, where `N' stands for the number of cores you'd like to use. So for a
   Core Duo the command would look like:
 
-    $ env UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" CC=/usr/bin/gcc CXX=/usr/bin/g++ make -j2
+    $ env CC=/usr/bin/gcc CXX=/usr/bin/g++ make -j2
 
   If you would prefer to update an existing LLVM Subversion working copy you 
   need to be careful to remove any previous build files before you compile:
 
     $ svn status --no-ignore | awk '{print $2}' | xargs rm -rf
     $ svn revert -R .
-    $ svn switch https://llvm.org/svn/llvm-project/llvm/tags/RELEASE_28
+    $ svn switch <repository-URL>
 
 === Build Instructions
 
