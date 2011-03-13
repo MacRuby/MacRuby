@@ -7,6 +7,7 @@
 
 require 'optparse'
 require 'rbconfig'
+require 'macruby/compiler'
 
 class Deployer
   NAME = File.basename(__FILE__)
@@ -111,8 +112,6 @@ class Deployer
     Dir.glob(File.join(@app_bundle, 'Contents/Resources/*.rb'))
   end
 
-  MACRUBYC = File.join(RbConfig::CONFIG['bindir'], 'macrubyc')
-
   def compile
     log "Compiling files"
     compile_files.each do |source|
@@ -120,10 +119,15 @@ class Deployer
       next if base == 'rb_main'
       obj = File.join(File.dirname(source), base + '.rbo')
       if !File.exist?(obj) or File.mtime(source) > File.mtime(obj)
-        compile_cmd = "#{MACRUBYC} -C \"#{source}\" -o \"#{obj}\""
+        compile_options = { bundle: true, output: obj, files: [source] }
         # Use Xcode ARCHS env var to determine which archs to compile for
-        compile_cmd += ENV['ARCHS'].strip.split.map { |a| " -a #{a}" }.join if ENV['ARCHS']
-        execute(compile_cmd, "Can't compile \"#{source}\"")
+        compile_options[:archs] = ENV['ARCHS'].strip.split if ENV['ARCHS']
+        instance = MacRuby::Compiler.new compile_options
+        begin
+          instance.run
+        rescue
+          die "Can't compile \"#{source}\""
+        end
       end
       rm_rf(source)
     end
@@ -197,7 +201,7 @@ class Deployer
       mkdir_p(gems_libdirs_dest)
       gems_libdirs_to_embed.each do |libdir|
         execute("/usr/bin/ditto \"#{libdir}\" \"#{gems_libdirs_dest}\"")
-      end 
+      end
     end
 
     # Copy the system BridgeSupport files if asked
