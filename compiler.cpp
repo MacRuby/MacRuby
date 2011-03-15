@@ -5749,6 +5749,9 @@ extern "C"
 VALUE
 rb_vm_new_opaque(VALUE klass, void *val)
 {
+    if (val == NULL) {
+	return Qnil;
+    }
     return Data_Wrap_Struct(klass, NULL, NULL, val);
 }
 
