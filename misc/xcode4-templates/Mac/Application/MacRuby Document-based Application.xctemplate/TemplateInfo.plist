@@ -137,26 +137,26 @@
 				<dict>
 					<key>Nodes</key>
 					<array>
-						<string>___PACKAGENAMEASIDENTIFIER___AppDelegate.rb:rubyheaders</string>
-						<string>___PACKAGENAMEASIDENTIFIER___AppDelegate.rb:framework:Cocoa</string>
-						<string>___PACKAGENAMEASIDENTIFIER___AppDelegate.rb:implementation</string>
-						<string>___PACKAGENAMEASIDENTIFIER___AppDelegate.rb:implementation:iboutlet:window</string>
-						<string>___PACKAGENAMEASIDENTIFIER___AppDelegate.rb:implementation:applicationDidFinishLaunching:comments</string>
+						<string>AppDelegate.rb:rubyheaders</string>
+						<string>AppDelegate.rb:framework:Cocoa</string>
+						<string>AppDelegate.rb:implementation</string>
+						<string>AppDelegate.rb:implementation:iboutlet:window</string>
+						<string>AppDelegate.rb:implementation:applicationDidFinishLaunching:comments</string>
 						<string>en.lproj/MainMenu.xib</string>
 					</array>
 					<key>Definitions</key>
 					<dict>
-						<key>___PACKAGENAMEASIDENTIFIER___AppDelegate.rb:implementation</key>
+						<key>AppDelegate.rb:implementation</key>
 						<dict>
 							<key>Beginning</key>
-							<string>class ___PACKAGENAMEASIDENTIFIER___AppDelegate &lt; NSObject # &lt;NSApplicationDelegate&gt;</string>
+							<string>class AppDelegate</string>
 							<key>End</key>
 							<string>end
 </string>
 							<key>Indent</key>
 							<integer>1</integer>
 						</dict>
-						<key>___PACKAGENAMEASIDENTIFIER___AppDelegate.rb:implementation:applicationDidFinishLaunching</key>
+						<key>AppDelegate.rb:implementation:applicationDidFinishLaunching</key>
 						<dict>
 							<key>Beginning</key>
 							<string>def applicationDidFinishLaunching(aNotification)</string>
@@ -166,7 +166,7 @@
 							<key>Indent</key>
 							<integer>1</integer>
 						</dict>
-						<key>___PACKAGENAMEASIDENTIFIER___AppDelegate.rb:implementation:applicationDidFinishLaunching:comments</key>
+						<key>AppDelegate.rb:implementation:applicationDidFinishLaunching:comments</key>
 						<string># Insert code here to initialize your application
 </string>
 					</dict>

@@ -136,9 +136,9 @@
 						<key>Nodes</key>
 						<array>
 							<string>___PACKAGENAMEASIDENTIFIER___.xcdatamodeld</string>
-							<string>___PACKAGENAMEASIDENTIFIER___AppDelegate.rb:framework:CoreData</string>
-							<string>___PACKAGENAMEASIDENTIFIER___AppDelegate.rb:implementation:ivars</string>
-							<string>___PACKAGENAMEASIDENTIFIER___AppDelegate.rb:implementation:coreData</string>
+							<string>AppDelegate.rb:framework:CoreData</string>
+							<string>AppDelegate.rb:implementation:ivars</string>
+							<string>AppDelegate.rb:implementation:coreData</string>
 						</array>
 						<key>Definitions</key>
 						<dict>
@@ -147,13 +147,13 @@
 								<key>Path</key>
 								<string>___PACKAGENAMEASIDENTIFIER___.xcdatamodeld</string>
 							</dict>
-							<key>___PACKAGENAMEASIDENTIFIER___AppDelegate.rb:implementation:ivars</key>
+							<key>AppDelegate.rb:implementation:ivars</key>
 							<string>attr_reader :persistentStoreCoordinator
 attr_reader :managedObjectModel
 attr_reader :managedObjectContext
 
 </string>
-							<key>___PACKAGENAMEASIDENTIFIER___AppDelegate.rb:implementation:coreData</key>
+							<key>AppDelegate.rb:implementation:coreData</key>
 							<string>#
 # Returns the directory the application uses to store the Core Data store file. This code uses a directory named &quot;___PACKAGENAMEASIDENTIFIER___&quot; in the user's Library directory.
 #
