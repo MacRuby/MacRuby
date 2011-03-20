@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Kind</key>
+	<string>Xcode.Xcode3.ProjectTemplateUnitKind</string>
+	<key>Identifier</key>
+	<string>com.apple.dt.unit.macRubyPreferencePane</string>
+	<key>Concrete</key>
+	<true/>
+	<key>Description</key>
+	<string>This template builds a preference pane bundle written in MacRuby that can be used with the System Preferences application.</string>
+	<key>Ancestors</key>
+	<array>
+		<string>com.apple.dt.unit.bundleBase</string>
+		<string>com.apple.dt.unit.macBase</string>
+	</array>
+	<key>Project</key>
+	<dict>
+		<key>SharedSettings</key>
+		<dict>
+			<key>GCC_ENABLE_OBJC_GC</key>
+			<string>required</string>
+		</dict>
+	</dict>
+	<key>Targets</key>
+	<array>
+		<dict>
+			<key>ProductType</key>
+			<string>com.apple.product-type.bundle</string>
+			<key>SharedSettings</key>
+			<dict>
+				<key>INSTALL_PATH</key>
+				<string>$(HOME)/Library/PreferencePanes</string>
+				<key>WRAPPER_EXTENSION</key>
+				<string>prefPane</string>
+			</dict>
+			<key>BuildPhases</key>
+			<array>
+				<dict>
+					<key>Class</key>
+					<string>Sources</string>
+				</dict>
+				<dict>
+					<key>Class</key>
+					<string>Frameworks</string>
+				</dict>
+				<dict>
+					<key>Class</key>
+					<string>Headers</string>
+				</dict>
+				<dict>
+					<key>Class</key>
+					<string>Resources</string>
+				</dict>
+				<dict>
+					<key>Class</key>
+					<string>Rez</string>
+				</dict>
+			</array>
+			<key>Frameworks</key>
+			<array>
+				<string>Cocoa</string>
+				<string>PreferencePanes</string>
+				<string>MacRuby</string>
+			</array>
+		</dict>
+	</array>
+	<key>Nodes</key>
+	<array>
+		<string>___PACKAGENAME___-Info.plist:preferencePane</string>
+		<string>___PACKAGENAME___.pch:objC:importCocoa</string>
+		<string>___PACKAGENAME___.pch:objC:importAppKit</string>
+		<string>Classes/___PACKAGENAMEASIDENTIFIER___.rb</string>
+		<string>Classes/___PACKAGENAMEASIDENTIFIER___.m</string>
+		<string>___PACKAGENAMEASIDENTIFIER___.tiff</string>
+		<string>en.lproj/___PACKAGENAMEASIDENTIFIER___.xib</string>
+	</array>
+	<key>Definitions</key>
+	<dict>
+		<key>___PACKAGENAME___-Info.plist:preferencePane</key>
+		<string>&lt;key&gt;CFBundleDevelopmentRegion&lt;/key&gt;
+&lt;string&gt;English&lt;/string&gt;
+&lt;key&gt;CFBundleExecutable&lt;/key&gt;
+&lt;string&gt;${EXECUTABLE_NAME}&lt;/string&gt;
+&lt;key&gt;CFBundleIconFile&lt;/key&gt;
+&lt;string&gt;&lt;/string&gt;
+&lt;key&gt;CFBundleInfoDictionaryVersion&lt;/key&gt;
+&lt;string&gt;6.0&lt;/string&gt;
+&lt;key&gt;CFBundleName&lt;/key&gt;
+&lt;string&gt;${PRODUCT_NAME}&lt;/string&gt;
+&lt;key&gt;CFBundlePackageType&lt;/key&gt;
+&lt;string&gt;BNDL&lt;/string&gt;
+&lt;key&gt;CFBundleShortVersionString&lt;/key&gt;
+&lt;string&gt;1.0&lt;/string&gt;
+&lt;key&gt;CFBundleSignature&lt;/key&gt;
+&lt;string&gt;????&lt;/string&gt;
+&lt;key&gt;CFBundleVersion&lt;/key&gt;
+&lt;string&gt;1.0&lt;/string&gt;
+&lt;key&gt;NSMainNibFile&lt;/key&gt;
+&lt;string&gt;___PACKAGENAMEASIDENTIFIER___&lt;/string&gt;
+&lt;key&gt;NSPrefPaneIconFile&lt;/key&gt;
+&lt;string&gt;___PACKAGENAMEASIDENTIFIER___.tiff&lt;/string&gt;
+&lt;key&gt;NSPrefPaneIconLabel&lt;/key&gt;
+&lt;string&gt;___PACKAGENAME___&lt;/string&gt;
+&lt;key&gt;NSPrincipalClass&lt;/key&gt;
+&lt;string&gt;___PACKAGENAMEASIDENTIFIER___&lt;/string&gt;</string>
+		<key>Classes/___PACKAGENAMEASIDENTIFIER___.rb</key>
+		<dict>
+			<key>Path</key>
+			<string>___PACKAGENAMEASIDENTIFIER___.rb</string>
+			<key>Group</key>
+			<string>Classes</string>
+		</dict>
+		<key>Classes/___PACKAGENAMEASIDENTIFIER___.m</key>
+		<dict>
+			<key>Path</key>
+			<string>___PACKAGENAMEASIDENTIFIER___.m</string>
+			<key>Group</key>
+			<string>Classes</string>
+		</dict>
+		<key>___PACKAGENAMEASIDENTIFIER___.tiff</key>
+		<dict>
+			<key>Path</key>
+			<string>___PACKAGENAMEASIDENTIFIER___.tiff</string>
+			<key>Group</key>
+			<string>Resources</string>
+		</dict>
+		<key>en.lproj/___PACKAGENAMEASIDENTIFIER___.xib</key>
+		<dict>
+			<key>Path</key>
+			<string>___PACKAGENAMEASIDENTIFIER___.xib</string>
+			<key>Group</key>
+			<string>Resources</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

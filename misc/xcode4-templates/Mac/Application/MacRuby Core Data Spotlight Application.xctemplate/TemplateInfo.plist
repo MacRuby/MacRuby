@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Kind</key>
+	<string>Xcode.Xcode3.ProjectTemplateUnitKind</string>
+	<key>Identifier</key>
+	<string>com.apple.dt.unit.macrubyCoreDataSpotlightApplication</string>
+	<key>Concrete</key>
+	<true/>
+	<key>Name</key>
+	<string>MacRuby Application</string>
+	<key>Description</key>
+	<string>This template builds a Cocoa-based application written in MacRuby.</string>
+	<key>SortOrder</key>
+	<integer>0</integer>
+	<key>Ancestors</key>
+	<array>
+		<string>com.apple.dt.unit.macrubyCoreDataApplication</string>
+	</array>
+	<key>RequiredOptions</key>
+	<dict>
+		<key>coreData</key>
+		<string>true</string>
+	</dict>
+	<key>Options</key>
+	<array>
+		<dict>
+			<key>Identifier</key>
+			<string>spotlightImporter</string>
+			<key>Name</key>
+			<string>Include Spotlight Importer</string>
+			<key>Description</key>
+			<string>Indicates whether the application should also create a Spotlight importer.</string>
+			<key>Type</key>
+			<string>checkbox</string>
+			<key>SortOrder</key>
+			<integer>1</integer>
+			<key>Default</key>
+			<string>false</string>
+			<key>Units</key>
+			<dict>
+				<key>true</key>
+				<array>
+					<dict>
+						<key>Components</key>
+						<array>
+							<dict>
+								<key>Identifier</key>
+								<string>com.apple.dt.unit.spotlightImporter</string>
+								<key>Name</key>
+								<string>___PACKAGENAME___Importer</string>
+								<key>Dependents</key>
+								<array>
+									<string>0</string>
+								</array>
+								<key>ProductDependents</key>
+								<array>
+									<string>0</string>
+								</array>
+							</dict>
+						</array>
+					</dict>
+				</array>
+			</dict>
+		</dict>
+	</array>
+</dict>
+</plist>

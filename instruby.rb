@@ -454,9 +454,11 @@ def install_stuff(what, from, to, mode)
   Dir.glob(File.join(to, '**', '.svn')).each { |x| rm_rf(x) }
 end
 
+install_stuff('Xcode 4.x templates', 'misc/xcode4-templates',
+  '/Developer/Library/Xcode/Templates/Project Templates', 0755)
 install_stuff('Xcode 3.x templates', 'misc/xcode-templates', 
   '/Library/Application Support/Developer/3.0/Xcode', 0755)
-install_stuff('Xcode templates', 'misc/xcode-templates', 
+install_stuff('Xcode 2.x templates', 'misc/xcode-templates', 
   '/Library/Application Support/Developer/Shared/Xcode', 0755)
 install_stuff('samples', 'sample-macruby', 
   '/Developer/Examples/Ruby/MacRuby', 0775)
