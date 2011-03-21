@@ -520,7 +520,6 @@ puts "installing IB support"
 ib_dest = '/Developer/usr/bin'
 mkdir_p ib_dest
 ln_sfh File.join("../../..", CONFIG['bindir'], 'rb_nibtool'), ib_dest
-#install('tool/rb_nibtool.old', ib_dest, :mode => $prog_mode)
 
 puts "installing LLVM tools"
 llc_dest = File.join(CONFIG['bindir'], 'llc')
