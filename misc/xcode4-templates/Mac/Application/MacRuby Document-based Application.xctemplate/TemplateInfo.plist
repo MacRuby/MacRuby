@@ -74,7 +74,7 @@
 						<key>___VARIABLE_documentClassName:identifier___.rb:implementation</key>
 						<dict>
 							<key>Beginning</key>
-							<string>class ___VARIABLE_documentClassName:identifier___</string>
+							<string>class ___VARIABLE_documentClassName:identifier___ &lt; NSDocument</string>
 							<key>End</key>
 							<string>end
 

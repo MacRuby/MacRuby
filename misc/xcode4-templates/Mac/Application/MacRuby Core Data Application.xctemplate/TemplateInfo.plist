@@ -181,12 +181,10 @@ end
 # Returns the persistent store coordinator for the application. This implementation creates and return a coordinator, having added the store for the application to it. (The directory for the store is created, if necessary.)
 #
 def persistentStoreCoordinator
-    if !@persistentStoreCoordinator.nil?
-        return @persistentStoreCoordinator
-    end
+    return @persistentStoreCoordinator unless @persistentStoreCoordinator.nil?
 
     mom = self.managedObjectModel
-    if !mom.nil?
+    if mom.nil?
         puts &quot;#{self.class} No model to generate a store from&quot;
         return nil
     end
@@ -205,8 +203,7 @@ def persistentStoreCoordinator
         if ok == false
             NSApplication.sharedApplication.presentError(error[0])
         end
-    else
-        if properties[NSURLIsDirectoryKey] != true
+    elsif properties[NSURLIsDirectoryKey] != true
             # Customize and localize this error.
             failure_description = &quot;Expected a folder to store application data, found a file (#{directory.path}).&quot;
 
@@ -233,9 +230,7 @@ end
 # bound to the persistent store coordinator for the application.) 
 #
 def managedObjectContext
-    if !@managedObjectContext.nil?
-        return @managedObjectContext
-    end
+    return @managedObjectContext unless @managedObjectContext.nil?
 
     coordinator = self.persistentStoreCoordinator
 
@@ -280,9 +275,7 @@ end
 def applicationShouldTerminate(sender)
     # Save changes in the application's managed object context before the application terminates.
 
-    if @managedObjectContext.nil?
-        return NSTerminateNow
-    end
+    return NSTerminateNow if @managedObjectContext.nil?
 
     unless self.managedObjectContext.commitEditing
         puts &quot;%@ unable to commit editing to terminate&quot; % self.class
