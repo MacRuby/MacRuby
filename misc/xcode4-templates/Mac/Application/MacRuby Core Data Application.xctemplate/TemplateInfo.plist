@@ -135,8 +135,8 @@
 						</dict>
 						<key>Nodes</key>
 						<array>
-							<string>___PACKAGENAMEASIDENTIFIER___.xcdatamodeld</string>
 							<string>AppDelegate.rb:framework:CoreData</string>
+							<string>___PACKAGENAMEASIDENTIFIER___.xcdatamodeld</string>
 							<string>AppDelegate.rb:implementation:ivars</string>
 							<string>AppDelegate.rb:implementation:coreData</string>
 						</array>
@@ -148,7 +148,9 @@
 								<string>___PACKAGENAMEASIDENTIFIER___.xcdatamodeld</string>
 							</dict>
 							<key>AppDelegate.rb:implementation:ivars</key>
-							<string>attr_reader :persistentStoreCoordinator
+              <string>
+# Persistence accessors
+attr_reader :persistentStoreCoordinator
 attr_reader :managedObjectModel
 attr_reader :managedObjectContext
 
@@ -158,48 +160,47 @@ attr_reader :managedObjectContext
 # Returns the directory the application uses to store the Core Data store file. This code uses a directory named &quot;___PACKAGENAMEASIDENTIFIER___&quot; in the user's Library directory.
 #
 def applicationFilesDirectory
-    fileManager = NSFileManager.defaultManager
-    libraryURL = fileManager.URLsForDirectory(NSLibraryDirectory, inDomains:NSUserDomainMask).lastObject
-    return libraryURL.URLByAppendingPathComponent(&quot;___PACKAGENAMEASIDENTIFIER___&quot;)
+    file_manager = NSFileManager.defaultManager
+    library_url = file_manager.URLsForDirectory(NSLibraryDirectory, inDomains:NSUserDomainMask).lastObject
+    library_url.URLByAppendingPathComponent(&quot;___PACKAGENAMEASIDENTIFIER___&quot;)
 end
 
 #
 # Creates if necessary and returns the managed object model for the application.
 #
 def managedObjectModel
-    if not @managedObjectModel.nil?
-        return @managedObjectModel
+    if @managedObjectModel.nil?
+      model_url = NSBundle.mainBundle.URLForResource(&quot;___PACKAGENAMEASIDENTIFIER___&quot;, withExtension:&quot;momd&quot;)
+      @managedObjectModel = NSManagedObjectModel.alloc.initWithContentsOfURL(model_url)
+    else
+      @managedObjectModel
     end
-
-    modelURL = NSBundle.mainBundle.URLForResource(&quot;___PACKAGENAMEASIDENTIFIER___&quot;, withExtension:&quot;momd&quot;)
-    @managedObjectModel = NSManagedObjectModel.alloc.initWithContentsOfURL(modelURL)
-    return @managedObjectModel
 end
 
 #
 # Returns the persistent store coordinator for the application. This implementation creates and return a coordinator, having added the store for the application to it. (The directory for the store is created, if necessary.)
 #
 def persistentStoreCoordinator
-    if not @persistentStoreCoordinator.nil?
+    if !@persistentStoreCoordinator.nil?
         return @persistentStoreCoordinator
     end
 
     mom = self.managedObjectModel
-    if not mom.nil?
-        puts &quot;%s No model to generate a store from&quot; % self.class
+    if !mom.nil?
+        puts &quot;#{self.class} No model to generate a store from&quot;
         return nil
     end
 
-    fileManager = NSFileManager.defaultManager
-    applicationFilesDirectory = self.applicationFilesDirectory
+    file_manager = NSFileManager.defaultManager
+    directory = self.applicationFilesDirectory
     error = Pointer.new_with_type('@')
 
-    properties = applicationFilesDirectory.resourceValuesForKeys([NSURLIsDirectoryKey], error:error)
+    properties = directory.resourceValuesForKeys([NSURLIsDirectoryKey], error:error)
 
     if properties.nil?
         ok = false
         if error[0].code == NSFileReadNoSuchFileError
-            ok = fileManager.createDirectoryAtPath(applicationFilesDirectory.path, withIntermediateDirectories:true, attributes:nil, error:error)
+            ok = file_manager.createDirectoryAtPath(directory.path, withIntermediateDirectories:true, attributes:nil, error:error)
         end
         if ok == false
             NSApplication.sharedApplication.presentError(error[0])
@@ -207,16 +208,16 @@ def persistentStoreCoordinator
     else
         if properties[NSURLIsDirectoryKey] != true
             # Customize and localize this error.
-            failureDescription = &quot;Expected a folder to store application data, found a file (%s).&quot; % applicationFilesDirectory.path
+            failure_description = &quot;Expected a folder to store application data, found a file (#{directory.path}).&quot;
 
-            error = NSError.errorWithDomain(&quot;YOUR_ERROR_DOMAIN&quot;, code:101, userInfo:{NSLocalizedDescriptionKey => failureDescription})
+            error = NSError.errorWithDomain(&quot;YOUR_ERROR_DOMAIN&quot;, code:101, userInfo:{NSLocalizedDescriptionKey => failure_description})
 
             NSApplication.sharedApplication.presentError(error)
             return nil
         end
     end
 
-    url = applicationFilesDirectory.URLByAppendingPathComponent(&quot;___PACKAGENAMEASIDENTIFIER___.storedata&quot;)
+    url = directory.URLByAppendingPathComponent(&quot;___PACKAGENAMEASIDENTIFIER___.storedata&quot;)
     @persistentStoreCoordinator = NSPersistentStoreCoordinator.alloc.initWithManagedObjectModel(mom)
 
     unless @persistentStoreCoordinator.addPersistentStoreWithType(NSXMLStoreType, configuration:nil, URL:url, options:nil, error:error)
@@ -224,7 +225,7 @@ def persistentStoreCoordinator
         return nil
     end
 
-    return @persistentStoreCoordinator
+    @persistentStoreCoordinator
 end
 
 #
@@ -232,7 +233,7 @@ end
 # bound to the persistent store coordinator for the application.) 
 #
 def managedObjectContext
-    if not @managedObjectContext.nil?
+    if !@managedObjectContext.nil?
         return @managedObjectContext
     end
 
@@ -251,14 +252,14 @@ def managedObjectContext
     @managedObjectContext = NSManagedObjectContext.alloc.init
     @managedObjectContext.setPersistentStoreCoordinator(coordinator)
 
-    return @managedObjectContext;
+    @managedObjectContext
 end
 
 #
 # Returns the NSUndoManager for the application. In this case, the manager returned is that of the managed object context for the application.
 #
 def windowWillReturnUndoManager(window)
-    return self.managedObjectContext.undoManager
+    self.managedObjectContext.undoManager
 end
 
 #
@@ -268,7 +269,7 @@ def saveAction(sender)
     error = Pointer.new_with_type('@')
 
     unless self.managedObjectContext.commitEditing
-        puts &quot;%@ unable to commit editing before saving&quot; % self.class
+      puts &quot;#{self.class} unable to commit editing before saving&quot;
     end
 
     unless self.managedObjectContext.save(error)
@@ -299,8 +300,8 @@ def applicationShouldTerminate(sender)
         end
 
         alert = NSAlert.alloc.init
-        alert.setMessageText &quot;Could not save changes while quitting. Quit anyway?&quot;
-        alert.setInformativeText &quot;Quitting now will lose any changes you have made since the last successful save&quot;
+        alert.messageText = &quot;Could not save changes while quitting. Quit anyway?&quot;
+        alert.informativeText = &quot;Quitting now will lose any changes you have made since the last successful save&quot;
         alert.addButtonWithTitle &quot;Quit anyway&quot;
         alert.addButtonWithTitle &quot;Cancel&quot;
 
@@ -311,7 +312,7 @@ def applicationShouldTerminate(sender)
 
     end
 
-    return NSTerminateNow
+    NSTerminateNow
 end
 </string>
 						</dict>
@@ -380,7 +381,7 @@ return nil
 							<string>if outError
     outError.assign(NSError.errorWithDomain(NSOSStatusErrorDomain, code:-4, userInfo:nil))
 end
-return true
+true
 </string>
 							<key>___VARIABLE_documentClassName:identifier___.rb:implementation:displayName</key>
 							<dict>

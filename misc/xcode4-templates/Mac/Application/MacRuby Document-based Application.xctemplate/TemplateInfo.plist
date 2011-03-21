@@ -31,7 +31,6 @@
 					<key>Nodes</key>
 					<array>
 						<string>___VARIABLE_documentClassName:identifier___.rb:rubyheaders</string>
-						<string>___VARIABLE_documentClassName:identifier___.rb:framework:Cocoa</string>
 						<string>___VARIABLE_documentClassName:identifier___.rb:implementation</string>
 						<string>___VARIABLE_documentClassName:identifier___.rb:implementation:initialize:comments</string>
 						<string>___VARIABLE_documentClassName:identifier___.rb:implementation:windowNibName:comments</string>
@@ -75,7 +74,7 @@
 						<key>___VARIABLE_documentClassName:identifier___.rb:implementation</key>
 						<dict>
 							<key>Beginning</key>
-							<string>class ___VARIABLE_documentClassName:identifier___ &lt; NSDocument</string>
+							<string>class ___VARIABLE_documentClassName:identifier___</string>
 							<key>End</key>
 							<string>end
 
@@ -103,7 +102,7 @@
 # If you need to use a subclass of NSWindowController or if your document supports multiple NSWindowControllers, you should remove this method and override -makeWindowControllers instead.
 </string>
 						<key>___VARIABLE_documentClassName:identifier___.rb:implementation:windowNibName:code</key>
-						<string>return &quot;___VARIABLE_documentClassName:identifier___&quot;
+						<string>&quot;___VARIABLE_documentClassName:identifier___&quot;
 </string>
 						<key>___VARIABLE_documentClassName:identifier___.rb:implementation:windowControllerDidLoadNib</key>
 						<dict>
@@ -138,7 +137,6 @@
 					<key>Nodes</key>
 					<array>
 						<string>AppDelegate.rb:rubyheaders</string>
-						<string>AppDelegate.rb:framework:Cocoa</string>
 						<string>AppDelegate.rb:implementation</string>
 						<string>AppDelegate.rb:implementation:iboutlet:window</string>
 						<string>AppDelegate.rb:implementation:applicationDidFinishLaunching:comments</string>
@@ -159,7 +157,7 @@
 						<key>AppDelegate.rb:implementation:applicationDidFinishLaunching</key>
 						<dict>
 							<key>Beginning</key>
-							<string>def applicationDidFinishLaunching(aNotification)</string>
+							<string>def applicationDidFinishLaunching(a_notification)</string>
 							<key>End</key>
 							<string>end
 </string>
