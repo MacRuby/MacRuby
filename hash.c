@@ -964,7 +964,7 @@ VALUE
 rhash_aset(VALUE hash, SEL sel, VALUE key, VALUE val)
 {
     rhash_modify(hash);
-    if (TYPE(key) == T_STRING) {
+    if (TYPE(key) == T_STRING && !OBJ_FROZEN(key)) {
         key = rb_str_dup(key);
         OBJ_FREEZE(key);
     }

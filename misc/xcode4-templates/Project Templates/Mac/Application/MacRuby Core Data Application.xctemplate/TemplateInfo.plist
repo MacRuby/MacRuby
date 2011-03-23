@@ -1,0 +1,394 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Kind</key>
+	<string>Xcode.Xcode3.ProjectTemplateUnitKind</string>
+	<key>Identifier</key>
+	<string>com.apple.dt.unit.macrubyCoreDataApplication</string>
+	<key>Ancestors</key>
+	<array>
+		<string>com.apple.dt.unit.macrubyDocumentBasedApplication</string>
+	</array>
+	<key>Options</key>
+	<array>
+		<dict>
+			<key>Identifier</key>
+			<string>coreData</string>
+			<key>Name</key>
+			<string>Use Core Data</string>
+			<key>Description</key>
+			<string>Indicates whether the application should use the Core Data framework for storage.</string>
+			<key>Type</key>
+			<string>checkbox</string>
+			<key>Default</key>
+			<string>false</string>
+			<key>Units</key>
+			<dict>
+				<key>true</key>
+				<array>
+					<dict>
+						<key>RequiredOptions</key>
+						<dict>
+							<key>documentBased</key>
+							<string>true</string>
+						</dict>
+						<key>Nodes</key>
+						<array>
+							<string>___VARIABLE_documentClassName:identifier___.xcdatamodeld</string>
+						</array>
+						<key>Definitions</key>
+						<dict>
+							<key>___PACKAGENAME___-Info.plist:DocumentTypes</key>
+							<string>&lt;key&gt;CFBundleDocumentTypes&lt;/key&gt;
+&lt;array&gt;
+	&lt;dict&gt;
+		&lt;key&gt;CFBundleTypeExtensions&lt;/key&gt;
+		&lt;array&gt;
+			&lt;string&gt;binary&lt;/string&gt;
+		&lt;/array&gt;
+		&lt;key&gt;CFBundleTypeMIMETypes&lt;/key&gt;
+		&lt;array&gt;
+			&lt;string&gt;application/octet-stream&lt;/string&gt;
+		&lt;/array&gt;
+		&lt;key&gt;CFBundleTypeName&lt;/key&gt;
+		&lt;string&gt;Binary&lt;/string&gt;
+		&lt;key&gt;CFBundleTypeRole&lt;/key&gt;
+		&lt;string&gt;Editor&lt;/string&gt;
+		&lt;key&gt;LSTypeIsPackage&lt;/key&gt;
+		&lt;false/&gt;
+		&lt;key&gt;NSDocumentClass&lt;/key&gt;
+		&lt;string&gt;___VARIABLE_documentClassName:identifier___&lt;/string&gt;
+		&lt;key&gt;NSPersistentStoreTypeKey&lt;/key&gt;
+		&lt;string&gt;Binary&lt;/string&gt;
+	&lt;/dict&gt;
+	&lt;dict&gt;
+		&lt;key&gt;CFBundleTypeExtensions&lt;/key&gt;
+		&lt;array&gt;
+			&lt;string&gt;sqlite&lt;/string&gt;
+		&lt;/array&gt;
+		&lt;key&gt;CFBundleTypeMIMETypes&lt;/key&gt;
+		&lt;array&gt;
+			&lt;string&gt;application/octet-stream&lt;/string&gt;
+		&lt;/array&gt;
+		&lt;key&gt;CFBundleTypeName&lt;/key&gt;
+		&lt;string&gt;SQLite&lt;/string&gt;
+		&lt;key&gt;CFBundleTypeRole&lt;/key&gt;
+		&lt;string&gt;Editor&lt;/string&gt;
+		&lt;key&gt;LSTypeIsPackage&lt;/key&gt;
+		&lt;false/&gt;
+		&lt;key&gt;NSDocumentClass&lt;/key&gt;
+		&lt;string&gt;___VARIABLE_documentClassName:identifier___&lt;/string&gt;
+		&lt;key&gt;NSPersistentStoreTypeKey&lt;/key&gt;
+		&lt;string&gt;SQLite&lt;/string&gt;
+	&lt;/dict&gt;
+	&lt;dict&gt;
+		&lt;key&gt;CFBundleTypeExtensions&lt;/key&gt;
+		&lt;array&gt;
+			&lt;string&gt;xml&lt;/string&gt;
+		&lt;/array&gt;
+		&lt;key&gt;CFBundleTypeIconFile&lt;/key&gt;
+		&lt;string&gt;&lt;/string&gt;
+		&lt;key&gt;CFBundleTypeMIMETypes&lt;/key&gt;
+		&lt;array&gt;
+			&lt;string&gt;text/xml&lt;/string&gt;
+		&lt;/array&gt;
+		&lt;key&gt;CFBundleTypeName&lt;/key&gt;
+		&lt;string&gt;XML&lt;/string&gt;
+		&lt;key&gt;CFBundleTypeOSTypes&lt;/key&gt;
+		&lt;array&gt;
+			&lt;string&gt;????&lt;/string&gt;
+		&lt;/array&gt;
+		&lt;key&gt;CFBundleTypeRole&lt;/key&gt;
+		&lt;string&gt;Editor&lt;/string&gt;
+		&lt;key&gt;LSTypeIsPackage&lt;/key&gt;
+		&lt;false/&gt;
+		&lt;key&gt;NSDocumentClass&lt;/key&gt;
+		&lt;string&gt;___VARIABLE_documentClassName:identifier___&lt;/string&gt;
+		&lt;key&gt;NSPersistentStoreTypeKey&lt;/key&gt;
+		&lt;string&gt;XML&lt;/string&gt;
+	&lt;/dict&gt;
+&lt;/array&gt;
+</string>
+							<key>___VARIABLE_documentClassName:identifier___.rb:implementation</key>
+							<dict>
+								<key>Beginning</key>
+								<string>class ___VARIABLE_documentClassName:identifier___ &lt; NSPersistentDocument</string>
+								<key>End</key>
+								<string>end
+</string>
+								<key>Indent</key>
+								<integer>1</integer>
+							</dict>
+							<key>___VARIABLE_documentClassName:identifier___.xcdatamodeld</key>
+							<dict>
+								<key>Path</key>
+								<string>___VARIABLE_documentClassName___.xcdatamodeld</string>
+							</dict>
+						</dict>
+					</dict>
+					<dict>
+						<key>RequiredOptions</key>
+						<dict>
+							<key>documentBased</key>
+							<string>false</string>
+						</dict>
+						<key>Nodes</key>
+						<array>
+							<string>___PACKAGENAMEASIDENTIFIER___.xcdatamodeld</string>
+							<string>AppDelegate.rb:implementation:ivars</string>
+							<string>AppDelegate.rb:implementation:coreData</string>
+						</array>
+						<key>Definitions</key>
+						<dict>
+							<key>___PACKAGENAMEASIDENTIFIER___.xcdatamodeld</key>
+							<dict>
+								<key>Path</key>
+								<string>___PACKAGENAMEASIDENTIFIER___.xcdatamodeld</string>
+							</dict>
+							<key>AppDelegate.rb:implementation:ivars</key>
+              <string>
+# Persistence accessors
+attr_reader :persistentStoreCoordinator
+attr_reader :managedObjectModel
+attr_reader :managedObjectContext
+
+</string>
+							<key>AppDelegate.rb:implementation:coreData</key>
+							<string>#
+# Returns the directory the application uses to store the Core Data store file. This code uses a directory named &quot;___PACKAGENAMEASIDENTIFIER___&quot; in the user's Library directory.
+#
+def applicationFilesDirectory
+    file_manager = NSFileManager.defaultManager
+    library_url = file_manager.URLsForDirectory(NSLibraryDirectory, inDomains:NSUserDomainMask).lastObject
+    library_url.URLByAppendingPathComponent(&quot;___PACKAGENAMEASIDENTIFIER___&quot;)
+end
+
+#
+# Creates if necessary and returns the managed object model for the application.
+#
+def managedObjectModel
+    unless @managedObjectModel
+      model_url = NSBundle.mainBundle.URLForResource(&quot;___PACKAGENAMEASIDENTIFIER___&quot;, withExtension:&quot;momd&quot;)
+      @managedObjectModel = NSManagedObjectModel.alloc.initWithContentsOfURL(model_url)
+    end
+    
+    @managedObjectModel
+end
+
+#
+# Returns the persistent store coordinator for the application. This implementation creates and return a coordinator, having added the store for the application to it. (The directory for the store is created, if necessary.)
+#
+def persistentStoreCoordinator
+    return @persistentStoreCoordinator if @persistentStoreCoordinator
+
+    mom = self.managedObjectModel
+    unless mom
+        puts &quot;#{self.class} No model to generate a store from&quot;
+        return nil
+    end
+
+    file_manager = NSFileManager.defaultManager
+    directory = self.applicationFilesDirectory
+    error = Pointer.new_with_type('@')
+
+    properties = directory.resourceValuesForKeys([NSURLIsDirectoryKey], error:error)
+
+    if properties.nil?
+        ok = false
+        if error[0].code == NSFileReadNoSuchFileError
+            ok = file_manager.createDirectoryAtPath(directory.path, withIntermediateDirectories:true, attributes:nil, error:error)
+        end
+        if ok == false
+            NSApplication.sharedApplication.presentError(error[0])
+        end
+    elsif properties[NSURLIsDirectoryKey] != true
+            # Customize and localize this error.
+            failure_description = &quot;Expected a folder to store application data, found a file (#{directory.path}).&quot;
+
+            error = NSError.errorWithDomain(&quot;YOUR_ERROR_DOMAIN&quot;, code:101, userInfo:{NSLocalizedDescriptionKey => failure_description})
+
+            NSApplication.sharedApplication.presentError(error)
+            return nil
+    end
+
+    url = directory.URLByAppendingPathComponent(&quot;___PACKAGENAMEASIDENTIFIER___.storedata&quot;)
+    @persistentStoreCoordinator = NSPersistentStoreCoordinator.alloc.initWithManagedObjectModel(mom)
+
+    unless @persistentStoreCoordinator.addPersistentStoreWithType(NSXMLStoreType, configuration:nil, URL:url, options:nil, error:error)
+        NSApplication.sharedApplication.presentError(error[0])
+        return nil
+    end
+
+    @persistentStoreCoordinator
+end
+
+#
+# Returns the managed object context for the application (which is already
+# bound to the persistent store coordinator for the application.) 
+#
+def managedObjectContext
+    return @managedObjectContext if @managedObjectContext
+    coordinator = self.persistentStoreCoordinator
+
+    unless coordinator
+        dict = {
+            NSLocalizedDescriptionKey => &quot;Failed to initialize the store&quot;,
+            NSLocalizedFailureReasonErrorKey => &quot;There was an error building up the data file.&quot;
+        }
+        error = NSError.errorWithDomain(&quot;YOUR_ERROR_DOMAIN&quot;, code:9999, userInfo:dict)
+        NSApplication.sharedApplication.presentError(error)
+        return nil
+    end
+
+    @managedObjectContext = NSManagedObjectContext.alloc.init
+    @managedObjectContext.setPersistentStoreCoordinator(coordinator)
+
+    @managedObjectContext
+end
+
+#
+# Returns the NSUndoManager for the application. In this case, the manager returned is that of the managed object context for the application.
+#
+def windowWillReturnUndoManager(window)
+    self.managedObjectContext.undoManager
+end
+
+#
+# Performs the save action for the application, which is to send the save: message to the application&apos;s managed object context. Any encountered errors are presented to the user.
+#
+def saveAction(sender)
+    error = Pointer.new_with_type('@')
+
+    unless self.managedObjectContext.commitEditing
+      puts &quot;#{self.class} unable to commit editing before saving&quot;
+    end
+
+    unless self.managedObjectContext.save(error)
+        NSApplication.sharedApplication.presentError(error[0])
+    end
+end
+
+def applicationShouldTerminate(sender)
+    # Save changes in the application's managed object context before the application terminates.
+
+    return NSTerminateNow unless @managedObjectContext
+
+    unless self.managedObjectContext.commitEditing
+        puts &quot;%@ unable to commit editing to terminate&quot; % self.class
+    end
+
+    unless self.managedObjectContext.hasChanges
+        return NSTerminateNow
+    end
+
+    error = Pointer.new_with_type('@')
+    unless self.managedObjectContext.save(error)
+        # Customize this code block to include application-specific recovery steps.
+        return NSTerminateCancel if sender.presentError(error[0])
+
+        alert = NSAlert.alloc.init
+        alert.messageText = &quot;Could not save changes while quitting. Quit anyway?&quot;
+        alert.informativeText = &quot;Quitting now will lose any changes you have made since the last successful save&quot;
+        alert.addButtonWithTitle &quot;Quit anyway&quot;
+        alert.addButtonWithTitle &quot;Cancel&quot;
+
+        answer = alert.runModal
+        return NSTerminateCancel if answer == NSAlertAlternateReturn
+    end
+
+    NSTerminateNow
+end
+</string>
+						</dict>
+					</dict>
+				</array>
+				<key>false</key>
+				<array>
+					<dict>
+						<key>RequiredOptions</key>
+						<dict>
+							<key>documentBased</key>
+							<string>true</string>
+						</dict>
+						<key>Nodes</key>
+						<array>
+							<string>___VARIABLE_documentClassName:identifier___.rb:implementation:dataOfType:comments</string>
+							<string>___VARIABLE_documentClassName:identifier___.rb:implementation:dataOfType:code</string>
+							<string>___VARIABLE_documentClassName:identifier___.rb:implementation:readFromData:comments</string>
+							<string>___VARIABLE_documentClassName:identifier___.rb:implementation:readFromData:code</string>
+							<string>___VARIABLE_documentClassName:identifier___.rb:implementation:displayName:comments</string>
+							<string>___VARIABLE_documentClassName:identifier___.rb:implementation:displayName:code</string>
+						</array>
+						<key>Definitions</key>
+						<dict>
+							<key>___VARIABLE_documentClassName:identifier___.rb:implementation:dataOfType</key>
+							<dict>
+								<key>Beginning</key>
+								<string>def dataOfType(typeName, error:outError)</string>
+								<key>End</key>
+								<string>end
+
+</string>
+								<key>Indent</key>
+								<integer>1</integer>
+							</dict>
+							<key>___VARIABLE_documentClassName:identifier___.rb:implementation:dataOfType:comments</key>
+							<string>#
+# Insert code here to write your document to data of the specified type. If outError != NULL, ensure that you create and set an appropriate error when returning nil.
+# You can also choose to override -fileWrapperOfType:error:, -writeToURL:ofType:error:, or -writeToURL:ofType:forSaveOperation:originalContentsURL:error: instead.
+#
+</string>
+							<key>___VARIABLE_documentClassName:identifier___.rb:implementation:dataOfType:code</key>
+							<string>if outError
+    outError.assign(NSError.errorWithDomain(NSOSStatusErrorDomain, code:-4, userInfo:nil))
+end
+return nil
+</string>
+							<key>___VARIABLE_documentClassName:identifier___.rb:implementation:readFromData</key>
+							<dict>
+								<key>Beginning</key>
+								<string>def readFromData(data, ofType:typeName, error:outError)</string>
+								<key>End</key>
+								<string>end
+
+</string>
+								<key>Indent</key>
+								<integer>1</integer>
+							</dict>
+							<key>___VARIABLE_documentClassName:identifier___.rb:implementation:readFromData:comments</key>
+							<string>#
+# Insert code here to read your document from the given data of the specified type. If outError != NULL, ensure that you create and set an appropriate error when returning NO.
+# You can also choose to override -readFromFileWrapper:ofType:error: or -readFromURL:ofType:error: instead.
+#
+</string>
+							<key>___VARIABLE_documentClassName:identifier___.rb:implementation:readFromData:code</key>
+							<string>if outError
+    outError.assign(NSError.errorWithDomain(NSOSStatusErrorDomain, code:-4, userInfo:nil))
+end
+true
+</string>
+							<key>___VARIABLE_documentClassName:identifier___.rb:implementation:displayName</key>
+							<dict>
+								<key>Beginning</key>
+								<string>def displayName</string>
+								<key>End</key>
+								<string>end
+</string>
+								<key>Indent</key>
+								<integer>1</integer>
+							</dict>
+							<key>___VARIABLE_documentClassName:identifier___.rb:implementation:displayName:comments</key>
+							<string># Return lowercase 'untitled', to comply with HIG
+</string>
+							<key>___VARIABLE_documentClassName:identifier___.rb:implementation:displayName:code</key>
+							<string>fileURL ? super : super.sub(/^[[:upper:]]/) { |s| s.downcase }
+</string>
+						</dict>
+					</dict>
+				</array>
+			</dict>
+		</dict>
+	</array>
+</dict>
+</plist>

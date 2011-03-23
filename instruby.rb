@@ -454,9 +454,11 @@ def install_stuff(what, from, to, mode)
   Dir.glob(File.join(to, '**', '.svn')).each { |x| rm_rf(x) }
 end
 
+install_stuff('Xcode 4.x templates', 'misc/xcode4-templates',
+  '/Developer/Library/Xcode/Templates', 0755)
 install_stuff('Xcode 3.x templates', 'misc/xcode-templates', 
   '/Library/Application Support/Developer/3.0/Xcode', 0755)
-install_stuff('Xcode templates', 'misc/xcode-templates', 
+install_stuff('Xcode 2.x templates', 'misc/xcode-templates', 
   '/Library/Application Support/Developer/Shared/Xcode', 0755)
 install_stuff('samples', 'sample-macruby', 
   '/Developer/Examples/Ruby/MacRuby', 0775)
@@ -518,7 +520,6 @@ puts "installing IB support"
 ib_dest = '/Developer/usr/bin'
 mkdir_p ib_dest
 ln_sfh File.join("../../..", CONFIG['bindir'], 'rb_nibtool'), ib_dest
-install('tool/rb_nibtool.old', ib_dest, :mode => $prog_mode)
 
 puts "installing LLVM tools"
 llc_dest = File.join(CONFIG['bindir'], 'llc')

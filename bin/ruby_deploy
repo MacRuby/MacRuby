@@ -33,8 +33,18 @@ class Deployer
       rescue OptionParser::InvalidOption => e
         die e, opts
       end
-      die opts if argv.size != 1
-      @app_bundle = argv[0]
+      if argv.empty?
+        # If we are ran from Xcode, determine the application bundle from the environment.
+        build_dir = ENV['TARGET_BUILD_DIR']
+        project_name = ENV['PROJECT_NAME']
+        if build_dir and project_name
+          @app_bundle = File.join(build_dir, project_name + '.app')
+        end
+      end
+      unless @app_bundle
+        die opts if argv.size != 1
+        @app_bundle = argv[0]
+      end
     end
 
     ensure_path @app_bundle

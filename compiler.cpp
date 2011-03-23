@@ -5749,6 +5749,9 @@ extern "C"
 VALUE
 rb_vm_new_opaque(VALUE klass, void *val)
 {
+    if (val == NULL) {
+	return Qnil;
+    }
     return Data_Wrap_Struct(klass, NULL, NULL, val);
 }
 
@@ -6769,6 +6772,7 @@ RoxorCompiler::compile_block_caller(rb_vm_block_t *block)
 	bb = BasicBlock::Create(context, "EntryBlock", f);
 
 	argc = CallInst::Create(lengthArrayFunc, argv_ary, "", bb);
+	argc = new TruncInst(argc, Int32Ty, "", bb);
 	argv = CallInst::Create(ptrArrayFunc, argv_ary, "", bb);
     }
     else {
