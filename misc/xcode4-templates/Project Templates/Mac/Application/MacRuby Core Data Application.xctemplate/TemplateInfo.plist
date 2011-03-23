@@ -135,7 +135,6 @@
 						</dict>
 						<key>Nodes</key>
 						<array>
-							<string>AppDelegate.rb:framework:CoreData</string>
 							<string>___PACKAGENAMEASIDENTIFIER___.xcdatamodeld</string>
 							<string>AppDelegate.rb:implementation:ivars</string>
 							<string>AppDelegate.rb:implementation:coreData</string>
