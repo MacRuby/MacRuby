@@ -31,6 +31,16 @@
 				<string>MacRuby</string>
 			</array>
 		</dict>
+		<dict>
+			<key>Name</key>
+			<string>Deployment</string>
+			<key>TargetType</key>
+			<string>Legacy</string>
+			<key>BuildToolPath</key>
+			<string>/usr/local/bin/macruby_deploy</string>
+			<key>BuildToolArgsString</key>
+			<string>--compile --embed</string>
+		</dict>
 	</array>
 	<key>Definitions</key>
 	<dict>
