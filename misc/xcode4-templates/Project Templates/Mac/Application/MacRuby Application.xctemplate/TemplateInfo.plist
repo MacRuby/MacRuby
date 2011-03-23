@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Kind</key>
+	<string>Xcode.Xcode3.ProjectTemplateUnitKind</string>
+	<key>Identifier</key>
+	<string>com.apple.dt.unit.macrubyApplication</string>
+	<key>Ancestors</key>
+	<array>
+		<string>com.apple.dt.unit.macrubyApplicationBase</string>
+		<string>com.apple.dt.unit.macBase</string>
+	</array>
+	<!--
+	Nodes is a list of what needs to be processed, with a list of rules to be
+	applied to each files.
+	For example, "main.m:import:importMacRuby" will take main.m, apply the
+	*:import:* rule, and then apply the importMacRuby rule on it
+	-->
+	<key>Nodes</key>
+	<array>
+		<string>main.m:import:importMacruby</string>
+		<string>main.m:main:macrubyMain</string>
+		<string>___PACKAGENAME___-Info.plist:MacRuby</string>
+		<string>___PACKAGENAME___-Info.plist:ApplicationCategory</string>
+		<string>en.lproj/MainMenu.xib</string>
+		<string>rb_main.rb</string>
+	</array>
+	<!-- This defines how the Nodes rules are applied -->
+	<key>Definitions</key>
+	<dict>
+		<key>main.m:main:macrubyMain</key>
+		<string>return macruby_main(&quot;rb_main.rb&quot;, argc, argv);</string>
+		<key>main.m:import:importMacruby</key>
+		<string>#import &lt;MacRuby/MacRuby.h&gt;
+</string>
+		<key>___PACKAGENAME___-Info.plist:ApplicationCategory</key>
+		<string>&lt;key&gt;LSApplicationCategoryType&lt;/key&gt;
+&lt;string&gt;___VARIABLE_applicationCategory___&lt;/string&gt;
+		</string>
+		<key>___PACKAGENAME___-Info.plist:MacRuby</key>
+		<string>&lt;key&gt;CFBundleShortVersionString&lt;/key&gt;
+&lt;string&gt;1.0&lt;/string&gt;
+&lt;key&gt;LSMinimumSystemVersion&lt;/key&gt;
+&lt;string&gt;${MACOSX_DEPLOYMENT_TARGET}&lt;/string&gt;
+&lt;key&gt;CFBundleVersion&lt;/key&gt;
+&lt;string&gt;1&lt;/string&gt;
+&lt;key&gt;NSMainNibFile&lt;/key&gt;
+&lt;string&gt;MainMenu&lt;/string&gt;
+&lt;key&gt;NSPrincipalClass&lt;/key&gt;
+&lt;string&gt;NSApplication&lt;/string&gt;
+</string>
+		<key>en.lproj/MainMenu.xib</key>
+		<dict>
+			<key>Path</key>
+			<string>MainMenuApp.xib</string>
+			<key>Group</key>
+			<string>Resources</string>
+		</dict>
+		<key>rb_main.rb</key>
+		<dict>
+			<key>Path</key>
+			<string>rb_main.rb</string>
+			<key>Group</key>
+			<string>Other Sources</string>
+		</dict>
+	</dict>
+	<key>Options</key>
+	<array>
+		<dict>
+			<key>Description</key>
+			<string>The category for your application in the Mac App Store.</string>
+			<key>Identifier</key>
+			<string>applicationCategory</string>
+			<key>Name</key>
+			<string>App Store Category</string>
+			<key>NotPersisted</key>
+			<true/>
+			<key>Placeholder</key>
+			<string>None</string>
+			<key>SpecialType</key>
+			<string>LSApplicationCategoryType</string>
+			<key>Type</key>
+			<string>popup</string>
+			<key>Units</key>
+			<dict>
+				<key></key>
+				<array>
+					<dict>
+						<key>Definitions</key>
+						<dict>
+							<key>___PACKAGENAME___-Info.plist:ApplicationCategory</key>
+							<string></string>
+						</dict>
+					</dict>
+				</array>
+			</dict>
+		</dict>
+	</array>
+</dict>
+</plist>

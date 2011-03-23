@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Kind</key>
+	<string>Xcode.Xcode3.ProjectTemplateUnitKind</string>
+	<key>Identifier</key>
+	<string>com.apple.dt.unit.macrubyApplicationBase</string>
+	<key>Ancestors</key>
+	<array>
+		<string>com.apple.dt.unit.objectiveCApplication</string>
+	</array>
+	<key>Targets</key>
+	<array>
+		<dict>
+			<!-- We want the GC to be enabled in all projects -->
+			<key>SharedSettings</key>
+			<dict>
+				<key>GCC_ENABLE_OBJC_GC</key>
+				<string>required</string>
+			</dict>
+			<!-- 
+			Don't forget to include MacRuby
+			In temp. Xcode 4, the Framework path is 
+			/Xcode4/SDKs/MacOSX10.6.sdk/System/Library/Frameworks
+			MacRuby might need to be copied in this folder
+			-->
+			<key>Frameworks</key>
+			<array>
+				<string>Cocoa</string>
+				<string>MacRuby</string>
+			</array>
+		</dict>
+		<dict>
+			<key>Name</key>
+			<string>Deployment</string>
+			<key>TargetType</key>
+			<string>Legacy</string>
+			<key>BuildToolPath</key>
+			<string>/usr/local/bin/macruby_deploy</string>
+			<key>BuildToolArgsString</key>
+			<string>--compile --embed</string>
+		</dict>
+	</array>
+	<key>Definitions</key>
+	<dict>
+		<key>*:*:initialize</key>
+		<dict>
+			<key>Beginning</key>
+			<string>def init
+	super
+	if (self != nil)</string>
+			<key>End</key>
+			<string>	end
+  self
+end
+
+</string>
+			<key>Indent</key>
+			<integer>2</integer>
+		</dict>
+		<key>*:framework:*</key>
+		<string>framework &quot;___*___&quot;
+</string>
+		<key>*:*:iboutlet:*</key>
+		<string>attr_accessor :___*___
+</string>
+		<key>*:rubyheaders</key>
+		<string>#
+#  ___FILENAME___
+#  ___PACKAGENAME___
+#
+#  Created by ___FULLUSERNAME___ on ___DATE___.
+#  Copyright ___YEAR___ ___ORGANIZATIONNAME___. All rights reserved.
+#
+</string>
+</dict>
+</dict>
+</plist>

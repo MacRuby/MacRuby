@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Kind</key>
+	<string>Xcode.Xcode3.ProjectTemplateUnitKind</string>
+	<key>Identifier</key>
+	<string>com.apple.dt.unit.macrubyDocumentBasedApplication</string>
+	<key>Ancestors</key>
+	<array>
+		<string>com.apple.dt.unit.macrubyApplication</string>
+	</array>
+	<key>Options</key>
+	<array>
+		<dict>
+			<key>Identifier</key>
+			<string>documentBased</string>
+			<key>Name</key>
+			<string>Create Document-Based Application</string>
+			<key>Description</key>
+			<string>Indicates whether the application should be document-based (versus a single window app).</string>
+			<key>Type</key>
+			<string>checkbox</string>
+			<key>Default</key>
+			<string>false</string>
+			<key>Units</key>
+			<dict>
+				<!-- What to do if this option is true -->
+				<key>true</key>
+				<dict>
+					<key>Nodes</key>
+					<array>
+						<string>___VARIABLE_documentClassName:identifier___.rb:rubyheaders</string>
+						<string>___VARIABLE_documentClassName:identifier___.rb:implementation</string>
+						<string>___VARIABLE_documentClassName:identifier___.rb:implementation:initialize:comments</string>
+						<string>___VARIABLE_documentClassName:identifier___.rb:implementation:windowNibName:comments</string>
+						<string>___VARIABLE_documentClassName:identifier___.rb:implementation:windowNibName:code</string>
+						<string>___VARIABLE_documentClassName:identifier___.rb:implementation:windowControllerDidLoadNib:super</string>
+						<string>___VARIABLE_documentClassName:identifier___.rb:implementation:windowControllerDidLoadNib:comments</string>
+						<string>en.lproj/___VARIABLE_documentClassName:identifier___.xib</string>
+						<string>en.lproj/MainMenu.xib</string>
+						<string>___PACKAGENAME___-Info.plist:DocumentTypes</string>
+					</array>
+					<key>Definitions</key>
+					<dict>
+						<key>en.lproj/MainMenu.xib</key>
+						<dict>
+							<key>Path</key>
+							<string>MainMenuDoc.xib</string>
+						</dict>
+						<key>___PACKAGENAMEASIDENTIFIER___-Info.plist:DocumentTypes</key>
+						<string>&lt;key&gt;CFBundleDocumentTypes&lt;/key&gt;
+&lt;array&gt;
+	&lt;dict&gt;
+		&lt;key&gt;CFBundleTypeExtensions&lt;/key&gt;
+		&lt;array&gt;
+			&lt;string&gt;___VARIABLE_documentExtension___&lt;/string&gt;
+		&lt;/array&gt;
+		&lt;key&gt;CFBundleTypeIconFile&lt;/key&gt;
+		&lt;string&gt;&lt;/string&gt;
+		&lt;key&gt;CFBundleTypeName&lt;/key&gt;
+		&lt;string&gt;DocumentType&lt;/string&gt;
+		&lt;key&gt;CFBundleTypeOSTypes&lt;/key&gt;
+		&lt;array&gt;
+			&lt;string&gt;????&lt;/string&gt;
+		&lt;/array&gt;
+		&lt;key&gt;CFBundleTypeRole&lt;/key&gt;
+		&lt;string&gt;Editor&lt;/string&gt;
+		&lt;key&gt;NSDocumentClass&lt;/key&gt;
+		&lt;string&gt;___VARIABLE_documentClassName:identifier___&lt;/string&gt;
+	&lt;/dict&gt;
+&lt;/array&gt;
+</string>
+						<key>___VARIABLE_documentClassName:identifier___.rb:implementation</key>
+						<dict>
+							<key>Beginning</key>
+							<string>class ___VARIABLE_documentClassName:identifier___ &lt; NSDocument</string>
+							<key>End</key>
+							<string>end
+
+</string>
+							<key>Indent</key>
+							<integer>1</integer>
+						</dict>
+						<key>___VARIABLE_documentClassName:identifier___.rb:implementation:initialize:comments</key>
+						<string># Add your subclass-specific initialization here.
+# If an error occurs here, return nil.
+</string>
+						<key>___VARIABLE_documentClassName:identifier___.rb:implementation:windowNibName</key>
+						<dict>
+							<key>Beginning</key>
+							<string>def windowNibName</string>
+							<key>End</key>
+							<string>end
+
+</string>
+							<key>Indent</key>
+							<integer>1</integer>
+						</dict>
+						<key>___VARIABLE_documentClassName:identifier___.rb:implementation:windowNibName:comments</key>
+						<string># Override returning the nib file name of the document
+# If you need to use a subclass of NSWindowController or if your document supports multiple NSWindowControllers, you should remove this method and override -makeWindowControllers instead.
+</string>
+						<key>___VARIABLE_documentClassName:identifier___.rb:implementation:windowNibName:code</key>
+						<string>&quot;___VARIABLE_documentClassName:identifier___&quot;
+</string>
+						<key>___VARIABLE_documentClassName:identifier___.rb:implementation:windowControllerDidLoadNib</key>
+						<dict>
+							<key>Beginning</key>
+							<string>def windowControllerDidLoadNib(aController)</string>
+							<key>End</key>
+							<string>end
+
+</string>
+							<key>Indent</key>
+							<integer>1</integer>
+						</dict>
+						<key>___VARIABLE_documentClassName:identifier___.rb:implementation:windowControllerDidLoadNib:super</key>
+						<string>super
+</string>
+						<key>___VARIABLE_documentClassName:identifier___.rb:implementation:windowControllerDidLoadNib:comments</key>
+						<string># Add any code here that needs to be executed once the windowController has loaded the document&apos;s window.
+</string>
+						<key>en.lproj/___VARIABLE_documentClassName:identifier___.xib</key>
+						<dict>
+							<key>Path</key>
+							<string>Document.xib</string>
+						</dict>
+					</dict>
+				</dict>
+				<!--
+				What to do when this option is false. This needs to stay here,
+				even though it only applies to the "MacRuby Application" template
+				-->
+				<key>false</key>
+				<dict>
+					<key>Nodes</key>
+					<array>
+						<string>AppDelegate.rb:rubyheaders</string>
+						<string>AppDelegate.rb:implementation</string>
+						<string>AppDelegate.rb:implementation:iboutlet:window</string>
+						<string>AppDelegate.rb:implementation:applicationDidFinishLaunching:comments</string>
+						<string>en.lproj/MainMenu.xib</string>
+					</array>
+					<key>Definitions</key>
+					<dict>
+						<key>AppDelegate.rb:implementation</key>
+						<dict>
+							<key>Beginning</key>
+							<string>class AppDelegate</string>
+							<key>End</key>
+							<string>end
+</string>
+							<key>Indent</key>
+							<integer>1</integer>
+						</dict>
+						<key>AppDelegate.rb:implementation:applicationDidFinishLaunching</key>
+						<dict>
+							<key>Beginning</key>
+							<string>def applicationDidFinishLaunching(a_notification)</string>
+							<key>End</key>
+							<string>end
+</string>
+							<key>Indent</key>
+							<integer>1</integer>
+						</dict>
+						<key>AppDelegate.rb:implementation:applicationDidFinishLaunching:comments</key>
+						<string># Insert code here to initialize your application
+</string>
+					</dict>
+				</dict>
+			</dict>
+		</dict>
+		<dict>
+			<key>RequiredOptions</key>
+			<dict>
+				<key>documentBased</key>
+				<string>true</string>
+			</dict>
+			<key>Identifier</key>
+			<string>documentClassName</string>
+			<key>Required</key>
+			<true/>
+			<key>Name</key>
+			<string>Document Class</string>
+			<key>Description</key>
+			<string>The name of your NSDocument subclass.</string>
+			<key>Type</key>
+			<string>text</string>
+			<key>Default</key>
+			<string>MyDocument</string>
+		</dict>
+		<dict>
+			<key>RequiredOptions</key>
+			<dict>
+				<key>documentBased</key>
+				<string>true</string>
+			</dict>
+			<key>Identifier</key>
+			<string>documentExtension</string>
+			<key>Required</key>
+			<true/>
+			<key>Name</key>
+			<string>Document Extension</string>
+			<key>Description</key>
+			<string>The extension for your document type.</string>
+			<key>Type</key>
+			<string>text</string>
+			<key>Default</key>
+			<string>mydoc</string>
+		</dict>
+	</array>
+</dict>
+</plist>
