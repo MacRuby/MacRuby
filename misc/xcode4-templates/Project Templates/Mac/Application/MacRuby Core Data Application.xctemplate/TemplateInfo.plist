@@ -169,22 +169,22 @@ end
 # Creates if necessary and returns the managed object model for the application.
 #
 def managedObjectModel
-    if @managedObjectModel.nil?
+    unless @managedObjectModel
       model_url = NSBundle.mainBundle.URLForResource(&quot;___PACKAGENAMEASIDENTIFIER___&quot;, withExtension:&quot;momd&quot;)
       @managedObjectModel = NSManagedObjectModel.alloc.initWithContentsOfURL(model_url)
-    else
-      @managedObjectModel
     end
+    
+    @managedObjectModel
 end
 
 #
 # Returns the persistent store coordinator for the application. This implementation creates and return a coordinator, having added the store for the application to it. (The directory for the store is created, if necessary.)
 #
 def persistentStoreCoordinator
-    return @persistentStoreCoordinator unless @persistentStoreCoordinator.nil?
+    return @persistentStoreCoordinator if @persistentStoreCoordinator
 
     mom = self.managedObjectModel
-    if mom.nil?
+    unless mom
         puts &quot;#{self.class} No model to generate a store from&quot;
         return nil
     end
@@ -211,7 +211,6 @@ def persistentStoreCoordinator
 
             NSApplication.sharedApplication.presentError(error)
             return nil
-        end
     end
 
     url = directory.URLByAppendingPathComponent(&quot;___PACKAGENAMEASIDENTIFIER___.storedata&quot;)
@@ -230,11 +229,10 @@ end
 # bound to the persistent store coordinator for the application.) 
 #
 def managedObjectContext
-    return @managedObjectContext unless @managedObjectContext.nil?
-
+    return @managedObjectContext if @managedObjectContext
     coordinator = self.persistentStoreCoordinator
 
-    if coordinator.nil?
+    unless coordinator
         dict = {
             NSLocalizedDescriptionKey => &quot;Failed to initialize the store&quot;,
             NSLocalizedFailureReasonErrorKey => &quot;There was an error building up the data file.&quot;
@@ -275,7 +273,7 @@ end
 def applicationShouldTerminate(sender)
     # Save changes in the application's managed object context before the application terminates.
 
-    return NSTerminateNow if @managedObjectContext.nil?
+    return NSTerminateNow unless @managedObjectContext
 
     unless self.managedObjectContext.commitEditing
         puts &quot;%@ unable to commit editing to terminate&quot; % self.class
@@ -288,9 +286,7 @@ def applicationShouldTerminate(sender)
     error = Pointer.new_with_type('@')
     unless self.managedObjectContext.save(error)
         # Customize this code block to include application-specific recovery steps.
-        if sender.presentError(error[0]) == true
-            return NSTerminateCancel
-        end
+        return NSTerminateCancel if sender.presentError(error[0])
 
         alert = NSAlert.alloc.init
         alert.messageText = &quot;Could not save changes while quitting. Quit anyway?&quot;
@@ -299,10 +295,7 @@ def applicationShouldTerminate(sender)
         alert.addButtonWithTitle &quot;Cancel&quot;
 
         answer = alert.runModal
-        if (answer == NSAlertAlternateReturn)
-            return NSTerminateCancel
-        end
-
+        return NSTerminateCancel if answer == NSAlertAlternateReturn
     end
 
     NSTerminateNow
