@@ -146,7 +146,7 @@ class Builder
   
   def locate_headers(cont, src)
     txt = File.read(src)
-    txt.scan(/#include\s+\"([^"]+)\"/).flatten.each do |header|
+    txt.scan(/#\s*include\s+\"([^"]+)\"/).flatten.each do |header|
       p = header_path(header)
       if p and !cont.include?(p)
         cont << p

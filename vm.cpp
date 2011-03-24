@@ -4914,7 +4914,7 @@ class_has_custom_resolver(Class klass)
 #endif
 
 #if !defined(MACRUBY_STATIC)
-# include "./.objs/kernel_data.c"
+# include ".objs/kernel_data.c"
 #endif
 
 extern "C"
