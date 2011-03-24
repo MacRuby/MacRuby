@@ -1,3 +1,0 @@
-fails:IO.try_convert does not call #to_io on an IO instance
-fails:IO.try_convert raises a TypeError if the object does not return an IO from #to_io
-fails:IO.try_convert propagates an exception raised by #to_io

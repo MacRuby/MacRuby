@@ -1,1 +1,0 @@
-critical:BigDecimal.new doesn't segfault when using a very large string to build the number

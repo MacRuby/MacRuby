@@ -1,2 +1,0 @@
-fails:String#inspect returns a string with \#<char> when # is followed by $, @, {
-fails:String#inspect returns a string with non-printing, characters replaced by \u notation for Unicode strings

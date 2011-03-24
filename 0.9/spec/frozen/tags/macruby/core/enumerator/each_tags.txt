@@ -1,2 +1,0 @@
-fails:Enumerator#each calls #each on the underlying object until it's exhausted
-fails:Enumerator#each calls the method given in the constructor until it's exhausted

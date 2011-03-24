@@ -1,1 +1,0 @@
-fails:Digest::SHA256#size returns the length of the digest

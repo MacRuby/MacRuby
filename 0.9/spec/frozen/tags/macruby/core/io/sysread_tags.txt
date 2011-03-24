@@ -1,1 +1,0 @@
-fails:IO#sysread on a file coerces the second argument to string and uses it as a buffer

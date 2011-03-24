@@ -1,1 +1,0 @@
-assert ':ok', 'a = [:ok]; p a[-1]'

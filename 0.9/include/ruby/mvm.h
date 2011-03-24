@@ -1,1 +1,0 @@
-/* This header exists for CRuby compatibility. */

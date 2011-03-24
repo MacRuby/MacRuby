@@ -1,5 +1,0 @@
-fails:String#% raises an ArgumentError for unused arguments when $DEBUG is true
-fails:String#% replaces trailing absolute argument specifier without type with percent sign
-fails:String#% calls to_int on width star and precision star tokens
-fails:String#% taints result for %s when argument is tainted
-fails:String#% raises an ArgumentError for huge precisions for %s

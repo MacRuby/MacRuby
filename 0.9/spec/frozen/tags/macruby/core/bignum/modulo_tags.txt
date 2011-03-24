@@ -1,2 +1,0 @@
-fails:Bignum#% returns the modulus obtained from dividing self by the given argument
-fails:Bignum#modulo returns the modulus obtained from dividing self by the given argument

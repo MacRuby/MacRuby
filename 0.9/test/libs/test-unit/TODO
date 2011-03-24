@@ -1,5 +1,0 @@
-* mock.
-* data-driven test.
-* port ruby trunk's assert_equal's intelligent inspection
-  when inspected expected and actual are same content
-  string.

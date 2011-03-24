@@ -1,1 +1,0 @@
-assert ':ok', 'BEGIN { p :ok }'

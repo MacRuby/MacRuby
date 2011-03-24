@@ -1,2 +1,0 @@
-critical:IO#each_line when passed a String containing one space as a separator tries to convert the passed separator to a String using #to_str
-fails:IO#each_line when passed an empty String as a separator yields each paragraph

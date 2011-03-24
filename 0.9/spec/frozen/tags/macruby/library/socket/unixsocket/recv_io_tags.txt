@@ -1,1 +1,0 @@
-fails:UNIXSocket#recv_io takes an optional mode to use

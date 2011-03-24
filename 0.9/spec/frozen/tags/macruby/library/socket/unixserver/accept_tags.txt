@@ -1,2 +1,0 @@
-critical:UNIXServer#accept can be interrupted by Thread#kill
-critical:UNIXServer#accept can be interrupted by Thread#raise

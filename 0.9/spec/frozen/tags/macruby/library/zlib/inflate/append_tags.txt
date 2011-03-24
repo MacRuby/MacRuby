@@ -1,2 +1,0 @@
-fails:Zlib::Inflate#<< properly handles excessive data, byte-by-byte
-fails:Zlib::Inflate#<< properly handles excessive data, in one go

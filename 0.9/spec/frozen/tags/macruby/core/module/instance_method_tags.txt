@@ -1,1 +1,0 @@
-fails:Module#instance_method gives UnboundMethod method name, Module defined in and Module extracted from

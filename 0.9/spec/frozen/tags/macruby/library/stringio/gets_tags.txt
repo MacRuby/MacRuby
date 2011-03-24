@@ -1,1 +1,0 @@
-fails:StringIO#gets when passed [separator] accepts string as separator

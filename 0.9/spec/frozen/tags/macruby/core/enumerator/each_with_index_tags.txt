@@ -1,1 +1,0 @@
-fails:Enumerator#each_with_index raises an ArgumentError if passed extra arguments

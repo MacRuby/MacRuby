@@ -1,1 +1,0 @@
-fails:module raises a TypeError if the constant is a class

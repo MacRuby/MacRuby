@@ -1,2 +1,0 @@
-fails:IO#ungetc adjusts the stream position
-fails:IO#ungetc makes subsequent unbuffered operations to raise IOError

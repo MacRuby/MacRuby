@@ -1,2 +1,0 @@
-fails:Constant resolution within methods with statically assigned constants searches Object as a lexical scope only if Object is explicitly opened
-fails:Constant resolution within methods with dynamically assigned constants searches Object as a lexical scope only if Object is explicitly opened

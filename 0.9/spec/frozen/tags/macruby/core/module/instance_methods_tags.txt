@@ -1,1 +1,0 @@
-fails:Module#instance_methods does not return methods undefined in a subclass

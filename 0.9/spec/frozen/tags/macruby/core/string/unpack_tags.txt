@@ -1,2 +1,0 @@
-fails:String#unpack with 'M' directive decodes the rest of the string as MIMEs quoted-printable
-fails:String#unpack with 'm' directive returns an array by decoding self according to the format string

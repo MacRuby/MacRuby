@@ -1,1 +1,0 @@
-fails:Delegator#public_methods includes public methods of the delegate object
