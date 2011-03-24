@@ -1,0 +1,1 @@
+fails:Array#sort_by! returns the specified value when it would break in the given block

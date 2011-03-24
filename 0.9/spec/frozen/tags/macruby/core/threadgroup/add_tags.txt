@@ -1,0 +1,2 @@
+fails:ThreadGroup#add removes itself from any other threadgroup
+fails:ThreadGroup#add adds the given thread to a group and returns self

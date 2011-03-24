@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Description</key>
+	<string>This project builds a preference pane bundle written in MacRuby that can be used with the System Preferences application.</string>
+	<key>FilesToMacroExpand</key>
+	<array>
+	  <string>Info.plist</string>
+		<string>PrefPane.m</string>
+		<string>PrefPane.rb</string>
+		<string>PrefPane_prefix.pch</string>
+		<string>English.lproj/InfoPlist.strings</string>
+		<string>«PROJECTNAMEASIDENTIFIER».xcodeproj/project.pbxproj</string>
+	</array>
+	<key>FilesToRename</key>
+	<dict>
+	  <key>PrefPanePref.tiff</key>
+	  <string>«PROJECTNAMEASIDENTIFIER».tiff</string>
+	  <key>English.lproj/PrefPanePref.xib</key>
+	  <string>English.lproj/«PROJECTNAMEASIDENTIFIER».xib</string>
+	  <key>PrefPane.xcodeproj/project.pbxproj</key>
+	  <string>«PROJECTNAMEASIDENTIFIER».xcodeproj/project.pbxproj</string>
+	</dict>
+</dict>
+</plist>

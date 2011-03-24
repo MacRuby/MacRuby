@@ -1,0 +1,1 @@
+fails:StringScanner#pre_match is not changed when the scanner's position changes

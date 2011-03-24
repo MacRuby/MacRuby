@@ -1,0 +1,2 @@
+critical:IO#each_char returns an Enumerator when passed no block
+critical:IO#each_char yields each character

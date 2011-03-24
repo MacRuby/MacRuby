@@ -1,0 +1,2 @@
+fails:Prime.prime_division returns [[-1, 1]] for -1
+fails:Prime.prime_division includes [[-1, 1]] in the divisors of a negative number

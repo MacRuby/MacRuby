@@ -1,0 +1,2 @@
+fails:Module#public on a superclass method calls the redefined method
+fails:Module#public makes a private Object instance method public in Kernel

@@ -1,0 +1,38 @@
+.Dd May 20, 2010
+.Dt IRB 1
+.Os
+.Sh NAME
+.Nm macirb , macerb , macri , macrdoc
+.Nd MacRuby helper programs
+.Sh SYNOPSIS
+.Nm macirb
+.Op Ar options
+.Op Ar programfile
+.Op Ar arguments
+.Nm macerb
+.Op Ar switches
+.Op Ar inputfile
+.Nm macri
+.Op Ar options
+.Op Ar names ...
+.Nm macrdoc
+.Op Ar options
+.Op Ar names ...
+.Sh DESCRIPTION
+These are various helper programs that are part of the Ruby distribution. For more information about a specific program, you can use its
+.Fl -help
+flag.
+.Pp
+.Nm macirb
+is the interactive MacRuby interpreter.
+.Pp
+.Nm macerb
+is Tiny eRuby, which interprets a file with embedded Ruby code.
+.Pp
+.Nm macri
+displays information about Ruby classes, modules, and methods.
+.Pp
+.Nm macrdoc
+generates Ruby documentation.
+.Sh SEE ALSO
+.Xr macruby 1

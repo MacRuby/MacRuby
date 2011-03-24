@@ -1,0 +1,2 @@
+fails:IO#getc returns the next character from the stream
+fails:IO#getc returns nil on empty stream

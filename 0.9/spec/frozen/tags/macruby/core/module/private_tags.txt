@@ -1,0 +1,1 @@
+fails:Module#private makes a public Object instance method private in Kernel

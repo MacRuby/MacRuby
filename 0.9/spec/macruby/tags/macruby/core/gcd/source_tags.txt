@@ -1,0 +1,6 @@
+fails:Dispatch::Source of type file: READ does close file when cancelled given IO
+fails:Dispatch::Source of type file: WRITE does close file when cancelled given IO
+fails:Dispatch::Source of type file: VNODE fires with data showing mask of vnode events
+#fails:Dispatch::Source of type file: VNODE does not close file when cancelled given descriptor
+#fails:Dispatch::Source of type PROC fires on process event with event mask data
+

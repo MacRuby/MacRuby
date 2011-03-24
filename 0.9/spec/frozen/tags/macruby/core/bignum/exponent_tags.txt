@@ -1,0 +1,2 @@
+fails:Bignum#** returns self raised to other power
+fails:Bignum#** returns a complex number when negative and raised to a fractional power

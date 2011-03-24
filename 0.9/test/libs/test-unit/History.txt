@@ -1,0 +1,107 @@
+=== 2.0.3 / 2009-07-19
+
+* 6 major enhancements
+  * add assert_predicate.
+  * add assert_not_predicate.
+  * [#24210] assert_kind_of supports an array of classes or modules.
+    [Daniel Berger]
+  * assert_instance_of supports an array of classes or modules.
+  * add --default-priority option.
+  * [#26627] add --order option. [Daniel Berger]
+
+* 4 minor enhancements
+  * use yellow foreground + black background for error.
+  * don't show diff for long string.
+  * accept "*term-color" TERM environment as colorizable terminal.
+    (e.g. Apple's Terminal)
+  * [#26268] add a workaround for test-spec's after_all. [Angelo Lakra]
+
+* 1 bug fix
+  * [#23586] re-support ruby 1.9.1. [Diego Pettenò]
+
+* Thanks
+  * Diego Pettenò
+  * Daniel Berger
+  * Angelo Lakra
+
+=== 2.0.2 / 2008-12-21
+
+* 2 major enhancements
+
+  * re-support ruby 1.8.5.
+  * improve exception object comparison.
+
+* 3 bug fixes
+
+  * [#22723]: collector fails on anonymous classes
+  * [#22986]: Test names with '?' blow up on Windows
+  * [#22988]: don't create .test-result on non-priority mode.
+
+* Thanks
+
+  * Erik Hollensbe
+  * Daniel Berger
+  * Bill Lear
+
+=== 2.0.1 / 2008-11-09
+
+* 19 major enhancements
+
+  * support ruby 1.9.1.
+  * add run_test method to be extensible.
+  * improve priority-mode auto off.
+  * improve startup/shutdown RDoc. [Daniel Berger]
+  * add assert_compare. [#20851] [Designing Patterns]
+  * add assert_fail_assertion. [#20851] [Designing Patterns]
+  * add assert_raise_message. [#20851] [Designing Patterns]
+  * support folded diff.
+  * add assert_raise_kind_of. [Daniel Berger]
+  * ingore inherited test for nested test case.
+  * add assert_const_defined.
+  * add assert_not_const_defined.
+  * support assert_raise with an exception object.
+  * support assert_raise with no arguments that asserts any
+    exception is raised. [#22602] [Daniel Berger]
+  * support folded dot progress.
+  * add --progress-row-max option.
+  * support color scheme customize.
+  * support configuration file. (YAML)
+  * recognize test-XXX.rb files as test files not only test_XXX.rb
+
+* Thanks
+
+  * Daniel Berger
+  * Designing Patterns
+
+=== 2.0.0 / 2008-06-18
+
+* 15 major enhancements
+
+  * support startup/shutdown. (test case level setup/teardown)
+  * support multiple setup/teardown.
+  * support pending.
+  * support omission.
+  * support notification.
+  * support colorize.
+  * support diff.
+  * support test attribute.
+  * add assert_boolean.
+  * add assert_true.
+  * add assert_false.
+  * add --priority-mode option.
+  * don't use ObjectSpace to collect test cases.
+  * make more customizable. (additional options, exception handling and so on)
+  * improve Emacs integration.
+
+* 4 major changes
+
+  * remove GTK+1 support.
+  * split GTK+ runner as another gem.
+  * split FOX runner as another gem.
+  * split Tk runner as another gem.
+
+=== 1.2.3 / 2008-02-25
+
+* 1 major enhancement
+
+  * Birthday (as a gem)!

@@ -1,0 +1,2 @@
+fails:String#delete negates sets starting with ^
+fails:String#delete deletes all chars in a sequence

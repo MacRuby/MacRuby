@@ -1,0 +1,2 @@
+fails:The return keyword within a begin executes the ensure clause when begin/ensure are inside a lambda
+fails:The return keyword within define_method stops at the method when the return is used directly

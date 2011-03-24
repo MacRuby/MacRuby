@@ -1,0 +1,26 @@
+{
+    IBClasses = (
+        {
+            ACTIONS = {
+                startAnimation = id; 
+                stopAnimation = id; 
+                takeAngularVelocityFrom = id; 
+                takeColorFrom = id; 
+                takeRadiusFrom = id; 
+                takeStartingAngleFrom = id; 
+                takeStringFrom = id; 
+                toggleAnimation = id; 
+            }; 
+            CLASS = CircleView; 
+            LANGUAGE = ObjC; 
+            SUPERCLASS = NSView; 
+        }, 
+        {
+            ACTIONS = {showHelp = id; }; 
+            CLASS = FirstResponder; 
+            LANGUAGE = ObjC; 
+            SUPERCLASS = NSObject; 
+        }
+    ); 
+    IBVersion = 1; 
+}

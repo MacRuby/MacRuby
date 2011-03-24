@@ -1,0 +1,165 @@
+== Hacking MacRuby
+
+Please read this file if you are considering hacking MacRuby. It provides
+tips in order to better hack MacRuby and also suggestions on how to submit a
+patch.
+
+=== Coding Style
+
+You need to conform to the following coding style in order to get a patch
+accepted:
+
+* Indentation starts with 4 space characters, then 1 tabulation (hard), then
+  1 tabulation (hard) followed by 4 space characters, then 2 tabulations
+  (hard), etc.
+
+  This is the indentation style that was inherited from the original Ruby source
+  code, so we are preserving it.
+
+* Insert a new line between the type and the name of a function during its
+  definition and start the opening brace on a new line too.
+
+    static void
+    do_something(void)
+    {
+        ...
+    }
+
+* A space must be inserted between keywords and their operand and branches must
+  be written so that an ending brace is always at the end of a line.
+
+    if (some_boolean) {
+        ...
+    }
+    else {
+        ...
+    }
+
+* Branches with only one expression must still be covered by braces, even
+  if it's not mandatory in the C language. Also, do not write one-liner
+  branches.
+
+    if (some_boolean)
+        do_something(); /* bad */
+    if (some_boolean) do_something(); /* bad */
+
+    if (some_boolean) {
+        /* good */
+        do_something();
+    }
+
+* A space must be inserted between operators operands.
+
+    int i, x = 40 + 2;
+    for (i = 0; i < x; i++) {
+        ...
+    }
+
+* Do not insert a space between a function call and its first brace.
+
+    do_something();
+
+* A space must be inserted after every argument in a function call.
+
+    do_something(x, y, z);
+
+* Never pass a non-boolean value as it is to a conditional expression.
+
+    void *ptr = do_something();
+    if (!ptr) {
+        /* bad */
+    }
+
+    if (ptr != NULL) {
+        /* good */
+    }
+
+* Respect the 80 columns rule when possible. You can violate this rule in case
+  the line contains a long string.
+
+* In case you need to split multiple conditional expressions into multiple
+  lines, make sure there is a new line before the operator(s).
+
+    if (do_something ||
+        do_something2()) {
+        /* bad */
+        do_something3();
+    }
+
+    if (do_something()
+        || do_something2()) {
+        /* good */
+        do_something3();
+    }
+
+=== Code Design
+
+* Please declare variables as you use them. The whole project is built under the
+  C99 mode so newer constructs are also recommended (such as the definition of
+  iterator variables in 'for' loops).
+
+* Please use the 'const' qualifier for scalar variables that are not supposed to
+  change.
+
+* Use 'assert' or 'abort' for situations that should never happen. It is not a
+  problem if you abuse of this, just be clever.
+
+* Do not use 'alloca' unless you know what you are doing.
+
+=== Debugging
+
+==== Environment variables
+
+The following environment variables might help you debug easy bugs.
+
+* GC_DISABLE: set it to any value to disable the GC.
+
+* GC_DEBUG: set it to any value to enable GC debugging on $stderr.
+
+* VM_DISABLE_RBO: set it to any value to disable the load of .rbo files.
+
+* VM_DISABLE_INTERPRETER: set it to any value to disable the use of the
+  builtin interpreter (generally used on cold paths).
+
+* VM_DUMP_IR: set it to any value to dump the LLVM IR on $stderr before the
+  interpreter quits.
+
+* VM_VERIFY_IR: set it to any value to force a LLVM module verification before
+  the interpreter quits.
+
+* VM_OPT_LEVEL: set it either to 0, 1, 2 or 3 to change the optimization level
+  of the LLVM code generator.
+
+* VM_KERNEL_PATH: specify a path to a kernel bitcode file to be used instead of
+  the hardcoded one, when deserializing the main module. This is useful when
+  cross-compiling Ruby code to a different architecture.
+
+* DYLD_LIBRARY_PATH: in case you are debugging a Cocoa application, set this 
+  variable to "." before starting gdb, and you won't have to re-install MacRuby
+  every time you re-compile it.
+
+* AUTO_USE_TLC: set this variable to 0 to disable the thread local collector.
+
+==== GDB tricks
+
+* Break on rb_exc_raise to intercept pure Ruby exceptions. You can use a
+  conditional break point in case you only want to break if a specific
+  exception class is being raised:
+  (gdb) b rb_exc_raise
+  Breakpoint 1 at 0x20c49ba5453254: file eval.c, line 312.
+  (gdb) cond 1 *(void **)mesg == rb_eArgError
+
+* To dump the LLVM IR:
+  (gdb) p RoxorCompiler::shared->module->dump()
+
+* To print the list of current active blocks:
+  (gdb) p (char *)RoxorVM::current->debug_blocks()
+
+* To print the list of current active exceptions:
+  (gdb) p (char *)RoxorVM::current->debug_exceptions()
+
+* To determine if a given object is thread-local:
+  (gdb) p (int)gdb_is_local(<address>)
+
+* To symbolize a Ruby address (named as ??) in the backtrace:
+  (gdb) p (void)rb_symbolicate(<address>)

@@ -1,0 +1,1 @@
+fails:BasicObject metaclass has Class as superclass

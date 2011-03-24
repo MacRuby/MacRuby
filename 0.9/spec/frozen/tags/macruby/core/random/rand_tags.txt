@@ -1,0 +1,1 @@
+fails:Random#rand with Bignum typically returns a Bignum

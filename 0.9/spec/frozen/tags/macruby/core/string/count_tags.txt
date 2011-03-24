@@ -1,0 +1,2 @@
+fails:String#count negates sets starting with ^
+fails:String#count counts all chars in a sequence

@@ -1,0 +1,1 @@
+fails:Module#remove_const removes the constant specified by a String or Symbol from the receiver's constant table

@@ -1,0 +1,43 @@
+.Dd Mac 20, 2010
+.Dt MACRUBY_DEPLOY 1
+.Os
+.Sh NAME
+.Nm macruby_deploy
+.Nd Embed the MacRuby runtime inside an application bundle
+.Sh SYNOPSIS
+.Nm macruby_deploy
+.Op Ar options
+.Ar application-bundle
+.Sh DESCRIPTION
+.Nm macruby_deploy
+is a command-line tool that embeds the MacRuby runtime inside a specific application bundle, thus allowing the deployment of the application on computers that do not have MacRuby installed.
+.Sh OPTIONS
+.Nm macruby_deploy
+accepts the following arguments:
+.Bl -tag -width "123"
+.It Fl -compile
+Compile the bundle source code
+.It Fl -embed
+Embed MacRuby inside the bundle
+.It Fl -no-stdlib
+Do not embed the standard library (creates smaller bundles)
+.It Fl -stdlib Ar lib
+Embed only
+.Ar lib
+from the standard library
+.It Fl -gem Ar gem
+Embed
+.Ar gem
+and its dependencies
+.It Fl -bs
+Embed the BridgeSupport system files
+.It Fl -verbose
+Log actions to standard out
+.It Fl v , Fl -version
+Display the version
+.El
+.Sh SEE ALSO
+.Xr macruby 1 ,
+.Xr macirb 1 ,
+.Xr macrubyc 1 ,
+.Xr macrubyd 1

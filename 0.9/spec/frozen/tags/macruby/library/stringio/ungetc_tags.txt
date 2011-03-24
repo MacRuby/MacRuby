@@ -1,0 +1,1 @@
+fails:StringIO#ungetc when passed [char] pads with \

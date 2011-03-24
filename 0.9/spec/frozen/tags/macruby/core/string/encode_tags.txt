@@ -1,0 +1,2 @@
+fails:String#encode raises Encoding::ConverterNotFoundError for invalid target encodings
+fails:String#encode! raises Encoding::ConverterNotFoundError for invalid target encodings

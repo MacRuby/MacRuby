@@ -1,0 +1,63 @@
+#!/usr/bin/env ruby
+
+require 'irb'
+
+IRB_CONTEXT_TOPLEVEL_ARGS = [self, TOPLEVEL_BINDING.dup]
+
+module IRB
+  # Just a namespace so not to pollute the toplevel namespace with lvars.
+  module Bin
+    driver = nil
+    ignore_irbrc = false
+    
+    unless ARGV.empty?
+      require 'optparse'
+      
+      OptionParser.new do |opt|
+        bin = File.basename($0)
+        opt.banner = "Usage:  #{bin} [options] [programfile] [arguments]"
+        opt.on("-f",              "Ignore ~/.irbrc")                                 { |i| ignore_irbrc = i }
+        opt.on("-r load-lib",     "Loads the given library (same as `ruby -r')")     { |l| require l }
+        opt.on("-d",              "Set $DEBUG to true (same as `ruby -d')")          { $DEBUG = true }
+        opt.on("-I path",         "Add path to $LOAD_PATH")                          { |p| $LOAD_PATH.unshift(p) }
+        opt.on("--driver name",   "As driver, use one of: tty, readline, or socket") { |d| driver = d }
+        opt.on("--noinspect",     "Don't use inspect for output")                    { IRB.formatter.inspect = false }
+        opt.on("--simple-prompt", "Simple prompt mode")                              { IRB.formatter.prompt = :simple }
+        opt.on("--noprompt",      "No prompt mode")                                  { IRB.formatter.prompt = nil }
+        opt.on("-v", "--version", "Print the version of #{bin}") do
+          $stdout.puts IRB::VERSION::DESCRIPTION
+          exit
+        end
+      end.parse!(ARGV)
+    end
+    
+    unless ignore_irbrc
+      irbrc = File.expand_path("~/.irbrc")
+      load(irbrc) if File.exist?(irbrc)
+    end
+    
+    IRB.formatter.filter_from_backtrace << /^#{__FILE__}/
+    
+    if ARGV.empty?
+      if driver == 'socket'
+        require "irb/driver/socket"
+        IRB::Driver.redirect_output! do
+          irb(*IRB_CONTEXT_TOPLEVEL_ARGS)
+        end
+      else
+        driver ||= begin
+          require 'readline'
+          'readline'
+        rescue LoadError
+          'tty'
+        end
+        require "irb/driver/#{driver}"
+        irb(*IRB_CONTEXT_TOPLEVEL_ARGS)
+      end
+    else
+      path = ARGV.shift
+      context = IRB::Context.new(*IRB_CONTEXT_TOPLEVEL_ARGS)
+      File.open(path, 'r') { |f| f.each_line { |line| context.input_line(line) } }
+    end
+  end
+end

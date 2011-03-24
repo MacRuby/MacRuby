@@ -1,0 +1,1 @@
+fails:Float#rationalize returns self as a simplified Rational with no argument

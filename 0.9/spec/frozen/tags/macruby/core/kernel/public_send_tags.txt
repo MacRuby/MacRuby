@@ -1,0 +1,4 @@
+fails:Kernel#public_send raises a NoMethodError if the method is protected
+fails:Kernel#public_send raises a NoMethodError if the named method is private
+fails:Kernel#public_send raises a NoMethodError if the named method is an alias of a private method
+fails:Kernel#public_send raises a NoMethodError if the named method is an alias of a protected method

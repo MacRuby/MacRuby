@@ -1,0 +1,1 @@
+fails:Encoding.compatible? returns nil unless both arguments are Strings

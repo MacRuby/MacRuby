@@ -1,0 +1,1 @@
+fails:StringScanner#initialize_copy copies previous match state

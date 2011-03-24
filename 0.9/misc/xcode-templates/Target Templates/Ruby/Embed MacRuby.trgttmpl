@@ -1,0 +1,13 @@
+{
+    Class = Aggregate;
+    Description = "Target that embeds MacRuby.framework inside the current application bundle. This is useful in case you want to ship a MacRuby application to users who don't necessarily have MacRuby installed.";
+    CustomBuildSettings = {
+    };
+	BuildPhases = (
+        {
+			Class = ShellScript;
+			ShellPath = "/bin/sh";
+			ShellScript = "# The macruby_deploy command-line tool with the --embed argument will make sure the MacRuby framework will be embedded in your .app. Default options will be used. Pass the -h option to get more information.\nPATH=\"$PATH:/usr/local/bin\" macruby_deploy --embed \"$TARGET_BUILD_DIR/$PROJECT_NAME.app\"";
+        },
+    );
+}

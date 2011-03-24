@@ -1,0 +1,5 @@
+fails:String#tr_s returns a string processed according to tr with newly duplicate characters removed
+fails:String#tr_s accepts c1-c2 notation to denote ranges of characters
+fails:String#tr_s pads to_str with its last char if it is shorter than from_string
+fails:String#tr_s translates chars not in from_string when it starts with a ^
+fails:String#tr_s! modifies self in place

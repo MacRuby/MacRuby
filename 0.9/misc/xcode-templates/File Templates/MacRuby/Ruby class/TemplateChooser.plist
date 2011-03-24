@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>OptionsLabel</key>
+	<string>Subclass of</string>
+	<key>PopupMenu</key>
+	<array>
+		<dict>
+			<key>Key</key>
+			<string>Obj</string>
+			<key>Title</key>
+			<string>None</string>
+		</dict>
+		<dict>
+			<key>Key</key>
+			<string>Doc</string>
+			<key>Title</key>
+			<string>NSDocument</string>
+		</dict>
+		<dict>
+			<key>Key</key>
+			<string>View</string>
+			<key>Title</key>
+			<string>NSView</string>
+		</dict>
+		<dict>
+			<key>Key</key>
+			<string>Win</string>
+			<key>Title</key>
+			<string>NSWindowController</string>
+		</dict>
+	</array>
+	<key>TemplateSelection</key>
+	<dict>
+		<key></key>
+		<string>Ruby class</string>
+		<key>Doc</key>
+		<string>Ruby NSDocument subclass</string>
+		<key>Obj</key>
+		<string>Ruby class</string>
+		<key>View</key>
+		<string>Ruby NSView subclass</string>
+		<key>Win</key>
+		<string>Ruby NSWindowController subclass</string>
+	</dict>
+</dict>
+</plist>

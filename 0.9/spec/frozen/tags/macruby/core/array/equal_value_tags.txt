@@ -1,0 +1,2 @@
+critical:Array#== handles well recursive arrays
+critical:Array#== compares with an equivalent Array-like object using #to_ary

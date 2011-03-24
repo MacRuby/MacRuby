@@ -1,0 +1,14 @@
+{
+    IBClasses = (
+        {CLASS = DemoView; LANGUAGE = ObjC; SUPERCLASS = NSView; }, 
+        {CLASS = FirstResponder; LANGUAGE = ObjC; SUPERCLASS = NSObject; }, 
+        {
+            ACTIONS = {print = id; runAgain = id; select = id; }; 
+            CLASS = PathDemoController; 
+            LANGUAGE = ObjC; 
+            OUTLETS = {button = id; demoView = id; popup = id; window = id; }; 
+            SUPERCLASS = NSObject; 
+        }
+    ); 
+    IBVersion = 1; 
+}

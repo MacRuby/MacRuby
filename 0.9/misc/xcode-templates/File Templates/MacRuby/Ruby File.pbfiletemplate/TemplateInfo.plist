@@ -1,0 +1,4 @@
+{
+	MainTemplateFile = "file.rb";
+	Description = "An empty Ruby file.";
+}

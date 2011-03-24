@@ -1,0 +1,2 @@
+fails:Math#atanh returns the inverse hyperbolic tangent as a Complex number for arguments greater than 1.0
+fails:Math.atanh returns the inverse hyperbolic tangent as a Complex number for arguments greater than 1.0

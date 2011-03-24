@@ -1,0 +1,11 @@
+fails:File.open with a block invokes close on opened file when exiting the block
+fails:File.open with a block propagates non-StandardErrors produced by close
+fails:File.open opens file when call with a block (basic case)
+fails:File.open opens a file with mode string and block
+fails:File.open opens a file with mode num and block
+fails:File.open opens the file when passed mode, num, permissions and block
+fails:File.open opens the file when call with fd
+fails:File.open opens a file with a file descriptor d and a block
+fails:File.open raises a SystemCallError if passed an invalid Integer type
+fails:File.open with a block invokes close on an opened file when exiting the block
+fails:File.open with a block does not propagate StandardErrors produced by close

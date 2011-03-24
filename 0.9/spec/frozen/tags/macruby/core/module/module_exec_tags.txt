@@ -1,0 +1,2 @@
+fails:Module#class_exec defines method in the receiver's scope
+fails:Module#module_exec defines method in the receiver's scope

@@ -1,0 +1,3 @@
+fails:IO#syswrite on a file warns if called immediately after a buffered IO#write
+fails:IO#syswrite does not warn if called after IO#read
+fails:IO#syswrite writes to the current position after IO#read

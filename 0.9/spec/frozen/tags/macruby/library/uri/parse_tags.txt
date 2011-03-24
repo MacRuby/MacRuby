@@ -1,0 +1,1 @@
+fails:URI.parse populates the components of a parsed URI::MailTo object

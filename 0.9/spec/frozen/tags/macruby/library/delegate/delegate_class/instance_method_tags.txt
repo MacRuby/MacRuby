@@ -1,0 +1,2 @@
+fails:DelegateClass.instance_method returns a method object for protected instance methods of the delegated class
+fails:DelegateClass.instance_method raises a NameError for a private instance methods of the delegated class

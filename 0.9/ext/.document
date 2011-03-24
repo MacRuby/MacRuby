@@ -1,0 +1,14 @@
+# Add files to this as they become documented
+
+bigdecimal/bigdecimal.c
+digest/digest.c
+etc/etc.c
+fcntl/fcntl.c
+#iconv/iconv.c
+#io/wait/wait.c
+#nkf/lib/kconv.rb
+#nkf/nkf.c
+openssl/*.c
+socket/socket.c
+readline/readline.c
+zlib/zlib.c

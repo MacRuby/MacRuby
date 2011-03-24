@@ -1,0 +1,2 @@
+fails:Kernel.Integer raises an ArgumentError if the String ends with a null byte
+fails:Kernel#Integer raises an ArgumentError if the String ends with a null byte
