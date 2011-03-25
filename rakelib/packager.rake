@@ -8,7 +8,7 @@ task :nightly do
     `rake clean`
     puts "Updating the repo..."
     if File.exist?('.git')
-      `git svn rebase`
+      `git pull`
     else
       `svn up`
     end
