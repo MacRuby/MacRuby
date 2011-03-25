@@ -1,4 +1,4 @@
-desc "build a nightly pkg installer, use SCM=git-svn if you are using a git-svn repo" 
+desc "build a nightly pkg installer"
 task :nightly do
   build_destination = '/tmp/macruby-nightly'
   directory build_destination
@@ -7,7 +7,7 @@ task :nightly do
     puts "Cleaning the repo"
     `rake clean`
     puts "Updating the repo..."
-    if ENV['SCM'] == 'git-svn'
+    if File.exist?('.git')
       `git svn rebase`
     else
       `svn up`
