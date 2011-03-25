@@ -168,9 +168,7 @@ rhash_dup(VALUE rcv, SEL sel)
 
     VALUE dup = rhash_copy(rcv, klass);
 
-    if (OBJ_TAINTED(rcv)) {
-	OBJ_TAINT(dup);
-    }
+    OBJ_INFECT(dup, rcv);
     return dup;
 }
 
@@ -179,9 +177,7 @@ rhash_clone(VALUE rcv, SEL sel)
 {
     VALUE clone = rhash_copy(rcv, CLASS_OF(rcv));
 
-    if (OBJ_TAINTED(rcv)) {
-	OBJ_TAINT(clone);
-    }
+    OBJ_INFECT(clone, rcv);
     if (OBJ_FROZEN(rcv)) {
 	OBJ_FREEZE(clone);
     }
