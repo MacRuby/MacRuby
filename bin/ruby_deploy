@@ -75,7 +75,7 @@ class Deployer
   # FileUtils::Verbose doesn't work with MacRuby yet. However, it doesn't print
   # out failures anyways, just the command. Use the command-line tools directly
   # to circumvent this.
-  { :cp => 'cp', :cp_r => 'cp -R', :mkdir_p => 'mkdir -p', :rm_rf => 'rm -rf' }.each do |name, cmd|
+  { :cp => 'cp', :cp_r => 'cp -R', :mkdir_p => 'mkdir -p', :rm_rf => 'rm -rf', :rsync => 'rsync' }.each do |name, cmd|
     module_eval <<-END, __FILE__, __LINE__ + 1
       def #{name}(*args)
         execute "#{cmd} \#{args.map { |a| "'\#{a}'" }.join(' ')}"
@@ -157,22 +157,30 @@ class Deployer
     # Prepare the list of gems to embed.
     gems_libdirs_to_embed = @gems.map { |x| gem_deps_libdirs(x) }.flatten
 
+    # Exclude unnecessary things in the MacRuby.framework copy.
+    dirs = ['bin', 'include', 'lib/libmacruby-static.a', 'share']
+    dirs << 'lib/ruby' if @no_stdlib
+    dirs << 'lib/ruby/Gems'
+    relative_usr = macruby_usr.sub(/#{@macruby_framework_path}\//, '')
+    exclude_dirs = dirs.map { |dir| "--exclude='#{File.join(relative_usr,dir)}'" }
+
+    # Only copy the Current version of the MacRuby.framework.
+    Dir.glob(File.join(@macruby_framework_path, 'Versions/*')).select { |x|
+      base = File.basename(x)
+      base != @macruby_install_version and base != 'Current'
+    }.each { |x|
+      exclude_dirs << "--exclude='#{x.sub(/#{@macruby_framework_path}\//, '')}'"
+    }
+
     # Copy MacRuby.framework inside MyApp.app/Contents/Frameworks.
     log "Embedding MacRuby.framework"
     mkdir_p(app_frameworks)
     rm_rf(app_macruby)
-    cp_r(@macruby_framework_path, app_frameworks)
+    rsync('-rl', *exclude_dirs, @macruby_framework_path, app_frameworks)
 
     # Delete the Current framework symlink in the MacRuby.framework copy
     # as it seems to cause the AppStore validation process to fail.
     rm_rf(File.join(app_macruby, 'Versions', 'Current'))
-
-    # Delete unnecessary things in the MacRuby.framework copy.
-    log "Trimming MacRuby.framework"
-    dirs = ['bin', 'include', 'lib/libmacruby-static.a', 'share']
-    dirs << 'lib/ruby' if @no_stdlib
-    dirs << 'lib/ruby/Gems'
-    dirs.each { |x| rm_rf(File.join(app_macruby_usr, x)) }
 
     # Only keep specific libs from stdlib.
     unless @stdlib.empty?
@@ -191,14 +199,6 @@ class Deployer
         execute("/usr/bin/ditto \"#{libdir}\" \"#{gems_libdirs_dest}\"")
       end 
     end
-
-    # Only keep the Current version of the MacRuby.framework copy.
-    Dir.glob(File.join(app_macruby, 'Versions/*')).select { |x|
-      base = File.basename(x)
-      base != @macruby_install_version and base != 'Current'
-    }.each { |x|
-      rm_rf(x)
-    }
 
     # Copy the system BridgeSupport files if asked
     if @embed_bs
