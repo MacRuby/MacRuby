@@ -71,3 +71,13 @@ To install MacRuby on your machine:
 
 Then you should be all set! Please report us any problem you will find (the
 http://macruby.org website has pointers). Thanks!
+
+=== Contribute
+
+Once you've made your great commits:
+
+1. Fork[http://help.github.com/fork-a-repo] MacRuby
+2. Create a topic branch - git checkout -b my_branch
+3. Push to your branch - git push origin my_branch
+4. Create a pull request: https://github.com/USERNAME/MacRuby/pull/new/master
+5. That's it!
