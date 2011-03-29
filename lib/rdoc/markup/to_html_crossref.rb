@@ -1,50 +1,44 @@
 require 'rdoc/markup/to_html'
 
 ##
-# Subclass of the RDoc::Markup::ToHtml class that supports looking up words in
-# the AllReferences list. Those that are found (like AllReferences in this
-# comment) will be hyperlinked
+# Subclass of the RDoc::Markup::ToHtml class that supports looking up words
+# from a context.  Those that are found will be hyperlinked.
 
 class RDoc::Markup::ToHtmlCrossref < RDoc::Markup::ToHtml
 
-  attr_accessor :context
+  ##
+  # Regular expression to match class references
+  #
+  # 1. There can be a '\\' in front of text to suppress the cross-reference
+  # 2. There can be a '::' in front of class names to reference from the
+  #    top-level namespace.
+  # 3. The method can be followed by parenthesis (not recommended)
 
-  # Regular expressions to match class and method references.
-  # 
-  # 1.) There can be a '\' in front of text to suppress
-  #     any cross-references (note, however, that the single '\'
-  #     is written as '\\\\' in order to escape it twice, once
-  #     in the Ruby String literal and once in the regexp).
-  # 2.) There can be a '::' in front of class names to reference
-  #     from the top-level namespace.
-  # 3.) The method can be followed by parenthesis,
-  #     which may or may not have things inside (this
-  #     apparently is allowed for Fortran 95, but I also think that this
-  #     is a good idea for Ruby, as it is very reasonable to want to
-  #     reference a call with arguments).
-  #
-  # NOTE: In order to support Fortran 95 properly, the [A-Z] below
-  # should be changed to [A-Za-z].  This slows down rdoc significantly,
-  # however, and the Fortran 95 support is broken in any case due to
-  # the return in handle_special_CROSSREF if the token consists
-  # entirely of lowercase letters.
-  #
-  # The markup/cross-referencing engine needs a rewrite for
-  # Fortran 95 to be supported properly.
   CLASS_REGEXP_STR = '\\\\?((?:\:{2})?[A-Z]\w*(?:\:\:\w+)*)'
-  METHOD_REGEXP_STR = '(\w+[!?=]?)(?:\([\.\w+\*\/\+\-\=\<\>]*\))?'
 
+  ##
+  # Regular expression to match method references.
+  #
+  # See CLASS_REGEXP_STR
+
+  METHOD_REGEXP_STR = '([a-z]\w*[!?=]?)(?:\([\w.+*/=<>-]*\))?'
+
+  ##
   # Regular expressions matching text that should potentially have
-  # cross-reference links generated are passed to add_special.
-  # Note that these expressions are meant to pick up text for which
-  # cross-references have been suppressed, since the suppression
-  # characters are removed by the code that is triggered.
+  # cross-reference links generated are passed to add_special.  Note that
+  # these expressions are meant to pick up text for which cross-references
+  # have been suppressed, since the suppression characters are removed by the
+  # code that is triggered.
+
   CROSSREF_REGEXP = /(
                       # A::B::C.meth
-                      #{CLASS_REGEXP_STR}[\.\#]#{METHOD_REGEXP_STR}
+                      #{CLASS_REGEXP_STR}(?:[.\#]|::)#{METHOD_REGEXP_STR}
 
-                      # Stand-alone method (proceeded by a #)
+                      # Stand-alone method (preceded by a #)
                       | \\?\##{METHOD_REGEXP_STR}
+
+                      # Stand-alone method (preceded by ::)
+                      | ::#{METHOD_REGEXP_STR}
 
                       # A::B::C
                       # The stuff after CLASS_REGEXP_STR is a
@@ -57,62 +51,97 @@ class RDoc::Markup::ToHtmlCrossref < RDoc::Markup::ToHtml
                       # In order that words like "can't" not
                       # be flagged as potential cross-references, only
                       # flag potential class cross-references if the character
-                      # after the cross-referece is a space or sentence
-                      # punctuation.
-                      | #{CLASS_REGEXP_STR}(?=[\s\)\.\?\!\,\;]|\z)
+                      # after the cross-reference is a space, sentence
+                      # punctuation, tag start character, or attribute
+                      # marker.
+                      | #{CLASS_REGEXP_STR}(?=[\s\)\.\?\!\,\;<\000]|\z)
 
                       # Things that look like filenames
                       # The key thing is that there must be at least
                       # one special character (period, slash, or
                       # underscore).
-                      | [\/\w]+[_\/\.][\w\/\.]+
+                      | (?:\.\.\/)*[-\/\w]+[_\/\.][-\w\/\.]+
 
                       # Things that have markup suppressed
-                      | \\[^\s]
+                      # Don't process things like '\<' in \<tt>, though.
+                      # TODO: including < is a hack, not very satisfying.
+                      | \\[^\s<]
                       )/x
 
   ##
-  # We need to record the html path of our caller so we can generate
-  # correct relative paths for any hyperlinks that we find
+  # Version of CROSSREF_REGEXP used when <tt>--hyperlink-all</tt> is specified.
 
-  def initialize(from_path, context, show_hash)
+  ALL_CROSSREF_REGEXP = /(
+                      # A::B::C.meth
+                      #{CLASS_REGEXP_STR}(?:[.\#]|::)#{METHOD_REGEXP_STR}
+
+                      # Stand-alone method
+                      | \\?#{METHOD_REGEXP_STR}
+
+                      # A::B::C
+                      | #{CLASS_REGEXP_STR}(?=[\s\)\.\?\!\,\;<\000]|\z)
+
+                      # Things that look like filenames
+                      | (?:\.\.\/)*[-\/\w]+[_\/\.][-\w\/\.]+
+
+                      # Things that have markup suppressed
+                      | \\[^\s<]
+                      )/x
+
+  ##
+  # RDoc::CodeObject for generating references
+
+  attr_accessor :context
+
+  ##
+  # Should we show '#' characters on method references?
+
+  attr_accessor :show_hash
+
+  ##
+  # Creates a new crossref resolver that generates links relative to +context+
+  # which lives at +from_path+ in the generated files.  '#' characters on
+  # references are removed unless +show_hash+ is true.  Only method names
+  # preceded by '#' or '::' are hyperlinked, unless +hyperlink_all+ is true.
+
+  def initialize(from_path, context, show_hash, hyperlink_all = false)
     raise ArgumentError, 'from_path cannot be nil' if from_path.nil?
     super()
 
-    @markup.add_special(CROSSREF_REGEXP, :CROSSREF)
+    crossref_re = hyperlink_all ? ALL_CROSSREF_REGEXP : CROSSREF_REGEXP
+
+    @markup.add_special crossref_re, :CROSSREF
 
     @from_path = from_path
     @context = context
     @show_hash = show_hash
+    @hyperlink_all = hyperlink_all
 
     @seen = {}
   end
 
   ##
-  # We're invoked when any text matches the CROSSREF pattern
-  # (defined in MarkUp). If we fine the corresponding reference,
-  # generate a hyperlink. If the name we're looking for contains
-  # no punctuation, we look for it up the module/class chain. For
-  # example, HyperlinkHtml is found, even without the Generator::
-  # prefix, because we look for it in module Generator first.
+  # We're invoked when any text matches the CROSSREF pattern.  If we find the
+  # corresponding reference, generate a hyperlink.  If the name we're looking
+  # for contains no punctuation, we look for it up the module/class chain.
+  # For example, ToHtml is found, even without the <tt>RDoc::Markup::</tt>
+  # prefix, because we look for it in module Markup first.
 
   def handle_special_CROSSREF(special)
     name = special.text
 
-    # This ensures that words entirely consisting of lowercase letters will
-    # not have cross-references generated (to suppress lots of
-    # erroneous cross-references to "new" in text, for instance)
-    return name if name =~ /\A[a-z]*\z/
+    unless @hyperlink_all then
+      # This ensures that words entirely consisting of lowercase letters will
+      # not have cross-references generated (to suppress lots of erroneous
+      # cross-references to "new" in text, for instance)
+      return name if name =~ /\A[a-z]*\z/
+    end
 
     return @seen[name] if @seen.include? name
 
-    if name[0, 1] == '#' then
-      lookup = name[1..-1]
-      name = lookup unless @show_hash
-    else
-      lookup = name
-    end
+    lookup = name
 
+    name = name[1..-1] unless @show_hash if name[0, 1] == '#'
 
     # Find class, module, or method in class or module.
     #
@@ -124,25 +153,51 @@ class RDoc::Markup::ToHtmlCrossref < RDoc::Markup::ToHtml
     # (in which case it would match the last pattern, which just checks
     # whether the string as a whole is a known symbol).
 
-    if /#{CLASS_REGEXP_STR}[\.\#]#{METHOD_REGEXP_STR}/ =~ lookup then
-      container = $1
-      method = $2
-      ref = @context.find_symbol container, method
+    if /#{CLASS_REGEXP_STR}([.#]|::)#{METHOD_REGEXP_STR}/ =~ lookup then
+      type = $2
+      type = '' if type == '.'  # will find either #method or ::method
+      method = "#{type}#{$3}"
+      container = @context.find_symbol_module($1)
+    elsif /^([.#]|::)#{METHOD_REGEXP_STR}/ =~ lookup then
+      type = $1
+      type = '' if type == '.'
+      method = "#{type}#{$2}"
+      container = @context
+    else
+      container = nil
+    end
+
+    if container then
+      ref = container.find_local_symbol method
+
+      unless ref || RDoc::TopLevel === container then
+        ref = container.find_ancestor_local_symbol method
+      end
     end
 
     ref = @context.find_symbol lookup unless ref
+    ref = nil if RDoc::Alias === ref # external alias: can't link to it
 
-    out = if lookup =~ /^\\/ then
-            $'
-          elsif ref and ref.document_self then
-            "<a href=\"#{ref.as_href(@from_path)}\">#{name}</a>"
+    out = if lookup == '\\' then
+            lookup
+          elsif lookup =~ /^\\/ then
+            # we remove the \ only in front of what we know:
+            # other backslashes are treated later, only outside of <tt>
+            ref ? $' : lookup
+          elsif ref then
+            if ref.document_self then
+              "<a href=\"#{ref.as_href @from_path}\">#{name}</a>"
+            else
+              name
+            end
           else
-            name
+            lookup
           end
 
-    @seen[name] = out
+    @seen[lookup] = out
 
     out
   end
 
 end
+
