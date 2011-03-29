@@ -532,6 +532,32 @@ RoxorCore::debug_outers(Class k)
     printf("\n");
 }
 
+void
+rb_vm_print_backtrace()
+{
+    void *callstack[128];
+    int callstack_n = backtrace(callstack, 128);
+
+    for (int i = 0; i < callstack_n; i++) {
+	char path[PATH_MAX];
+	char name[100];
+	unsigned long ln = 0;
+
+	path[0] = name[0] = '\0';
+
+	if (GET_CORE()->symbolize_call_address(callstack[i], path, sizeof path,
+					       &ln, name, sizeof name, NULL)
+		&& name[0] != '\0' && path[0] != '\0') {
+	    if (ln == 0) {
+		printf("%s:in `%s'\n", path, name);
+	    }
+	    else {
+		printf("%s:%ld:in `%s'\n", path, ln, name);
+	    }
+	}
+    }
+}
+
 #if !defined(MACRUBY_STATIC)
 void
 RoxorCore::optimize(Function *func)
@@ -3434,6 +3460,14 @@ RoxorVM::pop_current_exception(int pos)
 {
     RoxorSpecialException *sexc = get_special_exc();
     if (sexc != NULL) {
+	return;
+    }
+
+    if ((size_t)pos >= current_exceptions.size()) {
+	printf("pos: %d, current_exceptions.size(): %d\n",
+	       pos, (int)current_exceptions.size());
+	rb_vm_print_backtrace();
+	debug_exceptions();
 	return;
     }
 

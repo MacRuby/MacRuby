@@ -1,46 +1,75 @@
 require 'rdoc/ri'
 
 ##
-# Encapsulate all the strangeness to do with finding out where to find RDoc
-# files
-#
-# We basically deal with three directories:
-#
-# 1. The 'system' documentation directory, which holds the documentation
-#    distributed with Ruby, and which is managed by the Ruby install process
-# 2. The 'site' directory, which contains site-wide documentation added
-#    locally.
-# 3. The 'user' documentation directory, stored under the user's own home
-#    directory.
-#
-# There's contention about all this, but for now:
-#
-# system:: $datadir/ri/<ver>/system/...
-# site::   $datadir/ri/<ver>/site/...
-# user::   ~/.rdoc
+# The directories where ri data lives.
 
 module RDoc::RI::Paths
 
   #:stopdoc:
   require 'rbconfig'
 
-  DOC_DIR  = "doc/rdoc"
+  version = RbConfig::CONFIG['ruby_version']
 
-  VERSION = RbConfig::CONFIG['ruby_version']
+  base    = if RbConfig::CONFIG.key? 'ridir' then
+              File.join RbConfig::CONFIG['ridir'], version
+            else
+              File.join RbConfig::CONFIG['datadir'], 'ri', version
+            end
 
-  base    = File.join(RbConfig::CONFIG['datadir'], "ri", VERSION)
-  SYSDIR  = File.join(base, "system")
-  SITEDIR = File.join(base, "site")
-  homedir = ENV['HOME'] || ENV['USERPROFILE'] || ENV['HOMEPATH']
+  SYSDIR  = File.join base, "system"
+  SITEDIR = File.join base, "site"
 
-  if homedir then
-    HOMEDIR = File.join(homedir, ".rdoc")
-  else
-    HOMEDIR = nil
+  homedir = begin
+              File.expand_path('~')
+            rescue ArgumentError
+            end
+
+  homedir ||= ENV['HOME'] ||
+              ENV['USERPROFILE'] || ENV['HOMEPATH'] # for 1.8 compatibility
+
+  HOMEDIR = if homedir then
+              File.join homedir, ".rdoc"
+            end
+  #:startdoc:
+
+  @gemdirs = nil
+
+  ##
+  # Iterates over each selected path yielding the directory and type.
+  #
+  # Yielded types:
+  # :system:: Where Ruby's ri data is stored.  Yielded when +system+ is
+  #           true
+  # :site:: Where ri for installed libraries are stored.  Yielded when
+  #         +site+ is true.  Normally no ri data is stored here.
+  # :home:: ~/.rdoc.  Yielded when +home+ is true.
+  # :gem:: ri data for an installed gem.  Yielded when +gems+ is true.
+  # :extra:: ri data directory from the command line.  Yielded for each
+  #          entry in +extra_dirs+
+
+  def self.each system, site, home, gems, *extra_dirs # :yields: directory, type
+    extra_dirs.each do |dir|
+      yield dir, :extra
+    end
+
+    yield SYSDIR,  :system if system
+    yield SITEDIR, :site   if site
+    yield HOMEDIR, :home   if home and HOMEDIR
+
+    gemdirs.each do |dir|
+      yield dir, :gem
+    end if gems
+
+    nil
   end
 
-  begin
-    require 'rubygems'# unless defined?(Gem)
+  ##
+  # The latest installed gems' ri directories
+
+  def self.gemdirs
+    return @gemdirs if @gemdirs
+
+    require 'rubygems' unless defined?(Gem)
 
     # HACK dup'd from Gem.latest_partials and friends
     all_paths = []
@@ -62,31 +91,38 @@ module RDoc::RI::Paths
       end
     end
 
-    GEMDIRS = ri_paths.map { |k,v| v.last }.sort
+    @gemdirs = ri_paths.map { |k,v| v.last }.sort
   rescue LoadError
-    GEMDIRS = []
+    @gemdirs = []
   end
 
-  # Returns the selected documentation directories as an Array, or PATH if no
-  # overriding directories were given.
+  ##
+  # Returns existing directories from the selected documentation directories
+  # as an Array.
+  #
+  # See also ::each
 
-  def self.path(use_system, use_site, use_home, use_gems, *extra_dirs)
-    path = raw_path(use_system, use_site, use_home, use_gems, *extra_dirs)
-    return path.select { |directory| File.directory? directory }
+  def self.path(system, site, home, gems, *extra_dirs)
+    path = raw_path system, site, home, gems, *extra_dirs
+
+    path.select { |directory| File.directory? directory }
   end
 
-  # Returns the selected documentation directories including nonexistent
-  # directories.  Used to print out what paths were searched if no ri was
-  # found.
+  ##
+  # Returns selected documentation directories including nonexistent
+  # directories.
+  #
+  # See also ::each
 
-  def self.raw_path(use_system, use_site, use_home, use_gems, *extra_dirs)
+  def self.raw_path(system, site, home, gems, *extra_dirs)
     path = []
-    path << extra_dirs unless extra_dirs.empty?
-    path << SYSDIR if use_system
-    path << SITEDIR if use_site
-    path << HOMEDIR if use_home
-    path << GEMDIRS if use_gems
 
-    return path.flatten.compact
+    each(system, site, home, gems, *extra_dirs) do |dir, type|
+      path << dir
+    end
+
+    path.compact
   end
+
 end
+

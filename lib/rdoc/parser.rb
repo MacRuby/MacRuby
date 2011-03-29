@@ -1,6 +1,6 @@
 require 'rdoc'
 require 'rdoc/code_objects'
-require 'rdoc/markup/preprocess'
+require 'rdoc/markup/pre_process'
 require 'rdoc/stats'
 
 ##
@@ -22,14 +22,14 @@ require 'rdoc/stats'
 # following incantation
 #
 #   require "rdoc/parser"
-#   
+#
 #   class RDoc::Parser::Xyz < RDoc::Parser
 #     parse_files_matching /\.xyz$/ # <<<<
-#   
+#
 #     def initialize(file_name, body, options)
 #       ...
 #     end
-#   
+#
 #     def scan
 #       ...
 #     end
@@ -43,7 +43,15 @@ class RDoc::Parser
   @parsers = []
 
   class << self
+
+    ##
+    # A Hash that maps file extensions regular expressions to parsers that
+    # will consume them.
+    #
+    # Use parse_files_matching to register a parser's file extensions.
+
     attr_reader :parsers
+
   end
 
   ##
@@ -63,23 +71,69 @@ class RDoc::Parser
   end
 
   ##
-  # Shamelessly stolen from the ptools gem (since RDoc cannot depend on
-  # the gem).
+  # Determines if the file is a "binary" file which basically means it has
+  # content that an RDoc parser shouldn't try to consume.
 
   def self.binary?(file)
-=begin
-    # XXX: this currently doesn't work in MacRuby
-    s = (File.read(file, File.stat(file).blksize, 0, :mode => "rb") || "").split(//)
+    return false if file =~ /\.(rdoc|txt)$/
 
-    if s.size > 0 then
-      ((s.size - s.grep(" ".."~").size) / s.size.to_f) > 0.30
-    else
-      false
+    s = File.read(file, 1024) or return false
+
+    have_encoding = s.respond_to? :encoding
+
+    if have_encoding then
+      return false if s.encoding != Encoding::ASCII_8BIT and s.valid_encoding?
     end
-=end
-    false
+
+    return true if s[0, 2] == Marshal.dump('')[0, 2] or s.index("\x00")
+
+    if have_encoding then
+      s.force_encoding Encoding.default_external
+
+      not s.valid_encoding?
+    else
+      if 0.respond_to? :fdiv then
+        s.count("\x00-\x7F", "^ -~\t\r\n").fdiv(s.size) > 0.3
+      else # HACK 1.8.6
+        (s.count("\x00-\x7F", "^ -~\t\r\n").to_f / s.size) > 0.3
+      end
+    end
   end
-  private_class_method :binary?
+
+  ##
+  # Processes common directives for CodeObjects for the C and Ruby parsers.
+  #
+  # Applies +directive+'s +value+ to +code_object+, if appropriate
+
+  def self.process_directive code_object, directive, value
+    case directive
+    when 'nodoc' then
+      code_object.document_self = nil # notify nodoc
+      code_object.document_children = value.downcase != 'all'
+    when 'doc' then
+      code_object.document_self = true
+      code_object.force_documentation = true
+    when 'yield', 'yields' then
+      # remove parameter &block
+      code_object.params.sub!(/,?\s*&\w+/, '') if code_object.params
+
+      code_object.block_params = value
+    when 'arg', 'args' then
+      code_object.params = value
+    end
+  end
+
+  ##
+  # Checks if +file+ is a zip file in disguise.  Signatures from
+  # http://www.garykessler.net/library/file_sigs.html
+
+  def self.zip? file
+    zip_signature = File.read file, 4
+
+    zip_signature == "PK\x03\x04" or
+      zip_signature == "PK\x05\x06" or
+      zip_signature == "PK\x07\x08"
+  end
 
   ##
   # Return a parser that can handle a particular extension
@@ -87,16 +141,15 @@ class RDoc::Parser
   def self.can_parse(file_name)
     parser = RDoc::Parser.parsers.find { |regexp,| regexp =~ file_name }.last
 
-    #
-    # The default parser should *NOT* parse binary files.
-    #
-    if parser == RDoc::Parser::Simple then
-      if binary? file_name then
-        return nil
-      end
-    end
+    # HACK Selenium hides a jar file using a .txt extension
+    return if parser == RDoc::Parser::Simple and zip? file_name
 
-    return parser
+    # The default parser must not parse binary files
+    ext_name = File.extname file_name
+    return parser if ext_name.empty?
+    return if parser == RDoc::Parser::Simple and ext_name !~ /txt|rdoc/
+
+    parser
   end
 
   ##
@@ -104,6 +157,8 @@ class RDoc::Parser
   # for ones that we don't know
 
   def self.for(top_level, file_name, body, options, stats)
+    return if binary? file_name
+
     # If no extension, look for shebang
     if file_name !~ /\.\w+$/ && body =~ %r{\A#!(.+)} then
       shebang = $1
@@ -115,22 +170,25 @@ class RDoc::Parser
 
     parser = can_parse file_name
 
-    #
-    # This method must return a parser.
-    #
-    if !parser then
-      parser = RDoc::Parser::Simple
-    end
+    return unless parser
 
     parser.new top_level, file_name, body, options, stats
   end
 
   ##
   # Record which file types this parser can understand.
+  #
+  # It is ok to call this multiple times.
 
   def self.parse_files_matching(regexp)
     RDoc::Parser.parsers.unshift [regexp, self]
   end
+
+  ##
+  # Creates a new Parser storing +top_level+, +file_name+, +content+, 
+  # +options+ and +stats+ in instance variables.
+  #
+  # Usually invoked by +super+
 
   def initialize(top_level, file_name, content, options, stats)
     @top_level = top_level
