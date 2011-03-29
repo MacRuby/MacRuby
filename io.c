@@ -2649,58 +2649,71 @@ io_replace_streams(int fd, rb_io_t *dest, rb_io_t *origin)
 }
 
 static VALUE
+io_reopen(VALUE io, VALUE nfile)
+{
+    // Reassociate it with a duplicate of the stream given
+    nfile = rb_io_get_io(nfile);
+
+    rb_io_t *io_s  = ExtractIOStruct(io);
+    rb_io_t *other = ExtractIOStruct(nfile);
+    rb_io_assert_open(io_s);
+    rb_io_assert_open(other);
+    if (io_s == other) {
+	return io;
+    }
+
+    if (io_s->fd == -1) {
+	rb_raise(rb_eRuntimeError,
+		 "cannot reopen non file descriptor based IO");
+    }
+    if (other->fd == -1) {
+	rb_raise(rb_eRuntimeError,
+		 "cannot reopen from non file descriptor based IO");
+    }
+
+    int fd = io_s->fd;
+    io_close(io_s, true, true);
+    fd = dup2(other->fd, fd);
+    if (fd < 0) {
+	rb_sys_fail("dup2() failed");
+    }
+    io_replace_streams(fd, io_s, other);
+
+    *(VALUE *)io = *(VALUE *)nfile;
+
+    return io;
+}
+
+static VALUE
 rb_io_reopen(VALUE io, SEL sel, int argc, VALUE *argv)
 {
     rb_secure(4);
 	
     VALUE path_or_io, mode_string;
-    rb_scan_args(argc, argv, "11", &path_or_io, &mode_string);
+    if (rb_scan_args(argc, argv, "11", &path_or_io, &mode_string) == 1) {
+	VALUE tmp = rb_io_check_io(path_or_io);
+	if (!NIL_P(tmp)) {
+	    return io_reopen(io, tmp);
+	}
+    }
+
     rb_io_t *io_s = ExtractIOStruct(io);
     rb_io_assert_open(io_s);
 
-    if (TYPE(path_or_io) == T_STRING) {
-	// Reassociate it with the stream opened on the given path
-	if (NIL_P(mode_string)) {
-	    mode_string = (VALUE)CFSTR("r");
-	}
-	FilePathValue(path_or_io); // Sanitize the name
-	const char *filepath = RSTRING_PTR(path_or_io);
-	const int fd =
-	    open(filepath, convert_mode_string_to_oflags(mode_string), 0644);
-	prepare_io_from_fd(io_s, fd,
-		convert_mode_string_to_fmode(mode_string));
-	GC_WB(&io_s->path, path_or_io);
-	io_s->buf = NULL;
-	io_s->buf_offset = 0;
-    } 
-    else {
-	// Reassociate it with a duplicate of the stream given
-	path_or_io = rb_io_get_io(path_or_io);
-	rb_io_t *other = ExtractIOStruct(path_or_io);
-	rb_io_assert_open(other);
-	if (io_s == other) {
-	    return io;
-	}
-
-	if (io_s->fd == -1) {
-	    rb_raise(rb_eRuntimeError,
-		    "cannot reopen non file descriptor based IO");
-	}
-	if (other->fd == -1) {
-	    rb_raise(rb_eRuntimeError,
-		    "cannot reopen from non file descriptor based IO");
-	}
-
-	int fd = io_s->fd;
-	io_close(io_s, true, true);
-	fd = dup2(other->fd, fd);
-	if (fd < 0) {
-	    rb_sys_fail("dup2() failed");
-	}
-	io_replace_streams(fd, io_s, other);
-
-	*(VALUE *)io = *(VALUE *)path_or_io;
+    // Reassociate it with the stream opened on the given path
+    if (NIL_P(mode_string)) {
+	mode_string = (VALUE)CFSTR("r");
     }
+    FilePathValue(path_or_io); // Sanitize the name
+    const char *filepath = RSTRING_PTR(path_or_io);
+    const int fd =
+	open(filepath, convert_mode_string_to_oflags(mode_string), 0644);
+    prepare_io_from_fd(io_s, fd,
+		       convert_mode_string_to_fmode(mode_string));
+    GC_WB(&io_s->path, path_or_io);
+    io_s->buf = NULL;
+    io_s->buf_offset = 0;
+
     return io;
 }
 
