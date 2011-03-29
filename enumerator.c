@@ -191,7 +191,7 @@ enum_each_cons(VALUE obj, SEL sel, VALUE n)
 }
 
 static VALUE
-enumerator_allocate(VALUE klass)
+enumerator_allocate(VALUE klass, SEL sel)
 {
     struct enumerator *ptr;
     return Data_Make_Struct(klass, struct enumerator,
@@ -275,7 +275,7 @@ enumerator_init_copy(VALUE obj, SEL sel, VALUE orig)
 VALUE
 rb_enumeratorize(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
-    return enumerator_init(enumerator_allocate(rb_cEnumerator), obj, sel,
+    return enumerator_init(enumerator_allocate(rb_cEnumerator, 0), obj, sel,
 	    argc, argv);
 }
 
