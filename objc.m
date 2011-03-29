@@ -561,7 +561,7 @@ rb_objc_convert_immediate(id obj)
 	    else {
 		long v = 0;
 		assert(CFNumberGetValue((CFNumberRef)obj, kCFNumberLongType, &v));
-		return LONG2FIX(v);
+		return LONG2NUM(v);
 	    }
 	}
 	else if (k == (Class)rb_cNSDate) {

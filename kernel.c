@@ -782,6 +782,12 @@ rval_to_long_long(VALUE rval)
     return NUM2LL(rb_Integer(bool_to_fix(rval)));
 }
 
+static inline unsigned long long
+rval_to_ulong_long(VALUE rval)
+{
+    return NUM2ULL(rb_Integer(bool_to_fix(rval)));
+}
+
 static inline double
 rval_to_double(VALUE rval)
 {
@@ -849,13 +855,13 @@ vm_rval_to_ulong(VALUE rval, unsigned long *ocval)
 PRIMITIVE void
 vm_rval_to_long_long(VALUE rval, long long *ocval)
 {
-    *ocval = (long long)rval_to_long_long(rval);
+    *ocval = rval_to_long_long(rval);
 }
 
 PRIMITIVE void
 vm_rval_to_ulong_long(VALUE rval, unsigned long long *ocval)
 {
-    *ocval = (unsigned long long)rval_to_long_long(rval);
+    *ocval = rval_to_ulong_long(rval);
 }
 
 PRIMITIVE void
