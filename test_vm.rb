@@ -32,6 +32,7 @@ end
 $problems = []
 $problems_count = 0
 $assertions_count = 0
+$current_file = ""
 
 def assert(expectation, code, options={})
   return if options[:known_bug]
@@ -58,7 +59,7 @@ def assert(expectation, code, options={})
       $stdout.flush
       if result != '.'
         $problems_count += 1
-        new_problem = [[$problems_count], code, expectation, [arch], command, output]
+        new_problem = [[$problems_count], code, expectation, [arch], command, output, $current_file]
         previous_problem = $problems.last
         if previous_problem and [1, 2, 5].all? {|i| previous_problem[i] == new_problem[i]}
           previous_problem[0] << $problems_count
@@ -77,9 +78,10 @@ $tests = Dir.glob('*.rb').map {|filename| File.basename(filename, '.rb')}.sort
 
 $test_only = $tests if $test_only.empty?
 $test_only.each do |what|
+  $current_file = "./#{what}.rb"
   print "#{what} "
   $stdout.flush
-  load "./#{what}.rb"
+  load $current_file
   puts
 end
 
@@ -89,7 +91,7 @@ at_exit do
   else
     puts ''
     puts "#{$problems_count} assertion#{$problems_count > 1 ? 's' : ''} over #{$assertions_count} failed:"
-    $problems.each do |ids, code, expectation, archs, command, output|
+    $problems.each do |ids, code, expectation, archs, command, output, file|
       puts ''
       puts "Problem#{ids.length > 1 ? 's' : ''} #{ids.join(', ')}:"
       puts "Code: #{code}"
@@ -97,6 +99,7 @@ at_exit do
       puts "Command: #{command}"
       puts "Expectation: #{expectation}"
       puts "Output: #{output}"
+      puts "File: #{file}"
     end
     exit 1
   end
