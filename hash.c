@@ -772,6 +772,7 @@ rhash_delete_if(VALUE hash, SEL sel)
     rhash_modify(hash);
     VALUE ary = rb_ary_new();
     rhash_foreach(hash, delete_if_i, ary);
+    RETURN_IF_BROKEN();
     for (int i = 0, count = RARRAY_LEN(ary); i < count; i++) {
 	VALUE key = RARRAY_AT(ary, i);
 	rhash_delete_key(hash, key);	
@@ -863,8 +864,18 @@ rhash_select(VALUE hash, SEL sel)
     RETURN_ENUMERATOR(hash, 0, 0);
     VALUE result = rb_hash_new();
     rhash_foreach(hash, select_i, result);
+    RETURN_IF_BROKEN();
     return result;
 }
+
+/*
+ *  call-seq:
+ *     hsh.select! {| key, value | block }  -> hsh or nil
+ *     hsh.select!                          -> an_enumerator
+ *
+ *  Equivalent to <code>Hash#keep_if</code>, but returns
+ *  <code>nil</code> if no changes were made.
+ */
 
 static int
 keep_if_i(VALUE key, VALUE value, VALUE hash)
@@ -879,15 +890,6 @@ keep_if_i(VALUE key, VALUE value, VALUE hash)
     return ST_CONTINUE;
 }
 
-/*
- *  call-seq:
- *     hsh.select! {| key, value | block }  -> hsh or nil
- *     hsh.select!                          -> an_enumerator
- *
- *  Equivalent to <code>Hash#keep_if</code>, but returns
- *  <code>nil</code> if no changes were made.
- */
-
 static VALUE
 rhash_select_bang(VALUE hash, SEL sel)
 {
@@ -895,6 +897,7 @@ rhash_select_bang(VALUE hash, SEL sel)
     rhash_modify(hash);
     const long n = rhash_len(hash);
     rb_hash_foreach(hash, keep_if_i, hash);
+    RETURN_IF_BROKEN();
     return n == rhash_len(hash) ? Qnil : hash;
 }
 
@@ -1074,6 +1077,7 @@ rhash_each_value(VALUE hash, SEL sel)
 {
     RETURN_ENUMERATOR(hash, 0, 0);
     rhash_foreach(hash, each_value_i, 0);
+    RETURN_IF_BROKEN();
     return hash;
 }
 
@@ -1108,6 +1112,7 @@ rhash_each_key(VALUE hash, SEL sel)
 {
     RETURN_ENUMERATOR(hash, 0, 0);
     rhash_foreach(hash, each_key_i, 0);
+    RETURN_IF_BROKEN();
     return hash;
 }
 
@@ -1144,6 +1149,7 @@ rhash_each_pair(VALUE hash, SEL sel)
 {
     RETURN_ENUMERATOR(hash, 0, 0);
     rhash_foreach(hash, each_pair_i, 0);
+    RETURN_IF_BROKEN();
     return hash;
 }
 
@@ -1173,7 +1179,6 @@ rhash_to_a(VALUE hash, SEL sel)
     VALUE ary = rb_ary_new();
     rhash_foreach(hash, to_a_i, ary);
     OBJ_INFECT(ary, hash);
-
     return ary;
 }
 
@@ -1554,6 +1559,7 @@ rhash_update(VALUE hash1, SEL sel, VALUE hash2)
     rhash_modify(hash1);
     if (rb_block_given_p()) {
 	rb_hash_foreach(hash2, update_block_i, hash1);
+	RETURN_IF_BROKEN();
     }
     else {
 	rb_hash_foreach(hash2, update_i, hash1);
