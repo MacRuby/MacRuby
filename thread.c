@@ -98,6 +98,11 @@ thread_initialize(VALUE thread, SEL sel, int argc, const VALUE *argv)
     pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
+    // Register the thread to the core. We are doing this before actually
+    // running it because the current thread might perform a method poking at
+    // the current registered threads (such as Kernel#sleep) right after that.
+    rb_vm_register_thread(thread);
+
     // Launch it.
     if (pthread_create(&t->thread, &attr, (void *(*)(void *))rb_vm_thread_run,
 		(void *)thread) != 0) {

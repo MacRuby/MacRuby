@@ -479,6 +479,7 @@ VALUE rb_binding_new_from_binding(rb_vm_binding_t *binding);
 void rb_vm_thread_pre_init(rb_vm_thread_t *t, rb_vm_block_t *body, int argc,
 	const VALUE *argv, void *vm);
 void *rb_vm_create_vm(void);
+void rb_vm_register_thread(VALUE thread);
 void *rb_vm_thread_run(VALUE thread);
 VALUE rb_vm_current_thread(void);
 VALUE rb_vm_main_thread(void);
