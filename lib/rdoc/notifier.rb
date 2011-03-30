@@ -10,7 +10,7 @@
 #
 
 require "e2mmap"
-require "irb/output-method"
+require "rdoc/output-method"
 
 module IRB
   module Notifier

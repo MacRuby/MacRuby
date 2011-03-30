@@ -10,7 +10,7 @@
 #
 
 require "e2mmap"
-require "irb/notifier"
+require "rdoc/notifier"
 
 module IRB
   class SLex
