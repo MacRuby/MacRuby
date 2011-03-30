@@ -45,7 +45,7 @@ assert n, %{
   end
   g.wait
   p @n
-}
+}, known_bug: true
 
 # apply + sequential
 assert n, %{
