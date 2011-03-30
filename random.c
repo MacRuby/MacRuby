@@ -841,6 +841,7 @@ Init_RandomSeed(void)
 {
     VALUE random = random_alloc(0, 0);
     unsigned int initial[DEFAULT_SEED_CNT];
+    fill_random_seed(initial);
     GC_WB(&get_rnd(random)->seed, make_seed_value(initial));
     rb_vm_set_default_random(random);
 }
