@@ -35,13 +35,17 @@ $assertions_count = 0
 $current_file = ""
 
 def assert(expectation, code, options={})
-  return if options[:known_bug]
   if options[:archs]
     archs = $test_archs.select {|arch, command| options[:archs].include?(arch) }
   else
     archs = $test_archs
   end
   archs.each do |arch, commands|
+    if options[:known_bug]
+      print 'B'
+      $stdout.flush
+      next
+    end
     commands.each do |command|
       output = nil
       IO.popen("#{command} -I.", 'r+') do |io|
