@@ -252,7 +252,19 @@ rb_require_framework(VALUE recv, SEL sel, int argc, VALUE *argv)
     path = [fileManager stringWithFileSystemRepresentation:cstr
 	length:strlen(cstr)];
 
-    if (![fileManager fileExistsAtPath:path]) {
+    if ([path isAbsolutePath] ||
+                [[path pathExtension] isEqualToString:@"framework"] ||
+                [[path pathComponents] count] > 1) {
+        
+        /* filesystem path is given */
+        BOOL pathIsDirectory = NO;
+        if (![fileManager fileExistsAtPath:path isDirectory:&pathIsDirectory] || pathIsDirectory == NO) {
+            rb_raise(rb_eRuntimeError,
+                     "path `%s' doesn't exist or isn't a framework",
+                     cstr);
+        }
+        
+    } else {
 	/* framework name is given */
 	NSSearchPathDomainMask pathDomainMask;
 	NSString *frameworkName;
