@@ -347,7 +347,7 @@ method_missing(VALUE obj, SEL sel, rb_vm_block_t *block, int argc,
 {
     if (sel == selAlloc) {
         rb_raise(rb_eTypeError, "allocator undefined for %s",
-                 rb_class2name(obj));
+		RSTRING_PTR(rb_inspect(obj)));
     }
 
     GET_VM()->set_method_missing_reason(call_status);
