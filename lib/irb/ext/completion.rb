@@ -76,6 +76,8 @@ module IRB
     def instance_methods_of(klass_name)
       klass = evaluate(klass_name)
       INCLUDE_MACRUBY_HELPERS ? klass.instance_methods(true, true) : klass.instance_methods(true)
+    rescue NameError
+      nil
     end
     
     # TODO: test and or fix the fact that we need to get constants from the
@@ -109,11 +111,14 @@ module IRB
             filter   = stack[2][VALUE] if stack[2]
             receiver = "#{klass}.new"
             methods  = instance_methods_of(klass)
+            return if methods.nil?
           elsif stack[1][VALUE] == 'alloc' && INCLUDE_MACRUBY_HELPERS
             klass    = stack[0][VALUE][VALUE]
             filter   = stack[2][VALUE] if stack[2]
             receiver = "#{klass}.alloc"
-            methods  = instance_methods_of(klass).grep(/^init[A-Z]?/)
+            methods  = instance_methods_of(klass)
+            return if methods.nil?
+            methods  = methods.grep(/^init[A-Z]?/)
           else
             filter   = root[CALLEE][VALUE]
             filter   = stack[1][VALUE]

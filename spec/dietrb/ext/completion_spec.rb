@@ -221,6 +221,9 @@ describe "IRB::Completion" do
         @context.__evaluate__("klass = Playground")
         complete("klass.new.").should == wrap_array(imethods, 'klass.new')
         complete("klass.new.a_local_m").should == %w{ klass.new.a_local_method }
+
+        complete("DoesNotExist.new").should == nil
+        complete("DoesNotExist.new.a_local_m").should == nil
       end
 
       if IRB::Completion::INCLUDE_MACRUBY_HELPERS
@@ -230,6 +233,9 @@ describe "IRB::Completion" do
           complete("NSSpeechSynthesizer.alloc.initWithVo").should == %w{ NSSpeechSynthesizer.alloc.initWithVoice }
           @context.__evaluate__("klass = NSSpeechSynthesizer")
           complete("klass.alloc.ini").should == %w{ klass.alloc.init klass.alloc.initWithVoice }
+
+          complete("DoesNotExist.alloc").should == nil
+          complete("DoesNotExist.alloc.initWithVo").should == nil
         end
       end
     end
