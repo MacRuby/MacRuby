@@ -38,7 +38,7 @@ module IRB
     
     def evaluate(source)
       result = __evaluate__(source.to_s, '(irb)', @line - @source.buffer.size + 1)
-      unless result == IGNORE_RESULT
+      unless IGNORE_RESULT == result
         store_result(result)
         output(formatter.result(result))
         result

@@ -110,6 +110,15 @@ describe "IRB::Context, when evaluating source" do
     @output.printed.should == "=> :bananas\n"
     @context.evaluate("_").should == :bananas
   end
+
+  describe "regression specs" do
+    it "does not try to convert an object to a string when checking if the evaluate result should be ignored" do
+      o = @context.__evaluate__("o = Object.new")
+      def o.==(other); raise "Ohnoes!"; end
+      lambda { @context.evaluate("o") }.should_not raise_error
+      @context.__evaluate__("exception").should == nil
+    end
+  end
 end
 
 describe "IRB::Context, when receiving input" do
