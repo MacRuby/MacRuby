@@ -4488,14 +4488,24 @@ void
 RoxorCore::register_thread(VALUE thread)
 {
     RoxorCoreLock lock;
-
     rb_ary_push(threads, thread);
+}
 
+static void
+rb_vm_post_register_thread(VALUE thread)
+{
     rb_vm_thread_t *t = GetThreadPtr(thread);
     pthread_assert(pthread_setspecific(RoxorVM::vm_thread_key, t->vm));
 
     RoxorVM *vm = (RoxorVM *)t->vm;
     vm->set_thread(thread);
+}
+
+extern "C"
+void
+rb_vm_register_thread(VALUE thread)
+{
+    GET_CORE()->register_thread(thread);
 }
 
 extern "C" void rb_thread_unlock_all_mutexes(rb_vm_thread_t *thread);
@@ -4569,8 +4579,10 @@ extern "C"
 void *
 rb_vm_thread_run(VALUE thread)
 {
+    // The thread object should have been registered to the core already,
+    // via rb_vm_register_thread().
     rb_objc_gc_register_thread();
-    GET_CORE()->register_thread(thread);
+    rb_vm_post_register_thread(thread);
 
     // Release the thread now.
     GC_RELEASE(thread);
@@ -5164,6 +5176,7 @@ RoxorVM::setup_from_current_thread(void)
 
     VALUE thread = Data_Wrap_Struct(rb_cThread, NULL, NULL, t);
     GET_CORE()->register_thread(thread);
+    rb_vm_post_register_thread(thread);
     this->set_thread(thread);
 }
 
