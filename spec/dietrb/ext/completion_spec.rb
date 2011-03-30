@@ -9,11 +9,15 @@ module CompletionHelper
   end
   
   def imethods(klass, receiver = nil)
-    klass.instance_methods.map { |m| [receiver, m.to_s].compact.join('.') }.sort
+    wrap_array klass.instance_methods, receiver
   end
   
   def methods(object, receiver = nil)
-    object.methods.map { |m| [receiver, m.to_s].compact.join('.') }.sort
+    wrap_array object.methods, receiver
+  end
+
+  def wrap_array(array, receiver)
+    array.map { |m| [receiver, m.to_s].compact.join('.') }.sort
   end
 end
 
@@ -30,6 +34,9 @@ class Playground
   def CompletionStub.a_singleton_method; end
   
   def a_local_method; end
+
+  def init; end
+  def initWithNothing; end
 end
 
 $a_completion_stub = CompletionStub.new
@@ -202,12 +209,28 @@ describe "IRB::Completion" do
       end
       
       it "returns *all* public instance methods of the class (the receiver) that ::new is called on" do
-        complete("Playground.new.").should == imethods(Playground, 'Playground.new')
+        if IRB::Completion::INCLUDE_MACRUBY_HELPERS
+          imethods = Playground.instance_methods(true, true)
+        else
+          imethods = Playground.instance_methods(true)
+        end
+
+        complete("Playground.new.").should == wrap_array(imethods, 'Playground.new')
         complete("Playground.new.a_local_m").should == %w{ Playground.new.a_local_method }
         
         @context.__evaluate__("klass = Playground")
-        complete("klass.new.").should == imethods(Playground, 'klass.new')
+        complete("klass.new.").should == wrap_array(imethods, 'klass.new')
         complete("klass.new.a_local_m").should == %w{ klass.new.a_local_method }
+      end
+
+      if IRB::Completion::INCLUDE_MACRUBY_HELPERS
+        it "returns *all* instance methods that are prefixed with `init' of the class (the receiver) that ::alloc is called on" do
+          framework 'AppKit'
+          complete("NSSpeechSynthesizer.alloc.ini").should == %w{ NSSpeechSynthesizer.alloc.init NSSpeechSynthesizer.alloc.initWithVoice }
+          complete("NSSpeechSynthesizer.alloc.initWithVo").should == %w{ NSSpeechSynthesizer.alloc.initWithVoice }
+          @context.__evaluate__("klass = NSSpeechSynthesizer")
+          complete("klass.alloc.ini").should == %w{ klass.alloc.init klass.alloc.initWithVoice }
+        end
       end
     end
     

@@ -8,6 +8,8 @@ require 'ripper'
 
 module IRB
   class Completion
+    INCLUDE_MACRUBY_HELPERS = defined?(RUBY_ENGINE) && RUBY_ENGINE == 'macruby'
+
     # Convenience constants for sexp access of Ripper::SexpBuilder.
     TYPE   = 0
     VALUE  = 1
@@ -71,8 +73,9 @@ module IRB
       context.object.methods.map(&:to_s)
     end
     
-    def instance_methods_of(klass)
-      evaluate(klass).instance_methods
+    def instance_methods_of(klass_name)
+      klass = evaluate(klass_name)
+      INCLUDE_MACRUBY_HELPERS ? klass.instance_methods(true, true) : klass.instance_methods(true)
     end
     
     # TODO: test and or fix the fact that we need to get constants from the
@@ -106,6 +109,11 @@ module IRB
             filter   = stack[2][VALUE] if stack[2]
             receiver = "#{klass}.new"
             methods  = instance_methods_of(klass)
+          elsif stack[1][VALUE] == 'alloc' && INCLUDE_MACRUBY_HELPERS
+            klass    = stack[0][VALUE][VALUE]
+            filter   = stack[2][VALUE] if stack[2]
+            receiver = "#{klass}.alloc"
+            methods  = instance_methods_of(klass).grep(/^init[A-Z]?/)
           else
             filter   = root[CALLEE][VALUE]
             filter   = stack[1][VALUE]
