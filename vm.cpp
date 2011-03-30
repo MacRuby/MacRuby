@@ -1542,9 +1542,9 @@ rb_vm_alias2(VALUE outer, VALUE name, VALUE def, unsigned char dynamic_class)
 	if (k != NULL) {
 	    outer = (VALUE)k;
 	}
-    }
-    if (NIL_P(outer)) {
-	rb_raise(rb_eTypeError, "no class to make alias");
+	else if (RCLASS_SUPER(outer) == 0) {
+	    rb_raise(rb_eTypeError, "no class to make alias");
+	}
     }
 
     // Given arguments should always be symbols (compiled as such).
@@ -2064,9 +2064,9 @@ prepare_method(Class klass, bool dynamic_class, SEL sel, void *data,
 		klass = *(Class *)klass;
 	    }
 	}
-    }
-    if (NIL_P(klass)) {
-	rb_raise(rb_eTypeError, "no class/module to add method");
+	else if (RCLASS_SUPER(klass) == 0) {
+	    rb_raise(rb_eTypeError, "no class/module to add method");
+	}
     }
 
     const long v = RCLASS_VERSION(klass);
