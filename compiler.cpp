@@ -5953,7 +5953,9 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 		    return compile_new_opaque(klass, val);
 		}
 
-		return compile_new_pointer(type + 1, val);
+		if (type[1] != '\0') {
+		    return compile_new_pointer(&type[1], val);
+		}
 	    }
 	    break;
 
