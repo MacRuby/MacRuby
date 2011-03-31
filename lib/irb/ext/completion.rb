@@ -76,8 +76,6 @@ module IRB
     def instance_methods_of(klass_name)
       klass = evaluate(klass_name)
       INCLUDE_MACRUBY_HELPERS ? klass.instance_methods(true, true) : klass.instance_methods(true)
-    rescue NameError
-      nil
     end
     
     # TODO: test and or fix the fact that we need to get constants from the
@@ -139,6 +137,9 @@ module IRB
         end
         result.sort.uniq if result
       end
+
+    rescue Exception => e
+      nil
     end
 
     def expand_path(source)
