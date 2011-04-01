@@ -1053,6 +1053,26 @@ rb_io_primitive_read(rb_io_t *io_struct, char *buffer, long len)
     return rb_io_read_internal(io_struct, (UInt8 *)buffer, len);
 }
 
+void
+rb_io_set_nonblock(rb_io_t *fptr)
+{
+    int oflags;
+#ifdef F_GETFL
+    oflags = fcntl(fptr->fd, F_GETFL);
+    if (oflags == -1) {
+        rb_sys_fail(StringValueCStr(fptr->path));
+    }
+#else
+    oflags = 0;
+#endif
+    if ((oflags & O_NONBLOCK) == 0) {
+        oflags |= O_NONBLOCK;
+        if (fcntl(fptr->fd, F_SETFL, oflags) == -1) {
+            rb_sys_fail(StringValueCStr(fptr->path));
+        }
+    }
+}
+
 /*
  *  call-seq:
  *     ios.read_nonblock(maxlen)              => string

@@ -60,6 +60,8 @@ int rb_io_wait_readable(int fd);
 int rb_io_wait_writable(int fd);
 int rb_io_read_pending(rb_io_t *io_struct);
 
+void rb_io_set_nonblock(rb_io_t *fptr);
+
 static inline void
 rb_io_check_initialized(rb_io_t *fptr)
 {
