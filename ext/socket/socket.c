@@ -76,8 +76,6 @@
 #endif
 #include "sockport.h"
 
-// TODO
-#define rb_io_set_nonblock(x)
 
 static int do_not_reverse_lookup = 1;
 #define FMODE_NOREVLOOKUP 0x100
