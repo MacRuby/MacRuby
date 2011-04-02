@@ -3463,13 +3463,24 @@ rb_rb2oc_exc_handler(void)
 }
 #endif
 
+static void
+prepare_exception_bt(VALUE exc)
+{
+    // An exception's backtrace is prepared on demand, and only once.
+    ID bt_id = rb_intern("bt");
+    VALUE bt = rb_attr_get(exc, bt_id);
+    if (bt == Qnil) {
+	rb_ivar_set(exc, bt_id, rb_vm_backtrace(0));
+    }
+}
+
 extern "C"
 void
 rb_vm_raise_current_exception(void)
 {
     VALUE exception = GET_VM()->current_exception();
     assert(exception != Qnil);
-    rb_iv_set(exception, "bt", rb_vm_backtrace(0));
+    prepare_exception_bt(exception);
     __vm_raise(); 
 }
 
@@ -3477,8 +3488,7 @@ extern "C"
 void
 rb_vm_raise(VALUE exception)
 {
-    rb_iv_set(exception, "bt", rb_vm_backtrace(0));
-    GC_RETAIN(exception);
+    prepare_exception_bt(exception);
     GET_VM()->push_current_exception(exception);
     __vm_raise();
 }
