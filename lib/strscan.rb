@@ -138,7 +138,11 @@ class StringScanner
   # +dup+ argument is obsolete and not used now.
   #
   def initialize(string, dup = false)
-    @string = string
+    begin
+      @string = string.to_str
+    rescue
+      raise TypeError, "can't convert #{string.class.name} into String"
+    end
     @pos = 0
   end
 
@@ -180,7 +184,11 @@ class StringScanner
   #
   def string=(str)
     reset
-    @string = str
+    begin
+      @string = str.to_str
+    rescue
+      raise TypeError, "can't convert #{str.class.name} into String"
+    end
   end
 
   # Appends +str+ to the string being scanned.
@@ -193,8 +201,11 @@ class StringScanner
   #   s.scan(/Dec/)       # -> "Dec"
   #
   def concat(str)
-    raise TypeError, "can't convert #{str.class.name} into String" unless str.class == String
-    self.string << str
+    begin
+      self.string << str.to_str
+    rescue
+      raise TypeError, "can't convert #{str.class.name} into String"
+    end
     self
   end
   alias :<< :concat
