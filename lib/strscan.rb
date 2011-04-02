@@ -625,8 +625,8 @@ class StringScanner
   private
 
   def _scan(pattern, succptr, getstr, headonly)
-    raise TypeError, "bad pattern argument: #{pattern.inspect}" unless
-      String === pattern or Regexp === pattern or pattern.respond_to? :to_str
+    raise TypeError, "wrong argument type #{pattern.class.name} (expected Regexp)" unless
+      Regexp === pattern
 
     @match = nil
     rest = self.rest
