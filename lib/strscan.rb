@@ -158,7 +158,7 @@ class StringScanner
   # Reset the scan pointer (index 0) and clear matching data.
   #
   def reset
-    @previous_position = self.pos = 0
+    self.pos = 0
     @match = nil
     self
   end
