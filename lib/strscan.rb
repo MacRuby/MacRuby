@@ -607,7 +607,10 @@ class StringScanner
   #   s.post_match            # -> "string"
   #
   def pre_match
-    string[0...(pos - @match.to_s.size)] if matched?
+    if matched?
+      p = self.string.size - @match.string.size + @match.begin(0)
+      string[0...p]
+    end
   end
 
   # Return the <i><b>post</b>-match</i> (in the regular expression sense) of the last scan.
