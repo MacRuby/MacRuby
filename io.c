@@ -1060,7 +1060,7 @@ rb_io_set_nonblock(rb_io_t *fptr)
 #ifdef F_GETFL
     oflags = fcntl(fptr->fd, F_GETFL);
     if (oflags == -1) {
-        rb_sys_fail("fcntl() failed");
+        rb_sys_fail("fcntl(2) failed");
     }
 #else
     oflags = 0;
@@ -1068,7 +1068,7 @@ rb_io_set_nonblock(rb_io_t *fptr)
     if ((oflags & O_NONBLOCK) == 0) {
         oflags |= O_NONBLOCK;
         if (fcntl(fptr->fd, F_SETFL, oflags) == -1) {
-            rb_sys_fail("fcntl() failed");
+            rb_sys_fail("fcntl(2) failed");
         }
     }
 }
