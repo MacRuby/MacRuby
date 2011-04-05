@@ -47,7 +47,7 @@ class Compiler
     path = File.join(RbConfig::CONFIG['bindir'], progname)
     unless File.exist?(path)
       if must_be_in_bindir
-        raise "Can't locate program `#{progname}' in #{Config::CONFIG['bindir']}"
+        return nil
       end
       path = `which #{progname}`.strip
       raise "Can't locate program `#{progname}'" if path.empty?
@@ -62,7 +62,7 @@ class Compiler
   LIPO = locate('lipo')
   STRIP = locate('strip')
   MACRUBY = locate('macruby')
-  MACRUBY_LLC = locate('llc', true)
+  MACRUBY_LLC = locate('llc', true) 
   LLC = File.join(RbConfig::CONFIG['LLVM_PATH'], 'bin/llc')
 
   def initialize(opts)
@@ -102,6 +102,8 @@ class Compiler
       @llc = MACRUBY_LLC
       @macruby = MACRUBY
     end
+    
+    raise "Can't locate program `llc' in #{Config::CONFIG['bindir']}" unless @llc
 
     @llc_flags = '-relocation-model=pic -disable-fp-elim '
     if system("#{@llc} -help | grep jit-enable-eh >& /dev/null")
