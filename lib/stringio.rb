@@ -88,9 +88,8 @@ class StringIO
     if str == nil && mode == nil
       mode = 'w+'
     elsif !str.kind_of?(String) && mode == nil
-      self.taint if str.tainted?
       raise TypeError unless str.respond_to?(:to_strio)
-      @string = str.to_strio.string
+      return initialize_copy(str)
     else
       raise TypeError unless str.respond_to?(:to_str)
       @string = str.to_str
