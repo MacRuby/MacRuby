@@ -774,7 +774,7 @@ class StringIO
         end
       else
         if stop = string.index(sep, pos)
-          line = string[pos .. stop]
+          line = string[pos .. (stop + sep.size - 1)]
           @pos = stop + 1
         else
           line = string[pos .. -1]
