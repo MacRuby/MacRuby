@@ -493,6 +493,7 @@ class StringIO
     return 0 if str.empty?
 
     raise(IOError, "not opened for writing") unless @writable
+    raise(IOError, "not modifiable string") if @string.frozen?
 
     if @append || (pos >= string.length)
       # add padding in case it's needed
