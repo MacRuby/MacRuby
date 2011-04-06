@@ -282,12 +282,6 @@ class StringIO
     0
   end
 
-  # strio.path -> nil
-  #
-  def path
-    nil
-  end
-
   # strio.pid -> nil
   #
   def pid
