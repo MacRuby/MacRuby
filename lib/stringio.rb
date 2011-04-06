@@ -588,7 +588,7 @@ class StringIO
         end
 
         write(line)
-        write("\n") if !line.empty? && (line[-1] != ?\n)
+        write("\n") if line[-1] != ?\n
       end
     end
 
