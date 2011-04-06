@@ -43,27 +43,25 @@ class Compiler
   # Misc.
   TMPDIR = (ENV['TMPDIR'] or '/tmp')
 
-  def self.locate(progname, must_be_in_bindir=false)
-    path = File.join(RbConfig::CONFIG['bindir'], progname)
-    unless File.exist?(path)
-      if must_be_in_bindir
-        raise "Can't locate program `#{progname}' in #{Config::CONFIG['bindir']}"
+  def locate(progname, must_be_in_bindir=false)
+    if ['.', '/'].include?(progname[0])
+      # Already a path.
+      unless File.exist?(progname)
+        raise "Can't locate program `#{progname}'"
       end
-      path = `which #{progname}`.strip
-      raise "Can't locate program `#{progname}'" if path.empty?
+      progname
+    else
+      path = File.join(RbConfig::CONFIG['bindir'], progname)
+      unless File.exist?(path)
+        if must_be_in_bindir
+          raise "Can't locate program `#{progname}' in #{Config::CONFIG['bindir']}"
+        end
+        path = `which #{progname}`.strip
+        raise "Can't locate program `#{progname}'" if path.empty?
+      end
+      path
     end
-    path
   end
-
-  # Locate necessary programs.
-  GCC  = locate('gcc')
-  GCXX = locate('g++')
-  NM = locate('nm')
-  LIPO = locate('lipo')
-  STRIP = locate('strip')
-  MACRUBY = locate('macruby')
-  MACRUBY_LLC = locate('llc', true)
-  LLC = File.join(RbConfig::CONFIG['LLVM_PATH'], 'bin/llc')
 
   def initialize(opts)
     @frameworks = ['Foundation'] | (opts[:foundation] || [])
@@ -77,6 +75,7 @@ class Compiler
     @linkf = opts[:linkf]
     @bundle = opts[:bundle]
     @internal = opts[:internal]
+    @verbose = opts[:verbose]
 
     @archs << RUBY_ARCH if @archs.empty?
     @archs.each do |arch|
@@ -94,13 +93,19 @@ class Compiler
 
     @tmpfiles = []
 
+    # Locate necessary programs.
+    @gcc  = locate('gcc')
+    @gcxx = locate('g++')
+    @nm = locate('nm')
+    @lipo = locate('lipo')
+    @strip = locate('strip')
+
     if @internal
-      @macruby = self.class.locate('./miniruby')
-      @llc = LLC
-      raise "llc not found as #{@llc}" unless File.exist?(@llc)
+      @macruby = locate('./miniruby')
+      @llc = locate(File.join(RbConfig::CONFIG['LLVM_PATH'], 'bin/llc'))
     else
-      @llc = MACRUBY_LLC
-      @macruby = MACRUBY
+      @macruby = locate('macruby')
+      @llc = locate('llc', true)
     end
 
     @llc_flags = '-relocation-model=pic -disable-fp-elim '
@@ -211,7 +216,7 @@ class Compiler
 
       # Compile the assembly.
       tmp_obj = gen_tmpfile(base + arch, 'o')
-      execute("#{GCC} -fexceptions -c -arch #{arch} \"#{asm}\" -o \"#{tmp_obj}\"")
+      execute("#{@gcc} -fexceptions -c -arch #{arch} \"#{asm}\" -o \"#{tmp_obj}\"")
       tmp_objs << tmp_obj
     end
 
@@ -219,7 +224,7 @@ class Compiler
     cli_tmp_objs = tmp_objs.map do |obj|
       '"' + obj + '"'
     end
-    execute("#{LIPO} -create #{cli_tmp_objs.join(' ')} -output \"#{output}\"")
+    execute("#{@lipo} -create #{cli_tmp_objs.join(' ')} -output \"#{output}\"")
 
     [output, init_func]
   end
@@ -246,7 +251,7 @@ EOS
     main = gen_tmpfile('main', 'c')
     File.open(main, 'w') { |io| io.write(main_txt) }
     linkf = @internal ? "-L. -lmacruby" : "-L#{RbConfig::CONFIG['libdir']} -lmacruby"
-    execute("#{GCXX} \"#{main}\" -fexceptions -dynamic -bundle -undefined suppress -flat_namespace #{arch_flags} #{linkf} \"#{obj}\" -o \"#{output}\"")
+    execute("#{@gcxx} \"#{main}\" -fexceptions -dynamic -bundle -undefined suppress -flat_namespace #{arch_flags} #{linkf} \"#{obj}\" -o \"#{output}\"")
     strip(output)
   end
 
@@ -273,7 +278,7 @@ EOS
     File.open(main, 'w') { |io| io.write(main_txt) }
     @linkf << @internal ? "-L. -lmacruby" : "-L#{RbConfig::CONFIG['libdir']} -lmacruby"
     objs = objs_data.map { |obj, f| "\"#{obj}\"" }.join(' ')
-    execute("#{GCXX} \"#{main}\" -dynamiclib -dynamic -undefined suppress -flat_namespace #{arch_flags} #{@linkf.join(' ')} #{objs} -o \"#{output}\"")
+    execute("#{@gcxx} \"#{main}\" -dynamiclib -dynamic -undefined suppress -flat_namespace #{arch_flags} #{@linkf.join(' ')} #{objs} -o \"#{output}\"")
     strip(output)
   end
 
@@ -345,7 +350,7 @@ EOS
     main = gen_tmpfile('main', 'mm')
     File.open(main, 'w') { |io| io.write(main_txt) }
     main_o = gen_tmpfile('main', 'o')
-    execute("#{GCXX} \"#{main}\" -c #{arch_flags} -o \"#{main_o}\" -fobjc-gc")
+    execute("#{@gcxx} \"#{main}\" -c #{arch_flags} -o \"#{main_o}\" -fobjc-gc")
     objs.unshift(main_o)
 
     # Link all objects into executable.
@@ -360,7 +365,7 @@ EOS
     linkf << (@static ?
       "#{path} #{RbConfig::CONFIG['LIBRUBYARG_STATIC_REALLY']}" :
       "#{path} -lmacruby")
-    line = "#{GCXX} -o \"#{output}\" #{arch_flags} #{linkf} "
+    line = "#{@gcxx} -o \"#{output}\" #{arch_flags} #{linkf} "
     objs.each { |o| line << " \"#{o}\"" }
     execute(line)
     strip(output)
@@ -378,7 +383,7 @@ EOS
   end
 
   def strip(bin)
-    execute("#{STRIP} -x \"#{bin}\"")
+    execute("#{@strip} -x \"#{bin}\"")
   end
 
   def llc_arch(arch)
@@ -395,7 +400,7 @@ EOS
   end
 
   def find_init_func(obj)
-    output = `#{NM} -j "#{obj}"`
+    output = `#{@nm} -j "#{obj}"`
     output.scan(/^_MREP_.*$/).reject { |func|
       # Ignore non-main functions.
       func.include?('ruby_scope')
