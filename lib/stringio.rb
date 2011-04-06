@@ -351,6 +351,7 @@ class StringIO
   #
   def ungetc(chars)
     raise(IOError, "not opened for reading") unless @readable
+    chars = chars.chr if chars.kind_of?(Fixnum)
     raise TypeError unless chars.respond_to?(:to_str)
     chars = chars.to_str
 
