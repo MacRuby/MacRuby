@@ -678,6 +678,11 @@ class StringIO
     nil
   end
 
+  def set_encoding(enc)
+    @string = @string.encode(enc)
+    self
+  end
+
   protected
 
     # meant to be overwritten by developers
