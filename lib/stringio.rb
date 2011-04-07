@@ -775,12 +775,15 @@ class StringIO
       elsif sep.empty?
         while string[@pos] == ?\n
           @pos += 1
+          limit -= 1
         end
 
         if stop = string.index("\n\n", pos)
           stop += 1
           line = string[pos .. stop]
-          line = line[0 .. limit] if lim != nil
+          if lim != nil && line[limit, 2] != "\n\n"
+            line = line[0 .. limit]
+          end
         else
           line = string[pos .. offset]
         end
@@ -792,7 +795,6 @@ class StringIO
         end
       end
       @pos += line.size
-
       @lineno += 1
 
       line
