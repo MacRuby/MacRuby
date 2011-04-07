@@ -425,11 +425,11 @@ class StringIO
   #
   # See IO#each.
   #
-  def each(sep = $/)
+  def each(sep=$/, limit=nil)
     if block_given?
       raise(IOError, "not opened for reading") unless @readable
       sep = sep.to_str unless sep == nil
-      while line = getline(sep)
+      while line = getline(sep, limit)
         yield(line)
       end
       self
@@ -446,8 +446,8 @@ class StringIO
   #
   # See IO#gets.
   #
-  def gets(sep=$/)
-    $_ = getline(sep)
+  def gets(sep=$/, limit=nil)
+    $_ = getline(sep, limit)
   end
 
   #   strio.readline(sep=$/)     -> string
@@ -455,9 +455,9 @@ class StringIO
   #   strio.readline(sep, limit) -> string or nil
   #
   # See IO#readline.
-  def readline(sep=$/)
+  def readline(sep=$/, limit=nil)
     raise(IO::EOFError, 'end of file reached') if eof?
-    $_ = getline(sep)
+    $_ = getline(sep, limit)
   end
 
   #   strio.readlines(sep=$/)    ->   array
@@ -466,10 +466,10 @@ class StringIO
   #
   # See IO#readlines.
   #
-  def readlines(sep=$/)
+  def readlines(sep=$/, limit=nil)
     raise IOError, "not opened for reading" unless @readable
     ary = []
-    while line = getline(sep)
+    while line = getline(sep, limit)
       ary << line
     end
     ary
@@ -753,35 +753,45 @@ class StringIO
       @string.replace("") if (mode & IO::TRUNC) != 0
     end
 
-    def getline(sep = $/)
+    def getline(sep = $/, lim = nil)
       raise(IOError, "not opened for reading") unless @readable
       return nil if eof?
+      if lim == nil && sep.class == Fixnum
+        lim = sep
+        sep = nil
+      end
       sep = sep.to_str unless (sep == nil)
 
-      if sep == nil
-        line = string[pos .. -1]
-        @pos = string.size
+      offset = limit = -1
+      if lim != nil
+        limit  = lim - 1
+        offset = pos + limit
+      end
+
+      if lim != nil && lim == 0
+        line = ""
+      elsif sep == nil
+        line = string[pos .. offset]
       elsif sep.empty?
+        while string[@pos] == ?\n
+          @pos += 1
+        end
+
         if stop = string.index("\n\n", pos)
           stop += 1
           line = string[pos .. stop]
-          while string[stop] == ?\n
-            stop += 1
-          end
-          @pos = stop
+          line = line[0 .. limit] if lim != nil
         else
-          line = string[pos .. -1]
-          @pos = string.size
+          line = string[pos .. offset]
         end
       else
         if stop = string.index(sep, pos)
           line = string[pos .. (stop + sep.size - 1)]
-          @pos = stop + 1
         else
-          line = string[pos .. -1]
-          @pos = string.size
+          line = string[pos .. offset]
         end
       end
+      @pos += line.size
 
       @lineno += 1
 
