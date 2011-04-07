@@ -1,0 +1,50 @@
+= MacRuby Examples
+
+This directory contains example applications written using MacRuby and using Cocoa and other Mac OS X frameworks. Below is a list of some of the examples and what each demonstrates:
+
++ABPresence+:: AddressBook and InstantMessage frameworks, NSTableView, notifications
+
++AnimatingViews+:: NSView animations, NSBox
+
++CircleView+:: NSView, event handling, NSAffineTransform, text layout and drawing
+
++DotView+:: NSView, event handling, drawing
+
++EmbedMacRuby+:: Embedding the MacRuby framework in a pure Cocoa application
+
++FlickrDemo+:: ImageKit and PubSub frameworks, NSTableView, NSToolbar
+
++MacOnRack+:: WebView, Rack (Ruby WebServer Interface)
+
++OutlineView+:: NSOutlineView
+
++PagePacker+:: PDFKit framework, NSView, dragging, scripting, printing, undo manager, notifications
+
++PathDemo+:: Path operations (circles, rectangles, Bézier paths)
+
++PhileasFrog+:: 2D video game (CALayer, CATransaction, CABasicAnimation, Cocoa wrapper, key controls, NSSound, NSTimer, CIFilter)
+
++RoundTransparentWindow+:: Custom-shaped NSWindow with transparent window content.
+
++Sketch+:: NSDocument architecture, NSUndoManager, NSBezierPath.
+
++Skreenics+:: QTKit, NSOperation, NSUserDefaults, NSValueTransformer, Drag and drop, Key-Value coding/observing, custom views / cells.
+
++Suru+:: Interface Builder, Core Data
+
++ViewModelDemo+:: NSView, NSTimer
+
++YamlTable+:: NSTableView, YAML, NSAlert, Sheet
+
+The HotCocoa directory contains examples for the MacRuby's HotCocoa
+gem, which aims at making Cocoa development easier for Ruby
+developers.
+
+You will also find some standalone scripts in the Scripts directory. These
+files are meant to be run from the command line.
+
+Several DTrace scripts are available in the DTrace directory. These scripts
+should be executed from the command line.
+
+The source code of all MacRuby examples, unless specified, is covered by the Ruby license, which can be found online at:
+http://www.ruby-lang.org/en/LICENSE.txt
