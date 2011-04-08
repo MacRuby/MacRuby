@@ -428,13 +428,12 @@ class StringIO
   def each(sep=$/, limit=nil)
     if block_given?
       raise(IOError, "not opened for reading") unless @readable
-      sep = sep.to_str unless sep == nil
       while line = getline(sep, limit)
         yield(line)
       end
       self
     else
-      to_enum(:each, sep)
+      to_enum(:each, sep, limit)
     end
   end
   alias_method :each_line, :each
