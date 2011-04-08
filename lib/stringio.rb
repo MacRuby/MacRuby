@@ -755,14 +755,18 @@ class StringIO
     def getline(sep = $/, lim = nil)
       raise(IOError, "not opened for reading") unless @readable
       return nil if eof?
-      if lim == nil && sep.class == Fixnum
-        lim = sep
-        sep = nil
+      if lim == nil && !sep.kind_of?(String)
+        if !sep.respond_to?(:to_str)
+          lim = sep
+          sep = nil
+        end
       end
       sep = sep.to_str unless (sep == nil)
 
       offset = limit = -1
       if lim != nil
+        raise TypeError unless lim.respond_to?(:to_int)
+        lim = lim.to_int
         limit  = lim - 1
         offset = pos + limit
       end
