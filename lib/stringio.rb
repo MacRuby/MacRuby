@@ -428,6 +428,10 @@ class StringIO
   def each(sep=$/, limit=nil)
     if block_given?
       raise(IOError, "not opened for reading") unless @readable
+      sep, limit = getline_args(sep, limit)
+      if limit == 0
+        raise ArgumentError, "invalid limit: 0 for each and family"
+      end
       while line = getline(sep, limit)
         yield(line)
       end
@@ -446,6 +450,7 @@ class StringIO
   # See IO#gets.
   #
   def gets(sep=$/, limit=nil)
+    sep, limit = getline_args(sep, limit)
     $_ = getline(sep, limit)
   end
 
@@ -456,6 +461,7 @@ class StringIO
   # See IO#readline.
   def readline(sep=$/, limit=nil)
     raise(IO::EOFError, 'end of file reached') if eof?
+    sep, limit = getline_args(sep, limit)
     $_ = getline(sep, limit)
   end
 
@@ -468,6 +474,10 @@ class StringIO
   def readlines(sep=$/, limit=nil)
     raise IOError, "not opened for reading" unless @readable
     ary = []
+    sep, limit = getline_args(sep, limit)
+    if limit == 0
+      raise ArgumentError, "invalid limit: 0 for readlines"
+    end
     while line = getline(sep, limit)
       ary << line
     end
@@ -755,18 +765,9 @@ class StringIO
     def getline(sep = $/, lim = nil)
       raise(IOError, "not opened for reading") unless @readable
       return nil if eof?
-      if lim == nil && !sep.kind_of?(String)
-        if !sep.respond_to?(:to_str)
-          lim = sep
-          sep = nil
-        end
-      end
-      sep = sep.to_str unless (sep == nil)
 
       offset = limit = -1
       if lim != nil
-        raise TypeError unless lim.respond_to?(:to_int)
-        lim = lim.to_int
         limit  = lim - 1
         offset = pos + limit
       end
@@ -801,6 +802,23 @@ class StringIO
       @lineno += 1
 
       line
+    end
+
+    def getline_args(sep = $/, lim = nil)
+      if lim == nil && !sep.kind_of?(String)
+        if !sep.respond_to?(:to_str)
+          lim = sep
+          sep = nil
+        end
+      end
+
+      if lim != nil
+        raise TypeError unless lim.respond_to?(:to_int)
+        lim = lim.to_int
+      end
+      sep = sep.to_str unless (sep == nil)
+
+      return sep, lim
     end
 
 end
