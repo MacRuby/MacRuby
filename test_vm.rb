@@ -31,11 +31,12 @@ test_commands.each do |command|
 end
 $problems = []
 $problems_count = 0
+$known_problems = []
+$known_problems_count = 0
 $assertions_count = 0
 $current_file = ""
 
 def assert(expectation, code, options={})
-  return if options[:known_bug]
   if options[:archs]
     archs = $test_archs.select {|arch, command| options[:archs].include?(arch) }
   else
@@ -49,15 +50,29 @@ def assert(expectation, code, options={})
         io.close_write
         output = io.read
       end
-      result = if $? and $?.exitstatus == 0
-        output.chomp == expectation ? '.' : 'F'
-      else
-        output = "ERROR CODE #{$?.exitstatus}"
-        'E'
-      end
+      # results
+      # .: success
+      # F: failure
+      # E: error
+      # +: success but known bug (It's nice!!)
+      # f: failure but known bug
+      # e: error but known bug
+      result =
+        if $? and $?.exitstatus == 0
+          if output.chomp == expectation
+            options[:known_bug] ? '+' : '.'
+          else
+            options[:known_bug] ? 'f' : 'F'
+          end
+        else
+          output = "ERROR CODE #{$?.exitstatus}"
+          options[:known_bug] ? 'e' : 'E'
+        end
       print result
       $stdout.flush
-      if result != '.'
+      case result
+      when '.', '+'
+      when 'F', 'E'
         $problems_count += 1
         new_problem = [[$problems_count], code, expectation, [arch], command, output, $current_file]
         previous_problem = $problems.last
@@ -66,6 +81,16 @@ def assert(expectation, code, options={})
           previous_problem[3] << arch
         else
           $problems << new_problem
+        end
+      when 'f', 'e'
+        $known_problems_count += 1
+        new_known_problem = [[$known_problems_count], code, expectation, [arch], command, output, $current_file]
+        previous_known_problem = $known_problems.last
+        if previous_known_problem and [1, 2, 5].all? {|i| previous_known_problem[i] == new_known_problem[i]}
+          previous_known_problem[0] << $known_problems_count
+          previous_known_problem[3] << arch
+        else
+          $known_problems << new_known_problem
         end
       end
       $assertions_count += 1
@@ -85,22 +110,38 @@ $test_only.each do |what|
   puts
 end
 
+def print_problems(problems)
+  problems.each do |ids, code, expectation, archs, command, output, file|
+    puts ''
+    puts "Problem#{ids.length > 1 ? 's' : ''} #{ids.join(', ')}:"
+    puts "Code: #{code}"
+    puts "Arch#{archs.length > 1 ? 's' : ''}: #{archs.join(', ')}"
+    puts "Command: #{command}"
+    puts "Expectation: #{expectation}"
+    puts "Output: #{output}"
+    puts "File: #{file}"
+  end
+end
+
 at_exit do
-  if $problems.empty?
+  exit_code = 0
+  if $problems.empty? && $known_problems.empty?
     puts "Successfully passed all #{$assertions_count} assertions."
   else
+    problems_count = $problems_count + $known_problems_count
     puts ''
-    puts "#{$problems_count} assertion#{$problems_count > 1 ? 's' : ''} over #{$assertions_count} failed:"
-    $problems.each do |ids, code, expectation, archs, command, output, file|
+    puts "#{problems_count} assertion#{problems_count > 1 ? 's' : ''} over #{$assertions_count} failed."
+    if $problems_count > 0
       puts ''
-      puts "Problem#{ids.length > 1 ? 's' : ''} #{ids.join(', ')}:"
-      puts "Code: #{code}"
-      puts "Arch#{archs.length > 1 ? 's' : ''}: #{archs.join(', ')}"
-      puts "Command: #{command}"
-      puts "Expectation: #{expectation}"
-      puts "Output: #{output}"
-      puts "File: #{file}"
+      puts "#{$problems_count} problem#{$problems_count > 1 ? 's' : ''} failed:"
+      print_problems($problems)
+      exit_code = 1
     end
-    exit 1
+    if $known_problems_count > 0
+      puts ''
+      puts "#{$known_problems_count} known problem#{$known_problems_count > 1 ? 's' : ''} failed: "
+      print_problems($known_problems)
+    end
   end
+  exit(exit_code)
 end
