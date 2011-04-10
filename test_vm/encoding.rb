@@ -1,4 +1,4 @@
-assert "US-ASCII", "File.open('../Rakefile', 'r:US-ASCII') {|f| puts f.read.encoding.name }"
+assert "US-ASCII", "File.open('../Rakefile', 'r:US-ASCII') {|f| puts f.read.encoding.name }", :known_bug => true
 
 assert ":ok", "puts ':ok'.encode('US-ASCII')"
 

@@ -7,7 +7,7 @@ assert "X", "class X; end; class Y < X; end; p Y.superclass"
 assert "42", "class X; def initialize; p 42; end; end; X.new"
 assert "42", "class X; def initialize(x); p x; end; end; X.new(42)"
 
-assert "42", "class X; def initialize; yield; end; end; p X.new { break 42 }"
+assert "42", "class X; def initialize; yield; end; end; p X.new { break 42 }", :known_bug => true
 
 assert "42", %q{
   class X
@@ -71,7 +71,7 @@ assert "42", %q{
     end
   end
   p Y.new.foo
-}
+}, :known_bug => true
 
 assert "42", %{
   class X
@@ -159,7 +159,7 @@ assert "B, [:CONST_M], [:ok]", %{
   end
   B = M.dup
   puts B.to_s + ", " + B.constants.to_s + ", " + B.instance_methods(false).to_s
-}
+}, :known_bug => true
 
 assert "B, [:CONST_A], [:ok]", %{
   class A
@@ -168,7 +168,7 @@ assert "B, [:CONST_A], [:ok]", %{
   end
   B = A.dup
   puts B.to_s + ", " + B.constants.to_s + ", " + B.instance_methods(false).to_s
-}
+}, :known_bug => true
 
 assert "B, [:CONST_C, :CONST_A], []", %{
   class A
@@ -180,7 +180,7 @@ assert "B, [:CONST_C, :CONST_A], []", %{
   end
   B = C.dup
   puts B.to_s + ", " + B.constants.to_s + ", " + B.instance_methods(false).to_s
-}
+}, :known_bug => true
 
 # should obviously be a real file path when run from a file...
 assert %{["-:7:in `<main>'"]}, %{
@@ -190,7 +190,7 @@ assert %{["-:7:in `<main>'"]}, %{
     end
   end
   class Y < X; end
-}
+}, :known_bug => true
 
 assert '[2, 3, 4, 5]', %{
   class Foo

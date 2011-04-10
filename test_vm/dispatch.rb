@@ -112,7 +112,7 @@ assert "42", "def foo(x); if x; x += 2; return x; x += 666; end; end; p foo(40)"
 assert "[1, 2, 3]", "def foo; return 1, 2, 3; end; p foo"
 
 assert "42", "def foo=(x); @x = x + 1; end; self.foo=41; p @x"
-assert "42", "def []=(x, y); @x = x + y; end; self[40]=2; p @x"
+assert "42", "def []=(x, y); @x = x + y; end; self[40]=2; p @x", :known_bug => true
 
 assert "[]", "def foo; return *[]; end; p foo"
 
@@ -135,7 +135,7 @@ assert ":ok", "def foo(*args); :ok; end; p foo"
 assert ":ok", "def foo(&block); :ok; end; p foo"
 assert ":ok", "def foo(*args, &block); :ok; end; p foo"
 assert ":ok", "def foo(x, *args, &block); x; end; p foo(:ok)"
-assert ":ok", "def f(&proc) p :ok; end; f(&nil)"
+assert ":ok", "def f(&proc) p :ok; end; f(&nil)", :known_bug => true
 
 assert ":ok", %{
   def foo(&block) p(block ? :ko : :ok) end
@@ -226,7 +226,7 @@ assert ':ok', %{
     end
     foo { p :ok }
   end
-}
+}, :known_bug => true
 
 assert '42', %{
   class Foo
@@ -278,7 +278,7 @@ assert '42', %{
   def foo(n); return if n == 0; foo(n-1); end
   foo(30000000)
   p 42
-}
+}, :known_bug => true
 
 assert 'true', 'p Object.new.methods.include?(:object_id)'
 assert "false\ntrue", %{
@@ -420,7 +420,7 @@ assert "42", %{
   class X; def foo(x); p x; end; end
   class Y < X; def foo(x); 1.times { |; x| x = 1; super; } end; end
   Y.new.foo(42)
-}
+}, :known_bug => true
 
 assert "42", %{
   module M
@@ -430,7 +430,7 @@ assert "42", %{
     include M
   end
   class Range; foo; end
-}
+}, :known_bug => true
 
 assert ':ok', %{
   class B; end
@@ -446,7 +446,7 @@ assert ':ok', %{
   rescue ArgumentError
     p :ko
   end
-}
+}, :known_bug => true
 
 assert '42', %{
   class C1
@@ -503,7 +503,7 @@ assert ":ok", %{
   rescue ArgumentError
     p :ok
   end
-}
+}, :known_bug => true
 
 # TODO: find a better place for this.
 assert '', %{

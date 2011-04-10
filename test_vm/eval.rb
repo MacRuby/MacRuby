@@ -69,7 +69,7 @@ assert ':ok', %{
       p :ok
     end
   end
-}
+}, :known_bug => true
 
 assert ':ok', %{
   module A
@@ -85,7 +85,7 @@ assert ':ok', %{
   rescue NameError
     p :ok
   end
-}
+}, :known_bug => true
 
 assert '42', %{
   class A; end

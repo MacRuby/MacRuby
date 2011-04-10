@@ -44,7 +44,7 @@ assert ':ok', %{
   rescue NoMethodError
     p :ok
   end
-}
+}, :known_bug => true
 
 assert ':ok', %{
   M = Module.new
@@ -54,7 +54,7 @@ assert ':ok', %{
   rescue NoMethodError
     p :ok
   end
-}
+}, :known_bug => true
 
 assert ':ok', %{
   module Bar
@@ -119,7 +119,7 @@ assert ':ok', %{
   class Class; include M; end
   class X; end
   X.foo
-}
+}, :known_bug => true
 
 assert ':ok', %{
   module M
@@ -130,7 +130,7 @@ assert ':ok', %{
   class Module; include M; end
   module X; end
   X.foo
-}
+}, :known_bug => true
 
 assert ':ok', %{
   module Mok
@@ -149,7 +149,7 @@ assert ':ok', %{
   
   module X; end
   X.foo
-}
+}, :known_bug => true
 
 assert ':ok', %{
   module Mok
@@ -168,7 +168,7 @@ assert ':ok', %{
   
   class X; end
   X.foo
-}
+}, :known_bug => true
 
 assert ':ok', %{
   module M

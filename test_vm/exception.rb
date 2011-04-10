@@ -407,7 +407,7 @@ assert ":ok", %{
     return true
   end
   foo
-}
+}, :known_bug => true
 
 assert ":ok", %{
   def foo
