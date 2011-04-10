@@ -80,7 +80,7 @@ assert '42', %q{
     def baz; Baz; end
   end
   p o.baz.bar
-}
+}, :known_bug => true
 
 assert '42', %q{
   module M
@@ -103,7 +103,7 @@ assert '42', %{
     end
   }
   A.new.bar
-}
+}, :known_bug => true
 
 assert ':ok', %{
   module M
@@ -126,7 +126,7 @@ assert '42', %{
     end
   end
   Foo.new.hey
-}
+}, :known_bug => true
 
 assert '42', %{
   module Foo; end

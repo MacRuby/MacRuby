@@ -181,12 +181,12 @@ assert "42", "p 100.times { break 42 }"
 assert "42", "p proc { next 42 }.call"
 assert "42", "i=0; while i<1; begin; i=2; next; ensure; p 42; end; end"
 
-assert "42", "begin p proc { break 24 }.call rescue LocalJumpError; p 42 end"
+assert "42", "begin p proc { break 24 }.call rescue LocalJumpError; p 42 end", :known_bug => true
 assert "42", "def foo; yield; end; foo { break }; 1.times {p 42}"
-assert "42", "1.times { begin; break; ensure; p 42; end }"
-assert "42", "i=0; while i<1; begin; break; ensure; p 42; end; end"
+assert "42", "1.times { begin; break; ensure; p 42; end }", :known_bug => true
+assert "42", "i=0; while i<1; begin; break; ensure; p 42; end; end", :known_bug => true
 
-assert "42\n42", "i=0; while true; begin; break if i>0; i=1; redo; ensure; p 42; end; end"
+assert "42\n42", "i=0; while true; begin; break if i>0; i=1; redo; ensure; p 42; end; end", :known_bug => true
 
 assert "42", "p [42].map { |x| x }.map { |y| y }[0]"
 
@@ -587,7 +587,7 @@ assert ':ok', %{
     end
     p enclosing_method
   end.call
-}
+}, :known_bug => true
 
 assert ':ok', %{
   b = :foo.to_proc
@@ -613,7 +613,7 @@ assert '42', %{
   }
   x = 1
   b.call
-}
+}, :known_bug => true
 
 assert "42\n42", %{
   a = b = c = nil
@@ -688,7 +688,7 @@ assert ':ok', %{
     end
   end
   f
-}
+}, :known_bug => true
 
 assert ':ok', %{
   def f
@@ -735,7 +735,7 @@ assert ':ok', %{
     lambda { yield }.call
   end
   p(foo { :ok })
-}
+}, :known_bug => true
 
 assert ':ok', %{
   def foo
@@ -745,4 +745,4 @@ assert ':ok', %{
     b.call
   end
   foo {}
-}
+}, :known_bug => true
