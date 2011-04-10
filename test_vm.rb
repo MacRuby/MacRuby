@@ -16,7 +16,7 @@ ARGV.each do |arg|
 end
 if test_commands.empty?
   miniruby_path = File.join(Dir.pwd, 'miniruby')
-  test_commands << "arch -i386 #{miniruby_path}"
+  test_commands << "arch -i386 #{miniruby_path}" if system("arch -i386 #{miniruby_path} -e '' 2> /dev/null")
   test_commands << "arch -x86_64 #{miniruby_path}" if system("arch -x86_64 #{miniruby_path} -e '' 2> /dev/null")
 end
 $test_archs = {}
