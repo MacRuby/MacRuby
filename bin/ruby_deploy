@@ -76,7 +76,7 @@ class Deployer
   # FileUtils::Verbose doesn't work with MacRuby yet. However, it doesn't print
   # out failures anyways, just the command. Use the command-line tools directly
   # to circumvent this.
-  { :cp => 'cp', :cp_r => 'cp -R', :mkdir_p => 'mkdir -p', :rm_rf => 'rm -rf', :rsync => 'rsync' }.each do |name, cmd|
+  { :cp => 'cp', :cp_r => 'cp -R', :mkdir_p => 'mkdir -p', :rm_rf => 'rm -rf', :rsync => 'rsync', :mv => 'mv' }.each do |name, cmd|
     module_eval <<-END, __FILE__, __LINE__ + 1
       def #{name}(*args)
         execute "#{cmd} \#{args.map { |a| "'\#{a}'" }.join(' ')}"
@@ -85,11 +85,11 @@ class Deployer
   end
 
   def app_frameworks
-    File.join(@app_bundle, 'Contents/Frameworks')
+    File.join(@app_bundle, 'Contents', 'Frameworks')
   end
 
   def app_resources
-    File.join(@app_bundle, 'Contents/Resources')
+    File.join(@app_bundle, 'Contents', 'Resources')
   end
 
   def app_bs
@@ -109,7 +109,7 @@ class Deployer
   end
 
   def compile_files
-    Dir.glob(File.join(@app_bundle, 'Contents', 'Resources', '**', '*.rb'))
+    Dir.glob(File.join(app_resources, '**', '*.rb'))
   end
 
   def compile
@@ -176,15 +176,18 @@ class Deployer
       exclude_dirs << "--exclude='#{x.sub(/#{@macruby_framework_path}\//, '')}'"
     }
 
+
     # Copy MacRuby.framework inside MyApp.app/Contents/Frameworks.
     log "Embedding MacRuby.framework"
     mkdir_p(app_frameworks)
     rm_rf(app_macruby)
     rsync('-rl', *exclude_dirs, @macruby_framework_path, app_frameworks)
 
-    # Delete the Current framework symlink in the MacRuby.framework copy
-    # as it seems to cause the AppStore validation process to fail.
+    # Rename the current version folder to Current in the MacRuby.framework
+    # copy when the AppStore validation gets an Info.plist in a symlinked
+    # folder it thinks it is a seperate target.
     rm_rf(File.join(app_macruby, 'Versions', 'Current'))
+    mv(File.join(app_macruby, 'Versions', @macruby_install_version) File.join(app_macruby, 'Versions', 'Current'))
 
     # Only keep specific libs from stdlib.
     unless @stdlib.empty?
