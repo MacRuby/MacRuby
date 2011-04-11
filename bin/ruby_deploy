@@ -109,7 +109,7 @@ class Deployer
   end
 
   def compile_files
-    Dir.glob(File.join(@app_bundle, 'Contents/Resources/*.rb'))
+    Dir.glob(File.join(@app_bundle, 'Contents', 'Resources', '**', '*.rb'))
   end
 
   def compile
