@@ -129,6 +129,8 @@ int ossl_ssl_ex_ptr_idx;
 int ossl_ssl_ex_client_cert_cb_idx;
 int ossl_ssl_ex_tmp_dh_callback_idx;
 
+static pthread_mutex_t *ossl_mutex = NULL;
+
 static void
 ossl_sslctx_free(SSL_CTX *ctx)
 {
@@ -1545,6 +1547,36 @@ ossl_ssl_get_verify_result(VALUE self)
     return INT2FIX(SSL_get_verify_result(ssl));
 }
 
+static void
+ossl_lock_callback(int mode, int n, const char *file, int line)
+{
+    if (mode & CRYPTO_LOCK) {
+	pthread_mutex_lock(&ossl_mutex[n]);
+    }
+    else {
+	pthread_mutex_unlock(&ossl_mutex[n]);
+    }
+}
+
+static unsigned long
+ossl_id_callback(void)
+{
+    return (unsigned long)pthread_self();
+}
+
+static void
+ossl_lock_init(void)
+{
+    int i;
+
+    ossl_mutex = (pthread_mutex_t*)malloc(CRYPTO_num_locks() * sizeof(pthread_mutex_t));
+    for(i = 0; i < CRYPTO_num_locks(); i++) {
+	pthread_mutex_init(&ossl_mutex[i], NULL);
+    }
+    CRYPTO_set_locking_callback(ossl_lock_callback);
+    CRYPTO_set_id_callback(ossl_id_callback);
+}
+
 void
 Init_ossl_ssl()
 {
@@ -1690,4 +1722,6 @@ Init_ossl_ssl()
     ossl_ssl_def_const(OP_PKCS1_CHECK_2);
     ossl_ssl_def_const(OP_NETSCAPE_CA_DN_BUG);
     ossl_ssl_def_const(OP_NETSCAPE_DEMO_CIPHER_CHANGE_BUG);
+
+    ossl_lock_init();
 }
