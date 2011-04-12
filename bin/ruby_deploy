@@ -162,7 +162,7 @@ class Deployer
     gems_libdirs_to_embed = @gems.map { |x| gem_deps_libdirs(x) }.flatten
 
     # Exclude unnecessary things in the MacRuby.framework copy.
-    dirs = ['bin', 'lib/libmacruby-static.a', 'share']
+    dirs = ['bin', 'include', 'lib/libmacruby-static.a', 'share']
     dirs << 'lib/ruby' if @no_stdlib
     dirs << 'lib/ruby/Gems'
     relative_usr = macruby_usr.sub(/#{@macruby_framework_path}\//, '')
@@ -188,6 +188,10 @@ class Deployer
     # folder it thinks it is a seperate target.
     rm_rf(File.join(app_macruby, 'Versions', 'Current'))
     mv(File.join(app_macruby, 'Versions', @macruby_install_version), File.join(app_macruby, 'Versions', 'Current'))
+
+    # Orphaned symlinks prevent AppStore validation.
+    rm_rf(File.join(app_macruby, 'Headers'))
+    rm_rf(File.join(app_macruby, 'Versions', 'Current', 'Headers'))
 
     # Only keep specific libs from stdlib.
     unless @stdlib.empty?
