@@ -42,13 +42,10 @@ module RDoc::Text
   # Expands tab characters in +text+ to eight spaces
 
   def expand_tabs text
-    return text.gsub(/\t+/) { ' ' * (8*$&.length - $`.length % 8)}
-    # XXX this doesn't work in MacRuby yet
-=begin
     expanded = []
 
     text.each_line do |line|
-      line.gsub!(/^(.{8}*?)([^\t\r\n]{0,7})\t/) do
+      line.gsub!(/^((?:.{8})*?)([^\t\r\n]{0,7})\t/) do
         r = "#{$1}#{$2}#{' ' * (8 - $2.size)}"
         r.force_encoding text.encoding if Object.const_defined? :Encoding
         r
@@ -58,7 +55,6 @@ module RDoc::Text
     end
 
     expanded.join
-=end
   end
 
   ##
