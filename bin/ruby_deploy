@@ -101,7 +101,7 @@ class Deployer
   end
 
   def app_macruby_usr
-    File.join(app_macruby, 'Versions', @macruby_install_version, 'usr')
+    File.join(app_macruby, 'Versions', 'Current', 'usr')
   end
 
   def macruby_usr
@@ -232,14 +232,14 @@ class Deployer
                 File.join(@app_bundle, 'Contents/Resources/*.rbo')]
     patterns.each do |pat|
       Dir.glob(pat).each do |bin|
-        execute("#{@install_name_tool} -change #{macruby_usr}/lib/libmacruby.dylib @executable_path/../Frameworks/MacRuby.framework/Versions/#{@macruby_install_version}/usr/lib/libmacruby.dylib '#{bin}'")
+        execute("#{@install_name_tool} -change #{macruby_usr}/lib/libmacruby.dylib @executable_path/../Frameworks/MacRuby.framework/Versions/Current/usr/lib/libmacruby.dylib '#{bin}'")
       end
     end
     log "Fix identification name of libmacruby"
     patterns = [ File.join(app_macruby_usr, 'lib/libmacruby*.dylib') ]
     patterns.each do |pat|
       Dir.glob(pat).each do |bin|
-        execute("#{@install_name_tool} -id @executable_path/../Frameworks/MacRuby.framework/Versions/#{@macruby_install_version}/usr/lib/libmacruby.dylib '#{bin}'")
+        execute("#{@install_name_tool} -id @executable_path/../Frameworks/MacRuby.framework/Versions/Current/usr/lib/libmacruby.dylib '#{bin}'")
       end
     end
   end
