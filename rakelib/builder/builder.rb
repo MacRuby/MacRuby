@@ -220,8 +220,11 @@ class Builder
     end
     
     def clean_commands
-      return [] unless File.exist?(makefile)
-      [create_makefile_command, make_command(:clean), "rm -f #{makefile}"].compact
+      if File.exist?(makefile)
+        [make_command(:clean), "rm -f #{makefile}"].compact
+      else
+        []
+      end
     end
     
     def install_command
