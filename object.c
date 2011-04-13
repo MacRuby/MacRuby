@@ -392,9 +392,7 @@ rb_any_to_string(VALUE obj, SEL sel)
 {
     const char *cname = rb_obj_classname(obj);
     VALUE str = rb_sprintf("#<%s:%p>", cname, (void*)obj);
-    if (OBJ_TAINTED(obj)) {
-	OBJ_TAINT(str);
-    }
+    OBJ_INFECT(str, obj);
     return str;
 }
 
