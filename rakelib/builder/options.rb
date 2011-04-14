@@ -65,14 +65,14 @@ EXTRA_CFLAGS = b.option('CFLAGS', '')
 # Everything below this comment should *not* be modified.
 
 if ENV['build_as_embeddable']
-  $stderr.puts "The 'build_as_embeddable' build configuration has been removed because it is no longer necessary. To package a full version of MacRuby inside your application, please use `macrake deploy` for HotCocoa apps and the `Embed MacRuby` target for Xcode apps."
+  $stderr.puts "The 'build_as_embeddable' build configuration has been removed because it is no longer necessary. To package a full version of MacRuby inside your application, please use the `Embed MacRuby' target for Xcode apps or `macruby_deploy` in a script."
   exit 1
 end
 
 verbose(true)
 
 if `sw_vers -productVersion`.strip < '10.5.6'
-  $stderr.puts "Sorry, your environment is not supported. MacRuby requires Mac OS X 10.5.6 or higher." 
+  $stderr.puts "Sorry, your environment is not supported. MacRuby requires Mac OS X 10.5.6 or higher."
   exit 1
 end
 

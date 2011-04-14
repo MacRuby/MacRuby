@@ -304,12 +304,12 @@ install?(:local, :comm, :bin, :'bin-comm') do
 
     bname = File.basename(src)
     name = case bname
-      when 'hotcocoa', 'rb_nibtool'
+      when 'rb_nibtool'
         bname
       else
         ruby_install_name.sub(/ruby/, bname)
     end
-    
+
     shebang = ''
     body = ''
     open(src, "rb") do |f|
