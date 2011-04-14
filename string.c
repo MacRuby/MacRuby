@@ -32,6 +32,8 @@ VALUE rb_cRubyString;
 
 VALUE rb_fs;
 
+static SEL selMATCH;
+
 // rb_str_t primitives.
 
 static void
@@ -3084,7 +3086,7 @@ rstr_match2(VALUE self, SEL sel, int argc, VALUE *argv)
     }
     VALUE re = get_pat(argv[0], false);
     argv[0] = self;
-    VALUE result = rb_funcall2(re, rb_intern("match"), argc, argv);
+    VALUE result = rb_vm_call(re, selMATCH, argc, argv);
     if (!NIL_P(result) && rb_block_given_p()) {
 	return rb_yield(result);
     }
@@ -6085,6 +6087,8 @@ Init_String(void)
     VALUE NSData = (VALUE)objc_getClass("NSData");
     assert(NSData != 0);
     rb_objc_define_method(NSData, "to_str", nsdata_to_str, 0);
+
+    selMATCH = sel_registerName("match:");
 }
 
 bool
