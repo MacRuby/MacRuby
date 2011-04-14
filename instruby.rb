@@ -29,7 +29,7 @@ def parse_args(argv = ARGV)
   $prog_mode = 0755
   $dir_mode = nil
   $script_mode = nil
-  $cmdtype = ('bat' if File::ALT_SEPARATOR == '\\')
+  $cmdtype = nil
   mflags = []
   opt = OptionParser.new
   opt.on('-n') {$dryrun = true}
@@ -62,7 +62,7 @@ def parse_args(argv = ARGV)
   end
   opt.on('--installed-list [FILENAME]') {|name| $installed_list = name}
   opt.on('--rdoc-output [DIR]') {|dir| $rdocdir = dir}
-  opt.on('--cmd-type=TYPE', %w[bat cmd plain]) {|cmd| $cmdtype = (cmd unless cmd == 'plain')}
+  opt.on('--cmd-type=TYPE', %w[cmd plain]) {|cmd| $cmdtype = (cmd unless cmd == 'plain')}
 
   opt.order!(argv) do |v|
     case v
@@ -323,21 +323,7 @@ install?(:local, :comm, :bin, :'bin-comm') do
     cmd = File.join(bindir, name)
     cmd << ".#{$cmdtype}" if $cmdtype
     open_for_install(cmd, $script_mode) do
-      case $cmdtype
-      when "bat"
-        "#{<<EOH}#{shebang}#{body}#{<<EOF}".gsub(/$/, "\r")
-@echo off
-@if not "%~d0" == "~d0" goto WinNT
-#{ruby_bin} -x "#{cmd}" %1 %2 %3 %4 %5 %6 %7 %8 %9
-@goto endofruby
-:WinNT
-"%~dp0#{ruby_install_name}" -x "%~f0" %*
-@goto endofruby
-EOH
-__END__
-:endofruby
-EOF
-      when "cmd"
+      if $cmdtype == "cmd"
         "#{<<EOH}#{shebang}#{body}"
 @"%~dp0#{ruby_install_name}" -x "%~f0" %*
 @exit /b %ERRORLEVEL%
