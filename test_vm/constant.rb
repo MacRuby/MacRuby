@@ -93,7 +93,7 @@ assert '42', %q{
 
 assert '1', "class Float; class X; p ROUNDS; end; end"
 
-assert '42', %{
+assert ':ok', %{
   class A
     B = 42
   end
@@ -102,8 +102,12 @@ assert '42', %{
       p B
     end
   }
-  A.new.bar
-}, :known_bug => true
+  begin
+    A.new.bar
+  rescue NameError
+    p :ok
+  end
+}
 
 assert ':ok', %{
   module M
