@@ -43,9 +43,9 @@ assert n, %{
       q.sync { @n += i }
     end
   end
-  g.wait
+  g.wait(10)
   p @n
-}
+}, :known_bug => true
 
 # apply + sequential
 assert n, %{
