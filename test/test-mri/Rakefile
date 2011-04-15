@@ -17,9 +17,9 @@ task :default do
     # run test
     if(GET_LOG_SEGFAULT)
       puts file
-      system "sh -c './bin/timeout -t 180 #{macruby} -r require_relative.rb #{file} #{opts} >> #{DIR_RESULT}/#{output} 2>&1' >> #{DIR_RESULT}/#{error} 2>&1"
+      system "sh -c './bin/timeout -t 180 #{macruby} -r require_relative.rb #{file} --seed 0 #{opts} >> #{DIR_RESULT}/#{output} 2>&1' >> #{DIR_RESULT}/#{error} 2>&1"
     else
-      system "./bin/timeout -t 180 #{macruby} -r require_relative.rb #{file} #{opts} 2>&1 | tee -a -i #{DIR_RESULT}/#{output}"
+      system "./bin/timeout -t 180 #{macruby} -r require_relative.rb #{file} --seed 0 #{opts} 2>&1 | tee -a -i #{DIR_RESULT}/#{output}"
     end
 
     # kill watchdog
