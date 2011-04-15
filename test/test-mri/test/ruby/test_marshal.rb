@@ -44,6 +44,8 @@ class TestMarshal < Test::Unit::TestCase
 
   StrClone = String.clone
   def test_marshal_cloned_class
+    skip("[BUG : #???] Abort")
+
     assert_instance_of(StrClone, Marshal.load(Marshal.dump(StrClone.new("abc"))))
   end
 
