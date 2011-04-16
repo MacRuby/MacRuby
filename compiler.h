@@ -169,6 +169,7 @@ class RoxorCompiler {
 	Function *prepareBlockFunc;
 	Function *pushBindingFunc;
 	Function *getBlockFunc;
+	Function *currentBlockFunc;
 	Function *currentBlockObjectFunc;
 	Function *getConstFunc;
 	Function *setConstFunc;
