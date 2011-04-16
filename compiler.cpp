@@ -185,6 +185,7 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     pushBindingFunc = NULL;
     getBlockFunc = get_function("vm_get_block");
     currentBlockObjectFunc = NULL;
+    currentBlockFunc = NULL;
     getConstFunc = get_function("vm_get_const");
     setConstFunc = get_function("vm_set_const");
     prepareMethodFunc = NULL;
@@ -3311,8 +3312,18 @@ rescan_args:
 	if (block_given) {
 	    blockVal = compile_prepare_block();
 	}
-	else if (nd_type(node) == NODE_ZSUPER && current_block_arg != NULL) {
-	    blockVal = compile_block_get(current_block_arg);	
+	else if (nd_type(node) == NODE_ZSUPER) {
+	    if (current_block_arg != NULL) {
+		blockVal = compile_block_get(current_block_arg);
+	    }
+	    else {
+		if (currentBlockFunc == NULL) {
+		    currentBlockFunc = cast<Function>(
+			    module->getOrInsertFunction(
+				"rb_vm_current_block", PtrTy, NULL));
+		}
+		blockVal = CallInst::Create(currentBlockFunc, "", bb);
+	    }
 	}
 	else {
 	    blockVal = compile_const_pointer(NULL);
