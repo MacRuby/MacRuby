@@ -57,6 +57,12 @@ assert "42", %q{
   p Z.new.foo
 }
 
+assert "42", %{
+  class X;     def foo; yield; end; end
+  class Y < X; def foo; super; end; end
+  Y.new.foo { p 42 }
+}
+
 assert "true", %{
   class X;   def foo(x); x;                        end; end
   module M1; def foo(x); super(true);              end; end
