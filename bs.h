@@ -263,6 +263,18 @@ bool bs_parser_parse(bs_parser_t *parser, const char *path,
   const char *framework_path, bs_parse_options_t options, 
   bs_parse_callback_t callback, void *context, char **error);
 
+/* bs_parser_current_version_number()
+ *
+ * Returns the BridgeSupport version number of the current parsed
+ * file, as an integer value, or 0 in case the parsed file does not contain
+ * a version number.
+ */
+unsigned int bs_parser_current_version_number(bs_parser_t *parser);
+
+#define BS_VERSION_UNKNOWN 	0
+#define BS_VERSION_0_9 		9	// Leopard or above
+#define BS_VERSION_1_0 		10	// Preview 1-3
+
 /* bs_element_free()
  *
  * Frees a bridge support element that was returned by bs_parse() through the 

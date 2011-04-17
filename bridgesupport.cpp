@@ -39,7 +39,6 @@ using namespace llvm;
 #include <dlfcn.h>
 #include <sys/stat.h>
 
-static bool bridgesupport_tot = false;
 static ID boxed_ivar_type = 0;
 static VALUE bs_const_magic_cookie = Qnil;
 
@@ -1066,7 +1065,7 @@ RoxorCore::register_bs_class(bs_element_class_t *bs_class)
 }
 
 static void
-__bs_parse_cb(bs_parser_t *parser, const char *path, bs_element_type_t type, 
+__bs_parse_cb(bs_parser_t *parser, const char *path, bs_element_type_t type,
 	void *value, void *ctx)
 {
     GET_CORE()->bs_parse_cb(type, value, ctx);
@@ -1077,6 +1076,7 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 {
     bool do_not_free = false;
     CFMutableDictionaryRef rb_cObject_dict = (CFMutableDictionaryRef)ctx;
+    const unsigned int bs_vers = bs_parser_current_version_number(bs_parser);
 
     switch (type) {
 	case BS_ELEMENT_ENUM:
@@ -1085,7 +1085,21 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 	    ID name = generate_const_name(bs_enum->name);
 	    if (!CFDictionaryGetValueIfPresent(rb_cObject_dict,
 			(const void *)name, NULL)) {
-
+#if defined(__LP64__)
+		if (bs_vers < BS_VERSION_1_0) {
+		    static bool R6399046_fixed = false;
+		    if (!R6399046_fixed
+			    && strcmp(bs_enum->name, "NSNotFound") == 0) {
+			// XXX work around for
+			// <rdar://problem/6399046> NSNotFound 64-bit value is incorrect
+			const void *real_val = (const void *)ULL2NUM(LONG_MAX);
+			CFDictionarySetValue(rb_cObject_dict,
+				(const void *)name, real_val);
+			R6399046_fixed = true;
+			break;
+		    }
+		}
+#endif
 		VALUE val = strchr(bs_enum->value, '.') != NULL
 		    ? rb_float_new(rb_cstr_to_dbl(bs_enum->value, 0))
 		    : rb_cstr_to_inum(bs_enum->value, 10, 0);
@@ -1176,6 +1190,31 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 	    register_bs_class(bs_class);
 	    free(bs_class);
 	    do_not_free = true;
+
+	    if (bs_vers < BS_VERSION_1_0) {
+		static bool R7281806_fixed = false;
+		if (!R7281806_fixed
+			&& strcmp(bs_class->name, "NSObject") == 0) {
+		    // XXX work around for
+		    // <rdar://problem/7281806> -[NSObject performSelector:] has wrong sel_of_type attributes
+		    bs_element_method_t *bs_method =
+			GET_CORE()->find_bs_method((Class)rb_cNSObject,
+				sel_registerName("performSelector:"));
+		    if (bs_method != NULL) {
+			bs_element_arg_t *arg = bs_method->args;
+			while (arg != NULL) {
+			    if (arg->index == 0 
+				    && arg->sel_of_type != NULL
+				    && arg->sel_of_type[0] != '@') {
+				arg->sel_of_type[0] = '@';
+				break;
+			    }
+			    arg++;
+			}
+			R7281806_fixed = true;
+		    }
+		}
+	    }
 	    break;
 	}
 
@@ -1190,12 +1229,13 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 		: bs_informal_protocol_imethods;
 
 	    char *type;
-	    if (bridgesupport_tot) {
+	    if (bs_vers >= BS_VERSION_1_0) {
 		type = bs_inf_prot_method->type;
 	    }
 	    else {
 #if __LP64__
-		// XXX workaround <rdar://problem/7318177> 64-bit informal protocol annotations are missing
+		// XXX work around for
+		// <rdar://problem/7318177> 64-bit informal protocol annotations are missing
 		// Manually converting some 32-bit types to 64-bit...
 		const size_t typelen = strlen(bs_inf_prot_method->type) + 1;
 		type = (char *)alloca(typelen);
@@ -1301,43 +1341,6 @@ RoxorCore::load_bridge_support(const char *path, const char *framework_path,
 	    &error);
     if (!ok) {
 	rb_raise(rb_eRuntimeError, "%s", error);
-    }
-    if (!bridgesupport_tot) {
-#if defined(__LP64__)
-	static bool R6399046_fixed = false;
-	// XXX work around for
-	// <rdar://problem/6399046> NSNotFound 64-bit value is incorrect
-	if (!R6399046_fixed) {
-	    const void *key = (const void *)rb_intern("NSNotFound");
-	    const void *real_val = (const void *)ULL2NUM(LONG_MAX);
-
-	    const void *val = CFDictionaryGetValue(rb_cObject_dict, key);
-	    if (val != real_val) {
-		CFDictionarySetValue(rb_cObject_dict, key, real_val);
-		R6399046_fixed = true;
-	    }
-	}
-#endif
-	static bool R7281806fixed = false;
-	// XXX work around for
-	// <rdar://problem/7281806> -[NSObject performSelector:] has wrong sel_of_type attributes
-	if (!R7281806fixed) {
-	    bs_element_method_t *bs_method = GET_CORE()->find_bs_method((Class)rb_cNSObject,
-		    sel_registerName("performSelector:"));
-	    if (bs_method != NULL) {
-		bs_element_arg_t *arg = bs_method->args;
-		while (arg != NULL) {
-		    if (arg->index == 0 
-			    && arg->sel_of_type != NULL
-			    && arg->sel_of_type[0] != '@') {
-			arg->sel_of_type[0] = '@';
-			R7281806fixed = true;
-			break;
-		    }
-		    arg++;
-		}
-	    }	
-	}
     }
 }
 
@@ -1519,11 +1522,6 @@ extern "C"
 void
 Init_BridgeSupport(void)
 {
-    struct stat s;
-    bridgesupport_tot =
-	stat("/System/Library/BridgeSupport/ruby-1.8/bridgesupportparser.bundle",
-		&s) == 0;
-
     // Boxed
     rb_cBoxed = rb_define_class("Boxed", rb_cObject);
     rb_objc_define_method(*(VALUE *)rb_cBoxed, "type",

@@ -407,6 +407,7 @@ bails:
 }
 
 struct _bs_parser {
+  unsigned int version_number;
   CFMutableArrayRef loaded_paths; 
 };
 
@@ -448,6 +449,7 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
   bool success;
   CFStringRef cf_path;
   bool nested_func_ptr;
+  unsigned int version_number = 0;
 
   if (callback == NULL)
     return false;
@@ -557,8 +559,26 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
     bs_element = NULL;
 
     atom = bs_xml_element(name, namelen);
-    if (atom == NULL)
+    if (atom == NULL) {
+      // TODO: we should include the "signatures" string into the gperf
+      // function.
+      if (version_number == 0 && strcmp(name, "signatures") == 0) {
+        char *str = get_attribute(reader, "version");
+        if (str != NULL) {
+          char *p = strchr(str, '.');
+          if (p != NULL) {
+            *p = '\0';
+            int major = atoi(str);
+            int minor = atoi(&p[1]);
+            assert(major < 10 && minor < 10);
+            version_number = (major * 10) + minor;
+            parser->version_number = version_number;
+          }
+          free(str);
+        }
+      }
       continue;
+    }
 
     if (nested_func_ptr) {
       // FIXME: elements nesting function_pointers aren't supported yet by the
@@ -1299,6 +1319,12 @@ bails:
   }
 
   return success;
+}
+
+unsigned int
+bs_parser_current_version_number(bs_parser_t *parser)
+{
+  return parser->version_number;
 }
 
 #define SAFE_FREE(x) do { if ((x) != NULL) free(x); } while (0)
