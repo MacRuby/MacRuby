@@ -15,6 +15,7 @@
 #include "objc.h"
 #include "id.h"
 #include "class.h"
+#include "version.h"
 
 #include <unistd.h>
 #include <dlfcn.h>
@@ -663,12 +664,22 @@ rb_objc_type_size(const char *type)
 static NSString *
 relocated_load_path(NSString *path, NSString *macruby_path)
 {
+    // Relocate framework path.
     NSRange r = [path rangeOfString:@"MacRuby.framework"];
     if (r.location == NSNotFound) {
 	return nil;
     }
     r = NSMakeRange(0, r.location + r.length);
-    return [path stringByReplacingCharactersInRange:r withString:macruby_path];
+    path = [path stringByReplacingCharactersInRange:r withString:macruby_path];
+
+    // Since we are using an embedded version of MacRuby, we also need to
+    // not use any version number in the path, as it's stripped out by
+    // macruby_deploy.
+    NSString *version = [NSString stringWithFormat:@"/Versions/%s/",
+	     MACRUBY_VERSION];
+    path = [path stringByReplacingOccurrencesOfString:version
+	withString:@"/Versions/Current/"];
+    return path;
 }
 
 void
