@@ -822,7 +822,7 @@ conformsToProtocol(Class klass, Protocol *p)
     if (implementsProtocolMethods(p, klass, true)
 	    && implementsProtocolMethods(p, klass, false)) {
 	unsigned int count = 0;
-	Protocol **list = protocol_copyProtocolList(p, &count);
+	Protocol **list = (Protocol **)protocol_copyProtocolList(p, &count);
 	bool success = true;
 	for (unsigned int i = 0; i < count; i++) {
 	    if (!conformsToProtocol(klass, list[i])) {
