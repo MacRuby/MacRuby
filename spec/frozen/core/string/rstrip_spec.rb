@@ -3,11 +3,23 @@ require File.expand_path('../fixtures/classes.rb', __FILE__)
 
 describe "String#rstrip" do
   it "returns a copy of self with trailing whitespace removed" do
-   "  hello  ".rstrip.should == "  hello"
-   "  hello world  ".rstrip.should == "  hello world"
-   "  hello world \n\r\t\n\v\r".rstrip.should == "  hello world"
-   "hello".rstrip.should == "hello"
-   "hello\x00".rstrip.should == "hello"
+    "  hello  ".rstrip.should == "  hello"
+    "  hello world  ".rstrip.should == "  hello world"
+    "  hello world \n\r\t\n\v\r".rstrip.should == "  hello world"
+    "hello".rstrip.should == "hello"
+    "hello\x00".rstrip.should == "hello"
+  end
+
+  ruby_version_is ""..."1.9" do
+    it "returns a copy of self with trailing NULL bytes and whitespace after a NULL byte removed" do
+      "\x00 \x00hello\x00 \x00".rstrip.should == "\x00 \x00hello\x00"
+    end
+  end
+
+  ruby_version_is "1.9" do
+    it "returns a copy of self with all trailing whitespace and NULL bytes removed" do
+      "\x00 \x00hello\x00 \x00".rstrip.should == "\x00 \x00hello"
+    end
   end
 
   it "taints the result when self is tainted" do
@@ -22,6 +34,22 @@ describe "String#rstrip!" do
     a = "  hello  "
     a.rstrip!.should equal(a)
     a.should == "  hello"
+  end
+
+  ruby_version_is ""..."1.9" do
+    it "modifies self removing trailing NULL bytes and whitespace after a NULL" do
+      a = "\x00 \x00hello\x00 \x00"
+      a.rstrip!
+      a.should == "\x00 \x00hello\x00"
+    end
+  end
+
+  ruby_version_is "1.9" do
+    it "modifies self removing trailing NULL bytes and whitespace" do
+      a = "\x00 \x00hello\x00 \x00"
+      a.rstrip!
+      a.should == "\x00 \x00hello"
+    end
   end
 
   it "returns nil if no modifications were made" do

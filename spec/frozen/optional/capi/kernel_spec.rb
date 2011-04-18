@@ -17,6 +17,16 @@ describe "C-API Kernel function" do
     end
   end
 
+  describe "rb_need_block" do
+    it "raises a LocalJumpError if no block is given" do
+      lambda { @s.rb_need_block }.should raise_error(LocalJumpError)
+    end
+
+    it "does not raise a LocalJumpError if a block is given" do
+      @s.rb_need_block { }.should == nil
+    end
+  end
+
   describe "rb_raise" do
     it "raises an exception" do
       lambda { @s.rb_raise({}) }.should raise_error(TypeError)
@@ -92,6 +102,12 @@ describe "C-API Kernel function" do
         @s.rb_sys_fail("additional info")
       end.should raise_error(SystemCallError, /additional info/)
     end
+
+    it "can take a NULL message" do
+      lambda do
+        @s.rb_sys_fail(nil)
+      end.should raise_error(Errno::EPERM)
+    end
   end
 
   describe "rb_yield" do
@@ -122,7 +138,7 @@ describe "C-API Kernel function" do
     end
 
     it "raises LocalJumpError when no block is given" do
-      lambda { @s.rb_yield_values(1, 2) }.should raise_error(LocalJumpError)
+      lambda { @s.rb_yield_splat([1, 2]) }.should raise_error(LocalJumpError)
     end
   end
 
@@ -145,22 +161,40 @@ describe "C-API Kernel function" do
   describe "rb_rescue" do
     before :each do
       @proc = lambda { |x| x }
+      @raise_proc_returns_sentinel = lambda {|*_| :raise_proc_executed }
+      @raise_proc_returns_arg = lambda {|*a| a }
       @arg_error_proc = lambda { |*_| raise ArgumentError, '' }
       @std_error_proc = lambda { |*_| raise StandardError, '' }
       @exc_error_proc = lambda { |*_| raise Exception, '' }
     end
 
     it "executes passed function" do
-      @s.rb_rescue(@proc, :no_exc, @proc, :exc).should == :no_exc
+      @s.rb_rescue(@proc, :no_exc, @raise_proc_returns_arg, :exc).should == :no_exc
     end
 
-    it "executes passed 'raise function' if a StardardError exception is raised" do
-      @s.rb_rescue(@arg_error_proc, nil, @proc, :exc).should == :exc
-      @s.rb_rescue(@std_error_proc, nil, @proc, :exc).should == :exc
+    it "executes passed 'raise function' if a StandardError exception is raised" do
+      @s.rb_rescue(@arg_error_proc, nil, @raise_proc_returns_sentinel, :exc).should == :raise_proc_executed
+      @s.rb_rescue(@std_error_proc, nil, @raise_proc_returns_sentinel, :exc).should == :raise_proc_executed
     end
 
-    it "raises an exception if passed function raises an exception other than StardardError" do
-      lambda { @s.rb_rescue(@exc_error_proc, nil, @proc, nil) }.should raise_error(Exception)
+    it "passes the user supplied argument to the 'raise function' if a StandardError exception is raised" do
+      arg1, _ = @s.rb_rescue(@arg_error_proc, nil, @raise_proc_returns_arg, :exc1)
+      arg1.should == :exc1
+
+      arg2, _ = @s.rb_rescue(@std_error_proc, nil, @raise_proc_returns_arg, :exc2)
+      arg2.should == :exc2
+    end
+
+    it "passes the raised exception to the 'raise function' if a StandardError exception is raised" do
+      _, exc1 = @s.rb_rescue(@arg_error_proc, nil, @raise_proc_returns_arg, :exc)
+      exc1.class.should == ArgumentError
+
+      _, exc2 = @s.rb_rescue(@std_error_proc, nil, @raise_proc_returns_arg, :exc)
+      exc2.class.should == StandardError
+    end
+
+    it "raises an exception if passed function raises an exception other than StandardError" do
+      lambda { @s.rb_rescue(@exc_error_proc, nil, @raise_proc_returns_arg, nil) }.should raise_error(Exception)
     end
 
     it "raises an exception if any exception is raised inside 'raise function'" do
@@ -225,8 +259,35 @@ describe "C-API Kernel function" do
   describe "rb_block_proc" do
     it "converts the implicit block into a proc" do
       proc = @s.rb_block_proc() { 1+1 }
-      proc.should be_kind_of Proc
+      proc.should be_kind_of(Proc)
       proc.call.should == 2
+    end
+  end
+
+  ruby_version_is "1.8.7" do
+    describe "rb_exec_recursive" do
+      it "detects recursive invocations of a method and indicates as such" do
+        s = "hello"
+        @s.rb_exec_recursive(s).should == s
+      end
+    end
+  end
+
+  describe "rb_set_end_proc" do
+    it "runs a C function on shutdown" do
+      r, w = IO.pipe
+
+      fork {
+        @s.rb_set_end_proc(w)
+      }
+
+      r.read(1).should == "e"
+    end
+  end
+
+  describe "rb_f_sprintf" do
+    it "returns a string according to format and arguments" do
+      @s.rb_f_sprintf(["%d %f %s", 10, 2.5, "test"]).should == "10 2.500000 test"
     end
   end
 end

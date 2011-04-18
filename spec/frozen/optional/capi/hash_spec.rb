@@ -7,9 +7,47 @@ describe "C-API Hash function" do
     @s = CApiHashSpecs.new
   end
 
+  describe "rb_hash" do
+    it "calls #hash on the object" do
+      obj = mock("rb_hash")
+      obj.should_receive(:hash).and_return(5)
+      @s.rb_hash(obj).should == 5
+    end
+
+    ruby_version_is "1.8.7" do
+      it "converts a Bignum returned by #hash to a Fixnum" do
+        obj = mock("rb_hash bignum")
+        obj.should_receive(:hash).and_return(bignum_value())
+
+        # The actual conversion is an implementation detail.
+        # We only care that ultimately we get a Fixnum instance.
+        @s.rb_hash(obj).should be_an_instance_of(Fixnum)
+      end
+
+      it "calls #to_int to converts a value returned by #hash to a Fixnum" do
+        obj = mock("rb_hash to_int")
+        obj.should_receive(:hash).and_return(obj)
+        obj.should_receive(:to_int).and_return(12)
+
+        @s.rb_hash(obj).should == 12
+      end
+
+      it "raises a TypeError if the object does not implement #to_int" do
+        obj = mock("rb_hash no to_int")
+        obj.should_receive(:hash).and_return(nil)
+
+        lambda { @s.rb_hash(obj) }.should raise_error(TypeError)
+      end
+    end
+  end
+
   describe "rb_hash_new" do
     it "returns a new hash" do
       @s.rb_hash_new.should == {}
+    end
+
+    it "creates a hash with no default proc" do
+      @s.rb_hash_new {}.default_proc.should be_nil
     end
   end
 
@@ -48,6 +86,26 @@ describe "C-API Hash function" do
     end
   end
 
+  describe "rb_hash_delete_if" do
+    it "removes an entry if the block returns true" do
+      h = { :a => 1, :b => 2, :c => 3 }
+      @s.rb_hash_delete_if(h) { |k, v| v == 2 }
+      h.should == { :a => 1, :c => 3 }
+    end
+
+    ruby_version_is ""..."1.8.7" do
+      it "raises a LocalJumpError when no block is passed" do
+        lambda { @s.rb_hash_delete_if({:a => 1}) }.should raise_error(LocalJumpError)
+      end
+    end
+
+    ruby_version_is "1.8.7" do
+      it "returns an Enumerator when no block is passed" do
+        @s.rb_hash_delete_if({:a => 1}).should be_an_instance_of(enumerator_class)
+      end
+    end
+  end
+
   describe "rb_hash_foreach" do
     it "iterates over the hash" do
       hsh = {:name => "Evan", :sign => :libra}
@@ -55,6 +113,21 @@ describe "C-API Hash function" do
       out = @s.rb_hash_foreach(hsh)
       out.equal?(hsh).should == false
       out.should == hsh
+    end
+
+    it "stops via the callback" do
+      hsh = {:name => "Evan", :sign => :libra}
+
+      out = @s.rb_hash_foreach_stop(hsh)
+      out.size.should == 1
+    end
+
+    it "deletes via the callback" do
+      hsh = {:name => "Evan", :sign => :libra}
+
+      out = @s.rb_hash_foreach_delete(hsh)
+      out.should == {:name => "Evan", :sign => :libra}
+      hsh.should == {}
     end
   end
 

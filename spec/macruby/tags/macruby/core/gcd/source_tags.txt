@@ -4,3 +4,4 @@ fails:Dispatch::Source of type file: VNODE fires with data showing mask of vnode
 #fails:Dispatch::Source of type file: VNODE does not close file when cancelled given descriptor
 #fails:Dispatch::Source of type PROC fires on process event with event mask data
 
+fails:Dispatch::Source of type SIGNAL fires on signal with signal count data

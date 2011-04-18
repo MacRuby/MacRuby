@@ -52,13 +52,13 @@ describe "String#slice! with index" do
     a.should == "hello"
   end
 
-  ruby_version_is ""..."1.9" do 
+  ruby_version_is ""..."1.9" do
     it "raises a TypeError if self is frozen" do
       lambda { "hello".freeze.slice!(1) }.should raise_error(TypeError)
     end
   end
 
-  ruby_version_is "1.9" do 
+  ruby_version_is "1.9" do
     it "raises a RuntimeError if self is frozen" do
       lambda { "hello".freeze.slice!(1)  }.should raise_error(RuntimeError)
       lambda { "hello".freeze.slice!(10) }.should raise_error(RuntimeError)
@@ -66,7 +66,7 @@ describe "String#slice! with index" do
     end
   end
 
-  ruby_version_is ""..."1.9" do 
+  ruby_version_is ""..."1.9" do
     it "doesn't raise a TypeError if self is frozen and idx is outside of self" do
       "hello".freeze.slice!(10).should be_nil
       "".freeze.slice!(0).should be_nil
@@ -124,7 +124,7 @@ describe "String#slice! with index, length" do
     a.should == "hello"
   end
 
-  ruby_version_is "1.9" do 
+  ruby_version_is "1.9" do
     it "raises a RuntimeError if self is frozen" do
       lambda { "hello".freeze.slice!(1, 2)  }.should raise_error(RuntimeError)
       lambda { "hello".freeze.slice!(10, 3) }.should raise_error(RuntimeError)
@@ -397,7 +397,7 @@ describe "String#slice! with Regexp, index" do
     $~.should == nil
   end
 
-  ruby_version_is ""..."1.9" do 
+  ruby_version_is ""..."1.9" do
     it "raises a TypeError if self is frozen" do
       lambda { "this is a string".freeze.slice!(/s.*t/) }.should raise_error(TypeError)
     end
@@ -411,7 +411,7 @@ describe "String#slice! with Regexp, index" do
     end
   end
 
-  ruby_version_is "1.9" do 
+  ruby_version_is "1.9" do
     it "raises a RuntimeError if self is frozen" do
       lambda { "this is a string".freeze.slice!(/s.*t/)  }.should raise_error(RuntimeError)
       lambda { "this is a string".freeze.slice!(/zzz/, 0)}.should raise_error(RuntimeError)
@@ -469,13 +469,13 @@ describe "String#slice! with String" do
     r.should be_kind_of(StringSpecs::MyString)
   end
 
-  ruby_version_is ""..."1.9" do 
+  ruby_version_is ""..."1.9" do
     it "raises a TypeError if self is frozen" do
       lambda { "hello hello".freeze.slice!('llo') }.should raise_error(TypeError)
     end
   end
 
-  ruby_version_is "1.9" do 
+  ruby_version_is "1.9" do
     it "raises a RuntimeError if self is frozen" do
       lambda { "hello hello".freeze.slice!('llo')     }.should raise_error(RuntimeError)
       lambda { "this is a string".freeze.slice!('zzz')}.should raise_error(RuntimeError)

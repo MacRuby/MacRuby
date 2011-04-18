@@ -1,0 +1,1 @@
+fails:Proc#curry with arity argument retains the lambda-ness of the Proc on which its called

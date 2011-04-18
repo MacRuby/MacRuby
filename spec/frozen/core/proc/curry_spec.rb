@@ -3,7 +3,7 @@ require File.expand_path('../../../spec_helper', __FILE__)
 ruby_version_is "1.9" do
   describe "Proc#curry" do
     before(:each) do
-      @proc_add = proc {|x,y,z| (x||0) + (y||0) + (z||0) }
+      @proc_add = Proc.new {|x,y,z| (x||0) + (y||0) + (z||0) }
       @lambda_add = lambda {|x,y,z| (x||0) + (y||0) + (z||0) }
     end
 
@@ -30,11 +30,11 @@ ruby_version_is "1.9" do
       lambda2 = @lambda_add.curry[1][2]
       lambda2.should be_an_instance_of(Proc)
       lambda2.call(3).should == 6
-      
+
       @proc_add.curry.call(1,2,3).should == 6
       @lambda_add.curry.call(1,2,3).should == 6
     end
-    
+
     it "can be called multiple times on the same Proc" do
       @proc_add.curry
       lambda { @proc_add.curry }.should_not raise_error
@@ -81,22 +81,19 @@ ruby_version_is "1.9" do
       @lambda_add.curry(3).should be_an_instance_of(Proc)
     end
 
-=begin # this spec seems to fail with 1.9.2
     # [ruby-core:24127]
     it "retains the lambda-ness of the Proc on which its called" do
       @lambda_add.curry(3).lambda?.should be_true
       @proc_add.curry(3).lambda?.should be_false
     end
-=end
 
     it "raises an ArgumentError if called on a lambda that requires more than _arity_ arguments" do
-      p = lambda { true }
-      lambda { p.curry(2) }.should raise_error(ArgumentError)
+      lambda { @lambda_add.curry(2) }.should raise_error(ArgumentError)
+      lambda { lambda{|x, y, z, *more|}.curry(2) }.should raise_error(ArgumentError)
     end
 
     it "raises an ArgumentError if called on a lambda that requires fewer than _arity_ arguments" do
-      p = lambda { true }
-      lambda { p.curry(4) }.should raise_error(ArgumentError)
+      lambda { @lambda_add.curry(4) }.should raise_error(ArgumentError)
     end
 
     it "calls the curried proc with the arguments if _arity_ arguments have been given" do
@@ -113,7 +110,7 @@ ruby_version_is "1.9" do
       lambda2.should be_an_instance_of(Proc)
       lambda2.call(3).should == 6
     end
-    
+
     it "can be specified multiple times on the same Proc" do
       @proc_add.curry(2)
       lambda { @proc_add.curry(1) }.should_not raise_error
@@ -123,9 +120,9 @@ ruby_version_is "1.9" do
     end
 
     it "can be passed more than _arity_ arguments if created from a proc" do
-      lambda { @proc_add.curry(3)[1,2,3,4].should == 6 }.should_not 
+      lambda { @proc_add.curry(3)[1,2,3,4].should == 6 }.should_not
         raise_error(ArgumentError)
-      lambda { @proc_add.curry(1)[1,2].curry(3)[3,4,5,6].should == 6 }.should_not 
+      lambda { @proc_add.curry(1)[1,2].curry(3)[3,4,5,6].should == 6 }.should_not
         raise_error(ArgumentError)
     end
 

@@ -1,0 +1,1 @@
+fails:File#truncate does not move the file read pointer to the specified byte offset

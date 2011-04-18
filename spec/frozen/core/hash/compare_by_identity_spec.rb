@@ -81,7 +81,7 @@ ruby_version_is "1.9" do
       @h[:a] = :a
       @h[o].should == :o
     end
-    
+
     it "raises a RuntimeError on frozen hashes" do
       @h = @h.freeze
       lambda { @h.compare_by_identity }.should raise_error(RuntimeError)

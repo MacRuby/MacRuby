@@ -12,6 +12,7 @@
 #define HAVE_RB_ARY_DELETE_AT              1
 #define HAVE_RB_ARY_DUP                    1
 #define HAVE_RB_ARY_ENTRY                  1
+#define HAVE_RB_ARY_FREEZE                 1
 #define HAVE_RB_ARY_INCLUDES               1
 #define HAVE_RB_ARY_JOIN                   1
 #define HAVE_RB_ARY_NEW                    1
@@ -23,13 +24,19 @@
 #define HAVE_RB_ARY_REVERSE                1
 #define HAVE_RB_ARY_SHIFT                  1
 #define HAVE_RB_ARY_STORE                  1
+#define HAVE_RB_ARY_TO_ARY                 1
+#define HAVE_RB_ARY_TO_S                   1
 #define HAVE_RB_ARY_UNSHIFT                1
 #define HAVE_RB_ASSOC_NEW                  1
+#define HAVE_RB_INSPECTING_P               1
+#define HAVE_RB_PROTECT_INSPECT            1
 
 #define HAVE_RB_EACH                       1
 #define HAVE_RB_ITERATE                    1
+#define HAVE_RB_MEM_CLEAR                  1
 
 /* Bignum */
+#define HAVE_RBIGNUM_SIGN                  1
 #define HAVE_RB_BIG2DBL                    1
 #define HAVE_RB_BIG2LL                     1
 #define HAVE_RB_BIG2LONG                   1
@@ -38,10 +45,9 @@
 
 /* Class */
 #define HAVE_RB_CALL_SUPER                 1
-#define HAVE_RB_CLASS_NAME                 1
 #define HAVE_RB_CLASS2NAME                 1
-#define HAVE_RB_PATH2CLASS                 1
 #define HAVE_RB_CLASS_INHERITED            1
+#define HAVE_RB_CLASS_NAME                 1
 #define HAVE_RB_CLASS_NEW                  1
 #define HAVE_RB_CLASS_NEW_INSTANCE         1
 #define HAVE_RB_CVAR_DEFINED               1
@@ -52,6 +58,7 @@
 #define HAVE_RB_DEFINE_ATTR                1
 #define HAVE_RB_DEFINE_CLASS_VARIABLE      1
 #define HAVE_RB_INCLUDE_MODULE             1
+#define HAVE_RB_PATH2CLASS                 1
 
 /* Constants */
 #define HAVE_RB_CARRAY                     1
@@ -65,11 +72,13 @@
 #define HAVE_RB_CHASH                      1
 #define HAVE_RB_CINTEGER                   1
 #define HAVE_RB_CIO                        1
-#define HAVE_RB_CMODULE                    1
 #define HAVE_RB_CMATCH                     1
+#define HAVE_RB_CMODULE                    1
 #define HAVE_RB_CNILCLASS                  1
 #define HAVE_RB_CNUMERIC                   1
 #define HAVE_RB_COBJECT                    1
+#define HAVE_RB_CPROC                      1
+#define HAVE_RB_CMETHOD                    1
 #define HAVE_RB_CRANGE                     1
 #define HAVE_RB_CREGEXP                    1
 #define HAVE_RB_CSTRING                    1
@@ -77,13 +86,8 @@
 #define HAVE_RB_CSYMBOL                    1
 #define HAVE_RB_CTHREAD                    1
 #define HAVE_RB_CTRUECLASS                 1
-#define HAVE_RB_CPROC                      1
-#define HAVE_RB_MCOMPARABLE                1
-#define HAVE_RB_MENUMERABLE                1
-#define HAVE_RB_MKERNEL                    1
 #define HAVE_RB_EARGERROR                  1
 #define HAVE_RB_EEOFERROR                  1
-#define HAVE_RB_MERRNO                     1
 #define HAVE_RB_EEXCEPTION                 1
 #define HAVE_RB_EFLOATDOMAINERROR          1
 #define HAVE_RB_EINDEXERROR                1
@@ -103,12 +107,16 @@
 #define HAVE_RB_ESIGNAL                    1
 #define HAVE_RB_ESTANDARDERROR             1
 #define HAVE_RB_ESYNTAXERROR               1
+#define HAVE_RB_ESYSSTACKERROR             1
 #define HAVE_RB_ESYSTEMCALLERROR           1
 #define HAVE_RB_ESYSTEMEXIT                1
-#define HAVE_RB_ESYSSTACKERROR             1
-#define HAVE_RB_ETYPEERROR                 1
 #define HAVE_RB_ETHREADERROR               1
+#define HAVE_RB_ETYPEERROR                 1
 #define HAVE_RB_EZERODIVERROR              1
+#define HAVE_RB_MCOMPARABLE                1
+#define HAVE_RB_MENUMERABLE                1
+#define HAVE_RB_MERRNO                     1
+#define HAVE_RB_MKERNEL                    1
 
 /* Data */
 #define HAVE_DATA_WRAP_STRUCT              1
@@ -136,9 +144,11 @@
 #define HAVE_RB_SET_KCODE                  1
 
 /* Hash */
+#define HAVE_RB_HASH                       1
 #define HAVE_RB_HASH_AREF                  1
 #define HAVE_RB_HASH_ASET                  1
 #define HAVE_RB_HASH_DELETE                1
+#define HAVE_RB_HASH_DELETE_IF             1
 #define HAVE_RB_HASH_FOREACH               1
 #define HAVE_RB_HASH_LOOKUP                1
 #define HAVE_RB_HASH_NEW                   1
@@ -146,31 +156,42 @@
 
 /* IO */
 #define HAVE_GET_OPEN_FILE                 1
-#define HAVE_RB_IO_WRITE                   1
+#define HAVE_RB_IO_CHECK_CLOSED            1
 #define HAVE_RB_IO_CHECK_READABLE          1
 #define HAVE_RB_IO_CHECK_WRITABLE          1
-#define HAVE_RB_IO_CHECK_CLOSED            1
+#define HAVE_RB_IO_CLOSE                   1
 #define HAVE_RB_IO_WAIT_READABLE           1
 #define HAVE_RB_IO_WAIT_WRITABLE           1
+#define HAVE_RB_IO_WRITE                   1
 
 /* Kernel */
 #define HAVE_RB_BLOCK_GIVEN_P              1
 #define HAVE_RB_BLOCK_PROC                 1
 #define HAVE_RB_ENSURE                     1
 #define HAVE_RB_EVAL_STRING                1
+#define HAVE_RB_EXEC_RECURSIVE             1
+#define HAVE_RB_F_SPRINTF                  1
+#define HAVE_RB_NEED_BLOCK                 1
 #define HAVE_RB_RAISE                      1
-#define HAVE_RB_THROW                      1
 #define HAVE_RB_RESCUE                     1
 #define HAVE_RB_RESCUE2                    1
+#define HAVE_RB_SET_END_PROC               1
 #define HAVE_RB_SYS_FAIL                   1
+#define HAVE_RB_THROW                      1
 #define HAVE_RB_WARN                       1
 #define HAVE_RB_YIELD                      1
-#define HAVE_RB_YIELD_VALUES               1
 #define HAVE_RB_YIELD_SPLAT                1
+#define HAVE_RB_YIELD_VALUES               1
+
 /* GC */
 #define HAVE_RB_GC_REGISTER_ADDRESS        1
 
+/* Marshal */
+#define HAVE_RB_MARSHAL_DUMP               1
+#define HAVE_RB_MARSHAL_LOAD               1
+
 /* Module */
+#define HAVE_RB_ALIAS                      1
 #define HAVE_RB_CONST_DEFINED              1
 #define HAVE_RB_CONST_DEFINED_AT           1
 #define HAVE_RB_CONST_GET                  1
@@ -179,26 +200,28 @@
 #define HAVE_RB_CONST_SET                  1
 #define HAVE_RB_DEFINE_ALIAS               1
 #define HAVE_RB_DEFINE_CLASS_UNDER         1
-#define HAVE_RB_DEFINE_MODULE_UNDER        1
 #define HAVE_RB_DEFINE_CONST               1
 #define HAVE_RB_DEFINE_GLOBAL_CONST        1
 #define HAVE_RB_DEFINE_GLOBAL_FUNCTION     1
 #define HAVE_RB_DEFINE_METHOD              1
 #define HAVE_RB_DEFINE_MODULE_FUNCTION     1
+#define HAVE_RB_DEFINE_MODULE_UNDER        1
 #define HAVE_RB_DEFINE_PRIVATE_METHOD      1
 #define HAVE_RB_DEFINE_PROTECTED_METHOD    1
 #define HAVE_RB_DEFINE_SINGLETON_METHOD    1
-#define HAVE_RB_UNDEF_METHOD               1
 #define HAVE_RB_UNDEF                      1
+#define HAVE_RB_UNDEF_METHOD               1
 
 /* Numeric */
 #define HAVE_NUM2CHR                       1
+#define HAVE_RB_CMPINT                     1
 #define HAVE_RB_INT2INUM                   1
 #define HAVE_RB_INTEGER                    1
 #define HAVE_RB_LL2INUM                    1
 #define HAVE_RB_NUM2DBL                    1
 #define HAVE_RB_NUM2LONG                   1
 #define HAVE_RB_NUM2ULONG                  1
+#define HAVE_RB_NUM_ZERODIV                1
 
 /* Object */
 #define HAVE_OBJ_TAINT                     1
@@ -211,14 +234,22 @@
 #define HAVE_RB_CHECK_STRING_TYPE          1
 #define HAVE_RB_CLASS_OF                   1
 #define HAVE_RB_CONVERT_TYPE               1
+#define HAVE_RB_EQUAL                      1
 #define HAVE_RB_EXTEND_OBJECT              1
 #define HAVE_RB_INSPECT                    1
+#define HAVE_RB_IVAR_DEFINED               1
+#define HAVE_RB_IVAR_GET                   1
+#define HAVE_RB_IVAR_SET                   1
+#define HAVE_RB_IV_GET                     1
+#define HAVE_RB_IV_SET                     1
 #define HAVE_RB_OBJ_ALLOC                  1
 #define HAVE_RB_OBJ_CALL_INIT              1
 #define HAVE_RB_OBJ_CLASSNAME              1
+#define HAVE_RB_OBJ_DUP                    1
 #define HAVE_RB_OBJ_FREEZE                 1
 #define HAVE_RB_OBJ_FROZEN_P               1
 #define HAVE_RB_OBJ_ID                     1
+#define HAVE_RB_OBJ_INSTANCE_EVAL          1
 #define HAVE_RB_OBJ_IS_INSTANCE_OF         1
 #define HAVE_RB_OBJ_IS_KIND_OF             1
 #define HAVE_RB_OBJ_TAINT                  1
@@ -229,12 +260,6 @@
 #define HAVE_RB_TO_INT                     1
 #define HAVE_RTEST                         1
 #define HAVE_TYPE                          1
-#define HAVE_RB_OBJ_INSTANCE_EVAL          1
-#define HAVE_RB_IV_GET                     1
-#define HAVE_RB_IV_SET                     1
-#define HAVE_RB_IVAR_GET                   1
-#define HAVE_RB_IVAR_SET                   1
-#define HAVE_RB_IVAR_DEFINED               1
 
 /* Proc */
 #define HAVE_RB_PROC_NEW                   1
@@ -243,6 +268,10 @@
 #define HAVE_RB_RANGE_NEW                  1
 
 /* Regexp */
+#define HAVE_RB_BACKREF_GET                1
+#define HAVE_RB_REG_MATCH                  1
+#define HAVE_RB_REG_NEW                    1
+#define HAVE_RB_REG_NTH_MATCH              1
 #define HAVE_RB_REG_OPTIONS                1
 #define HAVE_RB_REG_REGCOMP                1
 
@@ -256,22 +285,26 @@
 #define HAVE_RB_STR2INUM                   1
 #define HAVE_RB_STR_APPEND                 1
 #define HAVE_RB_STR_BUF_CAT                1
+#define HAVE_RB_STR_BUF_NEW                1
+#define HAVE_RB_STR_BUF_NEW2               1
 #define HAVE_RB_STR_CAT                    1
 #define HAVE_RB_STR_CAT2                   1
 #define HAVE_RB_STR_CMP                    1
 #define HAVE_RB_STR_DUP                    1
 #define HAVE_RB_STR_FLUSH                  1
 #define HAVE_RB_STR_FREEZE                 1
+#define HAVE_RB_STR_HASH                   1
 #define HAVE_RB_STR_INTERN                 1
 #define HAVE_RB_STR_LEN                    1
 #define HAVE_RB_STR_NEW                    1
 #define HAVE_RB_STR_NEW2                   1
 #define HAVE_RB_STR_NEW3                   1
-#define HAVE_RB_STR_BUF_NEW                1
+#define HAVE_RB_STR_NEW4                   1
 #define HAVE_RB_STR_PLUS                   1
 #define HAVE_RB_STR_PTR                    1
 #define HAVE_RB_STR_PTR_READONLY           1
 #define HAVE_RB_STR_RESIZE                 1
+#define HAVE_RB_STR_SET_LEN                1
 #define HAVE_RB_STR_SPLIT                  1
 #define HAVE_RB_STR_SUBSTR                 1
 #define HAVE_RB_STR_TO_STR                 1
@@ -282,11 +315,15 @@
 #define HAVE_STRINGVALUE                   1
 
 /* Struct */
+#define HAVE_RB_STRUCT_AREF                1
+#define HAVE_RB_STRUCT_ASET                1
 #define HAVE_RB_STRUCT_DEFINE              1
+#define HAVE_RB_STRUCT_NEW                 1
+#define HAVE_RB_STRUCT_GETMEMBER           1
 
 /* Symbol */
-#define HAVE_RB_INTERN                     1
 #define HAVE_RB_ID2NAME                    1
+#define HAVE_RB_INTERN                     1
 #define HAVE_RB_IS_CLASS_ID                1
 #define HAVE_RB_IS_CONST_ID                1
 #define HAVE_RB_IS_INSTANCE_ID             1
@@ -298,12 +335,16 @@
 #define HAVE_RB_THREAD_LOCAL_AREF          1
 #define HAVE_RB_THREAD_LOCAL_ASET          1
 #define HAVE_RB_THREAD_SELECT              1
+#define HAVE_RB_THREAD_WAIT_FOR            1
+#define HAVE_RB_THREAD_WAKEUP              1
 
 /* Time */
 #define HAVE_RB_TIME_NEW                   1
 
 /* Util */
 #define HAVE_RB_SCAN_ARGS                  1
+#define HAVE_RUBY_SETENV                   1
+#define HAVE_RUBY_STRDUP                   1
 
 /* Define convenience macros similar to the RubySpec guards to assist
  * with version incompatibilities.

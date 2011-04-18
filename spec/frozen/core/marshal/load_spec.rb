@@ -2,139 +2,17 @@ require File.expand_path('../../../spec_helper', __FILE__)
 require File.expand_path('../fixtures/marshal_data', __FILE__)
 
 describe "Marshal::load" do
-  it "loads a extended_struct having fields with same objects" do
-    s = 'hi'
-    obj = Struct.new("Ure2", :a, :b).new.extend(Meths)
-    obj.a = [:a, s]; obj.b = [:Meths, s]
-
-    Marshal.load("\004\be:\nMethsS:\021Struct::Ure2\a:\006a[\a;\a\"\ahi:\006b[\a;\000@\a").should ==
-      obj
-  end
-
-  it "loads a string having ivar with ref to self" do
-    obj = 'hi'
-    obj.instance_variable_set(:@self, obj)
-    Marshal.load("\004\bI\"\ahi\006:\n@self@\000").should == obj
-  end
-
-  it "loads an extended_user_hash with a parameter to initialize" do
-    obj = UserHashInitParams.new(:abc).extend(Meths)
-
-    new_obj = Marshal.load "\004\bIe:\nMethsC:\027UserHashInitParams{\000\006:\a@a:\babc"
-
-    new_obj.should == obj
-    new_obj_metaclass_ancestors = class << new_obj; ancestors; end
-    new_obj_metaclass_ancestors[0].should == Meths
-    new_obj_metaclass_ancestors[1].should == UserHashInitParams
-  end
-  
-  # FIXME: Not proud of these next two specs, but unsure how to check for respond_to?
-  # on object and class cleanly
-  it "invokes respond_to? for marshal_load when the stream needs marshal_load" do
-    obj = UserDefinedWithRespondToMarshalLoad.new
-    data = Marshal.dump(obj)
-    
-    catch(:RespondTo) do
-      Marshal.load(data)
-    end.should_not be_nil
-  end
-  
-  it "invokes respond_to? for _load when the stream needs _load" do
-    obj = UserDefinedWithRespondToLoad.new
-    data = Marshal.dump(obj)
-    
-    catch(:RespondTo) do
-      Marshal.load(data)
-    end.should be_nil
-  end
-
-  it "loads a user-marshaled extended object" do
-    obj = UserMarshal.new.extend(Meths)
-
-    new_obj = Marshal.load "\004\bU:\020UserMarshal\"\nstuff"
-
-    new_obj.should == obj
-    new_obj_metaclass_ancestors = class << new_obj; ancestors; end
-    new_obj_metaclass_ancestors.first.should == UserMarshal
-  end
-
-  it "loads a user_object" do
-    obj = UserObject.new
-    Marshal.load("\004\bo:\017UserObject\000").should be_kind_of(UserObject)
-  end
-
-  it "loads a object" do
-    Marshal.load("\004\bo:\vObject\000").should be_kind_of(Object)
-  end
-
-  it "loads an extended Object" do
-    obj = Object.new.extend(Meths)
-
-    new_obj = Marshal.load "\004\be:\nMethso:\vObject\000"
-
-    new_obj.class.should == obj.class
-    new_obj_metaclass_ancestors = class << new_obj; ancestors; end
-    new_obj_metaclass_ancestors.first(2).should == [Meths, Object]
-  end
-
-  it "loads a object having ivar" do
-    s = 'hi'
-    arr = [:so, :so, s, s]
-    obj = Object.new
-    obj.instance_variable_set :@str, arr
-
-    new_obj = Marshal.load "\004\bo:\vObject\006:\t@str[\t:\aso;\a\"\ahi@\a"
-    new_str = new_obj.instance_variable_get :@str
-
-    new_str.should == arr
-  end
-
-  it "loads an extended Regexp" do
-    obj = /[a-z]/.extend(Meths, MethsMore)
-    new_obj = Marshal.load "\004\be:\nMethse:\016MethsMore/\n[a-z]\000"
-
-    new_obj.should == obj
-    new_obj_metaclass_ancestors = class << new_obj; ancestors; end
-    new_obj_metaclass_ancestors.first(3).should ==
-      [Meths, MethsMore, Regexp]
-  end
-
-  it "loads a extended_user_regexp having ivar" do
-    obj = UserRegexp.new('').extend(Meths)
-    obj.instance_variable_set(:@noise, 'much')
-
-    new_obj = Marshal.load "\004\bIe:\nMethsC:\017UserRegexp/\000\000\006:\v@noise\"\tmuch"
-
-    new_obj.should == obj
-    new_obj.instance_variable_get(:@noise).should == 'much'
-    new_obj_metaclass_ancestors = class << new_obj; ancestors; end
-    new_obj_metaclass_ancestors.first(3).should ==
-      [Meths, UserRegexp, Regexp]
-  end
-
-  it "loads a Float NaN" do
-    obj = 0.0 / 0.0
-    Marshal.load("\004\bf\bnan").to_s.should == obj.to_s
-  end
-
-  it "loads a Float 1.3" do
-    Marshal.load("\004\bf\v1.3\000\314\315").should == 1.3
-  end
-
-  it "loads a Float -5.1867345e-22" do
-    obj = -5.1867345e-22
-    Marshal.load("\004\bf\037-5.1867345000000008e-22\000\203_").should be_close(obj, 1e-30)
-  end
-
-  it "loads a Float 1.1867345e+22" do
-    obj = 1.1867345e+22
-    Marshal.load("\004\bf\0361.1867344999999999e+22\000\344@").should ==
-      obj
-  end
-
   it "raises an ArgumentError when the dumped data is truncated" do
     obj = {:first => 1, :second => 2, :third => 3}
     lambda { Marshal.load(Marshal.dump(obj)[0, 5]) }.should raise_error(ArgumentError)
+  end
+
+  it "raises an ArgumentError when the dumped class is missing" do
+    Object.send(:const_set, :KaBoom, Class.new)
+    kaboom = Marshal.dump(KaBoom.new)
+    Object.send(:remove_const, :KaBoom)
+
+    lambda { Marshal.load(kaboom) }.should raise_error(ArgumentError)
   end
 
   ruby_version_is "1.9" do
@@ -177,7 +55,7 @@ describe "Marshal::load" do
     it "loads a array containing objects having _dump method, and with proc" do
       arr = []
       proc = Proc.new { |o| arr << o }
-      o1 = UserDefined.new; 
+      o1 = UserDefined.new;
       o2 = UserDefinedWithIvar.new
       obj = [o1, o2, o1, o2]
 
@@ -191,7 +69,7 @@ describe "Marshal::load" do
     it "loads a array containing objects having _dump method, and with proc" do
       arr = []
       myproc = Proc.new { |o| arr << o; o }
-      o1 = UserDefined.new; 
+      o1 = UserDefined.new;
       o2 = UserDefinedWithIvar.new
       obj = [o1, o2, o1, o2]
 
@@ -273,53 +151,9 @@ describe "Marshal::load" do
 
       Marshal.load("\x04\bI[\vI\"\ahi\a:\x06EF:\t@fooi\ni\x0F@\x06@\x06IS:\x14Struct::Brittle\x06:\x06af\x060\x06:\n@clueI\"\tnone\x06;\x00FI[\b;\b:\x06b:\x06c\x06:\t@twoi\a\x06:\t@zooI\"\bant\x06;\x00F", proc)
 
-      arr.should == ["hi", false, 5, 10, "hi", "hi", 0.0, st, "none", false, 
+      arr.should == ["hi", false, 5, 10, "hi", "hi", 0.0, st, "none", false,
         :b, :c, a, 2, ["hi", 10, "hi", "hi", st, [:a, :b, :c]], "ant", false]
     end
-  end
-
-  it "loads a array containing the same objects" do
-    s = 'oh'; b = 'hi'; r = //; d = [b, :no, s, :go]; c = String; f = 1.0
-    o1 = UserMarshalWithIvar.new; o2 = UserMarshal.new
-    obj = [:so, 'hello', 100, :so, :so, d, :so, o2, :so, :no, o2,
-           :go, c, nil, Struct::Pyramid.new, f, :go, :no, s, b, r,
-           :so, 'huh', o1, true, b, b, 99, r, b, s, :so, f, c, :no, o1, d]
-
-    Marshal.load("\004\b[*:\aso\"\nhelloii;\000;\000[\t\"\ahi:\ano\"\aoh:\ago;\000U:\020UserMarshal\"\nstuff;\000;\006@\n;\ac\vString0S:\024Struct::Pyramid\000f\0061;\a;\006@\t@\b/\000\000;\000\"\bhuhU:\030UserMarshalWithIvar[\006\"\fmy dataT@\b@\bih@\017@\b@\t;\000@\016@\f;\006@\021@\a").should ==
-      obj
-  end
-
-  it "loads an array having ivar" do
-    s = 'well'
-    s.instance_variable_set(:@foo, 10)
-    obj = ['5', s, 'hi'].extend(Meths, MethsMore)
-    obj.instance_variable_set(:@mix, s)
-    Marshal.load("\004\bI[\b\"\0065I\"\twell\006:\t@fooi\017\"\ahi\006:\t@mix@\a").should ==
-      obj
-  end
-
-  it "loads a struct having ivar" do
-    obj = Struct.new("Thick").new
-    obj.instance_variable_set(:@foo, 5)
-    Marshal.load("\004\bIS:\022Struct::Thick\000\006:\t@fooi\n").should ==
-      obj
-  end
-
-  it "loads a struct having fields" do
-    obj = Struct.new("Ure1", :a, :b).new
-    Marshal.load("\004\bS:\021Struct::Ure1\a:\006a0:\006b0").should ==
-      obj
-  end
-
-  it "preserves hash ivars when hash contains a string having ivar" do
-    s = 'string'
-    s.instance_variable_set :@string_ivar, 'string ivar'
-    h = { :key => s }
-    h.instance_variable_set :@hash_ivar, 'hash ivar'
-
-    unmarshalled = Marshal.load Marshal.dump(h)
-    unmarshalled.instance_variable_get(:@hash_ivar).should == 'hash ivar'
-    unmarshalled[:key].instance_variable_get(:@string_ivar).should == 'string ivar'
   end
 
   it "raises a TypeError with bad Marshal version" do
@@ -335,7 +169,7 @@ describe "Marshal::load" do
 
     lambda { Marshal.load marshal_data }.should raise_error(TypeError)
   end
-  
+
   it "raises EOFError on loading an empty file" do
     temp_file = tmp("marshal.rubyspec.tmp.#{Process.pid}")
     file = File.new(temp_file, "w+")
@@ -347,43 +181,28 @@ describe "Marshal::load" do
     end
   end
 
-  # Note: Ruby 1.9 should be compatible with older marshal format
-  MarshalSpec::DATA.each do |description, (object, marshal, attributes)|
-    it "loads a #{description}" do
-      Marshal.load(marshal).should == object
-    end
-  end
-
-  ruby_version_is "1.9" do
-    MarshalSpec::DATA_19.each do |description, (object, marshal, attributes)|
-      it "loads a #{description}" do
-        Marshal.load(marshal).should == object
-      end
-    end
-  end
-
   it "returns an untainted object if source is untainted" do
     x = Object.new
     y = Marshal.load(Marshal.dump(x))
     y.tainted?.should be_false
   end
-  
+
   it "returns a tainted object if source is tainted" do
     x = Object.new
     x.taint
     s = Marshal.dump(x)
     y = Marshal.load(s)
     y.tainted?.should be_true
-    
+
     # note that round-trip via Marshal does not preserve
     # the taintedness at each level of the nested structure
     y = Marshal.load(Marshal.dump([[x]]))
     y.tainted?.should be_true
     y.first.tainted?.should be_true
     y.first.first.tainted?.should be_true
-    
+
   end
-  
+
   it "preserves taintedness of nested structure" do
     x = Object.new
     a = [[x]]
@@ -395,7 +214,7 @@ describe "Marshal::load" do
   end
 
   ruby_version_is "1.9" do
-    
+
     it "returns a trusted object if source is trusted" do
       x = Object.new
       y = Marshal.load(Marshal.dump(x))
@@ -416,12 +235,236 @@ describe "Marshal::load" do
       y.first.first.untrusted?.should be_true
 
     end
-    
   end
-  
 
-end
+  # Note: Ruby 1.9 should be compatible with older marshal format
+  MarshalSpec::DATA.each do |description, (object, marshal, attributes)|
+    it "loads a #{description}" do
+      Marshal.load(marshal).should == object
+    end
+  end
 
-describe "Marshal.load" do
-  it "needs to be reviewed for spec completeness"
+  ruby_version_is "1.9" do
+    MarshalSpec::DATA_19.each do |description, (object, marshal, attributes)|
+      it "loads a #{description}" do
+        Marshal.load(marshal).should == object
+      end
+    end
+  end
+
+  describe "for an Array" do
+    it "loads a array containing the same objects" do
+      s = 'oh'
+      b = 'hi'
+      r = //
+      d = [b, :no, s, :go]
+      c = String
+      f = 1.0
+
+      o1 = UserMarshalWithIvar.new; o2 = UserMarshal.new
+
+      obj = [:so, 'hello', 100, :so, :so, d, :so, o2, :so, :no, o2,
+             :go, c, nil, Struct::Pyramid.new, f, :go, :no, s, b, r,
+             :so, 'huh', o1, true, b, b, 99, r, b, s, :so, f, c, :no, o1, d]
+
+      Marshal.load("\004\b[*:\aso\"\nhelloii;\000;\000[\t\"\ahi:\ano\"\aoh:\ago;\000U:\020UserMarshal\"\nstuff;\000;\006@\n;\ac\vString0S:\024Struct::Pyramid\000f\0061;\a;\006@\t@\b/\000\000;\000\"\bhuhU:\030UserMarshalWithIvar[\006\"\fmy dataT@\b@\bih@\017@\b@\t;\000@\016@\f;\006@\021@\a").should ==
+        obj
+    end
+
+    it "loads an array having ivar" do
+      s = 'well'
+      s.instance_variable_set(:@foo, 10)
+      obj = ['5', s, 'hi'].extend(Meths, MethsMore)
+      obj.instance_variable_set(:@mix, s)
+      Marshal.load("\004\bI[\b\"\0065I\"\twell\006:\t@fooi\017\"\ahi\006:\t@mix@\a").should ==
+        obj
+    end
+  end
+
+  describe "for a Hash" do
+    it "loads an extended_user_hash with a parameter to initialize" do
+      obj = UserHashInitParams.new(:abc).extend(Meths)
+
+      new_obj = Marshal.load "\004\bIe:\nMethsC:\027UserHashInitParams{\000\006:\a@a:\babc"
+
+      new_obj.should == obj
+      new_obj_metaclass_ancestors = class << new_obj; ancestors; end
+      new_obj_metaclass_ancestors[0].should == Meths
+      new_obj_metaclass_ancestors[1].should == UserHashInitParams
+    end
+
+    it "preserves hash ivars when hash contains a string having ivar" do
+      s = 'string'
+      s.instance_variable_set :@string_ivar, 'string ivar'
+      h = { :key => s }
+      h.instance_variable_set :@hash_ivar, 'hash ivar'
+
+      unmarshalled = Marshal.load Marshal.dump(h)
+      unmarshalled.instance_variable_get(:@hash_ivar).should == 'hash ivar'
+      unmarshalled[:key].instance_variable_get(:@string_ivar).should == 'string ivar'
+    end
+  end
+
+  describe "for a String" do
+    it "loads a string having ivar with ref to self" do
+      obj = 'hi'
+      obj.instance_variable_set(:@self, obj)
+      Marshal.load("\004\bI\"\ahi\006:\n@self@\000").should == obj
+    end
+  end
+
+  describe "for a Struct" do
+    it "loads a extended_struct having fields with same objects" do
+      s = 'hi'
+      obj = Struct.new("Ure2", :a, :b).new.extend(Meths)
+      obj.a = [:a, s]
+      obj.b = [:Meths, s]
+
+      Marshal.load("\004\be:\nMethsS:\021Struct::Ure2\a:\006a[\a;\a\"\ahi:\006b[\a;\000@\a").should ==
+        obj
+    end
+
+    it "loads a struct having ivar" do
+      obj = Struct.new("Thick").new
+      obj.instance_variable_set(:@foo, 5)
+      Marshal.load("\004\bIS:\022Struct::Thick\000\006:\t@fooi\n").should == obj
+    end
+
+    it "loads a struct having fields" do
+      obj = Struct.new("Ure1", :a, :b).new
+      Marshal.load("\004\bS:\021Struct::Ure1\a:\006a0:\006b0").should == obj
+    end
+
+  end
+
+  describe "for a user Class" do
+    it "loads a user-marshaled extended object" do
+      obj = UserMarshal.new.extend(Meths)
+
+      new_obj = Marshal.load "\004\bU:\020UserMarshal\"\nstuff"
+
+      new_obj.should == obj
+      new_obj_metaclass_ancestors = class << new_obj; ancestors; end
+      new_obj_metaclass_ancestors.first.should == UserMarshal
+    end
+
+    it "loads a user_object" do
+      obj = UserObject.new
+      Marshal.load("\004\bo:\017UserObject\000").should be_kind_of(UserObject)
+    end
+
+    it "loads a object" do
+      Marshal.load("\004\bo:\vObject\000").should be_kind_of(Object)
+    end
+
+    it "loads an extended Object" do
+      obj = Object.new.extend(Meths)
+
+      new_obj = Marshal.load "\004\be:\nMethso:\vObject\000"
+
+      new_obj.class.should == obj.class
+      new_obj_metaclass_ancestors = class << new_obj; ancestors; end
+      new_obj_metaclass_ancestors.first(2).should == [Meths, Object]
+    end
+
+    it "loads a object having ivar" do
+      s = 'hi'
+      arr = [:so, :so, s, s]
+      obj = Object.new
+      obj.instance_variable_set :@str, arr
+
+      new_obj = Marshal.load "\004\bo:\vObject\006:\t@str[\t:\aso;\a\"\ahi@\a"
+      new_str = new_obj.instance_variable_get :@str
+
+      new_str.should == arr
+    end
+  end
+
+  describe "for a Regexp" do
+    it "loads an extended Regexp" do
+      obj = /[a-z]/.extend(Meths, MethsMore)
+      new_obj = Marshal.load "\004\be:\nMethse:\016MethsMore/\n[a-z]\000"
+
+      new_obj.should == obj
+      new_obj_metaclass_ancestors = class << new_obj; ancestors; end
+      new_obj_metaclass_ancestors.first(3).should ==
+        [Meths, MethsMore, Regexp]
+    end
+
+    it "loads a extended_user_regexp having ivar" do
+      obj = UserRegexp.new('').extend(Meths)
+      obj.instance_variable_set(:@noise, 'much')
+
+      new_obj = Marshal.load "\004\bIe:\nMethsC:\017UserRegexp/\000\000\006:\v@noise\"\tmuch"
+
+      new_obj.should == obj
+      new_obj.instance_variable_get(:@noise).should == 'much'
+      new_obj_metaclass_ancestors = class << new_obj; ancestors; end
+      new_obj_metaclass_ancestors.first(3).should ==
+        [Meths, UserRegexp, Regexp]
+    end
+  end
+
+  describe "for a Float" do
+    it "loads a Float NaN" do
+      obj = 0.0 / 0.0
+      Marshal.load("\004\bf\bnan").to_s.should == obj.to_s
+    end
+
+    it "loads a Float 1.3" do
+      Marshal.load("\004\bf\v1.3\000\314\315").should == 1.3
+    end
+
+    it "loads a Float -5.1867345e-22" do
+      obj = -5.1867345e-22
+      Marshal.load("\004\bf\037-5.1867345000000008e-22\000\203_").should be_close(obj, 1e-30)
+    end
+
+    it "loads a Float 1.1867345e+22" do
+      obj = 1.1867345e+22
+      Marshal.load("\004\bf\0361.1867344999999999e+22\000\344@").should == obj
+    end
+  end
+
+  describe "for a Integer" do
+    it "loads an Integer 8" do
+      Marshal.load("\004\bi\r" ).should == 8
+    end
+
+    it "loads and Integer -8" do
+      Marshal.load("\004\bi\363" ).should == -8
+    end
+
+    it "loads an Integer 1234" do
+      Marshal.load("\004\bi\002\322\004").should == 1234
+    end
+
+    it "loads an Integer -1234" do
+      Marshal.load("\004\bi\376.\373").should == -1234
+    end
+
+    it "loads an Integer 4611686018427387903" do
+      Marshal.load("\004\bl+\t\377\377\377\377\377\377\377?").should == 4611686018427387903
+    end
+
+    it "loads an Integer -4611686018427387903" do
+      Marshal.load("\004\bl-\t\377\377\377\377\377\377\377?").should == -4611686018427387903
+    end
+
+    it "loads an Integer 2361183241434822606847" do
+      Marshal.load("\004\bl+\n\377\377\377\377\377\377\377\377\177\000").should == 2361183241434822606847
+    end
+
+    it "loads an Integer -2361183241434822606847" do
+      Marshal.load("\004\bl-\n\377\377\377\377\377\377\377\377\177\000").should == -2361183241434822606847
+    end
+
+
+    if 0.size == 8 # for platforms like x86_64
+      it "roundtrips 4611686018427387903 from dump/load correctly" do
+        Marshal.load(Marshal.dump(4611686018427387903)).should == 4611686018427387903
+      end
+    end
+  end
+
 end

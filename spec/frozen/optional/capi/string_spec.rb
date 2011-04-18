@@ -19,6 +19,85 @@ describe "C-API String function" do
     end
   end
 
+  ruby_version_is "1.8.7" do
+    describe "rb_str_set_len" do
+      before :each do
+        # Make a completely new copy of the string
+        # for every example (#dup doesn't cut it).
+        @str = "abcdefghij"[0..-1]
+      end
+
+      it "reduces the size of the string" do
+        @s.rb_str_set_len(@str, 5).should == "abcde"
+      end
+
+      it "inserts a NULL byte at the length" do
+        @s.rb_str_set_len(@str, 5).should == "abcde"
+        @s.rb_str_set_len(@str, 8).should == "abcde\x00gh"
+      end
+
+      it "updates the string's attributes visible in C code" do
+        @s.rb_str_set_len_RSTRING_LEN(@str, 4).should == 4
+      end
+    end
+  end
+
+  describe "rb_str_buf_new" do
+    it "returns the equivalent of an empty string" do
+      @s.rb_str_buf_new(10, nil).should == ""
+    end
+
+    it "returns a string that can be appended to" do
+      str = @s.rb_str_buf_new(10, "defg")
+      str << "abcde"
+      str.should == "abcde"
+    end
+
+    it "returns a string that can be concatentated to another string" do
+      str = @s.rb_str_buf_new(10, "defg")
+      ("abcde" + str).should == "abcde"
+    end
+
+    it "returns a string whose bytes can be accessed by RSTRING_PTR" do
+      str = @s.rb_str_buf_new(10, "abcdefghi")
+      @s.rb_str_new(str, 10).should == "abcdefghi\x00"
+    end
+
+    ruby_version_is ""..."1.9" do
+      it "returns a string that can be modified by rb_str_resize" do
+        str = @s.rb_str_buf_new(10, "abcde")
+        @s.rb_str_resize(str, 4).should == "abcd"
+        @s.RSTRING_LEN(str).should == 4
+      end
+
+      it "returns a string which can be assigned to from C" do
+        str = "hello"
+        buf = @s.rb_str_buf_new(str.size, nil)
+        @s.RSTRING_ptr_write(buf, str)
+        buf.should == str
+      end
+    end
+
+    ruby_version_is "1.8.7" do
+      it "returns a string that can be modified by rb_str_set_len" do
+        str = @s.rb_str_buf_new(10, "abcdef")
+        @s.rb_str_set_len(str, 4)
+        str.should == "abcd"
+
+        @s.rb_str_set_len(str, 8)
+        str[0, 6].should == "abcd\x00f"
+        @s.RSTRING_LEN(str).should == 8
+      end
+    end
+  end
+
+  describe "rb_str_buf_new2" do
+    it "returns a new string object calling strlen on the passed C string" do
+      # Hardcoded to pass const char * = "hello\0invisible"
+      @s.rb_str_buf_new2.should == "hello"
+    end
+  end
+
   describe "rb_str_new" do
     it "returns a new string object from a char buffer of len characters" do
       @s.rb_str_new("hello", 3).should == "hel"
@@ -51,18 +130,23 @@ describe "C-API String function" do
     end
   end
 
-  describe "rb_str_buf_new" do
-    it "returns an empty string" do
-      @s.rb_str_buf_new(10).should == ""
+  describe "rb_str_new4" do
+    it "returns the original string if it is already frozen" do
+      str1 = "hi"
+      str1.freeze
+      str2 = @s.rb_str_new4 str1
+      str1.should == str2
+      str1.should equal(str2)
+      str1.frozen?.should == true
+      str2.frozen?.should == true
     end
 
-    ruby_version_is ""..."1.9" do
-      it "returns a string which can be assigned to from C" do
-        str = "hello"
-        buf = @s.rb_str_buf_new(str.size)
-        @s.rb_str_buf_RSTRING_ptr_write(buf, str)
-        buf.should == str
-      end
+    it "returns a frozen copy of the string" do
+      str1 = "hi"
+      str2 = @s.rb_str_new4 str1
+      str1.should == str2
+      str1.should_not equal(str2)
+      str2.frozen?.should == true
     end
   end
 
@@ -187,7 +271,7 @@ describe "C-API String function" do
       it "allows changing the string and calling a rb_str_xxx function" do
         str = "abc"
         @s.RSTRING_ptr_assign_call(str)
-        str.should == "axcd"
+        str.should == "axd"
       end
 
       it "allows changing the string and calling a method via rb_funcall" do
@@ -278,7 +362,7 @@ describe "C-API String function" do
       str = @s.rb_str_resize("test", 12)
       str.size.should == 12
       @s.RSTRING_LEN(str).should == 12
-      str[0, 5].should == "test\x00"
+      str[0, 4].should == "test"
     end
   end
 
@@ -310,16 +394,6 @@ describe "C-API String function" do
 
   ruby_version_is ""..."1.9" do
     describe "rb_str2cstr" do
-      before :each do
-        @verbose = $VERBOSE
-        @stderr, $stderr = $stderr, IOStub.new
-      end
-
-      after :each do
-        $stderr = @stderr
-        $VERBOSE = @verbose
-      end
-
       it "returns a pointer to the string's content and its length" do
         str, len = @s.rb_str2cstr('any str', true)
         str.should == 'any str'
@@ -331,36 +405,6 @@ describe "C-API String function" do
         # Hardcoded to set "foo\0"
         @s.rb_str2cstr_replace(str)
         str.should == "foo\0str"
-      end
-
-      it "issues a warning iff passed string contains a NULL character, $VERBOSE = true and len parameter is NULL" do
-        $VERBOSE = false
-        @s.rb_str2cstr('any str', true)
-        $stderr.should == ''
-
-        @s.rb_str2cstr('any str', false)
-        $stderr.should == ''
-
-        $VERBOSE = true
-        @s.rb_str2cstr('any str', true)
-        $stderr.should == ''
-
-        @s.rb_str2cstr('any str', false)
-        $stderr.should == ''
-
-        $VERBOSE = false
-        @s.rb_str2cstr("any\0str", true)
-        $stderr.should == ''
-
-        @s.rb_str2cstr("any\0str", false)
-        $stderr.should == ''
-
-        $VERBOSE = true
-        @s.rb_str2cstr("any\0str", true)
-        $stderr.should == ''
-
-        @s.rb_str2cstr("any\0str", false)
-        $stderr.should =~ /string contains \\0 character/
       end
     end
 
@@ -383,6 +427,13 @@ describe "C-API String function" do
       s = ""
       @s.rb_str_freeze(s).should == s
       s.frozen?.should be_true
+    end
+  end
+
+  describe "rb_str_hash" do
+    it "hashes the string into a number" do
+      s = "hello"
+      @s.rb_str_hash(s).should == s.hash
     end
   end
 

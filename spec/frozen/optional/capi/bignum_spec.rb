@@ -68,7 +68,7 @@ describe "CApiBignumSpecs" do
       @s.rb_big2dbl(huge_bignum).should == infinity_value
     end
 
-    ruby_bug "#3362", "1.8.7.249" do
+    ruby_bug "#3362", "1.8.7.330" do
       it "returns -Infinity if the number is negative and too big for a double" do
         huge_bignum = -ensure_bignum(Float::MAX.to_i * 2)
         @s.rb_big2dbl(huge_bignum).should == -infinity_value
@@ -86,6 +86,18 @@ describe "CApiBignumSpecs" do
     it "converts a Bignum to a string with a different base" do
       @s.rb_big2str(ensure_bignum(1), 16).eql?("1").should == true
       @s.rb_big2str(ensure_bignum(4611686018427387904), 16).eql?("4000000000000000").should == true
+    end
+  end
+
+  ruby_version_is "1.8.7" do
+    describe "RBIGNUM_SIGN" do
+      it "returns C true if the Bignum has a positive sign" do
+        @s.RBIGNUM_SIGN(bignum_value()).should be_true
+      end
+
+      it "retuns C false if the Bignum has a negative sign" do
+        @s.RBIGNUM_SIGN(-bignum_value()).should be_false
+      end
     end
   end
 end

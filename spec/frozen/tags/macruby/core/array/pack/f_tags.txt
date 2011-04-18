@@ -1,0 +1,22 @@
+fails:Array#pack with format 'F' encodes a positive Float
+fails:Array#pack with format 'F' encodes a negative Float
+fails:Array#pack with format 'F' encodes the number of array elements specified by the count modifier
+fails:Array#pack with format 'F' encodes all remaining elements when passed the '*' modifier
+fails:Array#pack with format 'F' ignores NULL bytes between directives
+fails:Array#pack with format 'F' ignores spaces between directives
+fails:Array#pack with format 'F' encodes positive Infinity
+fails:Array#pack with format 'F' encodes negative Infinity
+fails:Array#pack with format 'F' encodes NaN
+fails:Array#pack with format 'F' encodes a positive Float outside the range of a single precision float
+fails:Array#pack with format 'F' encodes a negative Float outside the range of a single precision float
+fails:Array#pack with format 'f' encodes a positive Float
+fails:Array#pack with format 'f' encodes a negative Float
+fails:Array#pack with format 'f' encodes the number of array elements specified by the count modifier
+fails:Array#pack with format 'f' encodes all remaining elements when passed the '*' modifier
+fails:Array#pack with format 'f' ignores NULL bytes between directives
+fails:Array#pack with format 'f' ignores spaces between directives
+fails:Array#pack with format 'f' encodes positive Infinity
+fails:Array#pack with format 'f' encodes negative Infinity
+fails:Array#pack with format 'f' encodes NaN
+fails:Array#pack with format 'f' encodes a positive Float outside the range of a single precision float
+fails:Array#pack with format 'f' encodes a negative Float outside the range of a single precision float

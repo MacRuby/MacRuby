@@ -1,6 +1,9 @@
 # -*- encoding: utf-8 -*-
 
 module IOSpecs
+  class SubIO < IO
+  end
+
   def self.lines
     [ "Voici la ligne une.\n",
       "Qui \303\250 la linea due.\n",
@@ -69,6 +72,6 @@ module IOSpecs
   # special helper is needed for e.g. IO.open specs to avoid
   # mock methods preventing IO#close from running.
   def self.io_mock(obj, method, &block)
-    obj.metaclass.send(:define_method, method, &block)
+    obj.singleton_class.send(:define_method, method, &block)
   end
 end

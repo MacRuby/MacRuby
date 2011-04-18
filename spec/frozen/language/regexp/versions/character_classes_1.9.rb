@@ -254,6 +254,7 @@ it "match Unicode private-use characters with [[:print:]]" do
   "\u{E001}".match(/[[:print:]]/).to_a.should == ["\u{E001}"]
 end
 
+
 it "doesn't match Unicode lowercase letter characters with [[:punct:]]" do
   "\u{FF41}".match(/[[:punct:]]/).should be_nil
   "\u{1D484}".match(/[[:punct:]]/).should be_nil

@@ -56,7 +56,7 @@ describe "CApiNumericSpecs" do
   end
 
   describe "rb_Integer" do
-    it "should create a new Integer from a String" do
+    it "creates a new Integer from a String" do
       i = @s.rb_Integer("8675309")
       i.should be_kind_of(Integer)
       i.should eql(8675309)
@@ -64,7 +64,7 @@ describe "CApiNumericSpecs" do
   end
 
   describe "rb_ll2inum" do
-    it "should create a new Fixnum from a small signed long long" do
+    it "creates a new Fixnum from a small signed long long" do
       i = @s.rb_ll2inum_14()
       i.should be_kind_of(Fixnum)
       i.should eql(14)
@@ -72,7 +72,7 @@ describe "CApiNumericSpecs" do
   end
 
   describe "rb_int2inum" do
-    it "should create a new Fixnum from a long" do
+    it "creates a new Fixnum from a long" do
       i = @s.rb_int2inum_14()
       i.should be_kind_of(Fixnum)
       i.should eql(14)
@@ -122,6 +122,44 @@ describe "CApiNumericSpecs" do
 
     it "raises a TypeError when passed an empty String" do
       lambda { @s.NUM2CHR("") }.should raise_error(TypeError)
+    end
+  end
+
+  describe "rb_num_zerodiv" do
+    it "raises a RuntimeError" do
+      lambda { @s.rb_num_zerodiv() }.should raise_error(ZeroDivisionError, 'divided by 0')
+    end
+  end
+
+  describe "rb_cmpint" do
+    it "returns a Fixnum if passed one" do
+      @s.rb_cmpint(1, 2).should == 1
+    end
+
+    it "uses > to check if the value is greater than 1" do
+      m = mock("number")
+      m.should_receive(:>).and_return(true)
+      @s.rb_cmpint(m, 4).should == 1
+    end
+
+    it "uses < to check if the value is less than 1" do
+      m = mock("number")
+      m.should_receive(:>).and_return(false)
+      m.should_receive(:<).and_return(true)
+      @s.rb_cmpint(m, 4).should == -1
+    end
+
+    it "returns 0 if < and > are false" do
+      m = mock("number")
+      m.should_receive(:>).and_return(false)
+      m.should_receive(:<).and_return(false)
+      @s.rb_cmpint(m, 4).should == 0
+    end
+
+    it "raises an ArgumentError when passed nil" do
+      lambda {
+        @s.rb_cmpint(nil, 4)
+      }.should raise_error(ArgumentError)
     end
   end
 end

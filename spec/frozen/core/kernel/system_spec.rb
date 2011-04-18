@@ -2,9 +2,6 @@ require File.expand_path('../../../spec_helper', __FILE__)
 require File.expand_path('../fixtures/classes', __FILE__)
 
 describe "Kernel#system" do
-  before do
-    @ruby = ENV['RUBY_EXE']
-  end
 
   it "can run basic things that exist" do
     begin
@@ -40,7 +37,7 @@ describe "Kernel#system" do
 
   it "does not write to stderr when it can't find a command" do
     system("sad").should output_to_fd("") # nothing in stderr
-  end  
+  end
 
   it "uses /bin/sh if freaky shit is in the command" do
     begin
@@ -70,13 +67,23 @@ describe "Kernel#system" do
   end
 
   it "expands shell variables when given a single string argument" do
-    result = system("#{@ruby} #{@helper_script} #{@shell_var} foo")
+    result = system("#{RUBY_EXE} #{@helper_script} #{@shell_var} foo")
     result.should be_true
   end
-  
+
   it "does not expand shell variables when given multiples arguments" do
-    result = system("#{@ruby}", @helper_script, @shell_var, "foo")
+    result = system("#{RUBY_EXE}", @helper_script, @shell_var, "foo")
     result.should be_false
+  end
+
+  platform_is :windows do
+    ruby_bug 'redmine:4393', '1.9.3' do
+      it "runs commands starting with @ using shell (as comments)" do
+        # unsure of a better way to confirm this, since success means it does nothing
+        result = system('@does_not_exist')
+        result.should == true
+      end
+    end
   end
 end
 

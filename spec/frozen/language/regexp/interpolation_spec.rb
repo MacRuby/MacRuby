@@ -12,7 +12,7 @@ describe "Regexps with interpolation" do
     re = /foo|bar/
     /#{re}/.should == /(?-mix:foo|bar)/
   end
-  
+
   it "allows interpolation of any class that responds to to_s" do
     o = LanguageSpecs::ClassWith_to_s.new
     /#{o}/.should == /class_with_to_s/
@@ -22,11 +22,11 @@ describe "Regexps with interpolation" do
     re = /foo/i
     /#{re} bar/m.should == /(?i-mx:foo) bar/m
   end
-  
+
   it "allows interpolation to interact with other Regexp constructs" do
     str = "foo)|(bar"
     /(#{str})/.should == /(foo)|(bar)/
-    
+
     str = "a"
     /[#{str}-z]/.should == /[a-z]/
   end

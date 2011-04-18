@@ -21,12 +21,12 @@ describe :module_class_eval, :shared => true do
     ModuleSpecs.send(@method, "module NewEvaluatedModule;end")
     ModuleSpecs.const_defined?(:NewEvaluatedModule).should == true
   end
-  
+
   it "evaluates a given block in the context of self" do
     ModuleSpecs.send(@method) { self }.should == ModuleSpecs
     ModuleSpecs.send(@method) { 1 + 1 }.should == 2
   end
-  
+
   it "uses the optional filename and lineno parameters for error messages" do
     ModuleSpecs.send(@method, "[__FILE__, __LINE__]", "test", 102).should == ["test", 102]
   end
@@ -49,7 +49,7 @@ describe :module_class_eval, :shared => true do
   it "raises a TypeError when the given eval-string can't be converted to string using to_str" do
     o = mock('x')
     lambda { ModuleSpecs.send(@method, o) }.should raise_error(TypeError)
-  
+
     (o = mock('123')).should_receive(:to_str).and_return(123)
     lambda { ModuleSpecs.send(@method, o) }.should raise_error(TypeError)
   end
@@ -68,5 +68,27 @@ describe :module_class_eval, :shared => true do
     lambda {
       ModuleSpecs.send(@method, "1 + 1") { 1 + 1 }
     }.should raise_error(ArgumentError)
+  end
+
+  # This case was found because Rubinius was caching the compiled
+  # version of the string and not duping the methods within the
+  # eval, causing the method addition to change the static scope
+  # of the shared CompiledMethod.
+  it "adds methods respecting the lexical constant scope" do
+    code = "def self.attribute; C; end"
+
+    a = Class.new do
+      self::C = "A"
+    end
+
+    b = Class.new do
+      self::C = "B"
+    end
+
+    a.class_eval code
+    b.class_eval code
+
+    a.attribute.should == "A"
+    b.attribute.should == "B"
   end
 end

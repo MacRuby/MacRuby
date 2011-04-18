@@ -4,7 +4,7 @@ describe :proc_equal, :shared => true do
   it "returns true if self and other are the same object" do
     p = proc { :foo }
     p.send(@method, p.dup).should be_true
-    
+
     p = Proc.new { :foo }
     p.send(@method, p.dup).should be_true
 
@@ -17,7 +17,7 @@ describe :proc_equal, :shared => true do
     p = proc &body
     p2 = proc &body
     p.send(@method, p2).should be_true
-    
+
     body = lambda { :foo }
     p = proc &body
     p2 = proc &body
@@ -29,7 +29,7 @@ describe :proc_equal, :shared => true do
     p = lambda &body
     p2 = lambda &body
     p.send(@method, p2).should be_true
-    
+
     body = lambda { :foo }
     p = lambda &body
     p2 = lambda &body
@@ -41,7 +41,7 @@ describe :proc_equal, :shared => true do
     p = lambda &body
     p2 = proc &body
     p.send(@method, p2).should be_true
-    
+
     body = lambda { :foo }
     p = proc &body
     p2 = lambda &body
@@ -49,7 +49,6 @@ describe :proc_equal, :shared => true do
   end
 
   ruby_version_is "1.9" do
-=begin # this spec doesn't seem to pass with 1.9.2, it should probably be deleted
     it "returns true if the bodies of self and other are identical but represented by different objects" do
       foo = proc    { :foo }
       foo2 = lambda { :foo }
@@ -57,12 +56,11 @@ describe :proc_equal, :shared => true do
       p2 = proc  &foo2
       p.send(@method, p2).should be_true
     end
-=end
 
     it "returns false if other is not a Proc" do
       p = proc { :foo }
       p.send(@method, []).should be_false
-      
+
       p = Proc.new { :foo }
       p.send(@method, Object.new).should be_false
 
@@ -87,7 +85,7 @@ describe :proc_equal, :shared => true do
     p = lambda { :foo }
     p2 = proc { :bar }
     p.send(@method, p2).should be_false
-    
+
     p = proc { :foo }
     p2 = lambda { :bar }
     p.send(@method, p2).should be_false

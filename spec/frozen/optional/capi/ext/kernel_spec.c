@@ -19,6 +19,13 @@ static VALUE kernel_spec_rb_block_given_p(VALUE self) {
 }
 #endif
 
+#ifdef HAVE_RB_NEED_BLOCK
+VALUE kernel_spec_rb_need_block(VALUE self) {
+  rb_need_block();
+  return Qnil;
+}
+#endif
+
 #ifdef HAVE_RB_BLOCK_PROC
 VALUE kernel_spec_rb_block_proc(VALUE self) {
   return rb_block_proc();
@@ -66,6 +73,21 @@ VALUE kernel_spec_rb_throw(VALUE self, VALUE result) {
 #endif
 
 #ifdef HAVE_RB_RESCUE
+VALUE kernel_spec_call_proc_with_raised_exc(VALUE arg_array, VALUE raised_exc) {
+  VALUE argv[2];
+  int argc;
+
+  VALUE arg = rb_ary_pop(arg_array);
+  VALUE proc = rb_ary_pop(arg_array);
+
+  argv[0] = arg;
+  argv[1] = raised_exc;
+
+  argc = 2;
+
+  return rb_funcall2(proc, rb_intern("call"), argc, argv);
+}
+
 VALUE kernel_spec_rb_rescue(VALUE self, VALUE main_proc, VALUE arg,
                             VALUE raise_proc, VALUE arg2) {
   VALUE main_array, raise_array;
@@ -79,7 +101,7 @@ VALUE kernel_spec_rb_rescue(VALUE self, VALUE main_proc, VALUE arg,
   rb_ary_push(raise_array, arg2);
 
   return rb_rescue(kernel_spec_call_proc, main_array,
-      kernel_spec_call_proc, raise_array);
+      kernel_spec_call_proc_with_raised_exc, raise_array);
 }
 #endif
 
@@ -103,7 +125,11 @@ VALUE kernel_spec_rb_rescue2(int argc, VALUE *args, VALUE self) {
 #ifdef HAVE_RB_SYS_FAIL
 VALUE kernel_spec_rb_sys_fail(VALUE self, VALUE msg) {
   errno = 1;
-  rb_sys_fail(StringValuePtr(msg));
+  if(msg == Qnil) {
+    rb_sys_fail(0);
+  } else {
+    rb_sys_fail(StringValuePtr(msg));
+  }
   return Qnil;
 }
 #endif
@@ -133,12 +159,49 @@ static VALUE kernel_spec_rb_yield_values(VALUE self, VALUE obj1, VALUE obj2) {
 }
 #endif
 
+#ifdef HAVE_RB_EXEC_RECURSIVE
+static VALUE do_rec(VALUE obj, VALUE arg, int is_rec) {
+  if(is_rec) {
+    return obj;
+  } else if(arg == Qtrue) {
+    return rb_exec_recursive(do_rec, obj, Qnil);
+  } else {
+    return Qnil;
+  }
+}
+
+static VALUE kernel_spec_rb_exec_recursive(VALUE self, VALUE obj) {
+  return rb_exec_recursive(do_rec, obj, Qtrue);
+}
+#endif
+
+#ifdef HAVE_RB_SET_END_PROC
+static void write_io(VALUE io) {
+  rb_funcall(io, rb_intern("write"), 1, rb_str_new2("e"));
+}
+
+static VALUE kernel_spec_rb_set_end_proc(VALUE self, VALUE io) {
+  rb_set_end_proc(write_io, io);
+  return Qnil;
+}
+#endif
+
+#ifdef HAVE_RB_F_SPRINTF
+static VALUE kernel_spec_rb_f_sprintf(VALUE self, VALUE ary) {
+  return rb_f_sprintf(RARRAY_LEN(ary), RARRAY_PTR(ary));
+}
+#endif
+
 void Init_kernel_spec() {
   VALUE cls;
   cls = rb_define_class("CApiKernelSpecs", rb_cObject);
 
 #ifdef HAVE_RB_BLOCK_GIVEN_P
   rb_define_method(cls, "rb_block_given_p", kernel_spec_rb_block_given_p, 0);
+#endif
+
+#ifdef HAVE_RB_NEED_BLOCK
+  rb_define_method(cls, "rb_need_block", kernel_spec_rb_need_block, 0);
 #endif
 
 #ifdef HAVE_RB_BLOCK_PROC
@@ -187,6 +250,18 @@ void Init_kernel_spec() {
 
 #ifdef HAVE_RB_YIELD_SPLAT
   rb_define_method(cls, "rb_yield_splat", kernel_spec_rb_yield_splat, 1);
+#endif
+
+#ifdef HAVE_RB_EXEC_RECURSIVE
+  rb_define_method(cls, "rb_exec_recursive", kernel_spec_rb_exec_recursive, 1);
+#endif
+
+#ifdef HAVE_RB_SET_END_PROC
+  rb_define_method(cls, "rb_set_end_proc", kernel_spec_rb_set_end_proc, 1);
+#endif
+
+#ifdef HAVE_RB_F_SPRINTF
+  rb_define_method(cls, "rb_f_sprintf", kernel_spec_rb_f_sprintf, 1);
 #endif
 }
 

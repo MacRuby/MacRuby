@@ -5,6 +5,12 @@
 extern "C" {
 #endif
 
+#ifdef HAVE_RB_HASH
+VALUE hash_spec_rb_hash(VALUE self, VALUE hash) {
+  return rb_hash(hash);
+}
+#endif
+
 #ifdef HAVE_RB_HASH_AREF
 VALUE hash_spec_rb_hash_aref(VALUE self, VALUE hash, VALUE key) {
   return rb_hash_aref(hash, key);
@@ -28,15 +34,43 @@ VALUE hash_spec_rb_hash_delete(VALUE self, VALUE hash, VALUE key) {
 }
 #endif
 
+#ifdef HAVE_RB_HASH_DELETE_IF
+VALUE hash_spec_rb_hash_delete_if(VALUE self, VALUE hash) {
+  return rb_hash_delete_if(hash);
+}
+#endif
+
 #ifdef HAVE_RB_HASH_FOREACH
 static int foreach_i(VALUE key, VALUE val, VALUE other) {
   rb_hash_aset(other, key, val);
   return 0; /* ST_CONTINUE; */
 }
 
+static int foreach_stop_i(VALUE key, VALUE val, VALUE other) {
+  rb_hash_aset(other, key, val);
+  return 1; /* ST_STOP; */
+}
+
+static int foreach_delete_i(VALUE key, VALUE val, VALUE other) {
+  rb_hash_aset(other, key, val);
+  return 2; /* ST_DELETE; */
+}
+
 VALUE hash_spec_rb_hash_foreach(VALUE self, VALUE hsh) {
   VALUE other = rb_hash_new();
   rb_hash_foreach(hsh, foreach_i, other);
+  return other;
+}
+
+VALUE hash_spec_rb_hash_foreach_stop(VALUE self, VALUE hsh) {
+  VALUE other = rb_hash_new();
+  rb_hash_foreach(hsh, foreach_stop_i, other);
+  return other;
+}
+
+VALUE hash_spec_rb_hash_foreach_delete(VALUE self, VALUE hsh) {
+  VALUE other = rb_hash_new();
+  rb_hash_foreach(hsh, foreach_delete_i, other);
   return other;
 }
 #endif
@@ -69,6 +103,10 @@ void Init_hash_spec() {
   VALUE cls;
   cls = rb_define_class("CApiHashSpecs", rb_cObject);
 
+#ifdef HAVE_RB_HASH
+  rb_define_method(cls, "rb_hash", hash_spec_rb_hash, 1);
+#endif
+
 #ifdef HAVE_RB_HASH_AREF
   rb_define_method(cls, "rb_hash_aref", hash_spec_rb_hash_aref, 2);
   rb_define_method(cls, "rb_hash_aref_nil", hash_spec_rb_hash_aref_nil, 2);
@@ -82,8 +120,14 @@ void Init_hash_spec() {
   rb_define_method(cls, "rb_hash_delete", hash_spec_rb_hash_delete, 2);
 #endif
 
+#ifdef HAVE_RB_HASH_DELETE_IF
+  rb_define_method(cls, "rb_hash_delete_if", hash_spec_rb_hash_delete_if, 1);
+#endif
+
 #ifdef HAVE_RB_HASH_FOREACH
   rb_define_method(cls, "rb_hash_foreach", hash_spec_rb_hash_foreach, 1);
+  rb_define_method(cls, "rb_hash_foreach_stop", hash_spec_rb_hash_foreach_stop, 1);
+  rb_define_method(cls, "rb_hash_foreach_delete", hash_spec_rb_hash_foreach_delete, 1);
 #endif
 
 #ifdef HAVE_RB_HASH_LOOKUP

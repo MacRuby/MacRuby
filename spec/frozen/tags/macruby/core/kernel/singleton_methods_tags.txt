@@ -1,3 +1,34 @@
 fails:Kernel#singleton_methods returns a list of the names of singleton methods in the object
 fails:Kernel#singleton_methods returns a list of names of singleton methods in object and superclasses when passed true
 fails:Kernel#singleton_methods returns a list of the names of singleton methods in the object and its ancestors and mixed-in modules
+fails:Kernel#singleton_methods when not passed an argument returns the names of module methods for a module
+fails:Kernel#singleton_methods when not passed an argument returns the names of class methods for a class
+fails:Kernel#singleton_methods when not passed an argument returns the names of inherited singleton methods for a subclass
+fails:Kernel#singleton_methods when not passed an argument returns a unique list for a subclass
+fails:Kernel#singleton_methods when not passed an argument returns the names of inherited singleton methods for a subclass including a module
+fails:Kernel#singleton_methods when not passed an argument returns a unique list for a subclass including a module
+fails:Kernel#singleton_methods when not passed an argument returns the names of inherited singleton methods for a subclass of a class including a module
+fails:Kernel#singleton_methods when not passed an argument returns the names of inherited singleton methods for a subclass of a class that includes a module, where the subclass also includes a module
+fails:Kernel#singleton_methods when not passed an argument returns the names of inherited singleton methods for a class extended with a module
+fails:Kernel#singleton_methods when not passed an argument does not return any included methods for a module including a module
+fails:Kernel#singleton_methods when not passed an argument does not return any included methods for a class including a module
+fails:Kernel#singleton_methods when passed true returns an empty Array for an object with no singleton methods
+fails:Kernel#singleton_methods when passed true returns the names of module methods for a module
+fails:Kernel#singleton_methods when passed true returns the names of class methods for a class
+fails:Kernel#singleton_methods when passed true returns the names of inherited singleton methods for a subclass
+fails:Kernel#singleton_methods when passed true returns a unique list for a subclass
+fails:Kernel#singleton_methods when passed true returns the names of inherited singleton methods for a subclass including a module
+fails:Kernel#singleton_methods when passed true returns a unique list for a subclass including a module
+fails:Kernel#singleton_methods when passed true returns the names of inherited singleton methods for a subclass of a class including a module
+fails:Kernel#singleton_methods when passed true returns the names of inherited singleton methods for a subclass of a class that includes a module, where the subclass also includes a module
+fails:Kernel#singleton_methods when passed true returns the names of inherited singleton methods for a class extended with a module
+fails:Kernel#singleton_methods when passed true does not return any included methods for a module including a module
+fails:Kernel#singleton_methods when passed true does not return any included methods for a class including a module
+fails:Kernel#singleton_methods when passed false returns the names of module methods for a module
+fails:Kernel#singleton_methods when passed false returns the names of class methods for a class
+fails:Kernel#singleton_methods when passed false does not return any included methods for a module including a module
+fails:Kernel#singleton_methods when passed false does not return any included methods for a class including a module
+fails:Kernel#singleton_methods when passed false returns an empty Array for an object extented with a module
+fails:Kernel#singleton_methods when passed false returns an empty Array for an object extented with two modules
+fails:Kernel#singleton_methods when passed false returns an empty Array for an object extended with a module including a module
+fails:Kernel#singleton_methods when passed false returns the names of singleton methods of the subclass

@@ -8,6 +8,15 @@ extern "C" {
 #endif
 
 #ifdef HAVE_RARRAY
+static VALUE array_spec_RARRAY_ptr_assign(VALUE self, VALUE ary, VALUE content, VALUE length) {
+  int i;
+  for (i = 0; i < NUM2INT(length); i++) {
+    RARRAY(ary)->ptr[i] = content;
+  }
+  RARRAY(ary)->len = i;
+  return ary;
+}
+
 static VALUE array_spec_RARRAY_ptr_assign_call(VALUE self, VALUE array) {
   VALUE* ptr;
 
@@ -43,17 +52,6 @@ static VALUE array_spec_RARRAY_ptr_iterate(VALUE self, VALUE array) {
     rb_yield(ptr[i]);
   }
   return Qnil;
-}
-
-static VALUE array_spec_RARRAY_ptr_assign(VALUE self, VALUE array, VALUE value) {
-  int i;
-  VALUE* ptr;
-
-  ptr = RARRAY(array)->ptr;
-  for(i = 0; i < RARRAY_LEN(array); i++) {
-    ptr[i] = value;
-  }
-  return array;
 }
 #endif
 
@@ -135,6 +133,12 @@ static VALUE array_spec_rb_ary_join(VALUE self, VALUE array1, VALUE array2) {
 }
 #endif
 
+#ifdef HAVE_RB_ARY_TO_S
+static VALUE array_spec_rb_ary_to_s(VALUE self, VALUE array) {
+  return rb_ary_to_s(array);
+}
+#endif
+
 #ifdef HAVE_RB_ARY_NEW
 static VALUE array_spec_rb_ary_new(VALUE self) {
   VALUE ret;
@@ -147,17 +151,6 @@ static VALUE array_spec_rb_ary_new(VALUE self) {
 static VALUE array_spec_rb_ary_new2(VALUE self, VALUE length) {
   return rb_ary_new2(NUM2LONG(length));
 }
-
-#ifdef HAVE_RARRAY
-static VALUE array_spec_rb_ary_new2_assign(VALUE self, VALUE ary, VALUE content, VALUE length) {
-  int i;
-  for (i = 0; i < NUM2INT(length); i++) {
-    RARRAY(ary)->ptr[i] = content;
-  }
-  RARRAY(ary)->len = i;
-  return ary;
-}
-#endif
 #endif
 
 #ifdef HAVE_RB_ARY_NEW3
@@ -230,6 +223,57 @@ static VALUE array_spec_rb_iterate(VALUE self, VALUE ary) {
 
   return new_ary;
 }
+
+static VALUE sub_pair(VALUE el, VALUE holder) {
+  return rb_ary_push(holder, rb_ary_entry(el, 1));
+}
+
+static VALUE each_pair(VALUE obj) {
+  return rb_funcall(obj, rb_intern("each_pair"), 0);
+}
+
+static VALUE array_spec_rb_iterate_each_pair(VALUE self, VALUE obj) {
+  VALUE new_ary = rb_ary_new();
+
+  rb_iterate(each_pair, obj, sub_pair, new_ary);
+
+  return new_ary;
+}
+#endif
+
+#if defined(HAVE_RB_MEM_CLEAR)
+static VALUE array_spec_rb_mem_clear(VALUE self, VALUE obj) {
+  VALUE ary = obj;
+
+  rb_mem_clear(&ary, 1);
+
+  return ary;
+}
+#endif
+
+#if defined(HAVE_RB_PROTECT_INSPECT) && defined(HAVE_RB_INSPECTING_P)
+
+static VALUE rec_pi(VALUE obj, VALUE arg) {
+  if(RTEST(rb_inspecting_p(obj))) return arg;
+  return Qfalse;
+}
+
+static VALUE array_spec_rb_protect_inspect(VALUE self, VALUE obj) {
+  return rb_protect_inspect(rec_pi, obj, Qtrue);
+}
+
+#endif
+
+#ifdef HAVE_RB_ARY_FREEZE
+static VALUE array_spec_rb_ary_freeze(VALUE self, VALUE ary) {
+  return rb_ary_freeze(ary);
+}
+#endif
+
+#ifdef HAVE_RB_ARY_TO_ARY
+static VALUE array_spec_rb_ary_to_ary(VALUE self, VALUE ary) {
+  return rb_ary_to_ary(ary);
+}
 #endif
 
 void Init_array_spec() {
@@ -238,7 +282,7 @@ void Init_array_spec() {
 
 #ifdef HAVE_RARRAY
   rb_define_method(cls, "RARRAY_ptr_iterate", array_spec_RARRAY_ptr_iterate, 1);
-  rb_define_method(cls, "RARRAY_ptr_assign", array_spec_RARRAY_ptr_assign, 2);
+  rb_define_method(cls, "RARRAY_ptr_assign", array_spec_RARRAY_ptr_assign, 3);
   rb_define_method(cls, "RARRAY_ptr_assign_call",
       array_spec_RARRAY_ptr_assign_call, 1);
   rb_define_method(cls, "RARRAY_ptr_assign_funcall",
@@ -284,15 +328,16 @@ void Init_array_spec() {
   rb_define_method(cls, "rb_ary_join", array_spec_rb_ary_join, 2);
 #endif
 
+#ifdef HAVE_RB_ARY_JOIN
+  rb_define_method(cls, "rb_ary_to_s", array_spec_rb_ary_to_s, 1);
+#endif
+
 #ifdef HAVE_RB_ARY_NEW
   rb_define_method(cls, "rb_ary_new", array_spec_rb_ary_new, 0);
 #endif
 
 #ifdef HAVE_RB_ARY_NEW2
   rb_define_method(cls, "rb_ary_new2", array_spec_rb_ary_new2, 1);
-#ifdef HAVE_RARRAY
-  rb_define_method(cls, "rb_ary_new2_assign", array_spec_rb_ary_new2_assign, 3);
-#endif
 #endif
 
 #ifdef HAVE_RB_ARY_NEW3
@@ -333,6 +378,23 @@ void Init_array_spec() {
 
 #if defined(HAVE_RB_ITERATE) && defined(HAVE_RB_EACH)
   rb_define_method(cls, "rb_iterate", array_spec_rb_iterate, 1);
+  rb_define_method(cls, "rb_iterate_each_pair", array_spec_rb_iterate_each_pair, 1);
+#endif
+
+#if defined(HAVE_RB_MEM_CLEAR)
+  rb_define_method(cls, "rb_mem_clear", array_spec_rb_mem_clear, 1);
+#endif
+
+#if defined(HAVE_RB_PROTECT_INSPECT) && defined(HAVE_RB_INSPECTING_P)
+  rb_define_method(cls, "rb_protect_inspect",  array_spec_rb_protect_inspect, 1);
+#endif
+
+#ifdef HAVE_RB_ARY_FREEZE
+  rb_define_method(cls, "rb_ary_freeze", array_spec_rb_ary_freeze, 1);
+#endif
+
+#ifdef HAVE_RB_ARY_TO_ARY
+  rb_define_method(cls, "rb_ary_to_ary", array_spec_rb_ary_to_ary, 1);
 #endif
 }
 

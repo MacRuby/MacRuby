@@ -38,7 +38,7 @@ def compile_extension(path, name)
   ext       = File.join(path, "#{name}_spec")
   source    = "#{ext}.c"
   obj       = "#{ext}.o"
-  lib       = "#{ext}.#{Config::CONFIG['DLEXT']}"
+  lib       = "#{ext}.#{RbConfig::CONFIG['DLEXT']}"
   signature = "#{ext}.sig"
 
   ruby_header     = File.join(hdrdir, "ruby.h")
@@ -62,17 +62,24 @@ def compile_extension(path, name)
   incflags << " -I#{arch_hdrdir}" if arch_hdrdir
   incflags << " -I#{ruby_hdrdir}" if ruby_hdrdir
 
-  `#{cc} #{incflags} #{cflags} -c #{source} -o #{obj}`
+  output = `#{cc} #{incflags} #{cflags} -c #{source} -o #{obj}`
+
+  if $?.exitstatus != 0 or !File.exists?(obj)
+    puts "ERROR:\n#{output}"
+    raise "Unable to compile \"#{source}\""
+  end
 
   ldshared  = RbConfig::CONFIG["LDSHARED"]
   libpath   = "-L#{path}"
   libs      = RbConfig::CONFIG["LIBS"]
   dldflags  = RbConfig::CONFIG["DLDFLAGS"]
 
-  `#{ldshared} #{obj} #{libpath} #{dldflags} #{libs} -o #{lib}`
+  output = `#{ldshared} #{obj} #{libpath} #{dldflags} #{libs} -o #{lib}`
 
-  # we don't need to leave the object file around
-  File.delete obj if File.exists? obj
+  if $?.exitstatus != 0
+    puts "ERROR:\n#{output}"
+    raise "Unable to link \"#{source}\""
+  end
 
   File.open(signature, "w") { |f| f.puts CAPI_RUBY_SIGNATURE }
 

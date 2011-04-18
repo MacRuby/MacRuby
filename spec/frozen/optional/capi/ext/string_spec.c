@@ -48,6 +48,40 @@ VALUE string_spec_rb_str_append(VALUE self, VALUE str, VALUE str2) {
 }
 #endif
 
+#ifdef HAVE_RB_STR_SET_LEN
+VALUE string_spec_rb_str_set_len(VALUE self, VALUE str, VALUE len) {
+  rb_str_set_len(str, NUM2LONG(len));
+
+  return str;
+}
+
+VALUE string_spec_rb_str_set_len_RSTRING_LEN(VALUE self, VALUE str, VALUE len) {
+  rb_str_set_len(str, NUM2LONG(len));
+
+  return INT2FIX(RSTRING_LEN(str));
+}
+#endif
+
+#ifdef HAVE_RB_STR_BUF_NEW
+VALUE string_spec_rb_str_buf_new(VALUE self, VALUE len, VALUE str) {
+  VALUE buf;
+
+  buf = rb_str_buf_new(NUM2LONG(len));
+
+  if(RTEST(str)) {
+    snprintf(RSTRING_PTR(buf), NUM2LONG(len), "%s", RSTRING_PTR(str));
+  }
+
+  return buf;
+}
+#endif
+
+#ifdef HAVE_RB_STR_BUF_NEW2
+VALUE string_spec_rb_str_buf_new2(VALUE self) {
+  return rb_str_buf_new2("hello\0invisible");
+}
+#endif
+
 #ifdef HAVE_RB_STR_BUF_CAT
 VALUE string_spec_rb_str_buf_cat(VALUE self, VALUE str) {
   const char *question_mark = "?";
@@ -120,18 +154,10 @@ VALUE string_spec_rb_str_new3(VALUE self, VALUE str) {
 }
 #endif
 
-#ifdef HAVE_RB_STR_BUF_NEW
-VALUE string_spec_rb_str_buf_new(VALUE self, VALUE capacity) {
-  return rb_str_buf_new(NUM2INT(capacity));
+#ifdef HAVE_RB_STR_NEW4
+VALUE string_spec_rb_str_new4(VALUE self, VALUE str) {
+  return rb_str_new4(str);
 }
-
-#ifdef HAVE_RSTRING
-VALUE string_spec_rb_str_buf_RSTRING_ptr_write(VALUE self, VALUE str, VALUE text) {
-  strcpy(RSTRING(str)->ptr, RSTRING_PTR(text));
-  RSTRING(str)->len = RSTRING_LEN(text);
-  return Qnil;
-}
-#endif
 #endif
 
 #ifdef HAVE_RB_STR_PLUS
@@ -282,6 +308,7 @@ VALUE string_spec_RSTRING_ptr_assign_call(VALUE self, VALUE str) {
   char *ptr = RSTRING(str)->ptr;
 
   ptr[1] = 'x';
+  RSTRING(str)->len = 2;
   rb_str_concat(str, rb_str_new2("d"));
   return str;
 }
@@ -292,6 +319,12 @@ VALUE string_spec_RSTRING_ptr_assign_funcall(VALUE self, VALUE str) {
   ptr[1] = 'x';
   rb_funcall(str, rb_intern("<<"), 1, rb_str_new2("e"));
   return str;
+}
+
+VALUE string_spec_RSTRING_ptr_write(VALUE self, VALUE str, VALUE text) {
+  strcpy(RSTRING(str)->ptr, RSTRING_PTR(text));
+  RSTRING(str)->len = RSTRING_LEN(text);
+  return Qnil;
 }
 #endif
 
@@ -355,6 +388,12 @@ VALUE string_spec_StringValue(VALUE self, VALUE str) {
 }
 #endif
 
+#ifdef HAVE_RB_STR_HASH
+static VALUE string_spec_rb_str_hash(VALUE self, VALUE str) {
+  return INT2FIX(rb_str_hash(str));
+}
+#endif
+
 void Init_string_spec() {
   VALUE cls;
   cls = rb_define_class("CApiStringSpecs", rb_cObject);
@@ -374,6 +413,14 @@ void Init_string_spec() {
 
 #ifdef HAVE_RB_STR_APPEND
   rb_define_method(cls, "rb_str_append", string_spec_rb_str_append, 2);
+#endif
+
+#ifdef HAVE_RB_STR_BUF_NEW
+  rb_define_method(cls, "rb_str_buf_new", string_spec_rb_str_buf_new, 2);
+#endif
+
+#ifdef HAVE_RB_STR_BUF_NEW2
+  rb_define_method(cls, "rb_str_buf_new2", string_spec_rb_str_buf_new2, 0);
 #endif
 
 #ifdef HAVE_RB_STR_BUF_CAT
@@ -424,13 +471,9 @@ void Init_string_spec() {
   rb_define_method(cls, "rb_str_new3", string_spec_rb_str_new3, 1);
 #endif
 
-#ifdef HAVE_RB_STR_BUF_NEW
-  rb_define_method(cls, "rb_str_buf_new", string_spec_rb_str_buf_new, 1);
-#ifdef HAVE_RSTRING
-  rb_define_method(cls, "rb_str_buf_RSTRING_ptr_write", string_spec_rb_str_buf_RSTRING_ptr_write, 2);
+#ifdef HAVE_RB_STR_NEW4
+  rb_define_method(cls, "rb_str_new4", string_spec_rb_str_new4, 1);
 #endif
-#endif
-
 
 #ifdef HAVE_RB_STR_PLUS
   rb_define_method(cls, "rb_str_plus", string_spec_rb_str_plus, 2);
@@ -459,6 +502,12 @@ void Init_string_spec() {
       string_spec_rb_str_resize_RSTRING_LEN, 2);
 #endif
 
+#ifdef HAVE_RB_STR_SET_LEN
+  rb_define_method(cls, "rb_str_set_len", string_spec_rb_str_set_len, 2);
+  rb_define_method(cls, "rb_str_set_len_RSTRING_LEN",
+      string_spec_rb_str_set_len_RSTRING_LEN, 2);
+#endif
+
 #ifdef HAVE_RB_STR_SPLIT
   rb_define_method(cls, "rb_str_split", string_spec_rb_str_split, 1);
 #endif
@@ -475,6 +524,7 @@ void Init_string_spec() {
   rb_define_method(cls, "RSTRING_ptr_iterate", string_spec_RSTRING_ptr_iterate, 1);
   rb_define_method(cls, "RSTRING_ptr_assign", string_spec_RSTRING_ptr_assign, 2);
   rb_define_method(cls, "RSTRING_ptr_assign_call", string_spec_RSTRING_ptr_assign_call, 1);
+  rb_define_method(cls, "RSTRING_ptr_write", string_spec_RSTRING_ptr_write, 2);
   rb_define_method(cls, "RSTRING_ptr_assign_funcall",
       string_spec_RSTRING_ptr_assign_funcall, 1);
   rb_define_method(cls, "RSTRING_len", string_spec_RSTRING_len, 1);
@@ -498,6 +548,10 @@ void Init_string_spec() {
 
 #ifdef HAVE_STRINGVALUE
   rb_define_method(cls, "StringValue", string_spec_StringValue, 1);
+#endif
+
+#ifdef HAVE_RB_STR_HASH
+  rb_define_method(cls, "rb_str_hash", string_spec_rb_str_hash, 1);
 #endif
 }
 

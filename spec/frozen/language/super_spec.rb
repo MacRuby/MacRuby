@@ -8,7 +8,7 @@ describe "The super keyword" do
     Super::S1::B.new.foo([]).should == ["B#foo","A#foo","B#bar","A#bar"]
     Super::S1::B.new.bar([]).should == ["B#bar","A#bar"]
   end
-  
+
   it "searches the full inheritence chain" do
     Super::S2::B.new.foo([]).should == ["B#foo","A#baz"]
     Super::S2::B.new.baz([]).should == ["A#baz"]
@@ -31,7 +31,7 @@ describe "The super keyword" do
     Super::MS1::B.new.foo([]).should == ["B#foo","ModA#foo","ModB#bar","ModA#bar"]
     Super::MS1::B.new.bar([]).should == ["ModB#bar","ModA#bar"]
   end
-  
+
   it "searches the full inheritence chain including modules" do
     Super::MS2::B.new.foo([]).should == ["ModB#foo","A#baz"]
     Super::MS2::B.new.baz([]).should == ["A#baz"]
@@ -51,7 +51,7 @@ describe "The super keyword" do
   it "calls the correct method when the method visibility is modified" do
     Super::MS4::A.new.example.should == 5
   end
-  
+
   it "calls the correct method when the superclass argument list is different from the subclass" do
     Super::S4::A.new.foo([]).should == ["A#foo"]
     Super::S4::B.new.foo([],"test").should == ["B#foo(a,test)", "A#foo"]
@@ -84,51 +84,50 @@ describe "The super keyword" do
     Super::S7.new.here.should == :good
   end
 
-  # MacRuby TODO: compile error
-  # it "supers up appropriate name even if used for multiple method names" do
-  #   sup = Class.new do
-  #     def a; "a"; end
-  #     def b; "b"; end
-  #   end
-  # 
-  #   sub = Class.new(sup) do
-  #     [:a, :b].each do |name|
-  #       define_method name do
-  #         super()
-  #       end
-  #     end
-  #   end
-  # 
-  #   sub.new.a.should == "a"
-  #   sub.new.b.should == "b"
-  #   sub.new.a.should == "a"
-  # end
-  # 
-  # ruby_version_is ""..."1.9" do
-  #   it "can be used with implicit arguments from a method defined with define_method" do
-  #     sup = Class.new do
-  #       def a; "a"; end
-  #     end
-  # 
-  #     sub = Class.new(sup) do
-  #       define_method :a do
-  #         super
-  #       end
-  #     end
-  # 
-  #     sub.new.a.should == "a"
-  #   end
-  # end
-  # 
-  # ruby_version_is "1.9" do
-  #   it "can't be used with implicit arguments from a method defined with define_method" do
-  #     Class.new do
-  #       define_method :a do
-  #         super
-  #       end.should raise_error(RuntimeError)
-  #     end
-  #   end
-  # end
+  it "supers up appropriate name even if used for multiple method names" do
+    sup = Class.new do
+      def a; "a"; end
+      def b; "b"; end
+    end
+
+    sub = Class.new(sup) do
+      [:a, :b].each do |name|
+        define_method name do
+          super()
+        end
+      end
+    end
+
+    sub.new.a.should == "a"
+    sub.new.b.should == "b"
+    sub.new.a.should == "a"
+  end
+
+  ruby_version_is ""..."1.9" do
+    it "can be used with implicit arguments from a method defined with define_method" do
+      sup = Class.new do
+        def a; "a"; end
+      end
+
+      sub = Class.new(sup) do
+        define_method :a do
+          super
+        end
+      end
+
+      sub.new.a.should == "a"
+    end
+  end
+
+  ruby_version_is "1.9" do
+    it "can't be used with implicit arguments from a method defined with define_method" do
+      Class.new do
+        define_method :a do
+          super
+        end.should raise_error(RuntimeError)
+      end
+    end
+  end
 
   # Rubinius ticket github#157
   it "calls method_missing when a superclass method is not found" do

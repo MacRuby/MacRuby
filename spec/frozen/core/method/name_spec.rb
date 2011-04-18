@@ -27,4 +27,5 @@ describe "Method#name" do
       obj.method(:bar).unbind.bind(obj).name.should == :bar
     end
   end
+
 end

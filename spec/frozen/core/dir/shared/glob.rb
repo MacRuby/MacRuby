@@ -122,6 +122,10 @@ describe :dir_glob, :shared => true do
     Dir.send(@method, 'sub*_one').sort.should == %w|subdir_one|.sort
   end
 
+  it "handles directories with globs" do
+    Dir.send(@method, 'sub*/*').sort.should == %w!subdir_one/nondotfile subdir_two/nondotfile subdir_two/nondotfile.ext!
+  end
+
   it "matches files with multiple '*' special characters" do
     Dir.send(@method, '*fi*e*').sort.should == %w|dir_filename_ordering nondotfile file_one.ext file_two.ext|.sort
   end
@@ -197,6 +201,10 @@ describe :dir_glob, :shared => true do
     Dir.send(@method, 'subdir_{one,two,three}').sort.should == %w|subdir_one subdir_two|.sort
   end
 
+  it "matches a set '{<string>,<other>,...}' which also uses a glob" do
+    Dir.send(@method, 'sub*_{one,two,three}').sort.should == %w|subdir_one subdir_two|.sort
+  end
+
   it "accepts string sets with empty strings with {<string>,,<other>}" do
     a = Dir.send(@method, 'deeply/nested/directory/structure/file_one{.ext,}').sort
     a.should == %w|deeply/nested/directory/structure/file_one.ext
@@ -210,6 +218,11 @@ describe :dir_glob, :shared => true do
   it "respects the order of {} expressions, expanding left most first" do
     files = Dir.send(@method, "brace/a{.js,.html}{.erb,.rjs}")
     files.should == %w!brace/a.js.rjs brace/a.html.erb!
+  end
+
+  it "respects the optional nested {} expressions" do
+    files = Dir.send(@method, "brace/a{.{js,html},}{.{erb,rjs},}")
+    files.should == %w!brace/a.js.rjs brace/a.js brace/a.html.erb brace/a.erb brace/a!
   end
 
   it "matches special characters by escaping with a backslash with '\\<character>'" do
@@ -249,6 +262,14 @@ describe :dir_glob, :shared => true do
 
     Dir.send(@method, "deeply/nested/directory/structure//**/*.ext").should ==
       %w!deeply/nested/directory/structure//file_one.ext!
+  end
+
+  it "ignores matching through directories that doen't exist" do
+    Dir.send(@method, "deeply/notthere/blah*/whatever").should == []
+  end
+
+  it "ignores matching only directories under an nonexistant path" do
+    Dir.send(@method, "deeply/notthere/blah/").should == []
   end
 end
 
