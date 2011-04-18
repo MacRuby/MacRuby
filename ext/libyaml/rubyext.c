@@ -98,7 +98,6 @@ static VALUE
 rb_yaml_parser_set_input(VALUE self, SEL sel, VALUE input)
 {
     rb_yaml_parser_t *rbparser = RYAMLParser(self);
-    GC_WB(&rbparser->input, input);
     yaml_parser_t *parser = &rbparser->parser;
 
     if (!NIL_P(input)) {
@@ -118,9 +117,10 @@ rb_yaml_parser_set_input(VALUE self, SEL sel, VALUE input)
 		    rb_obj_classname(input));
 	}
     }
+
+    GC_WB(&rbparser->input, input);
     return input;
 }
-
 
 static VALUE
 rb_yaml_parser_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
@@ -196,9 +196,12 @@ rb_yaml_parser_error(VALUE self, SEL sel)
     return rb_yaml_parser_generate_error(&(RYAMLParser(self)->parser));
 }
 
-static inline bool
+static bool
 yaml_next_event(rb_yaml_parser_t *parser)
 {
+    if (NIL_P(parser->input)) {
+	rb_raise(rb_eRuntimeError, "input needed");
+    }
     if (parser->event_valid) {
 	yaml_event_delete(&parser->event);
 	parser->event_valid = false;
@@ -214,10 +217,11 @@ yaml_next_event(rb_yaml_parser_t *parser)
 }
 
 #define NEXT_EVENT() yaml_next_event(parser)
-static inline VALUE get_node(rb_yaml_parser_t *parser);
-static inline VALUE parse_node(rb_yaml_parser_t *parser);
+static VALUE
+get_node(rb_yaml_parser_t *parser);
+static VALUE parse_node(rb_yaml_parser_t *parser);
 
-static inline VALUE
+static VALUE
 handler_for_tag(rb_yaml_parser_t *parser, yaml_char_t *tag)
 {
     if (tag == NULL) {
@@ -282,7 +286,7 @@ interpret_value(rb_yaml_parser_t *parser, VALUE result, VALUE handler)
     return result;
 }
 
-static inline bool
+static bool
 is_numeric(const char *str, bool *has_point)
 {
     if (*str == '-') {
@@ -311,7 +315,7 @@ is_numeric(const char *str, bool *has_point)
     return numeric;
 }
 
-static inline bool
+static bool
 is_timestamp(const char *str, size_t length)
 {
   // TODO: This probably should be coded as a regex and/or in ruby
@@ -504,7 +508,7 @@ handle_mapping(rb_yaml_parser_t *parser)
     return interpret_value(parser, hash, handler);
 }
 
-static inline VALUE
+static VALUE
 get_node(rb_yaml_parser_t *parser)
 {
     VALUE node;
@@ -626,7 +630,7 @@ parse_mapping(rb_yaml_parser_t *parser)
     return make_yaml_node("map", hash);
 }
 
-static inline VALUE
+static VALUE
 parse_node(rb_yaml_parser_t *parser)
 {
     VALUE node;
