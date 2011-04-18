@@ -2115,6 +2115,7 @@ prepare_method:
 	abort();
 #else
 	Function *func = (Function *)data;
+	GET_CORE()->lock();
 	if (m != NULL || custom_resolver) {
 	    // The method already exists _or_ the class implemented a custom
 	    // Objective-C method resolver - we need to JIT it.
@@ -2128,6 +2129,7 @@ prepare_method:
 	    // Let's keep the method and JIT it later on demand.
 	    GET_CORE()->prepare_method(klass, sel, func, arity, flags);
 	}
+	GET_CORE()->unlock();
 #endif
     }
 
