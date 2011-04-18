@@ -236,8 +236,9 @@ json_parse_chunk(const unsigned char* chunk, unsigned int len, yajl_handle parse
     
     if (status != yajl_status_ok && status != yajl_status_insufficient_data) {
         unsigned char* str = yajl_get_error(parser, 1, chunk, len);
-        rb_raise(rb_cParseError, "%s", (const char*) str);
+        VALUE errobj = rb_exc_new2(cParseError, (const char*) str);
         yajl_free_error(parser, str);
+        rb_exc_raise(errobj);
     }
 }
 
