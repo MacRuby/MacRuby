@@ -61,7 +61,7 @@
 	<key>CFBundleIconFile</key>
 	<string>Draw2App</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.apple.CocoaExamples.Sketch</string>
+	<string>com.apple.MacRubyCocoaExamples.Sketch</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundlePackageType</key>
