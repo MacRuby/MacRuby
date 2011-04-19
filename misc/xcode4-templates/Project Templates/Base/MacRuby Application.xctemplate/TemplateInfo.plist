@@ -29,6 +29,8 @@
 			<array>
 				<string>Cocoa</string>
 				<string>MacRuby</string>
+				<key>ARCHS</key>
+				<string>x86_64</string>
 			</array>
 		</dict>
 		<dict>

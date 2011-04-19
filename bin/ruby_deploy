@@ -122,6 +122,14 @@ class Deployer
         compile_options = { bundle: true, output: obj, files: [source] }
         # Use Xcode ARCHS env var to determine which archs to compile for
         compile_options[:archs] = ENV['ARCHS'].strip.split if ENV['ARCHS']
+        # Check that the ARCHS env var contains valid values
+        supported_archs = RbConfig::CONFIG['ARCH_FLAG'].gsub('-arch', '').strip.split
+        compile_options[:archs].delete_if do |arch| 
+          unless supported_archs.include?(arch)
+            puts "Can't build for arch #{arch} because it is not supported"
+            true
+          end
+        end
         instance = Compiler.new compile_options
         begin
           instance.run
