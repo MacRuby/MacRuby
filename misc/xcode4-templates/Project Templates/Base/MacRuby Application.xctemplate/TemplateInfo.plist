@@ -13,16 +13,12 @@
 	<key>Targets</key>
 	<array>
 		<dict>
-            <!-- We want the GC to be enabled in all projects -->
-			<!-- And we want to only compile for x86_64 only -->
+			<!-- We want the GC to be enabled in all projects -->
 			<key>SharedSettings</key>
 			<dict>
 				<key>GCC_ENABLE_OBJC_GC</key>
 				<string>required</string>
-				<key>ARCHS</key>
-                <string>64-bit Intel</string>
 			</dict>
-
 			<!-- 
 			Don't forget to include MacRuby
 			In temp. Xcode 4, the Framework path is 
