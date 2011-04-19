@@ -543,6 +543,19 @@ rb_frame_callee(void)
  *  _mod_ or one of its ancestors. See also <code>Module#include</code>.
  */
 
+static void
+check_cyclic_include(VALUE klass, VALUE mod)
+{
+    VALUE m = mod;
+    do {
+	if (m == klass) {
+	    rb_raise(rb_eArgError, "cyclic include detected");
+	}
+	m = RCLASS_SUPER(m);
+    }
+    while (RCLASS_SINGLETON(m));
+}
+
 static VALUE
 rb_mod_append_features(VALUE module, SEL sel, VALUE include)
 {
@@ -555,6 +568,8 @@ rb_mod_append_features(VALUE module, SEL sel, VALUE include)
 	    Check_Type(include, T_CLASS);
 	    break;
     }
+    check_cyclic_include(include, module);
+
     if (RCLASS_RUBY(include)) {
 	VALUE sinclude = rb_make_singleton_class(RCLASS_SUPER(include));
 	RCLASS_SET_SUPER(include, sinclude);
