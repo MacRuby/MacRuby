@@ -1,4 +1,1 @@
-critical:Kernel#define_singleton_method when given an UnboundMethod correctly calls the new method
-critical:Kernel#define_singleton_method when given an UnboundMethod adds the new method to the methods list
-critical:Kernel#define_singleton_method when given an UnboundMethod defines any Child class method from any Parent's class methods
-critical:Kernel#define_singleton_method when given an UnboundMethod will raise when attempting to define an object's singleton method from another objetc's singleton method
+fails:Kernel#define_singleton_method when given an UnboundMethod defines any Child class method from any Parent's class methods

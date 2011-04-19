@@ -1,5 +1,3 @@
-critical:ERB.new ignores '<%# ... %>'
-critical:ERB.new removes spaces around '<%- -%>' when trim_mode is '-'
 fails:ERB.new remove "\n" when trim_mode is 1 or '>'
 fails:ERB.new remove spaces at beginning of line and "\n" when trim_mode is 2 or '<>'
 fails:ERB.new regards lines starting with '%' as '<% ... %>' when trim_mode is '%'

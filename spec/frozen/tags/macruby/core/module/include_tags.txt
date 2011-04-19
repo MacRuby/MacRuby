@@ -1,4 +1,3 @@
-critical:Module#include detects cyclic includes
 fails:Module#include adds all ancestor modules when a previously included module is included again
 fails:Module#include imports constants to modules and classes
 fails:Module#include doesn't include module if it is included in a super class

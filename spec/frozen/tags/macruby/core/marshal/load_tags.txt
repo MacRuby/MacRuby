@@ -1,4 +1,3 @@
-critical:Marshal::load calls the proc for recursively visited data
 fails:Marshal::load preserves hash ivars when hash contains a string having ivar
 fails:Marshal::load loads a 1..2
 fails:Marshal::load loads a 1...2

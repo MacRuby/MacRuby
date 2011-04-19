@@ -1,1 +1,1 @@
-critical:Struct#hash returns the same hash for recursive structs
+fails:Struct#hash returns the same hash for recursive structs
