@@ -93,6 +93,14 @@ describe "A String object" do
     s2 = NSString.alloc.initWithBytes(ptr, length: 3, encoding: NSASCIIStringEncoding)
     s2.should == s
   end
+
+  it "responds to #transform which returns the transliterated version of the receiver" do
+    ''.transform('latin-greek').should == nil
+
+    s = 'hello'
+    s.transform('latin-hiragana').should == "へっろ"
+    lambda { s.transform('made-up') }.should raise_error(ArgumentError)
+  end
 end
 
 describe "An NSString object" do
