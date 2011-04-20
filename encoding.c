@@ -487,6 +487,12 @@ rb_default_internal_encoding(void)
     return (rb_encoding *)default_internal;
 }
 
+rb_encoding *
+rb_default_external_encoding(void)
+{
+    return (rb_encoding *)default_external;
+}
+
 static int
 index_of_encoding(rb_encoding_t *enc)
 {
@@ -504,6 +510,15 @@ int
 rb_enc_get_index(VALUE obj)
 {
     return index_of_encoding(rb_enc_get(obj));
+}
+
+int
+rb_enc_to_index(VALUE enc)
+{
+    if (CLASS_OF(enc) == rb_cEncoding) {
+	return index_of_encoding(RENC(enc));
+    }
+    return -1;
 }
 
 void

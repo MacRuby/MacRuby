@@ -16,9 +16,12 @@ extern "C" {
 
 typedef struct rb_encoding rb_encoding;
 
+#define ENCODING_GET(obj) (rb_enc_get_index((VALUE)obj))
+
 int rb_enc_get_index(VALUE obj);
 void rb_enc_set_index(VALUE obj, int encindex);
 int rb_enc_find_index(const char *name);
+int rb_enc_to_index(VALUE enc);
 int rb_to_encoding_index(VALUE);
 int rb_ascii8bit_encindex(void);
 int rb_utf8_encindex(void);
