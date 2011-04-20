@@ -2,6 +2,7 @@ framework 'Cocoa'
 
 SPEC_ROOT = File.dirname(__FILE__)
 FIXTURES = File.join(SPEC_ROOT, "fixtures")
+ROOT_DIR = File.expand_path("../../", SPEC_ROOT)
 
 class FixtureCompiler
   def self.require!(fixture)
@@ -10,7 +11,7 @@ class FixtureCompiler
   
   FRAMEWORKS = %w{ Foundation }
   ARCHS      = %w{ i386 x86_64 }
-  OPTIONS    = %w{ -g -dynamiclib -fobjc-gc -Wl,-undefined,dynamic_lookup }
+  OPTIONS    = %w{ -g -dynamiclib -fobjc-gc -Wl,-undefined,dynamic_lookup } << "-I#{ROOT_DIR}/include"
   GCC        = "/usr/bin/gcc"
   
   attr_reader :gcc, :frameworks, :archs, :options
