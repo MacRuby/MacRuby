@@ -86,6 +86,7 @@ _bs_main_bundle_bs_path(void)
       if (url != NULL) {
         CFStringRef str = CFURLCopyPath(url);
         path = (char *)malloc(sizeof(char) * PATH_MAX);
+	ASSERT_ALLOC(path);
         CFStringGetFileSystemRepresentation(str, path, PATH_MAX);
         CFRelease(str);
         CFRelease(url);
@@ -417,6 +418,7 @@ bs_parser_new(void)
   struct _bs_parser *parser;
 
   parser = (struct _bs_parser *)malloc(sizeof(struct _bs_parser));
+  ASSERT_ALLOC(parser);
   parser->loaded_paths = 
     CFArrayCreateMutable(kCFAllocatorMalloc, 0, &kCFTypeArrayCallBacks);
 
