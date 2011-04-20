@@ -339,6 +339,7 @@ str_replace_with_cfstring(rb_str_t *self, CFStringRef source)
     UniChar *chars = NULL;
     if (len > 0) {
 	chars = (UniChar *)malloc(sizeof(UniChar) * len);
+	assert(chars != NULL);
 	CFStringGetCharacters(source, CFRangeMake(0, len), chars);
     }
     str_replace_with_uchars(self, chars, len);
@@ -1383,6 +1384,7 @@ rb_str_get_uchars_always(VALUE str, rb_str_uchars_buf_t *buf)
 	    else {
 		if (len > STR_UCHARS_STATIC_BUFSIZE) {
 		    buf->chars = (UChar *)malloc(sizeof(UChar) * len);
+		    assert(buf->chars != NULL);
 		}
 		else {
 		    buf->chars = buf->static_buf;
@@ -1396,6 +1398,7 @@ rb_str_get_uchars_always(VALUE str, rb_str_uchars_buf_t *buf)
 	if (len > 0) {
 	    if (len > STR_UCHARS_STATIC_BUFSIZE) {
 		buf->chars = (UChar *)malloc(sizeof(UChar) * len);
+		assert(buf->chars != NULL);
 	    }
 	    else {
 		buf->chars = buf->static_buf;
@@ -2643,6 +2646,7 @@ rstr_concat(VALUE self, SEL sel, VALUE other)
 	    goto out_of_range;
 	}
 	uint8_t *buf = (uint8_t *)malloc(bytelen);
+	assert(buf != NULL);
 	int offset = 0;
 	UBool error = false;
 	U8_APPEND(buf, offset, bytelen, codepoint, error);
@@ -6129,6 +6133,7 @@ rb_str_bstr(VALUE str)
 		    CFStringGetLength((CFStringRef)str), kCFStringEncodingUTF8);
 	    assert(max > 0);
 	    char *buf = (char *)malloc(max + 1);
+	    assert(buf != NULL);
 	    if (!CFStringGetCString((CFStringRef)str, buf, max,
 			kCFStringEncodingUTF8)) {
 		free(buf);
