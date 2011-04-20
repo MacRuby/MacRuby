@@ -59,10 +59,12 @@ TOKEN_PASTE(swap,x)(xtype z)		\
     unsigned char *s, *t;		\
     int i;				\
 					\
-    zp = malloc(sizeof(xtype));	\
+    zp = malloc(sizeof(xtype));	        \
+    assert(zp != NULL);			\
     *zp = z;				\
     s = (unsigned char*)zp;		\
     t = malloc(sizeof(xtype));		\
+    assert(t != NULL);                  \
     for (i=0; i<sizeof(xtype); i++) {	\
 	t[sizeof(xtype)-i-1] = s[i];	\
     }					\
