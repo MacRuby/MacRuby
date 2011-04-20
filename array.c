@@ -3197,6 +3197,7 @@ rary_sample(VALUE ary, SEL sel, int argc, VALUE *argv)
 	    sorted[j] = idx[i] = k;
 	}
 	VALUE *elems = (VALUE *)malloc(sizeof(VALUE) * n);
+	assert(elems != NULL);
 	for (i = 0; i < n; i++) {
 	    elems[i] = RARRAY_AT(ary, idx[i]);
 	}
@@ -3205,6 +3206,7 @@ rary_sample(VALUE ary, SEL sel, int argc, VALUE *argv)
     }
     else {
 	VALUE *elems = (VALUE *)malloc(sizeof(VALUE) * n);
+	assert(elems != NULL);
 	for (i = 0; i < n; i++) {
 	    j = (long)(rb_genrand_real() * (len - i)) + i;
 	    nv = RARRAY_AT(ary, j);

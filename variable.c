@@ -42,7 +42,9 @@ ivar_dict_foreach(CFDictionaryRef dict, int (*func)(ANYARGS), VALUE farg)
     }
 
     const void **keys = (const void **)malloc(sizeof(void *) * count);
+    assert(keys != NULL);
     const void **values = (const void **)malloc(sizeof(void *) * count);
+    assert(values != NULL);
 
     CFDictionaryGetKeysAndValues(dict, keys, values);
 

@@ -1252,6 +1252,7 @@ ruby_sysinit(int *argc, char ***argv)
 	len += strlen(v1[i]) + 1;
     }
     v2 = malloc((n + 1)* sizeof(char*) + len);
+    assert(v2 != NULL);
     p = (char *)&v2[n + 1];
     for (i = 0; i < n; ++i) {
 	int l = strlen(v1[i]);
