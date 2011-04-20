@@ -603,6 +603,12 @@ rb_include_module2(VALUE klass, VALUE orig_klass, VALUE module, bool check,
 	// version to the original class too.
 	rb_vm_copy_methods((Class)module, (Class)klass);
 
+	// When including into the class Class, also copy the methods to the
+	// singleton class of NSObject.
+	if (klass == rb_cClass || klass == rb_cModule) {
+            rb_vm_copy_methods((Class)module, *(Class *)rb_cNSObject);
+	}
+
 	if (orig_klass != 0 && orig_klass != klass) {
 	    Method m = class_getInstanceMethod((Class)orig_klass,
 		    selInitialize);

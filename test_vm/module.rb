@@ -119,7 +119,7 @@ assert ':ok', %{
   class Class; include M; end
   class X; end
   X.foo
-}, :known_bug => true
+}
 
 assert ':ok', %{
   module M
@@ -130,7 +130,7 @@ assert ':ok', %{
   class Module; include M; end
   module X; end
   X.foo
-}, :known_bug => true
+}
 
 assert ':ok', %{
   module Mok
