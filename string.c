@@ -5175,7 +5175,7 @@ rstr_transform(VALUE str, SEL sel, VALUE transform_pat)
 	return Qnil;
     }
 
-    RB_STR_GET_UCHARS(str, transform_chars, transform_chars_len);
+    RB_STR_GET_UCHARS(transform_pat, transform_chars, transform_chars_len);
 
     UErrorCode status = U_ZERO_ERROR;
     UTransliterator *trans = utrans_openU(transform_chars, transform_chars_len,
@@ -5189,6 +5189,8 @@ rstr_transform(VALUE str, SEL sel, VALUE transform_pat)
     int32_t limit = capacity;
     utrans_transUChars(trans, new_chars, &capacity, capacity,
 	    0, &limit, &status);
+
+    utrans_close(trans);
 
     return rb_unicode_str_new(new_chars, (long)capacity);
 }
