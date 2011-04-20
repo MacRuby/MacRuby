@@ -2316,6 +2316,7 @@ io_from_spawning_new_process(VALUE prog, VALUE mode)
 	const long len = RARRAY_LEN(argArray);
 	char **spawnedArgs =
 		malloc((len + 1) * sizeof(char *));
+	assert(spawnedArgs != NULL);
 	for (long i = 0; i < len; i++) {
 	    VALUE str = RARRAY_AT(argArray, i);
 	    spawnedArgs[i] = StringValuePtr(str);
