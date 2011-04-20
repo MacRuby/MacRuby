@@ -1,4 +1,5 @@
-#import <MacRuby/MacRuby.h>
+#include <Foundation/Foundation.h>
+#include "ruby/ruby.h"
 
 static VALUE
 ocid_str(VALUE obj)

@@ -436,7 +436,7 @@ assert "42", %{
     include M
   end
   class Range; foo; end
-}, :known_bug => true
+}
 
 assert ':ok', %{
   class B; end

@@ -570,7 +570,7 @@ rb_mod_append_features(VALUE module, SEL sel, VALUE include)
     }
     check_cyclic_include(include, module);
 
-    if (RCLASS_RUBY(include)) {
+    if (include != rb_cClass && include != rb_cModule && RCLASS_RUBY(include)) {
 	VALUE sinclude = rb_make_singleton_class(RCLASS_SUPER(include));
 	RCLASS_SET_SUPER(include, sinclude);
 	include = sinclude;

@@ -14,11 +14,11 @@ assert '42', %{
   module Foo; def foo; 42; end; end
   class ::Class; include Foo; end
   p Class.new.foo
-}, :known_bug => true
+}
 
 assert '42', %{
   module Foo; def foo; 42; end; end
   class ::Module; include Foo; end
   p Module.new.foo
-}, :known_bug => true
+}
 
