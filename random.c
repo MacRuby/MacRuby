@@ -563,6 +563,7 @@ random_bytes(VALUE obj, SEL sel, VALUE len)
     } 
     rb_random_t *rnd = get_rnd(obj);
     UInt8 *ptr = (UInt8 *)malloc(n);
+    assert(ptr != NULL);
     unsigned int r = genrand_int32(&rnd->mt);
     for (long i = 0; i < n; i++) {
 	ptr[i] = (char)r;
