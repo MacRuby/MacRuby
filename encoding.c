@@ -242,6 +242,7 @@ add_encoding(
     va_end(va_aliases);
     const char **aliases = (const char **)
 	malloc(sizeof(const char *) * aliases_count);
+    assert(aliases != NULL);
     va_start(va_aliases, little_endian);
     for (unsigned int i = 0; i < aliases_count; ++i) {
 	aliases[i] = va_arg(va_aliases, const char *);
