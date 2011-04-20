@@ -60,8 +60,10 @@ def build_objects
   end
   dispatcher_o = File.join($builder.objsdir, 'dispatcher.o')
   t = File.exist?(dispatcher_o) ? File.mtime(dispatcher_o) : nil
+  vm_o = File.join($builder.objsdir, 'vm.o')
+  t_vm = File.exist?(vm_o) ? File.mtime(vm_o) : nil
   $builder.build
-  if t == nil or File.mtime(dispatcher_o) > t
+  if t == nil or File.mtime(dispatcher_o) > t or t_vm == nil or File.mtime(vm_o) > t_vm
     # dispatcher.o must be marked as GC compliant to avoid a linker problem.
     # We do not build it using -fobjc-gc because gcc generates unnecessary (and slow)
     # write barriers.
