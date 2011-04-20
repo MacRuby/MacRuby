@@ -2052,6 +2052,7 @@ decode:
 	    goto out_of_range;
 	}
 	uint8_t *buf = (uint8_t *)malloc(bytelen);
+	assert(buf != NULL);
 	int offset = 0;
 	UBool error = false;
 	U8_APPEND(buf, offset, bytelen, i, error);
