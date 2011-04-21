@@ -5376,6 +5376,7 @@ RoxorCompiler::compile_lambda_to_funcptr(const char *type,
     const size_t buf_len = strlen(type + 1) + 1;
     assert(buf_len > 1);
     char *buf = (char *)malloc(buf_len);
+    assert(buf != NULL);
 
     const char *p = GetFirstType(type + 1, buf, buf_len);
     const Type *ret_type = convert_type(buf);
@@ -6155,6 +6156,7 @@ RoxorCompiler::compile_stub(const char *types, bool variadic, int min_argc,
     const size_t buf_len = strlen(types) + 1;
     assert(buf_len > 1);
     char *buf = (char *)malloc(buf_len);
+    assert(buf != NULL);
 
     // retval
     const char *p = GetFirstType(types, buf, buf_len);
@@ -6559,6 +6561,7 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
     const size_t buf_len = strlen(types) + 1;
     assert(buf_len > 1);
     char *buf = (char *)malloc(buf_len);
+    assert(buf != NULL);
 
     const char *p = types;
     std::vector<const Type *> f_types;
