@@ -5100,7 +5100,7 @@ macruby_main(const char *path, int argc, char **argv)
     newargv[1] = (char *)resources_path(p1, PATH_MAX);
     
     char *p2 = (char *)malloc(PATH_MAX);
-    aasert(p2 != NULL);
+    assert(p2 != NULL);
     snprintf(p2, PATH_MAX, "%s/%s", (path[0] != '/') ? &p1[2] : "", path);
     newargv[2] = p2;
    
