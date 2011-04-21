@@ -28,6 +28,13 @@
 #include <unicode/unum.h>
 #include <unicode/utrans.h>
 
+#define SET_CLASS(dst, src)						\
+    do{									\
+	if (RSTR(dst) != NULL && RSTR(src) != NULL) {			\
+	    RBASIC(dst)->klass = RBASIC(str)->klass;			\
+	}								\
+    } while(0)
+
 VALUE rb_cRubyString;
 
 VALUE rb_fs;
@@ -226,9 +233,11 @@ str_alloc(VALUE klass)
 }
 
 static VALUE
-str_new(void)
+str_new_empty(VALUE str)
 {
-    return (VALUE)str_alloc(rb_cRubyString);
+    VALUE v = rb_str_new5(str, 0, 0);
+    OBJ_INFECT(v, str);
+    return v;
 }
 
 static VALUE
@@ -1456,7 +1465,7 @@ rstr_substr_with_cache(VALUE str, long beg, long len,
 	return Qnil;
     }
     if (len == 0 || beg == n) {
-	return str_new();
+	return str_new_empty(str);
     }
     if (beg + len > n) {
 	len = n - beg;
@@ -1464,6 +1473,7 @@ rstr_substr_with_cache(VALUE str, long beg, long len,
 
     rb_str_t *substr = str_get_characters(RSTR(str), beg, beg + len - 1, cache);
     OBJ_INFECT(substr, str);
+    SET_CLASS(substr, str);
     return substr == NULL ? Qnil : (VALUE)substr;
 }
 
