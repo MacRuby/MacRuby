@@ -700,6 +700,7 @@ recache2:
 		const char *p = strchr(selname, ':');
 		if (p != NULL && p + 1 != '\0') {
 		    char *tmp = (char *)malloc(selname_len);
+		    assert(tmp != NULL);
 		    strncpy(tmp, selname, p - selname + 1);
 		    tmp[p - selname + 1] = '\0';
 		    sel = sel_registerName(tmp);

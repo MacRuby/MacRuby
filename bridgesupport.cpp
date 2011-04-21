@@ -621,6 +621,7 @@ RoxorCore::register_bs_boxed(bs_element_type_t type, void *value)
 
     rb_vm_bs_boxed_t *boxed = (rb_vm_bs_boxed_t *)malloc(
 	    sizeof(rb_vm_bs_boxed_t));
+    assert(boxed != NULL);
 
     boxed->bs_type = type;
     boxed->as.v = value;
@@ -694,6 +695,7 @@ RoxorCore::register_anonymous_bs_struct(const char *type)
     // Prepare the list of field types.
     const size_t buf_len = type_len + 1;
     char *buf = (char *)malloc(buf_len);
+    assert(buf != NULL);
     std::vector<std::string> s_types;
     const char *p = &type[3];
     while (*p != _C_STRUCT_E) {
@@ -706,12 +708,14 @@ RoxorCore::register_anonymous_bs_struct(const char *type)
     // Prepare the BridgeSupport structure.
     bs_element_struct_t *bs_struct = (bs_element_struct_t *)
 	malloc(sizeof(bs_element_struct_t));
+    assert(bs_struct != NULL);
     bs_struct->name = (char *)"?";
     bs_struct->type = strdup(type);
     bs_struct->fields_count = s_types.size();
     assert(bs_struct->fields_count > 0);
     bs_struct->fields = (bs_element_struct_field_t *)
 	malloc(sizeof(bs_element_struct_field_t) * bs_struct->fields_count);
+    assert(bs_struct->fields != NULL);
     for (unsigned i = 0; i < bs_struct->fields_count; i++) {
 	bs_element_struct_field_t *field = &bs_struct->fields[i];
 	field->name = (char *)"?";
@@ -722,6 +726,7 @@ RoxorCore::register_anonymous_bs_struct(const char *type)
     // Prepare the boxed structure.
     rb_vm_bs_boxed_t *boxed = (rb_vm_bs_boxed_t *)
 	malloc(sizeof(rb_vm_bs_boxed_t));
+    assert(boxed != NULL);
     boxed->bs_type = BS_ELEMENT_STRUCT;
     boxed->as.s = bs_struct;
     boxed->type = NULL; // Lazy
