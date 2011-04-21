@@ -24,7 +24,7 @@ describe :array_join, :shared => true do
       @object.new(1, 2, 3, 4, obj).send(@method, ' | ').should == '1 | 2 | 3 | 4 | foo'
 
       obj = mock('o')
-      obj.should_receive(:method_missing).with(:to_str).and_return("o")
+      def obj.to_str() 'o' end
       @object.new(1, obj).send(@method, ":").should == "1:o"
     end
   end
