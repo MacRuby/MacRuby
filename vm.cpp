@@ -767,6 +767,7 @@ RoxorCore::constant_cache_get(ID path)
     std::map<ID, struct ccache *>::iterator iter = ccache.find(path);
     if (iter == ccache.end()) {
 	struct ccache *cache = (struct ccache *)malloc(sizeof(struct ccache));
+	assert(cache != NULL);
 	cache->outer = 0;
 	cache->outer_mask = 0;
 	cache->val = Qundef;
@@ -791,6 +792,7 @@ RoxorCore::method_node_get(IMP imp, bool create)
     if (iter == ruby_imps.end()) {
 	if (create) {
 	    n = (rb_vm_method_node_t *)malloc(sizeof(rb_vm_method_node_t));
+	    assert(n != NULL);
 	    ruby_imps[imp] = n;
 	}
 	else {
@@ -812,6 +814,7 @@ RoxorCore::method_node_get(Method m, bool create)
     if (iter == ruby_methods.end()) {
 	if (create) {
 	    n = (rb_vm_method_node_t *)malloc(sizeof(rb_vm_method_node_t));
+	    assert(n != NULL);
 	    ruby_methods[m] = n;
 	}
 	else {
@@ -1445,6 +1448,7 @@ struct icache *
 rb_vm_ivar_slot_allocate(void)
 {
     struct icache *icache = (struct icache *)malloc(sizeof(struct icache));
+    assert(icache != NULL);
     icache->klass = 0;
     icache->slot = SLOT_CACHE_VIRGIN;
     return icache;
@@ -2031,6 +2035,7 @@ RoxorCore::prepare_method(Class klass, SEL sel, Function *func,
     rb_vm_method_source_t *m = NULL;
     if (iter == map->end()) {
 	m = (rb_vm_method_source_t *)malloc(sizeof(rb_vm_method_source_t));
+	assert(m != NULL);
 	map->insert(std::make_pair(klass, m));
 	method_source_sels.insert(std::make_pair(klass, sel));
     }
@@ -2482,6 +2487,7 @@ RoxorCore::copy_methods(Class from_class, Class to_class)
 
 	    rb_vm_method_source_t *m = (rb_vm_method_source_t *)
 		malloc(sizeof(rb_vm_method_source_t));
+	    assert(m != NULL);
 	    m->func = m_src->func;
 	    m->arity = m_src->arity;
 	    m->flags = m_src->flags;
@@ -5086,12 +5092,15 @@ macruby_main(const char *path, int argc, char **argv)
     // argv[3 .. N] = rest of original argv
 
     char **newargv = (char **)malloc(sizeof(char *) * (argc + 2));
+    assert(newargv != NULL);
     newargv[0] = argv[0];
     
     char *p1 = (char *)malloc(PATH_MAX);
+    assert(p1 != NULL);
     newargv[1] = (char *)resources_path(p1, PATH_MAX);
     
     char *p2 = (char *)malloc(PATH_MAX);
+    aasert(p2 != NULL);
     snprintf(p2, PATH_MAX, "%s/%s", (path[0] != '/') ? &p1[2] : "", path);
     newargv[2] = p2;
    
