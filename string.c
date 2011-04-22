@@ -5797,7 +5797,7 @@ rstr_partition(VALUE str, SEL sel, VALUE sep)
     if (pos < 0) {
 failed:
 	{
-	    VALUE elems[] = { str, rb_str_new(NULL, 0), rb_str_new(NULL, 0) };
+	    VALUE elems[] = { str, str_new_empty(str), str_new_empty(str) };
 	    return rb_ary_new4(3, elems);
 	}
     }
