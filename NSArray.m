@@ -504,13 +504,12 @@ nsary_reverse_each(id rcv, SEL sel)
 	}
     }
     return (VALUE)rcv;
-
 }
 
 static VALUE
 nsary_length(id rcv, SEL sel)
 {
-     return LONG2NUM([rcv count]);
+    return LONG2NUM([rcv count]);
 }
 
 static VALUE
