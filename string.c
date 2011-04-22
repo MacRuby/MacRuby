@@ -31,7 +31,7 @@
 #define SET_CLASS(dst, src)						\
     do{									\
 	if (RSTR(dst) != NULL && RSTR(src) != NULL) {			\
-	    RBASIC(dst)->klass = RBASIC(str)->klass;			\
+	    RBASIC(dst)->klass = RBASIC(src)->klass;			\
 	}								\
     } while(0)
 
@@ -578,7 +578,7 @@ str_bytesize(rb_str_t *self)
 static rb_str_t *
 str_new_similar_empty_string(rb_str_t *self)
 {
-    rb_str_t *str = str_alloc(rb_cRubyString);
+    rb_str_t *str = str_alloc(rb_obj_class((VALUE)self));
     str->encoding = self->encoding;
     return str;
 }
@@ -588,7 +588,7 @@ str_new_copy_of_part(rb_str_t *self, long offset_in_bytes,
 	long length_in_bytes)
 {
     assert(length_in_bytes > 0);
-    rb_str_t *str = str_alloc(rb_cRubyString);
+    rb_str_t *str = str_alloc(rb_obj_class((VALUE)self));
     str->encoding = self->encoding;
     str->capacity_in_bytes = str->length_in_bytes = length_in_bytes;
     GC_WB(&str->bytes, xmalloc(length_in_bytes));
@@ -1473,7 +1473,6 @@ rstr_substr_with_cache(VALUE str, long beg, long len,
 
     rb_str_t *substr = str_get_characters(RSTR(str), beg, beg + len - 1, cache);
     OBJ_INFECT(substr, str);
-    SET_CLASS(substr, str);
     return substr == NULL ? Qnil : (VALUE)substr;
 }
 
