@@ -516,9 +516,11 @@ void rb_vm_print_current_exception(void);
 VALUE rb_vm_get_broken_value(void *vm);
 VALUE rb_vm_returned_from_block(void *_vm, int id);
 
+#define BROKEN_VALUE() (rb_vm_get_broken_value(rb_vm_current_vm()))
+
 #define ST_STOP_IF_BROKEN() \
     do { \
-	VALUE __v = rb_vm_get_broken_value(rb_vm_current_vm()); \
+	VALUE __v = BROKEN_VALUE(); \
 	if (__v != Qundef) { \
 	    return ST_STOP; \
 	} \

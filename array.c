@@ -337,7 +337,9 @@ rary_initialize(VALUE ary, SEL sel, int argc, VALUE *argv)
 	rary_remove_all(RARY(ary));
 	for (long i = 0; i < len; i++) {
 	    VALUE v = rb_yield(LONG2NUM(i));
-	    RETURN_IF_BROKEN();
+	    if (BROKEN_VALUE() != Qundef) {
+		return ary;
+	    }
 	    rary_push(ary, v);
 	}
     }

@@ -821,19 +821,24 @@ dispatch:
 	SEL old_current_super_sel = vm->get_current_super_sel();
 	vm->set_current_super_sel(current_super_sel);
 
+	const bool should_pop_broken_with =
+	    sel != selInitialize && sel != selInitialize2;
+
 	struct Finally {
 	    bool block_already_current;
 	    Class current_class;
 	    Class current_super_class;
 	    SEL current_super_sel;
+	    bool should_pop_broken_with;
 	    RoxorVM *vm;
 	    Finally(bool _block_already_current, Class _current_class,
 		    Class _current_super_class, SEL _current_super_sel,
-		    RoxorVM *_vm) {
+		    bool _should_pop_broken_with, RoxorVM *_vm) {
 		block_already_current = _block_already_current;
 		current_class = _current_class;
 		current_super_class = _current_super_class;
 		current_super_sel = _current_super_sel;
+		should_pop_broken_with = _should_pop_broken_with;
 		vm = _vm;
 	    }
 	    ~Finally() {
@@ -841,13 +846,16 @@ dispatch:
 		    vm->pop_current_block();
 		}
 		vm->set_current_class(current_class);
-		vm->pop_broken_with();
+		if (should_pop_broken_with) {
+		    vm->pop_broken_with();
+		}
 		vm->set_current_super_class(current_super_class);
 		vm->set_current_super_sel(current_super_sel);
 		vm->pop_current_binding();
 	    }
 	} finalizer(block_already_current, current_klass,
-		old_current_super_class, old_current_super_sel, vm);
+		old_current_super_class, old_current_super_sel,
+		should_pop_broken_with, vm);
 
 	// DTrace probe: method__entry
 	if (MACRUBY_METHOD_ENTRY_ENABLED()) {

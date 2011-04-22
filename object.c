@@ -2027,7 +2027,7 @@ rb_class_new_instance0(int argc, VALUE *argv, VALUE klass)
     else {
 	rb_vm_call2(block, obj, CLASS_OF(obj), selInitialize2, argc, argv);
     }
-
+    RETURN_IF_BROKEN();
     return obj;
 }
 

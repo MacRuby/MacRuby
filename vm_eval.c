@@ -121,14 +121,14 @@ rb_funcall3(VALUE recv, ID mid, int argc, const VALUE *argv)
 static VALUE
 send_internal(int argc, VALUE *argv, VALUE recv, int scope)
 {
-    VALUE vid;
-
     if (argc == 0) {
 	rb_raise(rb_eArgError, "no method name given");
     }
-
-    vid = *argv++; argc--;
-    return rb_call(recv, rb_to_id(vid), argc, argv, scope, true);
+    VALUE vid = *argv++;
+    argc--;
+    VALUE retval = rb_call(recv, rb_to_id(vid), argc, argv, scope, true);
+    RETURN_IF_BROKEN();
+    return retval;
 }
 
 /*
