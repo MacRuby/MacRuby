@@ -5071,6 +5071,7 @@ rstr_succ(VALUE str, SEL sel)
     VALUE newstr = rb_enc_str_new(chars_ptr, len, RSTR(str)->encoding);
     free(chars_buf);
     OBJ_INFECT(newstr, str);
+    SET_CLASS(newstr, str);
 
     return newstr;
 }
