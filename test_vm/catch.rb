@@ -56,3 +56,19 @@ assert '', %{
     end
   end
 }
+
+assert ':ok', %{
+  begin  
+    def foo
+      raise Exception, catch(:x) { throw :x }
+    end
+
+    begin
+      raise
+    rescue
+      foo
+    end
+  rescue Exception
+    p :ok
+  end
+}
