@@ -657,7 +657,7 @@ typedef struct rb_regexp_matcher {
     struct RBasic basic;
     URegularExpression *pattern;
     UChar *text_chars;
-    rb_encoding_t *encoding;
+    VALUE orig_str;
     VALUE frozen_str;
 } rb_regexp_matcher_t;
 
@@ -717,8 +717,8 @@ rb_reg_matcher_new(VALUE re, VALUE str)
     }
 
     matcher->pattern = match_pattern;
-    matcher->encoding = rb_enc_get(str);
     matcher->frozen_str = 0; // set lazily
+    GC_WB(&matcher->orig_str, str);
 
     // Apparently uregex_setText doesn't copy the given string, so we need
     // to keep it around until we finally destroy the matcher object.
@@ -820,9 +820,10 @@ rb_reg_matcher_search_find(VALUE re, VALUE matcher, int pos, bool reverse,
 
     if (re_matcher->frozen_str == 0) {
 	// To reduce memory usage, the Match string is a singleton object.
-	GC_WB(&re_matcher->frozen_str, rb_str_new(NULL, 0));
-	rb_str_force_encoding(re_matcher->frozen_str, re_matcher->encoding);
+	GC_WB(&re_matcher->frozen_str, rb_str_new5(re_matcher->orig_str, 0, 0));
+	rb_str_force_encoding(re_matcher->frozen_str, rb_enc_get(re_matcher->orig_str));
 	rb_str_append_uchars(re_matcher->frozen_str, chars, chars_len);
+	OBJ_INFECT(re_matcher->frozen_str, re_matcher->orig_str);
 	OBJ_FREEZE(re_matcher->frozen_str);
     }
     GC_WB(&RMATCH(match)->str, re_matcher->frozen_str);
