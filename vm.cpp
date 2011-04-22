@@ -4247,35 +4247,32 @@ rb_backref_set(VALUE val)
 void
 RoxorVM::increase_nesting_for_tag(VALUE tag)
 {
-    std::map<VALUE, int*>::iterator iter = this->catch_nesting.find(tag);
-    int *nested_ptr = NULL;
+    std::map<VALUE, rb_vm_catch_t *>::iterator iter = this->catch_nesting.find(tag);
+    rb_vm_catch_t *catch_ptr = NULL;
 
     if (iter == catch_nesting.end()) {
-	nested_ptr = (int *)malloc(sizeof(int));
-	*nested_ptr = 1;
-	catch_nesting[tag] = nested_ptr;
+	catch_ptr = (rb_vm_catch_t *)malloc(sizeof(rb_vm_catch_t));
+	catch_ptr->nested = 1;
+	catch_ptr->current_exception = current_exception();
+	catch_nesting[tag] = catch_ptr;
 	GC_RETAIN(tag);
     }
     else {
-	nested_ptr = iter->second;
-	(*nested_ptr)++;
+	catch_ptr = iter->second;
+	catch_ptr->nested++;
     }
 }
 
 void
 RoxorVM::decrease_nesting_for_tag(VALUE tag)
 {
-    std::map<VALUE, int*>::iterator iter = this->catch_nesting.find(tag);
-    int *nested_ptr = NULL;
- 
-    iter = catch_nesting.find(tag);
+    std::map<VALUE, rb_vm_catch_t *>::iterator iter = this->catch_nesting.find(tag);
     assert(iter != catch_nesting.end());
-    nested_ptr = iter->second;
-
-    (*nested_ptr)--;
-    if (*nested_ptr == 0) {
-	nested_ptr = iter->second;
-	free(nested_ptr);
+    rb_vm_catch_t *catch_ptr = iter->second;
+    assert(catch_ptr->nested > 0);
+    catch_ptr->nested--;
+    if (catch_ptr->nested == 0) {
+	free(catch_ptr);
 	catch_nesting.erase(iter);
 	GC_RELEASE(tag);
     }
@@ -4321,7 +4318,7 @@ rb_vm_catch(VALUE tag)
 VALUE
 RoxorVM::ruby_throw(VALUE tag, VALUE value)
 {
-    std::map<VALUE, int*>::iterator iter = catch_nesting.find(tag);
+    std::map<VALUE, rb_vm_catch_t *>::iterator iter = catch_nesting.find(tag);
     if (iter == catch_nesting.end()) {
         VALUE desc = rb_inspect(tag);
         rb_raise(rb_eArgError, "uncaught throw %s", RSTRING_PTR(desc));
@@ -4331,7 +4328,8 @@ RoxorVM::ruby_throw(VALUE tag, VALUE value)
 
     // We must pop the current VM exception in case we are in a rescue handler,
     // since we are going to unwind the stack.
-    if (current_exception() != Qnil) {
+    rb_vm_catch_t *catch_ptr = iter->second;
+    while (catch_ptr->current_exception != current_exception()) {
 	pop_current_exception();
     }
 

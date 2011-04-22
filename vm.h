@@ -185,9 +185,8 @@ typedef struct rb_vm_outer {
 } rb_vm_outer_t;
 
 typedef struct {
-    jmp_buf buf;
-    VALUE throw_value;
     int nested;
+    VALUE current_exception;
 } rb_vm_catch_t;
 
 static inline rb_vm_arity_t
@@ -1063,7 +1062,7 @@ class RoxorVM {
 	std::vector<rb_vm_block_t *> current_blocks;
 	std::vector<VALUE> current_exceptions;
 	std::vector<rb_vm_binding_t *> bindings;
-	std::map<VALUE, int *> catch_nesting;
+	std::map<VALUE, rb_vm_catch_t *> catch_nesting;
 	std::vector<VALUE> recursive_objects;
 
 	// Method cache.
