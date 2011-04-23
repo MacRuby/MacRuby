@@ -1,10 +1,2 @@
-fails:String#slice with index, length returns subclass instances
-fails:String#slice with Range returns subclass instances
-fails:String#slice with Regexp returns subclass instances
-fails:String#slice with Regexp, index returns subclass instances
 fails:String#slice with String returns a subclass instance when given a subclass instance
-fails:String#slice! with index, length returns subclass instances
-fails:String#slice! Range returns subclass instances
-fails:String#slice! with Regexp returns subclass instances
-fails:String#slice! with Regexp, index returns subclass instances
 fails:String#slice! with String returns a subclass instance when given a subclass instance

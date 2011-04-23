@@ -1,4 +1,3 @@
-fails:Class#new passes the block to #initialize
 fails:Class#initialize raises a TypeError when called on already initialized classes
 fails:Class#initialize should raise a TypeError (even for BasicObject)
 fails:Class#initialize raises a TypeError when called on BasicObject
