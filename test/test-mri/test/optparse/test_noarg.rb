@@ -48,8 +48,6 @@ module TestOptionParser::NoArg
   end
 
   def test_ambiguous
-    skip("[BUG : #860] Assert")
-
     @opt.def_option("--open") {|x|}
     assert_raise(OptionParser::AmbiguousOption) {@opt.parse!(%w"--op")}
     assert_raise(OptionParser::AmbiguousOption) {@opt.parse!(%w"-o")}
