@@ -3413,7 +3413,7 @@ again:
 				&local_cache);
 		    }
 		    else {
-			substr = rb_str_new(NULL, 0);
+			substr = str_new_empty(str);
 		    }
 		    rb_ary_push(result, substr);
 		    beg = start;
@@ -3438,7 +3438,7 @@ again:
 		}
 		VALUE substr;
 		if (results[i].beg == results[i].end) {
-		    substr = rb_str_new(NULL, 0);
+		    substr = str_new_empty(str);
 		}
 		else {
 		    substr = rstr_substr_with_cache(str, results[i].beg,
@@ -3455,7 +3455,7 @@ again:
     if (len > 0 && (!NIL_P(limit) || len > beg || lim_orig < 0)) {
 	VALUE tmp;
 	if (beg >= len) {
-	    tmp = rb_str_new(NULL, 0);
+	    tmp = str_new_empty(str);
 	}
 	else {
 	    tmp = rb_str_substr(str, beg, len - beg);
