@@ -184,11 +184,6 @@ typedef struct rb_vm_outer {
     struct rb_vm_outer *outer;
 } rb_vm_outer_t;
 
-typedef struct {
-    int nested;
-    VALUE current_exception;
-} rb_vm_catch_t;
-
 static inline rb_vm_arity_t
 rb_vm_arity(int argc)
 {
@@ -981,6 +976,11 @@ class RoxorCore {
 };
 
 #define GET_CORE() (RoxorCore::shared)
+
+typedef struct {
+    int nested;
+    std::vector<VALUE> current_exceptions;
+} rb_vm_catch_t;
 
 typedef enum {
     METHOD_MISSING_DEFAULT = 0,

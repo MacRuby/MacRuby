@@ -4248,18 +4248,18 @@ void
 RoxorVM::increase_nesting_for_tag(VALUE tag)
 {
     std::map<VALUE, rb_vm_catch_t *>::iterator iter = this->catch_nesting.find(tag);
-    rb_vm_catch_t *catch_ptr = NULL;
-
+    VALUE exc = current_exception();
     if (iter == catch_nesting.end()) {
-	catch_ptr = (rb_vm_catch_t *)malloc(sizeof(rb_vm_catch_t));
+	rb_vm_catch_t *catch_ptr = new rb_vm_catch_t;
 	catch_ptr->nested = 1;
-	catch_ptr->current_exception = current_exception();
+	catch_ptr->current_exceptions.push_back(exc);
 	catch_nesting[tag] = catch_ptr;
 	GC_RETAIN(tag);
     }
     else {
-	catch_ptr = iter->second;
+	rb_vm_catch_t *catch_ptr = iter->second;
 	catch_ptr->nested++;
+	catch_ptr->current_exceptions.push_back(exc);
     }
 }
 
@@ -4271,8 +4271,9 @@ RoxorVM::decrease_nesting_for_tag(VALUE tag)
     rb_vm_catch_t *catch_ptr = iter->second;
     assert(catch_ptr->nested > 0);
     catch_ptr->nested--;
+    catch_ptr->current_exceptions.pop_back();
     if (catch_ptr->nested == 0) {
-	free(catch_ptr);
+	delete catch_ptr;
 	catch_nesting.erase(iter);
 	GC_RELEASE(tag);
     }
@@ -4329,7 +4330,7 @@ RoxorVM::ruby_throw(VALUE tag, VALUE value)
     // We must pop the current VM exception in case we are in a rescue handler,
     // since we are going to unwind the stack.
     rb_vm_catch_t *catch_ptr = iter->second;
-    while (catch_ptr->current_exception != current_exception()) {
+    while (catch_ptr->current_exceptions.back() != current_exception()) {
 	pop_current_exception();
     }
 

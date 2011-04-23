@@ -72,3 +72,14 @@ assert ':ok', %{
     p :ok
   end
 }
+
+assert ':ok', %{
+  catch(:x) do
+    begin
+      raise
+    rescue
+      catch(:x) { throw :x }
+    end
+  end
+  p :ok
+}
