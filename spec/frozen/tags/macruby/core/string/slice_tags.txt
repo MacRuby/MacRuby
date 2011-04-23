@@ -1,2 +1,0 @@
-fails:String#slice with String returns a subclass instance when given a subclass instance
-fails:String#slice! with String returns a subclass instance when given a subclass instance

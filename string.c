@@ -2162,6 +2162,7 @@ rstr_aref(VALUE str, SEL sel, int argc, VALUE *argv)
 		    rb_str_t *searched = RSTR(indx);
 		    if (str_include_string(RSTR(str), searched)) {
 			result = (VALUE)str_dup(searched);
+			SET_CLASS(result, searched);
 			goto bail;
 		    }
 		}
