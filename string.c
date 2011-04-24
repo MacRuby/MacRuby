@@ -1510,9 +1510,7 @@ out_of_range:
 
     str_splice(RSTR(self), beg, len, strstr);
 
-    if (OBJ_TAINTED(strstr)) {
-	OBJ_TAINT(self);
-    }
+    OBJ_INFECT(self, strstr);
 }
 
 static void
