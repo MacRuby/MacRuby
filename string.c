@@ -6632,7 +6632,7 @@ VALUE
 rb_str_dup(VALUE str)
 {
     if (IS_RSTR(str)) {
-	return (VALUE)str_dup(RSTR(str));
+	return rb_str_new3(str);
     }
     if (TYPE(str) == T_SYMBOL) {
 	return rb_sym_to_s(str);
