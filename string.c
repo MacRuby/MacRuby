@@ -1517,10 +1517,7 @@ static void
 rstr_append(VALUE str, VALUE substr)
 {
     str_concat_string(RSTR(str), str_need_string(substr));
-
-    if (OBJ_TAINTED(substr)) {
-	OBJ_TAINT(str);
-    }
+    OBJ_INFECT(str, substr);
 }
 
 static void inline
