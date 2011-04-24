@@ -1788,9 +1788,7 @@ rstr_replace(VALUE self, SEL sel, VALUE arg)
 {
     rstr_modify(self);
     str_replace(RSTR(self), arg);
-    if (OBJ_TAINTED(arg)) {
-	OBJ_TAINT(self);
-    }
+    OBJ_INFECT(self, arg);
     return self;
 }
 
