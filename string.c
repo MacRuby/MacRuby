@@ -4529,9 +4529,7 @@ rstr_justify(int argc, VALUE *argv, VALUE str, char mode)
 	rb_bug("invalid mode");
     }
 
-    if (OBJ_TAINTED(pad)) {
-	OBJ_TAINT(str);
-    }
+    OBJ_INFECT(str, pad);
 
     return str;
 }
