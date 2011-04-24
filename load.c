@@ -88,20 +88,7 @@ rb_load(VALUE fname, int wrap)
     const char *fname_str = RSTRING_PTR(fname);
 //printf("load %s\n", fname_str);
 
-    rb_vm_binding_t *b = rb_vm_current_binding();
-    if (b != NULL) {
-	rb_vm_pop_binding();
-    }
-    NODE *node = (NODE *)rb_load_file(fname_str);
-    if (b != NULL) {
-	rb_vm_add_binding(b);
-    }
-    if (node == NULL) {
-	rb_raise(rb_eSyntaxError, "compile error");
-    }
-    Class old_klass = rb_vm_set_current_class(NULL);
-    rb_vm_run(fname_str, node, NULL, false);
-    rb_vm_set_current_class(old_klass);
+    rb_vm_load(fname_str, wrap);
 #endif
 }
 

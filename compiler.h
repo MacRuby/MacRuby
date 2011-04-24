@@ -19,6 +19,7 @@
 // For const lookup.
 #define CONST_LOOKUP_LEXICAL		1
 #define CONST_LOOKUP_DYNAMIC_CLASS	2
+#define CONST_LOOKUP_INSIDE_EVAL	4
 
 // For defined?
 #define DEFINED_IVAR 	1
@@ -148,6 +149,7 @@ class RoxorCompiler {
 	bool block_declaration;
 	AllocaInst *dispatch_argv;
 	long outer_mask;
+	GlobalVariable *outer_stack;
 
 	Function *writeBarrierFunc;
 	Function *dispatchFunc;
@@ -234,6 +236,9 @@ class RoxorCompiler {
 	Function *setHasEnsureFunc;
 	Function *setScopeFunc;
 	Function *setCurrentClassFunc;
+        Function *pushOuterFunc;
+        Function *popOuterFunc;
+        Function *setCurrentOuterFunc;
 	Function *debugTrapFunc;
 	Function *getFFStateFunc;
 	Function *setFFStateFunc;
@@ -421,6 +426,10 @@ class RoxorCompiler {
 
 	void compile_set_current_scope(Value *klass, Value *scope);
 	Value *compile_set_current_class(Value *klass);
+	Value *compile_push_outer(Value *klass);
+	Value *compile_pop_outer(void);
+	Value *compile_outer_stack(void);
+	Value *compile_set_current_outer(void);
 
 	Value *compile_landing_pad_header(void);
 	void compile_landing_pad_footer(bool pop_exception=true);

@@ -181,6 +181,7 @@ typedef struct rb_vm_thread {
 
 typedef struct rb_vm_outer {
     Class klass;
+    bool pushed_by_eval;
     struct rb_vm_outer *outer;
 } rb_vm_outer_t;
 
@@ -315,11 +316,11 @@ void rb_vm_const_is_defined(ID path);
 VALUE rb_vm_resolve_const_value(VALUE val, VALUE klass, ID name);
 
 VALUE rb_vm_const_lookup_level(VALUE outer, uint64_t outer_mask, ID path,
-	bool lexical, bool defined);
+	bool lexical, bool defined, rb_vm_outer_t *outer_stack);
 static inline VALUE
-rb_vm_const_lookup(VALUE outer, ID path, bool lexical, bool defined)
+rb_vm_const_lookup(VALUE outer, ID path, bool lexical, bool defined, rb_vm_outer_t *outer_stack)
 {
-    return rb_vm_const_lookup_level(outer, 0, path, lexical, defined);
+    return rb_vm_const_lookup_level(outer, 0, path, lexical, defined, outer_stack);
 }
 
 bool rb_vm_lookup_method(Class klass, SEL sel, IMP *pimp,
@@ -352,7 +353,8 @@ void rb_vm_push_methods(VALUE ary, VALUE mod, bool include_objc_methods,
 	int (*filter) (VALUE, ID, VALUE));
 void rb_vm_set_outer(VALUE klass, VALUE under);
 VALUE rb_vm_get_outer(VALUE klass);
-VALUE rb_vm_module_nesting(VALUE mod);
+VALUE rb_vm_module_nesting(void);
+VALUE rb_vm_module_constants(void);
 VALUE rb_vm_catch(VALUE tag);
 VALUE rb_vm_throw(VALUE tag, VALUE value);
 
@@ -492,7 +494,14 @@ void rb_vm_set_abort_on_exception(bool flag);
 Class rb_vm_set_current_class(Class klass);
 Class rb_vm_get_current_class(void);
 
+rb_vm_outer_t *rb_vm_push_outer(Class klass);
+rb_vm_outer_t *rb_vm_pop_outer(void);
+rb_vm_outer_t *rb_vm_get_outer_stack(void);
+rb_vm_outer_t *rb_vm_set_current_outer(rb_vm_outer_t *outer);
+rb_vm_outer_t *rb_vm_get_current_outer(void);
+
 bool rb_vm_aot_feature_load(const char *name);
+void rb_vm_load(const char *fname_str, int wrap);
 
 bool rb_vm_generate_objc_class_name(const char *name, char *buf,
 	size_t buflen);
@@ -579,6 +588,7 @@ struct icache *rb_vm_ivar_slot_allocate(void);
 struct ccache {
     VALUE outer;
     uint64_t outer_mask;
+    rb_vm_outer_t *outer_stack;
     VALUE val;
 };
 
@@ -1064,6 +1074,8 @@ class RoxorVM {
 	std::vector<rb_vm_binding_t *> bindings;
 	std::map<VALUE, rb_vm_catch_t *> catch_nesting;
 	std::vector<VALUE> recursive_objects;
+        rb_vm_outer_t *outer_stack;
+        rb_vm_outer_t *current_outer;
 
 	// Method cache.
 	struct mcache *mcache;
@@ -1115,6 +1127,8 @@ class RoxorVM {
 	READER(mcache, struct mcache *);
 	ACCESSOR(current_mri_method_self, VALUE);
 	ACCESSOR(current_mri_method_sel, SEL);
+	ACCESSOR(outer_stack, rb_vm_outer_t *);
+	ACCESSOR(current_outer, rb_vm_outer_t *);
 
 	void debug_blocks(void);
 
@@ -1213,6 +1227,9 @@ class RoxorVM {
 
 	VALUE exec_recursive(VALUE (*func) (VALUE, VALUE, int), VALUE obj,
 		VALUE arg);
+
+        rb_vm_outer_t *push_outer(Class klass);
+        rb_vm_outer_t *pop_outer(void);
 };
 
 #define GET_VM() (RoxorVM::current())

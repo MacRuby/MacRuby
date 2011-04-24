@@ -120,6 +120,12 @@ RoxorInterpreter::interpret_call(CallInst *call)
 
 	return rb_singleton_class(klass);
     }
+    else if (called == RoxorCompiler::shared->setCurrentOuterFunc) {
+	rb_vm_outer_t *outer_stack = value_as(call_arg(call, 0), rb_vm_outer_t *);
+
+	rb_vm_set_current_outer(outer_stack);
+	return Qnil;
+    }
 
     oops("unrecognized call instruction:", call);
 }

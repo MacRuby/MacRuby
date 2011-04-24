@@ -8,6 +8,7 @@
 
 #define ROXOR_VM_DEBUG		0
 #define ROXOR_COMPILER_DEBUG 	0
+#define ROXOR_VM_DEBUG_CONST	0
 
 #if MACRUBY_STATIC
 # include <vector>
@@ -396,6 +397,8 @@ RoxorVM::RoxorVM(void)
 {
     current_top_object = Qnil;
     current_class = NULL;
+    outer_stack = NULL;
+    current_outer = NULL;
     safe_level = 0;
     backref = Qnil;
     broken_with = Qundef;
@@ -1243,33 +1246,89 @@ retry:
     return Qundef;
 }
 
+#if ROXOR_VM_DEBUG_CONST
+extern "C" const char *ruby_node_name(int node);
+
+static void
+rb_vm_print_outer_stack(const char *fname, NODE *node, const char *function, int line,
+			rb_vm_outer_t *outer_stack, const char *prefix)
+{
+    if (fname != NULL) {
+	printf("%s:", fname);
+    }
+    if (node != NULL) {
+	printf("%ld:%s:", nd_line(node), ruby_node_name(nd_type(node)));
+    }
+    printf("%s:%d:", function, line);
+    if (prefix != NULL && prefix[0] != '\0') {
+	printf("%s ", prefix);
+    }
+    printf("outer_stack(");
+    
+    bool first = true;
+    for (rb_vm_outer_t *o = outer_stack; o != NULL; o = o->outer) {
+	if (first) {
+	    first = false;
+	}
+	else {
+	    printf(" > ");
+	}
+	printf("%s", class_getName(o->klass));
+	if (o->pushed_by_eval) {
+	    printf("[skip]");
+	}
+    }
+    printf(")\n");
+}
+#endif
+
 extern "C"
 VALUE
 rb_vm_const_lookup_level(VALUE outer, uint64_t outer_mask, ID path,
-	bool lexical, bool defined)
+	bool lexical, bool defined, rb_vm_outer_t *outer_stack)
 {
     rb_vm_check_if_module(outer);
-
+#if ROXOR_VM_DEBUG_CONST
+    printf("%s:%d:%s:outer(%s) outer_mask(%llu) path(%s) lexical(%s) defined(%s) outer_stack(%p)\n", __FILE__, __LINE__, __FUNCTION__,
+	   class_getName((Class)outer), outer_mask, rb_id2name(path), lexical ? "true" : "false", defined ? "true" : "false", outer_stack);
     if (lexical) {
+        GET_CORE()->lock();
+	rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
+				GET_VM()->get_outer_stack(), "vm->get_outer_stack");
+
+	rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
+				GET_VM()->get_current_outer(), "vm->get_current_outer");
+	
+	rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
+				GET_CORE()->get_outer((Class)outer), "core->get_outer");
+	GET_CORE()->unlock();
+    }
+#endif
+
+    if (lexical && outer_stack != NULL) {
 	// Let's do a lexical lookup before a hierarchical one, by looking for
 	// the given constant in all modules under the given outer.
 	GET_CORE()->lock();
-	struct rb_vm_outer *o = GET_CORE()->get_outer((Class)outer);
-	unsigned int n = 0;
-	while (o != NULL && o->klass != (Class)rb_cNSObject) {
-	    // If the current outer isn't in the mask, it means we can use it
-	    // for const lookup. The outer mask is used when performing const
-	    // lookups inside modules defined using the :: notation
-	    // (ex: class A::B; class C; class D::E; ...)
-	    if (!(outer_mask & (1 << n))) {
-		VALUE val = rb_const_get_direct((VALUE)o->klass, path);
-		if (val != Qundef) {
-		    GET_CORE()->unlock();
-		    return defined ? Qtrue : val;
-		}
+#if ROXOR_VM_DEBUG_CONST
+	rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
+				outer_stack, "compile time");
+#endif
+	rb_vm_outer_t *root_outer = outer_stack;
+	while (root_outer != NULL && root_outer->pushed_by_eval) {
+	    root_outer = root_outer->outer;
+	}
+	for (rb_vm_outer_t *o = root_outer; o != NULL; o = o->outer) {
+	    if (o->pushed_by_eval) {
+		continue;
 	    }
-	    o = o->outer;
-	    n++;
+	    VALUE val = rb_const_get_direct((VALUE)o->klass, path);
+	    if (val != Qundef) {
+		GET_CORE()->unlock();
+		return defined ? Qtrue : val;
+	    }
+	}
+	if (root_outer && !NIL_P(root_outer->klass)) {
+	    outer = (VALUE)root_outer->klass;
 	}
 	GET_CORE()->unlock();
     }
@@ -1332,24 +1391,48 @@ rb_vm_get_outer(VALUE klass)
 
 extern "C"
 VALUE
-rb_vm_module_nesting(VALUE mod)
+rb_vm_module_nesting(void)
 {
     VALUE ary = rb_ary_new();
-    rb_vm_outer_t *o = GET_CORE()->get_outer((Class)mod);
-    while (o != NULL) {
-	rb_ary_push(ary, (VALUE)o->klass);
-	o = o->outer;
+    for (rb_vm_outer_t *o = GET_VM()->get_current_outer(); o != NULL; o = o->outer) {
+	if (!o->pushed_by_eval) {
+	    rb_ary_push(ary, (VALUE)o->klass);
+	}
     }
     return ary;
 }
 
+extern "C"
+VALUE
+rb_vm_module_constants(void)
+{
+    VALUE cbase = 0;
+    void *data = 0;
+    for (rb_vm_outer_t *o = GET_VM()->get_current_outer(); o != NULL; o = o->outer) {
+	if (!o->pushed_by_eval) {
+	    data = rb_mod_const_at((VALUE)o->klass, data);
+	    if (cbase == 0) {
+		cbase = (VALUE)o->klass;
+	    }
+	}
+    }
+    data = rb_mod_const_at(rb_cObject, data);
+    if (cbase == 0) {
+	cbase = rb_cObject;
+    }
+    if (cbase != 0) {
+	data = rb_mod_const_of(cbase, data);
+    }
+    return rb_const_list(data);
+}
+
 static VALUE
-get_klass_const(VALUE outer, ID path, bool lexical)
+get_klass_const(VALUE outer, ID path, bool lexical, rb_vm_outer_t *outer_stack)
 {
     VALUE klass = Qundef;
     if (lexical) {
-	if (rb_vm_const_lookup(outer, path, true, true) == Qtrue) {
-	    klass = rb_vm_const_lookup(outer, path, true, false);
+	if (rb_vm_const_lookup(outer, path, true, true, outer_stack) == Qtrue) {
+	    klass = rb_vm_const_lookup(outer, path, true, false, outer_stack);
 	}
     }
     else {
@@ -1370,19 +1453,22 @@ get_klass_const(VALUE outer, ID path, bool lexical)
 extern "C"
 VALUE
 rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
-	unsigned char dynamic_class)
+	unsigned char dynamic_class, rb_vm_outer_t *outer_stack)
 {
     assert(path > 0);
     rb_vm_check_if_module(outer);
 
     if (dynamic_class) {
-	Class k = GET_VM()->get_current_class();
-	if (k != NULL) {
-	    outer = (VALUE)k;
+	rb_vm_outer_t *root_outer = outer_stack;
+	while (root_outer != NULL && root_outer->pushed_by_eval) {
+	    root_outer = root_outer->outer;
+	}
+	if (root_outer != NULL) {
+	    outer = (VALUE)root_outer->klass;
 	}
     }
 
-    VALUE klass = get_klass_const(outer, path, dynamic_class);
+    VALUE klass = get_klass_const(outer, path, dynamic_class, outer_stack);
     if (klass != Qundef) {
 	// Constant is already defined.
 	if (!(flags & DEFINE_MODULE) && super != 0) {
@@ -1588,7 +1674,7 @@ rb_vm_undef2(VALUE klass, VALUE sym, unsigned char dynamic_class)
 
 extern "C"
 VALUE
-rb_vm_defined(VALUE self, int type, VALUE what, VALUE what2)
+rb_vm_defined(VALUE self, int type, VALUE what, VALUE what2, rb_vm_outer_t *outer_stack)
 {
     const char *str = NULL;
 
@@ -1614,8 +1700,7 @@ rb_vm_defined(VALUE self, int type, VALUE what, VALUE what2)
 	case DEFINED_CONST:
 	case DEFINED_LCONST:
 	    {
-		if (rb_vm_const_lookup(what2, (ID)what,
-			    type == DEFINED_LCONST, true)) {
+		if (rb_vm_const_lookup(what2, (ID)what, type == DEFINED_LCONST, true, outer_stack)) {
 		    str = "constant";
 		}
 	    }
@@ -3038,6 +3123,72 @@ rb_vm_add_binding_lvar_use(rb_vm_binding_t *binding, rb_vm_block_t *block,
     rb_vm_add_lvar_use(parent_var_uses, binding, VM_LVAR_USE_TYPE_BINDING);
 }
 
+rb_vm_outer_t *
+RoxorVM::push_outer(Class klass)
+{
+    rb_vm_outer_t *o = (rb_vm_outer_t *)malloc(sizeof(rb_vm_outer_t));
+    o->klass = klass;
+    o->outer = outer_stack;
+    o->pushed_by_eval = false;
+    outer_stack = o;
+
+#if ROXOR_VM_DEBUG_CONST
+    rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
+			    outer_stack, "push_outer");
+#endif
+    
+    return o;
+}
+
+rb_vm_outer_t *
+RoxorVM::pop_outer(void)
+{
+    assert(outer_stack != NULL);
+    // KOUJI_TODO: collect garbage. but not all, only unused.
+    rb_vm_outer_t *old = outer_stack;
+    outer_stack = outer_stack->outer;
+
+#if ROXOR_VM_DEBUG_CONST
+    rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
+			    outer_stack, "pop_outer");
+#endif
+    
+    return old;
+}
+
+rb_vm_outer_t *
+rb_vm_push_outer(Class klass)
+{
+    return GET_VM()->push_outer(klass);
+}
+
+rb_vm_outer_t *
+rb_vm_pop_outer(void)
+{
+    return GET_VM()->pop_outer();
+}
+
+rb_vm_outer_t *
+rb_vm_get_outer_stack(void)
+{
+    return GET_VM()->get_outer_stack();
+}
+
+rb_vm_outer_t *
+rb_vm_set_current_outer(rb_vm_outer_t *outer)
+{
+    RoxorVM *vm = GET_VM();
+    rb_vm_outer_t *old = vm->get_current_outer();
+    vm->set_current_outer(outer);
+    return old;
+}
+    
+rb_vm_outer_t *
+rb_vm_get_current_outer(void)
+{
+    return GET_VM()->get_current_outer();
+}
+
 struct rb_vm_kept_local {
     ID name;
     VALUE *stack_address;
@@ -4001,7 +4152,16 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
     }
     Class old_class = GET_VM()->get_current_class();
     bool old_dynamic_class = RoxorCompiler::shared->is_dynamic_class();
+    rb_vm_outer_t *old_outer_stack = vm->get_outer_stack();
+    rb_vm_outer_t *old_current_outer = vm->get_current_outer();
+
     vm->set_current_class((Class)klass);
+    vm->set_outer_stack(old_current_outer);
+    bool pushed = false;
+    if (klass != 0 && !NIL_P(klass)) {
+	vm->push_outer((Class)klass);
+	pushed = true;
+    }
     RoxorCompiler::shared->set_dynamic_class(true);
 
     vm->add_current_block(binding != NULL ? binding->block : NULL);
@@ -4011,19 +4171,30 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 	bool old_dynamic_class;
 	Class old_class;
 	VALUE old_top_object;
-	Finally(RoxorVM *_vm, bool _dynamic_class, Class _class, VALUE _obj) {
+	rb_vm_outer_t *old_outer_stack;
+	rb_vm_outer_t *old_current_outer;
+	bool pushed;
+	Finally(RoxorVM *_vm, bool _dynamic_class, Class _class, VALUE _obj, rb_vm_outer_t *_outer_stack, rb_vm_outer_t *_current_outer, bool _pushed) {
 	    vm = _vm;
 	    old_dynamic_class = _dynamic_class;
 	    old_class = _class;
 	    old_top_object = _obj;
+	    old_outer_stack = _outer_stack;
+	    old_current_outer = _current_outer;
+	    pushed = _pushed;
 	}
 	~Finally() { 
 	    RoxorCompiler::shared->set_dynamic_class(old_dynamic_class);
 	    vm->set_current_top_object(old_top_object);
+	    if (pushed) {
+		vm->pop_outer();
+	    }
+	    vm->set_current_outer(old_current_outer);
+	    vm->set_outer_stack(old_outer_stack);
 	    vm->set_current_class(old_class);
 	    vm->pop_current_block();
 	}
-    } finalizer(vm, old_dynamic_class, old_class, old_top_object);
+    } finalizer(vm, old_dynamic_class, old_class, old_top_object, old_outer_stack, old_current_outer, pushed);
 
     return rb_vm_run(fname, node, binding, inside_eval);
 #endif
@@ -5252,6 +5423,47 @@ rb_vm_aot_feature_provide(const char *name, void *init_func)
 	printf("WARNING: AOT feature '%s' already registered, new one will be ignored. This could happen if you link your executable against dylibs that contain the same Ruby file.\n", name);
     }
     aot_features[key] = init_func;
+}
+
+void
+rb_vm_load(const char *fname_str, int wrap)
+{
+    RoxorVM *vm = GET_VM();
+    rb_vm_binding_t *b = vm->current_binding();
+    if (b != NULL) {
+	vm->pop_current_binding();
+    }
+    NODE *node = (NODE *)rb_load_file(fname_str);
+    if (b != NULL) {
+	vm->push_current_binding(b);
+    }
+    if (node == NULL) {
+	rb_raise(rb_eSyntaxError, "compile error");
+    }
+
+    struct Finally {
+	RoxorVM *vm;
+	Class old_class;
+	rb_vm_outer_t *old_outer_stack;
+	rb_vm_outer_t *old_current_outer;
+	Finally(RoxorVM *_vm) {
+	    vm = _vm;
+	    old_class = vm->get_current_class();
+	    old_outer_stack = vm->get_outer_stack();
+	    old_current_outer = vm->get_current_outer();
+	}
+	~Finally() { 
+	    vm->set_current_outer(old_current_outer);
+	    vm->set_outer_stack(old_outer_stack);
+	    vm->set_current_class(old_class);
+	}
+    } finalizer(vm);
+
+    vm->set_current_class(NULL);
+    vm->set_outer_stack(NULL);
+    vm->set_current_outer(NULL);
+
+    rb_vm_run(fname_str, node, NULL, false);
 }
 
 extern "C"

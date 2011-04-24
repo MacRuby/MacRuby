@@ -85,7 +85,7 @@ assert ':ok', %{
   rescue NameError
     p :ok
   end
-}, :known_bug => true
+}
 
 assert '42', %{
   class A; end

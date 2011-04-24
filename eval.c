@@ -229,18 +229,9 @@ ruby_run_node(void *n)
  */
 
 static VALUE
-rb_mod_nesting(VALUE rcv, SEL sel, VALUE top, int argc, VALUE *argv)
+rb_mod_nesting(VALUE self, SEL sel)
 {
-    rb_scan_args(argc, argv, "00");
-
-    switch (TYPE(top)) {
-	case T_CLASS:
-	case T_MODULE:
-	    return rb_vm_module_nesting(top);
-
-	default:
-	    return rb_ary_new();
-    }
+    return rb_vm_module_nesting();
 }
 
 /*
@@ -265,30 +256,7 @@ rb_mod_s_constants(VALUE mod, SEL sel, int argc, VALUE *argv)
     if (argc > 0) {
 	return rb_mod_constants(rb_cModule, 0, argc, argv);
     }
-
-#if 0 // TODO
-    const NODE *cref = vm_cref();
-    VALUE klass;
-    VALUE cbase = 0;
-    void *data = 0;
-
-    while (cref) {
-	klass = cref->nd_clss;
-	if (!NIL_P(klass)) {
-	    data = rb_mod_const_at(cref->nd_clss, data);
-	    if (!cbase) {
-		cbase = klass;
-	    }
-	}
-	cref = cref->nd_next;
-    }
-
-    if (cbase) {
-	data = rb_mod_const_of(cbase, data);
-    }
-    return rb_const_list(data);
-#endif
-    return Qnil;
+    return rb_vm_module_constants();
 }
 
 void
@@ -884,7 +852,7 @@ Init_eval(void)
     Init_vm_eval();
     Init_eval_method();
 
-    rb_objc_define_method(*(VALUE *)rb_cModule, "nesting", rb_mod_nesting, -3);
+    rb_objc_define_method(*(VALUE *)rb_cModule, "nesting", rb_mod_nesting, 0);
     rb_objc_define_method(*(VALUE *)rb_cModule, "constants", rb_mod_s_constants, -1);
 
     VALUE cTopLevel = *(VALUE *)rb_vm_top_self();    
