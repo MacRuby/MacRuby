@@ -1458,13 +1458,14 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
     assert(path > 0);
     rb_vm_check_if_module(outer);
 
-    if (dynamic_class) {
-	rb_vm_outer_t *root_outer = outer_stack;
-	while (root_outer != NULL && root_outer->pushed_by_eval) {
-	    root_outer = root_outer->outer;
+    if (dynamic_class || (flags & DEFINE_INSIDE_EVAL)) {
+	rb_vm_outer_t *o =
+	    (flags & DEFINE_INSIDE_EVAL) ? rb_vm_get_outer_stack() : outer_stack;
+	while (o != NULL && o->pushed_by_eval) {
+	    o = o->outer;
 	}
-	if (root_outer != NULL) {
-	    outer = (VALUE)root_outer->klass;
+	if (o != NULL) {
+	    outer = (VALUE)o->klass;
 	}
     }
 

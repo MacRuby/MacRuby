@@ -715,6 +715,7 @@ typedef VALUE rb_vm_long_arity_bstub_t(IMP imp, id self, SEL sel,
 #define DEFINE_MODULE		0x1
 #define DEFINE_OUTER 		0x2
 #define DEFINE_SUB_OUTER	0x4
+#define DEFINE_INSIDE_EVAL	0x8
 
 class RoxorCompiler;
 class RoxorJITManager;

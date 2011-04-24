@@ -4013,6 +4013,9 @@ RoxorCompiler::compile_node0(NODE *node)
 		    if (nd_type(node) == NODE_MODULE) {
 			flags |= DEFINE_MODULE;
 		    }
+		    if (inside_eval) {
+			flags |= DEFINE_INSIDE_EVAL;
+		    }
 
 		    Value *args[] = {
 			compile_id(path),
