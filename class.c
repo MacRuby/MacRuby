@@ -23,6 +23,27 @@
 extern st_table *rb_class_tbl;
 extern VALUE rb_cRubyObject;
 
+VALUE
+rb_class_super(VALUE klass)
+{
+    if (klass == 0) {
+	return 0;
+    }
+    return (VALUE)class_getSuperclass((Class)klass);
+}
+
+void
+rb_class_set_super(VALUE klass, VALUE super)
+{
+    class_setSuperclass((Class)klass, (Class)super);
+}
+
+int
+rb_class_ismeta(VALUE klass)
+{
+    return class_isMetaClass((Class)klass);
+}
+
 void
 rb_objc_class_sync_version(Class ocklass, Class ocsuper)
 {
@@ -153,11 +174,7 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
 	goto no_more_classes;
     }
 
-    if (super == 0) {
-	super = rb_cObject;
-    }
-
-    Class ocklass = objc_allocateClassPair((Class)super, ocname, sizeof(id));
+    Class ocklass = objc_allocateClassPair((Class)super, ocname, 0);
     if (ocklass == NULL) {
 	goto no_more_classes;
     }
@@ -170,7 +187,7 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
 
     objc_registerClassPair(ocklass);
 
-    if (klass != 0) {
+    if (klass != 0 && super != 0) {
 	rb_objc_class_sync_version(ocklass, (Class)super);
     }
 
@@ -183,6 +200,9 @@ no_more_classes:
 VALUE
 rb_objc_create_class(const char *name, VALUE super)
 {
+    if (super == 0) {
+	super = rb_cObject;
+    }
     VALUE klass = rb_objc_alloc_class(name, super, T_CLASS, rb_cClass);
    
     if (super != rb_cNSObject && super != 0
@@ -501,14 +521,13 @@ VALUE rb_mod_initialize(VALUE, SEL);
 VALUE
 rb_define_module_id(ID id)
 {
-    VALUE mdl = rb_objc_alloc_class(id == 0 ? NULL : rb_id2name(id),
-	    rb_cObject, T_MODULE, rb_cModule);
-
-    if ((rb_mKernel != 0) && (id == 0)) {
-	/* because Module#initialize can accept a block */
-	rb_objc_define_method(*(VALUE *)mdl, "initialize", rb_mod_initialize, 0);
+    const char *name = id == 0 ? NULL : rb_id2name(id);
+    VALUE mdl = rb_objc_alloc_class(name, rb_cObject, T_MODULE, rb_cModule);
+    if (rb_mKernel != 0 && id == 0) {
+	// Because Module#initialize can accept a block.
+	rb_objc_define_method(*(VALUE *)mdl, "initialize",
+		rb_mod_initialize, 0);
     }
-
     return mdl;
 }
 
@@ -825,7 +844,7 @@ class_instance_method_list(int argc, VALUE *argv, VALUE mod, int (*func) (VALUE,
 	if (recur == Qfalse) {
 	   break;	   
 	}
-	mod = (VALUE)class_getSuperclass((Class)mod); 
+	mod = RCLASS_SUPER(mod);
     } 
 
     return ary;

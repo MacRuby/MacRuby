@@ -933,43 +933,16 @@ rb_copy_generic_ivar(VALUE clone, VALUE obj)
     }
 }
 
-static inline bool
-rb_class_has_ivar_dict(VALUE mod)
-{
-    const long v = RCLASS_VERSION(mod);
-    return (v & RCLASS_IS_RUBY_CLASS) == RCLASS_IS_RUBY_CLASS
-	&& (v & RCLASS_KVO_CHECK_DONE) != RCLASS_KVO_CHECK_DONE;
-}
-
-#define RCLASS_RUBY_IVAR_DICT(mod) \
-    (*(CFMutableDictionaryRef *) \
-     	((void *)mod + class_getInstanceSize(*(Class *)RCLASS_SUPER(mod))))
-
 CFMutableDictionaryRef 
 rb_class_ivar_dict(VALUE mod)
 {
-    if (rb_class_has_ivar_dict(mod)) {
-	return RCLASS_RUBY_IVAR_DICT(mod);
-    }
     return generic_ivar_dict(mod, false);
 }
  
 void
 rb_class_ivar_set_dict(VALUE mod, CFMutableDictionaryRef dict)
 {
-    if (rb_class_has_ivar_dict(mod)) {
-	CFMutableDictionaryRef old_dict = RCLASS_RUBY_IVAR_DICT(mod);
-	if (old_dict != dict) {
-	    if (old_dict != NULL) {
-		GC_RELEASE(old_dict);
-	    }
-	    GC_RETAIN(dict);
-	    RCLASS_RUBY_IVAR_DICT(mod) = dict;
-	}
-    }
-    else {
-	generic_ivar_dict_set(mod, dict);
-    }
+    generic_ivar_dict_set(mod, dict);
 }
 
 CFMutableDictionaryRef
@@ -1508,7 +1481,7 @@ retry:
 	}
 	tmp = RCLASS_SUPER(tmp);
     }
-    if (!exclude && !mod_retry && BUILTIN_TYPE(klass) == T_MODULE) {
+    if (!exclude && !mod_retry && RCLASS_MODULE(klass)) {
 	mod_retry = 1;
 	tmp = rb_cObject;
 	goto retry;
@@ -1713,7 +1686,7 @@ rb_const_defined_0(VALUE klass, ID id, int exclude, int recurse)
 	}
 	tmp = RCLASS_SUPER(tmp);
     }
-    if (!exclude && !mod_retry && BUILTIN_TYPE(klass) == T_MODULE) {
+    if (!exclude && !mod_retry && RCLASS_MODULE(klass)) {
 	mod_retry = 1;
 	tmp = rb_cObject;
 	goto retry;
@@ -1752,7 +1725,7 @@ mod_av_set(VALUE klass, ID id, VALUE val, int isconst)
 	rb_raise(rb_eSecurityError, "Insecure: can't set %s", dest);
     }
     if (OBJ_FROZEN(klass)) {
-	if (BUILTIN_TYPE(klass) == T_MODULE) {
+	if (TYPE(klass) == T_MODULE) {
 	    rb_error_frozen("module");
 	}
 	else {

@@ -556,7 +556,7 @@ rb_mod_append_features(VALUE module, SEL sel, VALUE include)
 	}
 	m = RCLASS_SUPER(m);
     }
-    while (m == 0 || RCLASS_SINGLETON(m));
+    while (m != 0 && RCLASS_SINGLETON(m));
 
     return module;
 }
@@ -615,7 +615,7 @@ rb_extend_object(VALUE obj, VALUE module)
 	}
 	m = RCLASS_SUPER(m);
     }
-    while (m == 0 || RCLASS_SINGLETON(m));
+    while (m != 0 && RCLASS_SINGLETON(m));
 }
 
 /*

@@ -428,9 +428,12 @@ struct RBasic {
     VALUE flags;
 };
 
-#define RCLASS_SUPER(m) ((VALUE)class_getSuperclass((Class)m))
-#define RCLASS_SET_SUPER(m, s) (class_setSuperclass((Class)m, (Class)s))
-#define RCLASS_META(m) (class_isMetaClass((Class)m))
+VALUE rb_class_super(VALUE klass);
+void rb_class_set_super(VALUE klass, VALUE super);
+int rb_class_ismeta(VALUE klass);
+#define RCLASS_SUPER(m) (rb_class_super((VALUE)m))
+#define RCLASS_SET_SUPER(m, s) (rb_class_set_super((VALUE)m, (VALUE)s))
+#define RCLASS_META(m) (rb_class_ismeta((VALUE)m))
 
 #define RFLOAT_VALUE(v) FIXFLOAT2DBL(v)
 #define DOUBLE2NUM(dbl)  rb_float_new(dbl)
