@@ -4888,6 +4888,7 @@ rstr_each_char(VALUE str, SEL sel)
     str_each_uchar32(RSTR(str), ^(UChar32 c, long start_index, long char_len, bool *stop) {
 	VALUE charstr = (VALUE)str_new_copy_of_part(RSTR(str),
 	    start_index, char_len);
+	OBJ_INFECT(charstr, str);
 	rb_yield(charstr);
 	VALUE v = rb_vm_pop_broken_value();
 	if (v != Qundef) {
