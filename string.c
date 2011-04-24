@@ -3164,8 +3164,8 @@ rstr_scan(VALUE self, SEL sel, VALUE pat)
     const bool block_given = rb_block_given_p();
 
     const bool untrusted = OBJ_UNTRUSTED(self) || OBJ_UNTRUSTED(pat);
-    pat = get_pat(pat, true);
     const bool tainted = OBJ_TAINTED(self) || OBJ_TAINTED(pat);
+    pat = get_pat(pat, true);
 
     character_boundaries_cache_t local_cache;
     reset_character_boundaries_cache(&local_cache);
