@@ -2880,9 +2880,7 @@ rstr_to_s(VALUE self, SEL sel)
 {
     if (CLASS_OF(self) != rb_cRubyString) {
 	VALUE dup = (VALUE)str_dup(RSTR(self));
-	if (OBJ_TAINTED(self)) {
-	    OBJ_TAINT(dup);
-	}
+	OBJ_INFECT(dup, self);
 	return dup;
     }
     return self;
