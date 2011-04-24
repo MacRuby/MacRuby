@@ -498,7 +498,6 @@ rb_vm_outer_t *rb_vm_push_outer(Class klass);
 rb_vm_outer_t *rb_vm_pop_outer(void);
 rb_vm_outer_t *rb_vm_get_outer_stack(void);
 rb_vm_outer_t *rb_vm_set_current_outer(rb_vm_outer_t *outer);
-rb_vm_outer_t *rb_vm_get_current_outer(void);
 
 bool rb_vm_aot_feature_load(const char *name);
 void rb_vm_load(const char *fname_str, int wrap);

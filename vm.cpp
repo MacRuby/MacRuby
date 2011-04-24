@@ -3184,12 +3184,6 @@ rb_vm_set_current_outer(rb_vm_outer_t *outer)
     return old;
 }
     
-rb_vm_outer_t *
-rb_vm_get_current_outer(void)
-{
-    return GET_VM()->get_current_outer();
-}
-
 struct rb_vm_kept_local {
     ID name;
     VALUE *stack_address;
