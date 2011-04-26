@@ -448,9 +448,7 @@ static int
 garbage_collect(void)
 {
     if (!dont_gc) {
-	auto_collect(__auto_zone,
-		AUTO_COLLECT_EXHAUSTIVE_COLLECTION|AUTO_COLLECT_SYNCHRONOUS,
-		NULL);
+	objc_collect(OBJC_EXHAUSTIVE_COLLECTION);
     }
     return Qtrue;
 }
