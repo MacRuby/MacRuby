@@ -1260,13 +1260,16 @@ format_message(VALUE exc)
     VALUE message = rb_vm_call(exc, sel_registerName("message"), 0, NULL);
     VALUE bt = rb_vm_call(exc, sel_registerName("backtrace"), 0, NULL);
 
+    message = rb_check_string_type(message);
+    const char *msg = message == Qnil ? "" : RSTRING_PTR(message);
+
     const long count = (bt != Qnil ? RARRAY_LEN(bt) : 0);
     if (count > 0) {
 	for (long i = 0; i < count; i++) {
 	    const char *bte = RSTRING_PTR(RARRAY_AT(bt, i));
 	    if (i == 0) {
 		CFStringAppendFormat(result, NULL, CFSTR("%s: %s (%s)\n"),
-		    bte, RSTRING_PTR(message), rb_class2name(*(VALUE *)exc));
+		    bte, msg, rb_class2name(*(VALUE *)exc));
 	    }
 	    else {
 		CFStringAppendFormat(result, NULL, CFSTR("\tfrom %s\n"), bte);
@@ -1275,7 +1278,7 @@ format_message(VALUE exc)
     }
     else {
 	CFStringAppendFormat(result, NULL, CFSTR("%s (%s)\n"),
-	    RSTRING_PTR(message), rb_class2name(*(VALUE *)exc));
+	    msg, rb_class2name(*(VALUE *)exc));
     }
     CFMakeCollectable(result);
     return (VALUE)result;
