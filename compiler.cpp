@@ -4073,6 +4073,7 @@ RoxorCompiler::compile_node0(NODE *node)
 			    outer_mask |= (1 << (i + 1));
 			} 
 
+			// Compile the scope.
 			DEBUG_LEVEL_INC();
 			Value *val = compile_node(body);
 			assert(Function::classof(val));
@@ -4081,26 +4082,46 @@ RoxorCompiler::compile_node0(NODE *node)
 			DEBUG_LEVEL_DEC();
 
 			outer_mask = old_outer_mask;
-
 			ivars_slots_cache = old_ivars_slots_cache;
-
 			block_declaration = old_block_declaration;
 
+			// Create a rescue block for the module scope function,
+			// since it might raise an exception and we do want
+			// to properly restore the context information.
+			Function *main_f = bb->getParent(); 
+			BasicBlock *old_rescue_invoke_bb = rescue_invoke_bb;
+			BasicBlock *new_rescue_invoke_bb =
+			    BasicBlock::Create(context, "rescue", main_f);
+			rescue_invoke_bb = new_rescue_invoke_bb;
+
+			// Run the scope.
 			std::vector<Value *> params;
 			params.push_back(classVal);
 			params.push_back(compile_const_pointer(NULL));
 			val = compile_protected_call(f, params);
-
-			compile_pop_outer();
+			BasicBlock *normal_bb = bb;
 			outer_stack = old_outer_stack;
+
+			// The rescue block - restore context before
+			// propagating the exception.
+			bb = new_rescue_invoke_bb;
+			compile_landing_pad_header();
+			compile_pop_outer();
 			compile_set_current_outer();
-						
-			dynamic_class = old_dynamic_class;
+			compile_set_current_scope(classVal, defaultScope);
+			compile_rethrow_exception();
+
+			// The normal block - restore context.
+			bb = normal_bb;
+			compile_pop_outer();
+			compile_set_current_outer();
 			compile_set_current_scope(classVal, defaultScope);
 
+			dynamic_class = old_dynamic_class;
 			current_self = old_self;
 			current_opened_class = old_class;
 			current_block_chain = old_current_block_chain;
+			rescue_invoke_bb = old_rescue_invoke_bb;
 
 			return val;
 		    }
