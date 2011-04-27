@@ -3910,13 +3910,6 @@ rb_vm_is_eh_active(int argc, ...)
 
 extern "C"
 void
-rb_vm_push_exception(VALUE exc)
-{
-    GET_VM()->push_current_exception(exc);
-}
-
-extern "C"
-void
 rb_vm_pop_exception(int pos)
 {
     GET_VM()->pop_current_exception(pos);
@@ -4093,16 +4086,6 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 	vm->pop_current_binding();
     }
 
-    struct Finally {
-	NODE *node;
-	Finally(NODE *_node) {
-	    node = _node;
-	}
-	~Finally() {
-	    rb_node_release(node);
-	}
-    } finalizer(node);
-
     VALUE ret;
 
     if (can_interpret && GET_CORE()->get_interpreter_enabled()) {
@@ -4130,25 +4113,16 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 
 	// Execute the function.
 	lock.unlock();
-
-	struct Finally {
-	    Function *func;
-	    bool inside_eval;
-	    Finally(Function *_func, bool _inside_eval) {
-		func = _func;
-		inside_eval = _inside_eval;
-	    }
-	    ~Finally() { 
-		if (inside_eval) {
-		    // XXX We only delete functions created by #eval. In theory it
-		    // should also work for other functions, but it makes spec:ci crash.
-		    GET_CORE()->delenda(func);
-		}
-	    }
-	} finalizer(func, inside_eval);
-
 	ret = ((VALUE(*)(VALUE, SEL))imp)(vm->get_current_top_object(), 0);
+
+	if (inside_eval) {
+	    // XXX We only delete functions created by #eval. In theory it
+	    // should also work for other functions, but it makes spec:ci crash.
+	    GET_CORE()->delenda(func);
+	}
     }
+
+    rb_node_release(node);
 
     return ret;
 #endif
