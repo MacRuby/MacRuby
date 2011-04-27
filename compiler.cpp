@@ -3413,6 +3413,8 @@ rescan_args:
 	can_interpret = true;
     }
 
+    // If we are calling a method that needs a reference to the current outer,
+    // compile a reference to it.
     if (!super_call
 	&& (sel == selEval
 	    || sel == selInstanceEval
