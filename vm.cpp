@@ -431,6 +431,8 @@ RoxorVM::RoxorVM(const RoxorVM &vm)
 {
     current_top_object = vm.current_top_object;
     current_class = vm.current_class;
+    outer_stack = vm.outer_stack;
+    current_outer = vm.current_outer;
     safe_level = vm.safe_level;
 
     std::vector<rb_vm_block_t *> &vm_blocks =
