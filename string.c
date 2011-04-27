@@ -5944,7 +5944,7 @@ static VALUE
 nsdata_to_str(VALUE data, SEL sel)
 {
     CFDataRef dataref = (CFDataRef)data;
-    return rb_bstr_new_with_data(CFDataGetBytePtr(dataref),
+    return rb_bstr_new_with_data2(CFDataGetBytePtr(dataref),
 	    CFDataGetLength(dataref));
 }
 
@@ -6155,6 +6155,15 @@ rb_bstr_bytes(VALUE str)
 {
     assert(IS_RSTR(str));
     return (uint8_t *)RSTR(str)->bytes;
+}
+
+VALUE
+rb_bstr_new_with_data2(const uint8_t *bytes, long len)
+{
+    rb_str_t *str = str_alloc(rb_cRubyString);
+    str_replace_with_bytes(str, (char *)bytes, len,
+	    rb_encodings[ENCODING_UTF8]);
+    return (VALUE)str;
 }
 
 VALUE
