@@ -5939,7 +5939,14 @@ rstr_imp_replaceCharactersInRangeWithString(void *rcv, SEL sel, CFRange range,
     str_splice(RSTR(rcv), range.location, range.length, spat);
 }
 
-// :nodoc:
+/*
+ *  call-seq:
+ *     data.to_str => String
+ *
+ *  returns a String object created using the receiver's internal storage.
+ *
+ */
+
 static VALUE
 nsdata_to_str(VALUE data, SEL sel)
 {
