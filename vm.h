@@ -507,6 +507,8 @@ bool rb_vm_generate_objc_class_name(const char *name, char *buf,
 
 void rb_vm_raise(VALUE exception);
 void rb_vm_raise_current_exception(void);
+void rb_vm_push_exception(VALUE exc);
+void rb_vm_pop_exception(int pos);
 VALUE rb_vm_current_exception(void);
 void rb_vm_set_current_exception(VALUE exception);
 VALUE rb_vm_backtrace(int skip);

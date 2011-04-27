@@ -296,7 +296,23 @@ rb_vm_eval_string(VALUE self, VALUE klass, VALUE src, rb_vm_binding_t *binding,
 	rb_vm_add_binding(binding);
     }
 
+    VALUE before_exc = rb_vm_current_exception();
+    if (!NIL_P(before_exc)) {
+        GC_RETAIN(before_exc);
+    }
     NODE *node = rb_compile_string(file, src, line);
+    if (!NIL_P(before_exc)) {
+        VALUE after_exc = rb_vm_current_exception();
+        if (node == NULL && !NIL_P(after_exc) && before_exc != after_exc) {
+            GC_RETAIN(after_exc);
+            rb_vm_pop_exception(0);
+            rb_vm_push_exception(before_exc);
+            rb_vm_push_exception(after_exc);
+        }
+        else {
+            GC_RELEASE(before_exc);
+        }
+    }
 
     if (binding != NULL) {
 	// We remove the binding now but we still pass it to the VM, which
