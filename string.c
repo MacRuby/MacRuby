@@ -1,8 +1,8 @@
-/* 
+/*
  * MacRuby Strings.
  *
  * This file is covered by the Ruby license. See COPYING for more details.
- * 
+ *
  * Copyright (C) 2007-2011, Apple Inc. All rights reserved.
  * Copyright (C) 1993-2007 Yukihiro Matsumoto
  * Copyright (C) 2000 Network Applied Communication Laboratory, Inc.
@@ -841,7 +841,7 @@ str_splice(rb_str_t *self, long pos, long len, rb_str_t *str)
     const long bytes_to_splice = end.end_offset_in_bytes
 	- beg.start_offset_in_bytes;
 
-    long bytes_to_add = 0; 
+    long bytes_to_add = 0;
     if (str != NULL) {
 	if (str->length_in_bytes > bytes_to_splice) {
 	    str_resize_bytes(self, self->length_in_bytes
@@ -870,7 +870,7 @@ str_splice(rb_str_t *self, long pos, long len, rb_str_t *str)
     }
 
     self->length_in_bytes = self->length_in_bytes - bytes_to_splice
-	+ bytes_to_add; 
+	+ bytes_to_add;
 }
 
 static void
@@ -1775,10 +1775,10 @@ rstr_try_convert(VALUE self, SEL sel, VALUE other)
 /*
  *  call-seq:
  *     str.replace(other_str)   => str
- *  
+ *
  *  Replaces the contents and taintedness of <i>str</i> with the corresponding
  *  values in <i>other_str</i>.
- *     
+ *
  *     s = "hello"         #=> "hello"
  *     s.replace "world"   #=> "world"
  */
@@ -1795,7 +1795,7 @@ rstr_replace(VALUE self, SEL sel, VALUE arg)
 /*
  *  call-seq:
  *     String.new(str="")   => new_str
- *  
+ *
  *  Returns a new string object containing a copy of <i>str</i>.
  */
 
@@ -1869,7 +1869,7 @@ rstr_clear(VALUE self, SEL sel)
  *  call-seq:
  *     str.length   => integer
  *     str.size     => integer
- *  
+ *
  *  Returns the character length of <i>str</i>.
  */
 
@@ -1882,9 +1882,9 @@ rstr_length(VALUE self, SEL sel)
 /*
  *  call-seq:
  *     str.empty?   => true or false
- *  
+ *
  *  Returns <code>true</code> if <i>str</i> has a length of zero.
- *     
+ *
  *     "hello".empty?   #=> false
  *     "".empty?        #=> true
  */
@@ -1898,7 +1898,7 @@ rstr_empty(VALUE self, SEL sel)
 /*
  *  call-seq:
  *     str.bytesize  => integer
- *  
+ *
  *  Returns the length of <i>str</i> in bytes.
  */
 
@@ -1938,7 +1938,7 @@ rstr_getbyte(VALUE self, SEL sel, VALUE index)
     }
     c = RSTR(self)->bytes[idx];
 
-    return INT2FIX(c); 
+    return INT2FIX(c);
 }
 
 /*
@@ -1972,14 +1972,14 @@ rstr_setbyte(VALUE self, SEL sel, VALUE idx, VALUE value)
  *     str.to_data => NSData
  *
  *  returns an NSData object wrapping the receiver's internal storage.
- *  
+ *
  */
 
 static VALUE
 rstr_to_data(VALUE self, SEL sel)
 {
     CFDataRef data = CFDataCreate(NULL, (const UInt8 *)RSTR(self)->bytes,
-	    RSTR(self)->length_in_bytes); 
+	    RSTR(self)->length_in_bytes);
     CFMakeCollectable(data);
     return (VALUE)data;
 }
@@ -1997,7 +1997,7 @@ static VALUE
 rstr_pointer(VALUE self, SEL sel)
 {
     return rb_pointer_new("C", RSTR(self)->bytes,
-	    RSTR(self)->length_in_bytes); 
+	    RSTR(self)->length_in_bytes);
 }
 
 /*
@@ -2028,7 +2028,7 @@ rstr_force_encoding(VALUE self, SEL sel, VALUE encoding)
 /*
  *  call-seq:
  *     str.valid_encoding?  => true or false
- *  
+ *
  *  Returns true for a string which encoded correctly.
  *
  *    "\xc2\xa1".force_encoding("UTF-8").valid_encoding? => true
@@ -2045,7 +2045,7 @@ rstr_is_valid_encoding(VALUE self, SEL sel)
 /*
  *  call-seq:
  *     str.ascii_only?  => true or false
- *  
+ *
  *  Returns true for a string which has only ASCII characters.
  *
  *    "abc".force_encoding("UTF-8").ascii_only? => true
@@ -2073,7 +2073,7 @@ rstr_is_ascii_only(VALUE self, SEL sel)
  *     str.slice(regexp)           => new_str or nil
  *     str.slice(regexp, fixnum)   => new_str or nil
  *     str.slice(other_str)        => new_str or nil
- *  
+ *
  *  Element Reference---If passed a single <code>Fixnum</code>, returns a
  *  substring of one character at that position. If passed two <code>Fixnum</code>
  *  objects, returns a substring starting at the offset given by the first, and
@@ -2082,14 +2082,14 @@ rstr_is_ascii_only(VALUE self, SEL sel)
  *  an offset is negative, it is counted from the end of <i>str</i>. Returns
  *  <code>nil</code> if the initial offset falls outside the string, the length
  *  is negative, or the beginning of the range is greater than the end.
- *     
+ *
  *  If a <code>Regexp</code> is supplied, the matching portion of <i>str</i> is
  *  returned. If a numeric parameter follows the regular expression, that
  *  component of the <code>MatchData</code> is returned instead. If a
  *  <code>String</code> is given, that string is returned if it occurs in
  *  <i>str</i>. In both cases, <code>nil</code> is returned if there is no
  *  match.
- *     
+ *
  *     a = "hello there"
  *     a[1]                   #=> "e"
  *     a[1,3]                 #=> "ell"
@@ -2216,7 +2216,7 @@ bail:
  *     str[regexp] = new_str
  *     str[regexp, fixnum] = new_str
  *     str[other_str] = new_str
- *  
+ *
  *  Element Assignment---Replaces some or all of the content of <i>str</i>. The
  *  portion of the string affected is determined using the same criteria as
  *  <code>String#[]</code>. If the replacement string is not the same length as
@@ -2366,13 +2366,13 @@ rstr_slice_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 /*
  *  call-seq:
  *     str.insert(index, other_str)   => str
- *  
+ *
  *  Inserts <i>other_str</i> before the character at the given
  *  <i>index</i>, modifying <i>str</i>. Negative indices count from the
  *  end of the string, and insert <em>after</em> the given character.
  *  The intent is insert <i>aString</i> so that it starts at the given
  *  <i>index</i>.
- *     
+ *
  *     "abcd".insert(0, 'X')    #=> "Xabcd"
  *     "abcd".insert(3, 'X')    #=> "abcXd"
  *     "abcd".insert(4, 'X')    #=> "abcdX"
@@ -2401,12 +2401,12 @@ rstr_insert(VALUE str, SEL sel, VALUE idx, VALUE substr)
  *     str.index(substring [, offset])   => fixnum or nil
  *     str.index(fixnum [, offset])      => fixnum or nil
  *     str.index(regexp [, offset])      => fixnum or nil
- *  
+ *
  *  Returns the index of the first occurrence of the given <i>substring</i>,
  *  character (<i>fixnum</i>), or pattern (<i>regexp</i>) in <i>str</i>. Returns
  *  <code>nil</code> if not found. If the second parameter is present, it
  *  specifies the position in the string to begin the search.
- *     
+ *
  *     "hello".index('e')             #=> 1
  *     "hello".index('lo')            #=> 3
  *     "hello".index('a')             #=> nil
@@ -2446,7 +2446,7 @@ rstr_index(VALUE self, SEL sel, int argc, VALUE *argv)
 	    pos = rb_reg_search(sub, self, pos, false);
 	    break;
 
-	default: 
+	default:
 	    StringValue(sub);
 	    // fall through
 	case T_STRING:
@@ -2468,13 +2468,13 @@ rstr_index(VALUE self, SEL sel, int argc, VALUE *argv)
  *     str.rindex(substring [, fixnum])   => fixnum or nil
  *     str.rindex(fixnum [, fixnum])   => fixnum or nil
  *     str.rindex(regexp [, fixnum])   => fixnum or nil
- *  
+ *
  *  Returns the index of the last occurrence of the given <i>substring</i>,
  *  character (<i>fixnum</i>), or pattern (<i>regexp</i>) in <i>str</i>. Returns
  *  <code>nil</code> if not found. If the second parameter is present, it
  *  specifies the position in the string to end the search---characters beyond
  *  this point will not be considered.
- *     
+ *
  *     "hello".rindex('e')             #=> 1
  *     "hello".rindex('l')             #=> 3
  *     "hello".rindex('a')             #=> nil
@@ -2514,7 +2514,7 @@ rstr_rindex(VALUE self, SEL sel, int argc, VALUE *argv)
 	    pos = rb_reg_search(sub, self, pos, true);
 	    break;
 
-	default: 
+	default:
 	    StringValue(sub);
 	    // fall through
 	case T_STRING:
@@ -2531,10 +2531,10 @@ rstr_rindex(VALUE self, SEL sel, int argc, VALUE *argv)
 /*
  *  call-seq:
  *     str + other_str   => new_str
- *  
+ *
  *  Concatenation---Returns a new <code>String</code> containing
  *  <i>other_str</i> concatenated to <i>str</i>.
- *     
+ *
  *     "Hello from " + self.to_s   #=> "Hello from main"
  */
 
@@ -2555,10 +2555,10 @@ rstr_plus(VALUE self, SEL sel, VALUE other)
 /*
  *  call-seq:
  *     str * integer   => new_str
- *  
+ *
  *  Copy---Returns a new <code>String</code> containing <i>integer</i> copies of
  *  the receiver.
- *     
+ *
  *     "Ho! " * 3   #=> "Ho! Ho! Ho! "
  */
 
@@ -2585,13 +2585,13 @@ rstr_times(VALUE self, SEL sel, VALUE times)
 /*
  *  call-seq:
  *     str % arg   => new_str
- *  
+ *
  *  Format---Uses <i>str</i> as a format specification, and returns the result
  *  of applying it to <i>arg</i>. If the format specification contains more than
  *  one substitution, then <i>arg</i> must be an <code>Array</code> containing
  *  the values to be substituted. See <code>Kernel::sprintf</code> for details
  *  of the format string.
- *     
+ *
  *     "%05d" % 123                              #=> "00123"
  *     "%-5s: %08x" % [ "ID", self.object_id ]   #=> "ID   : 200e14d6"
  */
@@ -2613,11 +2613,11 @@ rstr_format(VALUE str, SEL sel, VALUE arg)
  *     str.concat(fixnum)   => str
  *     str << obj           => str
  *     str.concat(obj)      => str
- *  
+ *
  *  Append---Concatenates the given object to <i>str</i>. If the object is a
  *  <code>Fixnum</code>, it is considered as a codepoint, and is converted
  *  to a character before concatenation.
- *     
+ *
  *     a = "hello "
  *     a << "world"   #=> "hello world"
  *     a.concat(33)   #=> "hello world!"
@@ -2637,7 +2637,7 @@ rstr_concat(VALUE self, SEL sel, VALUE other)
 	case T_BIGNUM:
 	    codepoint = rb_big2ulong(other);
 	    break;
-	    
+
 	default:
 	    rstr_append(self, other);
 	    return self;
@@ -2675,7 +2675,7 @@ out_of_range:
 /*
  *  call-seq:
  *     str == obj   => true or false
- *  
+ *
  *  Equality---If <i>obj</i> is not a <code>String</code>, returns
  *  <code>false</code>. Otherwise, returns <code>true</code> if <i>str</i>
  *  <code><=></code> <i>obj</i> returns zero.
@@ -2700,7 +2700,7 @@ rstr_equal(VALUE self, SEL sel, VALUE other)
 /*
  *  call-seq:
  *     str <=> other_str   => -1, 0, +1
- *  
+ *
  *  Comparison---Returns -1 if <i>other_str</i> is less than, 0 if
  *  <i>other_str</i> is equal to, and +1 if <i>other_str</i> is greater than
  *  <i>str</i>. If the strings are of different lengths, and the strings are
@@ -2713,7 +2713,7 @@ rstr_equal(VALUE self, SEL sel, VALUE other)
  *  <code><=</code>, <code>></code>, <code>>=</code>, and <code>between?</code>,
  *  included from module <code>Comparable</code>.  The method
  *  <code>String#==</code> does not use <code>Comparable#==</code>.
- *     
+ *
  *     "abcdef" <=> "abcde"     #=> 1
  *     "abcdef" <=> "abcdef"    #=> 0
  *     "abcdef" <=> "abcdefg"   #=> -1
@@ -2791,10 +2791,10 @@ rstr_eql(VALUE self, SEL sel, VALUE other)
  *  call-seq:
  *     str.include? other_str   => true or false
  *     str.include? fixnum      => true or false
- *  
+ *
  *  Returns <code>true</code> if <i>str</i> contains the given string or
  *  character.
- *     
+ *
  *     "hello".include? "lo"   #=> true
  *     "hello".include? "ol"   #=> false
  *     "hello".include? ?h     #=> true
@@ -2810,7 +2810,7 @@ rstr_includes(VALUE self, SEL sel, VALUE searched)
 /*
  *  call-seq:
  *     str.start_with?([prefix]+)   => true or false
- *  
+ *
  *  Returns true if <i>str</i> starts with the prefix given.
  */
 
@@ -2834,7 +2834,7 @@ rstr_start_with(VALUE str, SEL sel, int argc, VALUE *argv)
 /*
  *  call-seq:
  *     str.end_with?([suffix]+)   => true or false
- *  
+ *
  *  Returns true if <i>str</i> ends with the suffix given.
  */
 
@@ -2864,7 +2864,7 @@ rstr_end_with(VALUE str, SEL sel, int argc, VALUE *argv)
  *  call-seq:
  *     str.to_s     => str
  *     str.to_str   => str
- *  
+ *
  *  Returns the receiver.
  */
 
@@ -2883,10 +2883,10 @@ rstr_to_s(VALUE self, SEL sel)
  *  call-seq:
  *     str.intern   => symbol
  *     str.to_sym   => symbol
- *  
+ *
  *  Returns the <code>Symbol</code> corresponding to <i>str</i>, creating the
  *  symbol if it did not previously exist. See <code>Symbol#id2name</code>.
- *     
+ *
  *     "Koala".intern         #=> :Koala
  *     s = 'cat'.to_sym       #=> :cat
  *     s == :cat              #=> true
@@ -2895,7 +2895,7 @@ rstr_to_s(VALUE self, SEL sel)
  *
  *  This can also be used to create symbols that cannot be represented using the
  *  <code>:xxx</code> notation.
- *     
+ *
  *     'cat and dog'.to_sym   #=> :"cat and dog"
  */
 
@@ -2962,13 +2962,13 @@ str_inspect(rb_str_t *str, bool dump)
 	}
 	else if (c == '\n') {
 	    inspect_append(result, 'n', true);
-	} 
+	}
 	else if (c == '\r') {
 	    inspect_append(result, 'r', true);
-	} 
+	}
 	else if (c == '\t') {
 	    inspect_append(result, 't', true);
-	} 
+	}
 	else if (c == '\f') {
 	    inspect_append(result, 'f', true);
 	}
@@ -3002,9 +3002,9 @@ str_inspect(rb_str_t *str, bool dump)
 	inspect_append(result, prev, false);
     }
     inspect_append(result, '"', false);
-   
+
     OBJ_INFECT(result, str);
-    return result; 
+    return result;
 }
 
 static VALUE
@@ -3016,7 +3016,7 @@ rstr_inspect(VALUE self, SEL sel)
 /*
  *  call-seq:
  *     str.dump   => new_str
- *  
+ *
  *  Produces a version of <i>str</i> with all nonprinting characters replaced by
  *  <code>\nnn</code> notation and all special characters escaped.
  */
@@ -3032,28 +3032,28 @@ rstr_dump(VALUE self, SEL sel)
 /*
  *  call-seq:
  *     str.match(pattern)   => matchdata or nil
- *  
+ *
  *  Converts <i>pattern</i> to a <code>Regexp</code> (if it isn't already one),
  *  then invokes its <code>match</code> method on <i>str</i>.  If the second
  *  parameter is present, it specifies the position in the string to begin the
  *  search.
- *     
+ *
  *     'hello'.match('(.)\1')      #=> #<MatchData "ll" 1:"l">
  *     'hello'.match('(.)\1')[0]   #=> "ll"
  *     'hello'.match(/(.)\1/)[0]   #=> "ll"
  *     'hello'.match('xx')         #=> nil
- *     
+ *
  *  If a block is given, invoke the block with MatchData if match succeed, so
  *  that you can write
- *     
+ *
  *     str.match(pat) {|m| ...}
- *     
+ *
  *  instead of
- *      
+ *
  *     if m = str.match(pat)
  *       ...
  *     end
- *      
+ *
  *  The return value is a value from block execution in this case.
  */
 
@@ -3101,13 +3101,13 @@ rstr_match2(VALUE self, SEL sel, int argc, VALUE *argv)
 /*
  *  call-seq:
  *     str =~ obj   => fixnum or nil
- *  
+ *
  *  Match---If <i>obj</i> is a <code>Regexp</code>, use it as a pattern to match
- *  against <i>str</i>,and returns the position the match starts, or 
+ *  against <i>str</i>,and returns the position the match starts, or
  *  <code>nil</code> if there is no match. Otherwise, invokes
  *  <i>obj.=~</i>, passing <i>str</i> as an argument. The default
  *  <code>=~</code> in <code>Object</code> returns <code>false</code>.
- *     
+ *
  *     "cat o' 9 tails" =~ /\d/   #=> 7
  *     "cat o' 9 tails" =~ 9      #=> nil
  */
@@ -3131,29 +3131,29 @@ rstr_match(VALUE self, SEL sel, VALUE other)
  *  call-seq:
  *     str.scan(pattern)                         => array
  *     str.scan(pattern) {|match, ...| block }   => str
- *  
+ *
  *  Both forms iterate through <i>str</i>, matching the pattern (which may be a
  *  <code>Regexp</code> or a <code>String</code>). For each match, a result is
  *  generated and either added to the result array or passed to the block. If
  *  the pattern contains no groups, each individual result consists of the
  *  matched string, <code>$&</code>.  If the pattern contains groups, each
  *  individual result is itself an array containing one entry per group.
- *     
+ *
  *     a = "cruel world"
  *     a.scan(/\w+/)        #=> ["cruel", "world"]
  *     a.scan(/.../)        #=> ["cru", "el ", "wor"]
  *     a.scan(/(...)/)      #=> [["cru"], ["el "], ["wor"]]
  *     a.scan(/(..)(..)/)   #=> [["cr", "ue"], ["l ", "wo"]]
- *     
+ *
  *  And the block form:
- *     
+ *
  *     a.scan(/\w+/) {|w| print "<<#{w}>> " }
  *     print "\n"
  *     a.scan(/(.)(.)/) {|x,y| print y, x }
  *     print "\n"
- *     
+ *
  *  <em>produces:</em>
- *     
+ *
  *     <<cruel>> <<world>>
  *     rceu lowlr
  */
@@ -3239,31 +3239,31 @@ rstr_scan(VALUE self, SEL sel, VALUE pat)
 /*
  *  call-seq:
  *     str.split(pattern=$;, [limit])   => anArray
- *  
+ *
  *  Divides <i>str</i> into substrings based on a delimiter, returning an array
  *  of these substrings.
- *     
+ *
  *  If <i>pattern</i> is a <code>String</code>, then its contents are used as
  *  the delimiter when splitting <i>str</i>. If <i>pattern</i> is a single
  *  space, <i>str</i> is split on whitespace, with leading whitespace and runs
  *  of contiguous whitespace characters ignored.
- *     
+ *
  *  If <i>pattern</i> is a <code>Regexp</code>, <i>str</i> is divided where the
  *  pattern matches. Whenever the pattern matches a zero-length string,
  *  <i>str</i> is split into individual characters. If <i>pattern</i> contains
  *  groups, the respective matches will be returned in the array as well.
- *     
+ *
  *  If <i>pattern</i> is omitted, the value of <code>$;</code> is used.  If
  *  <code>$;</code> is <code>nil</code> (which is the default), <i>str</i> is
  *  split on whitespace as if ` ' were specified.
- *     
+ *
  *  If the <i>limit</i> parameter is omitted, trailing null fields are
  *  suppressed. If <i>limit</i> is a positive number, at most that number of
  *  fields will be returned (if <i>limit</i> is <code>1</code>, the entire
  *  string is returned as the only entry in an array). If negative, there is no
  *  limit to the number of fields returned, and trailing null fields are not
  *  suppressed.
- *     
+ *
  *     " now's  the time".split        #=> ["now's", "the", "time"]
  *     " now's  the time".split(' ')   #=> ["now's", "the", "time"]
  *     " now's  the time".split(/ /)   #=> ["", "now's", "", "the", "time"]
@@ -3271,7 +3271,7 @@ rstr_scan(VALUE self, SEL sel, VALUE pat)
  *     "hello".split(//)               #=> ["h", "e", "l", "l", "o"]
  *     "hello".split(//, 3)            #=> ["h", "e", "llo"]
  *     "hi mom".split(%r{\s*})         #=> ["h", "i", "m", "o", "m"]
- *     
+ *
  *     "mellow yellow".split("ello")   #=> ["m", "w y", "w"]
  *     "1,2,,3,4,,".split(',')         #=> ["1", "2", "", "3", "4"]
  *     "1,2,,3,4,,".split(',', 4)      #=> ["1", "2", "", "3,4,,"]
@@ -3342,7 +3342,7 @@ fs_set:
 			&local_cache);
 		str_strip(substr, 0);
 		if (rb_str_chars_len(substr) > 0) {
-		    rb_ary_push(result, substr); 
+		    rb_ary_push(result, substr);
 		}
 		beg = i + 1;
 
@@ -3478,13 +3478,13 @@ again:
 /*
  *  call-seq:
  *     str.to_i(base=10)   => integer
- *  
+ *
  *  Returns the result of interpreting leading characters in <i>str</i> as an
  *  integer base <i>base</i> (between 2 and 36). Extraneous characters past the
  *  end of a valid number are ignored. If there is not a valid number at the
  *  start of <i>str</i>, <code>0</code> is returned. This method never raises an
  *  exception.
- *     
+ *
  *     "12345".to_i             #=> 12345
  *     "99 red balloons".to_i   #=> 99
  *     "0a".to_i                #=> 0
@@ -3517,11 +3517,11 @@ rstr_to_i(VALUE str, SEL sel, int argc, VALUE *argv)
 /*
  *  call-seq:
  *     str.hex   => integer
- *  
+ *
  *  Treats leading characters from <i>str</i> as a string of hexadecimal digits
  *  (with an optional sign and an optional <code>0x</code>) and returns the
  *  corresponding number. Zero is returned on error.
- *     
+ *
  *     "0x0a".hex     #=> 10
  *     "-1234".hex    #=> -4660
  *     "0".hex        #=> 0
@@ -3537,11 +3537,11 @@ rstr_hex(VALUE str, SEL sel)
 /*
  *  call-seq:
  *     str.oct   => integer
- *  
+ *
  *  Treats leading characters of <i>str</i> as a string of octal digits (with an
  *  optional sign) and returns the corresponding number.  Returns 0 if the
  *  conversion fails.
- *     
+ *
  *     "123".oct       #=> 83
  *     "-377".oct      #=> -255
  *     "bad".oct       #=> 0
@@ -3557,9 +3557,9 @@ rstr_oct(VALUE str, SEL sel)
 /*
  *  call-seq:
  *     str.ord   => integer
- *  
+ *
  *  Return the <code>Integer</code> ordinal of a one-character string.
- *     
+ *
  *     "a".ord         #=> 97
  */
 
@@ -3595,12 +3595,12 @@ rstr_chr(VALUE str, SEL sel)
 /*
  *  call-seq:
  *     str.to_f   => float
- *  
+ *
  *  Returns the result of interpreting leading characters in <i>str</i> as a
  *  floating point number. Extraneous characters past the end of a valid number
  *  are ignored. If there is not a valid number at the start of <i>str</i>,
  *  <code>0.0</code> is returned. This method never raises an exception.
- *     
+ *
  *     "123.45e1".to_f        #=> 1234.5
  *     "45.67 degrees".to_f   #=> 45.67
  *     "thx1138".to_f         #=> 0.0
@@ -3615,7 +3615,7 @@ rstr_to_f(VALUE str, SEL sel)
 /*
  *  call-seq:
  *     str.chomp!(separator=$/)   => str or nil
- *  
+ *
  *  Modifies <i>str</i> in place as described for <code>String#chomp</code>,
  *  returning <i>str</i>, or <code>nil</code> if no modifications were made.
  */
@@ -3685,13 +3685,13 @@ rstr_chomp_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 /*
  *  call-seq:
  *     str.chomp(separator=$/)   => new_str
- *  
+ *
  *  Returns a new <code>String</code> with the given record separator removed
  *  from the end of <i>str</i> (if present). If <code>$/</code> has not been
  *  changed from the default Ruby record separator, then <code>chomp</code> also
  *  removes carriage return characters (that is it will remove <code>\n</code>,
  *  <code>\r</code>, and <code>\r\n</code>).
- *     
+ *
  *     "hello".chomp            #=> "hello"
  *     "hello\n".chomp          #=> "hello"
  *     "hello\r\n".chomp        #=> "hello"
@@ -3712,7 +3712,7 @@ rstr_chomp(VALUE str, SEL sel, int argc, VALUE *argv)
 /*
  *  call-seq:
  *     str.chop!   => str or nil
- *  
+ *
  *  Processes <i>str</i> as for <code>String#chop</code>, returning <i>str</i>,
  *  or <code>nil</code> if <i>str</i> is the empty string.  See also
  *  <code>String#chomp!</code>.
@@ -3750,13 +3750,13 @@ rstr_chop_bang(VALUE str, SEL sel)
 /*
  *  call-seq:
  *     str.chop   => new_str
- *  
+ *
  *  Returns a new <code>String</code> with the last character removed.  If the
  *  string ends with <code>\r\n</code>, both characters are removed. Applying
  *  <code>chop</code> to an empty string returns an empty
  *  string. <code>String#chomp</code> is often a safer alternative, as it leaves
  *  the string unchanged if it doesn't end in a record separator.
- *     
+ *
  *     "string\r\n".chop   #=> "string"
  *     "string\n\r".chop   #=> "string\n"
  *     "string\n".chop     #=> "string"
@@ -3776,7 +3776,7 @@ rstr_chop(VALUE str, SEL sel)
  *  call-seq:
  *     str.sub!(pattern, replacement)          => str or nil
  *     str.sub!(pattern) {|match| block }      => str or nil
- *  
+ *
  *  Performs the substitutions of <code>String#sub</code> in place,
  *  returning <i>str</i>, or <code>nil</code> if no substitutions were
  *  performed.
@@ -3991,27 +3991,27 @@ rstr_sub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
  *  call-seq:
  *     str.sub(pattern, replacement)         => new_str
  *     str.sub(pattern) {|match| block }     => new_str
- *  
+ *
  *  Returns a copy of <i>str</i> with the <em>first</em> occurrence of
  *  <i>pattern</i> replaced with either <i>replacement</i> or the value of the
  *  block. The <i>pattern</i> will typically be a <code>Regexp</code>; if it is
  *  a <code>String</code> then no regular expression metacharacters will be
  *  interpreted (that is <code>/\d/</code> will match a digit, but
  *  <code>'\d'</code> will match a backslash followed by a 'd').
- *     
+ *
  *  If the method call specifies <i>replacement</i>, special variables such as
  *  <code>$&</code> will not be useful, as substitution into the string occurs
  *  before the pattern match starts. However, the sequences <code>\1</code>,
  *  <code>\2</code>, <code>\k<group_name></code>, etc., may be used.
- *     
+ *
  *  In the block form, the current match string is passed in as a parameter, and
  *  variables such as <code>$1</code>, <code>$2</code>, <code>$`</code>,
  *  <code>$&</code>, and <code>$'</code> will be set appropriately. The value
  *  returned by the block will be substituted for the match on each call.
- *     
+ *
  *  The result inherits any tainting in the original string or any supplied
  *  replacement string.
- *     
+ *
  *     "hello".sub(/[aeiou]/, '*')                  #=> "h*llo"
  *     "hello".sub(/([aeiou])/, '<\1>')             #=> "h<e>llo"
  *     "hello".sub(/./) {|s| s[0].ord.to_s + ' ' }  #=> "104 ello"
@@ -4030,7 +4030,7 @@ rstr_sub(VALUE str, SEL sel, int argc, VALUE *argv)
  *  call-seq:
  *     str.gsub!(pattern, replacement)        => str or nil
  *     str.gsub!(pattern) {|match| block }    => str or nil
- *  
+ *
  *  Performs the substitutions of <code>String#gsub</code> in place, returning
  *  <i>str</i>, or <code>nil</code> if no substitutions were performed.
  */
@@ -4042,7 +4042,7 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
     bool tainted = false;
     bool untrusted = false;
     VALUE hash = Qnil, repl = Qnil;
- 
+
     switch (argc) {
 	case 1:
 	    RETURN_ENUMERATOR(str, argc, argv);
@@ -4194,29 +4194,29 @@ rstr_gsub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
  *  call-seq:
  *     str.gsub(pattern, replacement)       => new_str
  *     str.gsub(pattern) {|match| block }   => new_str
- *  
+ *
  *  Returns a copy of <i>str</i> with <em>all</em> occurrences of <i>pattern</i>
  *  replaced with either <i>replacement</i> or the value of the block. The
  *  <i>pattern</i> will typically be a <code>Regexp</code>; if it is a
  *  <code>String</code> then no regular expression metacharacters will be
  *  interpreted (that is <code>/\d/</code> will match a digit, but
  *  <code>'\d'</code> will match a backslash followed by a 'd').
- *     
+ *
  *  If a string is used as the replacement, special variables from the match
  *  (such as <code>$&</code> and <code>$1</code>) cannot be substituted into it,
  *  as substitution into the string occurs before the pattern match
  *  starts. However, the sequences <code>\1</code>, <code>\2</code>,
  *  <code>\k<group_name></code>, and so on may be used to interpolate
  *  successive groups in the match.
- *     
+ *
  *  In the block form, the current match string is passed in as a parameter, and
  *  variables such as <code>$1</code>, <code>$2</code>, <code>$`</code>,
  *  <code>$&</code>, and <code>$'</code> will be set appropriately. The value
  *  returned by the block will be substituted for the match on each call.
- *     
+ *
  *  The result inherits any tainting in the original string or any supplied
  *  replacement string.
- *     
+ *
  *     "hello".gsub(/[aeiou]/, '*')                  #=> "h*ll*"
  *     "hello".gsub(/([aeiou])/, '<\1>')             #=> "h<e>ll<o>"
  *     "hello".gsub(/./) {|s| s[0].ord.to_s + ' '}   #=> "104 101 108 108 111 "
@@ -4232,7 +4232,7 @@ rstr_gsub(VALUE str, SEL sel, int argc, VALUE *argv)
 /*
  *  call-seq:
  *     str.downcase!   => str or nil
- *  
+ *
  *  Downcases the contents of <i>str</i>, returning <code>nil</code> if no
  *  changes were made.
  *  Note: case replacement is effective only in ASCII region.
@@ -4297,12 +4297,12 @@ rstr_downcase_bang(VALUE str, SEL sel)
 /*
  *  call-seq:
  *     str.downcase   => new_str
- *  
+ *
  *  Returns a copy of <i>str</i> with all uppercase letters replaced with their
  *  lowercase counterparts. The operation is locale insensitive---only
  *  characters ``A'' to ``Z'' are affected.
  *  Note: case replacement is effective only in ASCII region.
- *     
+ *
  *     "hEllO".downcase   #=> "hello"
  */
 
@@ -4317,7 +4317,7 @@ rstr_downcase(VALUE str, SEL sel)
 /*
  *  call-seq:
  *     str.upcase!   => str or nil
- *  
+ *
  *  Upcases the contents of <i>str</i>, returning <code>nil</code> if no changes
  *  were made.
  *  Note: case replacement is effective only in ASCII region.
@@ -4341,12 +4341,12 @@ rstr_upcase_bang(VALUE str, SEL sel)
 /*
  *  call-seq:
  *     str.upcase   => new_str
- *  
+ *
  *  Returns a copy of <i>str</i> with all lowercase letters replaced with their
  *  uppercase counterparts. The operation is locale insensitive---only
  *  characters ``a'' to ``z'' are affected.
  *  Note: case replacement is effective only in ASCII region.
- *     
+ *
  *     "hEllO".upcase   #=> "HELLO"
  */
 
@@ -4359,9 +4359,9 @@ rstr_upcase(VALUE str, SEL sel)
 }
 
 /*
- *  call-seq: 
+ *  call-seq:
  *     str.swapcase!   => str or nil
- *  
+ *
  *  Equivalent to <code>String#swapcase</code>, but modifies the receiver in
  *  place, returning <i>str</i>, or <code>nil</code> if no changes were made.
  *  Note: case conversion is effective only in ASCII region.
@@ -4388,11 +4388,11 @@ rstr_swapcase_bang(VALUE str, SEL sel)
 /*
  *  call-seq:
  *     str.swapcase   => new_str
- *  
+ *
  *  Returns a copy of <i>str</i> with uppercase alphabetic characters converted
  *  to lowercase and lowercase characters converted to uppercase.
  *  Note: case conversion is effective only in ASCII region.
- *     
+ *
  *     "Hello".swapcase          #=> "hELLO"
  *     "cYbEr_PuNk11".swapcase   #=> "CyBeR_pUnK11"
  */
@@ -4408,11 +4408,11 @@ rstr_swapcase(VALUE str, SEL sel)
 /*
  *  call-seq:
  *     str.capitalize!   => str or nil
- *  
+ *
  *  Modifies <i>str</i> by converting the first character to uppercase and the
  *  remainder to lowercase. Returns <code>nil</code> if no changes are made.
  *  Note: case conversion is effective only in ASCII region.
- *     
+ *
  *     a = "hello"
  *     a.capitalize!   #=> "Hello"
  *     a               #=> "Hello"
@@ -4442,11 +4442,11 @@ rstr_capitalize_bang(VALUE str, SEL sel)
 /*
  *  call-seq:
  *     str.capitalize   => new_str
- *  
+ *
  *  Returns a copy of <i>str</i> with the first character converted to uppercase
  *  and the remainder to lowercase.
  *  Note: case conversion is effective only in ASCII region.
- *     
+ *
  *     "hello".capitalize    #=> "Hello"
  *     "HELLO".capitalize    #=> "Hello"
  *     "123ABC".capitalize   #=> "123abc"
@@ -4463,11 +4463,11 @@ rstr_capitalize(VALUE str, SEL sel)
 /*
  *  call-seq:
  *     str.ljust(integer, padstr=' ')   => new_str
- *  
+ *
  *  If <i>integer</i> is greater than the length of <i>str</i>, returns a new
  *  <code>String</code> of length <i>integer</i> with <i>str</i> left justified
  *  and padded with <i>padstr</i>; otherwise, returns <i>str</i>.
- *     
+ *
  *     "hello".ljust(4)            #=> "hello"
  *     "hello".ljust(20)           #=> "hello               "
  *     "hello".ljust(20, '1234')   #=> "hello123412341234123"
@@ -4543,11 +4543,11 @@ rstr_ljust(VALUE str, SEL sel, int argc, VALUE *argv)
 /*
  *  call-seq:
  *     str.rjust(integer, padstr=' ')   => new_str
- *  
+ *
  *  If <i>integer</i> is greater than the length of <i>str</i>, returns a new
  *  <code>String</code> of length <i>integer</i> with <i>str</i> right justified
  *  and padded with <i>padstr</i>; otherwise, returns <i>str</i>.
- *     
+ *
  *     "hello".rjust(4)            #=> "hello"
  *     "hello".rjust(20)           #=> "               hello"
  *     "hello".rjust(20, '1234')   #=> "123412341234123hello"
@@ -4562,11 +4562,11 @@ rstr_rjust(VALUE str, SEL sel, int argc, VALUE *argv)
 /*
  *  call-seq:
  *     str.center(integer, padstr)   => new_str
- *  
+ *
  *  If <i>integer</i> is greater than the length of <i>str</i>, returns a new
  *  <code>String</code> of length <i>integer</i> with <i>str</i> centered and
  *  padded with <i>padstr</i>; otherwise, returns <i>str</i>.
- *     
+ *
  *     "hello".center(4)         #=> "hello"
  *     "hello".center(20)        #=> "       hello        "
  *     "hello".center(20, '123') #=> "1231231hello12312312"
@@ -4581,7 +4581,7 @@ rstr_center(VALUE str, SEL sel, int argc, VALUE *argv)
 /*
  *  call-seq:
  *     str.strip!   => str or nil
- *  
+ *
  *  Removes leading and trailing whitespace from <i>str</i>. Returns
  *  <code>nil</code> if <i>str</i> was not altered.
  */
@@ -4644,9 +4644,9 @@ rstr_strip_bang(VALUE str, SEL sel)
 /*
  *  call-seq:
  *     str.strip   => new_str
- *  
+ *
  *  Returns a copy of <i>str</i> with leading and trailing whitespace removed.
- *     
+ *
  *     "    hello    ".strip   #=> "hello"
  *     "\tgoodbye\r\n".strip   #=> "goodbye"
  */
@@ -4662,11 +4662,11 @@ rstr_strip(VALUE str, SEL sel)
 /*
  *  call-seq:
  *     str.lstrip!   => self or nil
- *  
+ *
  *  Removes leading whitespace from <i>str</i>, returning <code>nil</code> if no
  *  change was made. See also <code>String#rstrip!</code> and
  *  <code>String#strip!</code>.
- *     
+ *
  *     "  hello  ".lstrip   #=> "hello  "
  *     "hello".lstrip!      #=> nil
  */
@@ -4680,10 +4680,10 @@ rstr_lstrip_bang(VALUE str, SEL sel)
 /*
  *  call-seq:
  *     str.lstrip   => new_str
- *  
+ *
  *  Returns a copy of <i>str</i> with leading whitespace removed. See also
  *  <code>String#rstrip</code> and <code>String#strip</code>.
- *     
+ *
  *     "  hello  ".lstrip   #=> "hello  "
  *     "hello".lstrip       #=> "hello"
  */
@@ -4699,11 +4699,11 @@ rstr_lstrip(VALUE str, SEL sel)
 /*
  *  call-seq:
  *     str.rstrip!   => self or nil
- *  
+ *
  *  Removes trailing whitespace from <i>str</i>, returning <code>nil</code> if
  *  no change was made. See also <code>String#lstrip!</code> and
  *  <code>String#strip!</code>.
- *     
+ *
  *     "  hello  ".rstrip   #=> "  hello"
  *     "hello".rstrip!      #=> nil
  */
@@ -4717,10 +4717,10 @@ rstr_rstrip_bang(VALUE str, SEL sel)
 /*
  *  call-seq:
  *     str.rstrip   => new_str
- *  
+ *
  *  Returns a copy of <i>str</i> with trailing whitespace removed. See also
  *  <code>String#lstrip</code> and <code>String#strip</code>.
- *     
+ *
  *     "  hello  ".rstrip   #=> "  hello"
  *     "hello".rstrip       #=> "hello"
  */
@@ -4738,10 +4738,10 @@ rstr_rstrip(VALUE str, SEL sel)
  *  call-seq:
  *     str.lines(separator=$/)   => anEnumerator
  *     str.lines(separator=$/) {|substr| block }        => str
- *  
+ *
  *  Returns an enumerator that gives each line in the string.  If a block is
  *  given, it iterates over each line in the string.
- *     
+ *
  *     "foo\nbar\n".lines.to_a   #=> ["foo\n", "bar\n"]
  *     "foo\nb ar".lines.sort    #=> ["b ar", "foo\n"]
  */
@@ -4750,21 +4750,21 @@ rstr_rstrip(VALUE str, SEL sel)
  *  Document-method: each_line
  *  call-seq:
  *     str.each_line(separator=$/) {|substr| block }   => str
- *  
+ *
  *  Splits <i>str</i> using the supplied parameter as the record separator
  *  (<code>$/</code> by default), passing each substring in turn to the supplied
  *  block. If a zero-length record separator is supplied, the string is split
  *  into paragraphs delimited by multiple successive newlines.
- *     
+ *
  *     print "Example one\n"
  *     "hello\nworld".each {|s| p s}
  *     print "Example two\n"
  *     "hello\nworld".each('l') {|s| p s}
  *     print "Example three\n"
  *     "hello\n\n\nworld".each('') {|s| p s}
- *     
+ *
  *  <em>produces:</em>
- *     
+ *
  *     Example one
  *     "hello\n"
  *     "world"
@@ -4857,10 +4857,10 @@ rstr_each_line(VALUE str, SEL sel, int argc, VALUE *argv)
  *  call-seq:
  *     str.chars                   => anEnumerator
  *     str.chars {|substr| block } => str
- *  
+ *
  *  Returns an enumerator that gives each character in the string.
  *  If a block is given, it iterates over each character in the string.
- *     
+ *
  *     "foo".chars.to_a   #=> ["f","o","o"]
  */
 
@@ -4868,14 +4868,14 @@ rstr_each_line(VALUE str, SEL sel, int argc, VALUE *argv)
  *  Document-method: each_char
  *  call-seq:
  *     str.each_char {|cstr| block }    => str
- *  
+ *
  *  Passes each character in <i>str</i> to the given block.
- *     
+ *
  *     "hello".each_char {|c| print c, ' ' }
- *     
+ *
  *  <em>produces:</em>
- *     
- *     h e l l o 
+ *
+ *     h e l l o
  */
 
 static VALUE
@@ -4904,13 +4904,13 @@ rstr_each_char(VALUE str, SEL sel)
  *  Document-method: each_byte
  *  call-seq:
  *     str.each_byte {|fixnum| block }    => str
- *  
+ *
  *  Passes each byte in <i>str</i> to the given block.
- *     
+ *
  *     "hello".each_byte {|c| print c, ' ' }
- *     
+ *
  *  <em>produces:</em>
- *     
+ *
  *     104 101 108 108 111
  */
 
@@ -4972,7 +4972,7 @@ rstr_each_codepoint(VALUE str, SEL sel)
  *  call-seq:
  *     str.succ   => new_str
  *     str.next   => new_str
- *  
+ *
  *  Returns the successor to <i>str</i>. The successor is calculated by
  *  incrementing characters starting from the rightmost alphanumeric (or
  *  the rightmost character if there are no alphanumerics) in the
@@ -4980,11 +4980,11 @@ rstr_each_codepoint(VALUE str, SEL sel)
  *  incrementing a letter results in another letter of the same case.
  *  Incrementing nonalphanumerics uses the underlying character set's
  *  collating sequence.
- *     
+ *
  *  If the increment generates a ``carry,'' the character to the left of
  *  it is incremented. This process repeats until there is no carry,
  *  adding an additional character if necessary.
- *     
+ *
  *     "abcd".succ        #=> "abce"
  *     "THX1138".succ     #=> "THX1139"
  *     "<<koala>>".succ   #=> "<<koalb>>"
@@ -5071,7 +5071,7 @@ rstr_succ(VALUE str, SEL sel)
  *  call-seq:
  *     str.succ!   => str
  *     str.next!   => str
- *  
+ *
  *  Equivalent to <code>String#succ</code>, but modifies the receiver in
  *  place.
  */
@@ -5086,20 +5086,20 @@ rstr_succ_bang(VALUE str, SEL sel)
 /*
  *  call-seq:
  *     str.upto(other_str, exclusive=false) {|s| block }   => str
- *  
+ *
  *  Iterates through successive values, starting at <i>str</i> and
  *  ending at <i>other_str</i> inclusive, passing each value in turn to
  *  the block. The <code>String#succ</code> method is used to generate
  *  each value.  If optional second argument exclusive is omitted or is <code>false</code>,
  *  the last value will be included; otherwise it will be excluded.
- *     
+ *
  *     "a8".upto("b6") {|s| print s, ' ' }
  *     for s in "a8".."b6"
  *       print s, ' '
  *     end
- *     
+ *
  *  <em>produces:</em>
- *     
+ *
  *     a8 a9 b0 b1 b2 b3 b4 b5 b6
  *     a8 a9 b0 b1 b2 b3 b4 b5 b6
  */
@@ -5199,7 +5199,7 @@ rstr_transform(VALUE str, SEL sel, VALUE transform_pat)
 /*
  *  call-seq:
  *     str.reverse!   => str
- *  
+ *
  *  Reverses <i>str</i> in place.
  */
 
@@ -5233,9 +5233,9 @@ rstr_reverse_bang(VALUE str, SEL sel)
 /*
  *  call-seq:
  *     str.reverse   => new_str
- *  
+ *
  *  Returns a new string with the characters from <i>str</i> in reverse order.
- *     
+ *
  *     "stressed".reverse   #=> "desserts"
  */
 
@@ -5250,12 +5250,12 @@ rstr_reverse(VALUE str, SEL sel)
 /*
  *  call-seq:
  *     str.count([other_str]+)   => fixnum
- *  
+ *
  *  Each <i>other_str</i> parameter defines a set of characters to count.  The
  *  intersection of these sets defines the characters to count in
  *  <i>str</i>. Any <i>other_str</i> that starts with a caret (^) is
  *  negated. The sequence c1--c2 means all characters between c1 and c2.
- *     
+ *
  *     a = "hello world"
  *     a.count "lo"            #=> 5
  *     a.count "lo", "o"       #=> 2
@@ -5276,7 +5276,7 @@ fill_linear_charset_buffer(char *buf, long bufsize, long *lenp, bool *negatep,
 	if (chars_len > 0 && chars[0] == '^') {
 	    *negatep = true;
 	    pos++;
-	} 
+	}
 	else {
 	    *negatep = false;
 	}
@@ -5303,7 +5303,7 @@ fill_linear_charset_buffer(char *buf, long bufsize, long *lenp, bool *negatep,
 			goto bail;
 		    }
 		    buf[bufpos++] = (char)c;
-		    c++; 
+		    c++;
 		}
 	    }
 	    pos += 2;
@@ -5368,7 +5368,7 @@ create_intersected_charset_table(char *tbl, int argc, VALUE *argv)
     }
 
     for (int i = 0; i < argc; i++) {
-	intersect_charset_table(tbl, argv[i]);	
+	intersect_charset_table(tbl, argv[i]);
     }
 }
 
@@ -5424,7 +5424,7 @@ create_translate_charset_table(char *tbl, VALUE source, VALUE repl)
 	    tbl[(int)source_c] = repl_c;
 	    pos++;
 	}
-    } 
+    }
 }
 
 #define INTERSECT_CHARSET_TABLE_CREATE() \
@@ -5447,13 +5447,13 @@ rstr_count(VALUE str, SEL sel, int argc, VALUE *argv)
 	    count++;
 	}
     }
-    return LONG2NUM(count); 
+    return LONG2NUM(count);
 }
 
 /*
  *  call-seq:
  *     str.delete!([other_str]+)   => str or nil
- *  
+ *
  *  Performs a <code>delete</code> operation in place, returning <i>str</i>, or
  *  <code>nil</code> if <i>str</i> was not modified.
  */
@@ -5489,11 +5489,11 @@ rstr_delete_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 /*
  *  call-seq:
  *     str.delete([other_str]+)   => new_str
- *  
+ *
  *  Returns a copy of <i>str</i> with all characters in the intersection of its
  *  arguments deleted. Uses the same rules for building the set of characters as
  *  <code>String#count</code>.
- *     
+ *
  *     "hello".delete "l","lo"        #=> "heo"
  *     "hello".delete "lo"            #=> "he"
  *     "hello".delete "aeiou", "^e"   #=> "hell"
@@ -5511,7 +5511,7 @@ rstr_delete(VALUE str, SEL sel, int argc, VALUE *argv)
 /*
  *  call-seq:
  *     str.squeeze!([other_str]*)   => str or nil
- *  
+ *
  *  Squeezes <i>str</i> in place, returning either <i>str</i>, or
  *  <code>nil</code> if no changes were made.
  */
@@ -5559,13 +5559,13 @@ rstr_squeeze_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 /*
  *  call-seq:
  *     str.squeeze([other_str]*)    => new_str
- *  
+ *
  *  Builds a set of characters from the <i>other_str</i> parameter(s) using the
  *  procedure described for <code>String#count</code>. Returns a new string
  *  where runs of the same character that occur in this set are replaced by a
  *  single character. If no arguments are given, all runs of identical
  *  characters are replaced by a single character.
- *     
+ *
  *     "yellow moon".squeeze                  #=> "yelow mon"
  *     "  now   is  the".squeeze(" ")         #=> " now is the"
  *     "putters shoot balls".squeeze("m-z")   #=> "puters shot balls"
@@ -5582,7 +5582,7 @@ rstr_squeeze(VALUE str, SEL sel, int argc, VALUE *argv)
 /*
  *  call-seq:
  *     str.tr!(from_str, to_str)   => str or nil
- *  
+ *
  *  Translates <i>str</i> in place, using the same rules as
  *  <code>String#tr</code>. Returns <i>str</i>, or <code>nil</code> if no
  *  changes were made.
@@ -5600,7 +5600,7 @@ translate(VALUE str, VALUE source, VALUE repl, bool sflag)
 
     rstr_modify(str);
 
-    char tbl[0xff]; 
+    char tbl[0xff];
     create_translate_charset_table(tbl, source, repl);
 
     RB_STR_GET_UCHARS(str, chars, chars_len);
@@ -5618,7 +5618,7 @@ translate(VALUE str, VALUE source, VALUE repl, bool sflag)
 //		}
 	    }
 	}
-    } 
+    }
 
     if (!modified) {
 	return Qnil;
@@ -5637,14 +5637,14 @@ rstr_tr_bang(VALUE str, SEL sel, VALUE src, VALUE repl)
 /*
  *  call-seq:
  *     str.tr(from_str, to_str)   => new_str
- *  
+ *
  *  Returns a copy of <i>str</i> with the characters in <i>from_str</i> replaced
  *  by the corresponding characters in <i>to_str</i>. If <i>to_str</i> is
  *  shorter than <i>from_str</i>, it is padded with its last character. Both
  *  strings may use the c1--c2 notation to denote ranges of characters, and
  *  <i>from_str</i> may start with a <code>^</code>, which denotes all
  *  characters except those listed.
- *     
+ *
  *     "hello".tr('aeiou', '*')    #=> "h*ll*"
  *     "hello".tr('^aeiou', '*')   #=> "*e**o"
  *     "hello".tr('el', 'ip')      #=> "hippo"
@@ -5662,7 +5662,7 @@ rstr_tr(VALUE str, SEL sel, VALUE src, VALUE repl)
 /*
  *  call-seq:
  *     str.tr_s!(from_str, to_str)   => str or nil
- *  
+ *
  *  Performs <code>String#tr_s</code> processing on <i>str</i> in place,
  *  returning <i>str</i>, or <code>nil</code> if no changes were made.
  */
@@ -5676,11 +5676,11 @@ rstr_tr_s_bang(VALUE str, SEL sel, VALUE src, VALUE repl)
 /*
  *  call-seq:
  *     str.tr_s(from_str, to_str)   => new_str
- *  
+ *
  *  Processes a copy of <i>str</i> as described under <code>String#tr</code>,
  *  then removes duplicate characters in regions that were affected by the
  *  translation.
- *     
+ *
  *     "hello".tr_s('l', 'r')     #=> "hero"
  *     "hello".tr_s('el', '*')    #=> "h*o"
  *     "hello".tr_s('el', 'hx')   #=> "hhxo"
@@ -5697,7 +5697,7 @@ rstr_tr_s(VALUE str, SEL sel, VALUE src, VALUE repl)
 /*
  *  call-seq:
  *     str.sum(n=16)   => integer
- *  
+ *
  *  Returns a basic <em>n</em>-bit checksum of the characters in <i>str</i>,
  *  where <em>n</em> is the optional <code>Fixnum</code> parameter, defaulting
  *  to 16. The result is simply the sum of the binary value of each character in
@@ -5759,11 +5759,11 @@ rstr_sum(VALUE str, SEL sel, int argc, VALUE *argv)
 /*
  *  call-seq:
  *     str.partition(sep)              => [head, sep, tail]
- *  
+ *
  *  Searches the string for <i>sep</i> and returns the part before
  *  it, the <i>sep</i>, and the part after it.  If <i>sep</i> is not found,
  *  returns <i>str</i> and two empty strings.
- *     
+ *
  *     "hello".partition("l")         #=> ["he", "l", "lo"]
  *     "hello".partition("x")         #=> ["hello", "", ""]
  */
@@ -5813,12 +5813,12 @@ failed:
 /*
  *  call-seq:
  *     str.rpartition(sep)            => [head, sep, tail]
- *  
+ *
  *  Searches <i>sep</i> in the string from the end of the string, and
  *  returns the part before it, the <i>sep</i>, and the part after it.
  *  If <i>sep</i> is not found, returns two empty strings and
  *  <i>str</i>.
- *     
+ *
  *     "hello".rpartition("l")         #=> ["hel", "l", "o"]
  *     "hello".rpartition("x")         #=> ["", "", "hello"]
  */
@@ -5866,7 +5866,7 @@ failed:
 /*
  *  call-seq:
  *     str.crypt(other_str)   => new_str
- *  
+ *
  *  Applies a one-way cryptographic hash to <i>str</i> by invoking the standard
  *  library function <code>crypt</code>. The argument is the salt string, which
  *  should be two characters long, each character drawn from
@@ -6083,7 +6083,7 @@ Init_String(void)
     rb_objc_install_method2((Class)rb_cRubyString, "getCharacters:range:",
 	    (IMP)rstr_imp_getCharactersRange);
     rb_objc_install_method2((Class)rb_cRubyString,
-	    "replaceCharactersInRange:withString:", 
+	    "replaceCharactersInRange:withString:",
 	    (IMP)rstr_imp_replaceCharactersInRangeWithString);
 
     rb_fs = Qnil;
@@ -6258,7 +6258,7 @@ rb_enc_str_new(const char *cstr, long len, rb_encoding_t *enc)
 {
     // XXX should we assert that enc is single byte?
     if (enc == NULL) {
-	// This function can be called with a NULL encoding. 
+	// This function can be called with a NULL encoding.
 	enc = rb_encodings[ENCODING_UTF8];
     }
     else {
@@ -6467,7 +6467,7 @@ rb_str_append_uchar(VALUE str, UChar c)
     }
     else {
 	CFStringAppendCharacters((CFMutableStringRef)str, &c, 1);
-    }	
+    }
 }
 
 void
@@ -6829,16 +6829,16 @@ rstr_new_path(const char *path)
 {
     // XXX this should be rewritten using ICU (utrans.h?) to avoid creating
     // these 2 temporary CFStrings.
-    CFStringRef tmp = CFStringCreateWithFileSystemRepresentation(NULL, path); 
+    CFStringRef tmp = CFStringCreateWithFileSystemRepresentation(NULL, path);
     assert(tmp != NULL);
 
-    CFMutableStringRef tmp2 = CFStringCreateMutableCopy(NULL, 0, tmp); 
-    assert(tmp2 != NULL); 
-    CFRelease(tmp); 
-    CFStringNormalize(tmp2, kCFStringNormalizationFormC); 
+    CFMutableStringRef tmp2 = CFStringCreateMutableCopy(NULL, 0, tmp);
+    assert(tmp2 != NULL);
+    CFRelease(tmp);
+    CFStringNormalize(tmp2, kCFStringNormalizationFormC);
 
     rb_str_t *str = str_new_from_cfstring(tmp2);
     CFRelease(tmp2);
- 
+
     return (VALUE)str;
 }
