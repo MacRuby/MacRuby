@@ -3413,14 +3413,13 @@ rescan_args:
 	can_interpret = true;
     }
 
-    if (debug_mode
-	    || (!super_call
-		&& (sel == selEval
-		    || sel == selInstanceEval
-		    || sel == selClassEval
-		    || sel == selModuleEval
-		    || sel == selNesting
-		    || sel == selConstants))) {
+    if (!super_call
+	&& (sel == selEval
+	    || sel == selInstanceEval
+	    || sel == selClassEval
+	    || sel == selModuleEval
+	    || sel == selNesting
+	    || sel == selConstants)) {
 	compile_set_current_outer();
     }
 
