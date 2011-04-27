@@ -96,6 +96,8 @@ extern SEL selClassEval;
 extern SEL selModuleEval;
 extern SEL selLocalVariables;
 extern SEL selBinding;
+extern SEL selNesting;
+extern SEL selConstants;
 extern SEL selEach;
 extern SEL selEqq;
 extern SEL selDup;

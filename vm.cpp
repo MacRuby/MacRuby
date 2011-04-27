@@ -4148,14 +4148,11 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
     Class old_class = GET_VM()->get_current_class();
     bool old_dynamic_class = RoxorCompiler::shared->is_dynamic_class();
     rb_vm_outer_t *old_outer_stack = vm->get_outer_stack();
-    rb_vm_outer_t *old_current_outer = vm->get_current_outer();
 
     vm->set_current_class((Class)klass);
-    vm->set_outer_stack(old_current_outer);
-    bool pushed = false;
+    vm->set_outer_stack(vm->get_current_outer());
     if (klass != 0 && !NIL_P(klass)) {
 	vm->push_outer((Class)klass);
-	pushed = true;
     }
     RoxorCompiler::shared->set_dynamic_class(true);
 
@@ -4167,29 +4164,22 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 	Class old_class;
 	VALUE old_top_object;
 	rb_vm_outer_t *old_outer_stack;
-	rb_vm_outer_t *old_current_outer;
 	bool pushed;
-	Finally(RoxorVM *_vm, bool _dynamic_class, Class _class, VALUE _obj, rb_vm_outer_t *_outer_stack, rb_vm_outer_t *_current_outer, bool _pushed) {
+	Finally(RoxorVM *_vm, bool _dynamic_class, Class _class, VALUE _obj, rb_vm_outer_t *_outer_stack) {
 	    vm = _vm;
 	    old_dynamic_class = _dynamic_class;
 	    old_class = _class;
 	    old_top_object = _obj;
 	    old_outer_stack = _outer_stack;
-	    old_current_outer = _current_outer;
-	    pushed = _pushed;
 	}
 	~Finally() { 
 	    RoxorCompiler::shared->set_dynamic_class(old_dynamic_class);
 	    vm->set_current_top_object(old_top_object);
-	    if (pushed) {
-		vm->pop_outer();
-	    }
-	    vm->set_current_outer(old_current_outer);
 	    vm->set_outer_stack(old_outer_stack);
 	    vm->set_current_class(old_class);
 	    vm->pop_current_block();
 	}
-    } finalizer(vm, old_dynamic_class, old_class, old_top_object, old_outer_stack, old_current_outer, pushed);
+    } finalizer(vm, old_dynamic_class, old_class, old_top_object, old_outer_stack);
 
     return rb_vm_run(fname, node, binding, inside_eval);
 #endif
@@ -5440,15 +5430,12 @@ rb_vm_load(const char *fname_str, int wrap)
 	RoxorVM *vm;
 	Class old_class;
 	rb_vm_outer_t *old_outer_stack;
-	rb_vm_outer_t *old_current_outer;
 	Finally(RoxorVM *_vm) {
 	    vm = _vm;
 	    old_class = vm->get_current_class();
 	    old_outer_stack = vm->get_outer_stack();
-	    old_current_outer = vm->get_current_outer();
 	}
 	~Finally() { 
-	    vm->set_current_outer(old_current_outer);
 	    vm->set_outer_stack(old_outer_stack);
 	    vm->set_current_class(old_class);
 	}
@@ -5456,7 +5443,6 @@ rb_vm_load(const char *fname_str, int wrap)
 
     vm->set_current_class(NULL);
     vm->set_outer_stack(NULL);
-    vm->set_current_outer(NULL);
 
     rb_vm_run(fname_str, node, NULL, false);
 }

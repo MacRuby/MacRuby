@@ -2951,8 +2951,6 @@ RoxorCompiler::compile_scope(NODE *node)
 	    current_arity = arity;
 	}
 
-	compile_set_current_outer();
-    
 	DEBUG_LEVEL_INC();
 	val = compile_node(node->nd_body);
 	DEBUG_LEVEL_DEC();
@@ -3413,6 +3411,17 @@ rescan_args:
     }
     else {
 	can_interpret = true;
+    }
+
+    if (debug_mode
+	    || (!super_call
+		&& (sel == selEval
+		    || sel == selInstanceEval
+		    || sel == selClassEval
+		    || sel == selModuleEval
+		    || sel == selNesting
+		    || sel == selConstants))) {
+	compile_set_current_outer();
     }
 
     // Can we optimize the call?
@@ -4050,7 +4059,6 @@ RoxorCompiler::compile_node0(NODE *node)
 
 			GlobalVariable *old_outer_stack = outer_stack;
 			compile_push_outer(classVal);
-			compile_set_current_outer();
 
 			current_block_chain = false;
 			dynamic_class = false;
@@ -4107,14 +4115,12 @@ RoxorCompiler::compile_node0(NODE *node)
 			bb = new_rescue_invoke_bb;
 			compile_landing_pad_header();
 			compile_pop_outer();
-			compile_set_current_outer();
 			compile_set_current_scope(classVal, defaultScope);
 			compile_rethrow_exception();
 
 			// The normal block - restore context.
 			bb = normal_bb;
 			compile_pop_outer();
-			compile_set_current_outer();
 			compile_set_current_scope(classVal, defaultScope);
 
 			dynamic_class = old_dynamic_class;

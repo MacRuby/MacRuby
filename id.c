@@ -88,6 +88,8 @@ Init_id(void)
     selModuleEval = sel_registerName("module_eval:");
     selLocalVariables = sel_registerName("local_variables");
     selBinding = sel_registerName("binding");
+    selNesting = sel_registerName("nesting");
+    selConstants = sel_registerName("constants");
     selEach = sel_registerName("each");
     selEqq = sel_registerName("===:");
     selDup = sel_registerName("dup");
