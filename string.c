@@ -5939,6 +5939,21 @@ rstr_imp_replaceCharactersInRangeWithString(void *rcv, SEL sel, CFRange range,
     str_splice(RSTR(rcv), range.location, range.length, spat);
 }
 
+static VALUE
+rb_bstr_new_using_encoding(const uint8_t *bytes, long len, int encoding)
+{
+    rb_str_t *str = str_alloc(rb_cRubyString);
+    str_replace_with_bytes(str, (char *)bytes, len,
+	    rb_encodings[encoding]);
+    return (VALUE)str;
+}
+
+static VALUE
+rb_bstr_new_utf8_with_data(const uint8_t *bytes, long len)
+{
+    return rb_bstr_new_using_encoding(bytes, len, ENCODING_UTF8);
+}
+
 /*
  *  call-seq:
  *     data.to_str => String
@@ -5951,7 +5966,7 @@ static VALUE
 nsdata_to_str(VALUE data, SEL sel)
 {
     CFDataRef dataref = (CFDataRef)data;
-    return rb_bstr_new_with_data2(CFDataGetBytePtr(dataref),
+    return rb_bstr_new_utf8_with_data(CFDataGetBytePtr(dataref),
 	    CFDataGetLength(dataref));
 }
 
@@ -6165,21 +6180,9 @@ rb_bstr_bytes(VALUE str)
 }
 
 VALUE
-rb_bstr_new_with_data2(const uint8_t *bytes, long len)
-{
-    rb_str_t *str = str_alloc(rb_cRubyString);
-    str_replace_with_bytes(str, (char *)bytes, len,
-	    rb_encodings[ENCODING_UTF8]);
-    return (VALUE)str;
-}
-
-VALUE
 rb_bstr_new_with_data(const uint8_t *bytes, long len)
 {
-    rb_str_t *str = str_alloc(rb_cRubyString);
-    str_replace_with_bytes(str, (char *)bytes, len,
-	    rb_encodings[ENCODING_BINARY]);
-    return (VALUE)str;
+    return rb_bstr_new_using_encoding(bytes, len, ENCODING_BINARY);
 }
 
 VALUE

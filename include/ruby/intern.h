@@ -533,7 +533,6 @@ VALUE rb_str_bstr(VALUE str);
 
 // Byte strings APIs. Use this only when dealing with raw data.
 VALUE rb_bstr_new(void);
-VALUE rb_bstr_new_with_data2(const uint8_t *bytes, long len);
 VALUE rb_bstr_new_with_data(const uint8_t *bytes, long len);
 uint8_t *rb_bstr_bytes(VALUE str);
 void rb_bstr_concat(VALUE str, const uint8_t *bytes, long len);
