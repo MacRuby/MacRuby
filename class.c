@@ -24,18 +24,19 @@ extern st_table *rb_class_tbl;
 extern VALUE rb_cRubyObject;
 extern VALUE rb_cModuleObject;
 
+static bool
+rb_class_hidden(VALUE klass)
+{
+    return klass == rb_cModuleObject || RCLASS_SINGLETON(klass);
+}
+
 VALUE
 rb_class_super(VALUE klass)
 {
     if (klass == 0) {
 	return 0;
     }
-    VALUE super = (VALUE)class_getSuperclass((Class)klass);
-    if (super == rb_cModuleObject) {
-	// This is an internal class.
-	return 0;
-    }
-    return super;
+    return (VALUE)class_getSuperclass((Class)klass);
 }
 
 void
@@ -129,7 +130,7 @@ static VALUE
 rb_obj_superclass(VALUE klass, SEL sel)
 {
     VALUE cl = RCLASS_SUPER(klass);
-    while (RCLASS_SINGLETON(cl)) {
+    while (rb_class_hidden(cl)) {
 	cl = RCLASS_SUPER(cl);
     }
     return rb_class_real(cl, true);
@@ -766,12 +767,13 @@ rb_mod_ancestors_nocopy(VALUE mod)
 VALUE
 rb_mod_ancestors(VALUE mod)
 {
-    // This method should return a new array without singleton classes.
+    // This method should return a new array without classes that should be
+    // ignored.
     VALUE ary = rb_mod_ancestors_nocopy(mod);
     VALUE filtered = rb_ary_new();
     for (int i = 0, count = RARRAY_LEN(ary); i < count; i++) {
 	VALUE p = RARRAY_AT(ary, i);
-	if (!RCLASS_SINGLETON(p)) {
+	if (!rb_class_hidden(p)) {
 	    rb_ary_push(filtered, p);
 	}
     }
