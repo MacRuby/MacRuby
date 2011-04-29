@@ -2460,11 +2460,6 @@ rb_vm_copy_method(Class klass, Method m)
 bool
 RoxorCore::copy_method(Class klass, Method m)
 {
-    rb_vm_method_node_t *node = method_node_get(m);
-    if (node == NULL) {
-	// Only copy pure-Ruby methods.
-	return false;
-    }
     SEL sel = method_getName(m);
 
 #if ROXOR_VM_DEBUG
@@ -2479,12 +2474,14 @@ RoxorCore::copy_method(Class klass, Method m)
     class_replaceMethod(klass, sel, method_getImplementation(m),
 	    method_getTypeEncoding(m));
 
-    Method m2 = class_getInstanceMethod(klass, sel);
-    assert(m2 != NULL);
-    assert(method_getImplementation(m2) == method_getImplementation(m));
-    rb_vm_method_node_t *node2 = method_node_get(m2, true);
-    memcpy(node2, node, sizeof(rb_vm_method_node_t));
-
+    rb_vm_method_node_t *node = method_node_get(m);
+    if (node != NULL) {
+	Method m2 = class_getInstanceMethod(klass, sel);
+	assert(m2 != NULL);
+	assert(method_getImplementation(m2) == method_getImplementation(m));
+	rb_vm_method_node_t *node2 = method_node_get(m2, true);
+	memcpy(node2, node, sizeof(rb_vm_method_node_t));
+    }
     return true;
 }
 
