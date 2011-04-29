@@ -30,7 +30,12 @@ rb_class_super(VALUE klass)
     if (klass == 0) {
 	return 0;
     }
-    return (VALUE)class_getSuperclass((Class)klass);
+    VALUE super = (VALUE)class_getSuperclass((Class)klass);
+    if (super == rb_cModuleObject) {
+	// This is an internal class.
+	return 0;
+    }
+    return super;
 }
 
 void
