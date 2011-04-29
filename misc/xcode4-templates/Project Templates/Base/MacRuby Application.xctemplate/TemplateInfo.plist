@@ -18,6 +18,8 @@
 			<dict>
 				<key>GCC_ENABLE_OBJC_GC</key>
 				<string>required</string>
+				<key>ARCHS</key>
+				<string>x86_64</string>
 			</dict>
 			<!-- 
 			Don't forget to include MacRuby
@@ -29,8 +31,6 @@
 			<array>
 				<string>Cocoa</string>
 				<string>MacRuby</string>
-				<key>ARCHS</key>
-				<string>x86_64</string>
 			</array>
 		</dict>
 		<dict>
