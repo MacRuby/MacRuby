@@ -32,6 +32,7 @@ VALUE rb_cNSObject;
 VALUE rb_cObject;
 VALUE rb_cRubyObject;
 VALUE rb_cModule;
+VALUE rb_cModuleObject;
 VALUE rb_cClass;
 VALUE rb_cData;
 
@@ -3057,6 +3058,13 @@ Init_Object(void)
     RCLASS_SET_VERSION_FLAG(rb_cRubyObject, RCLASS_IS_OBJECT_SUBCLASS);
     rb_define_object_special_methods(rb_cRubyObject);
     rb_objc_install_NSObject_special_methods((Class)rb_cRubyObject);
+
+    // Every instance of the Module class inherits from this class, which is
+    // a duplicate of NSObject. This is because the CRuby standard does not
+    // make Module instances inherit from Object (and Kernel).
+    rb_cModuleObject = (VALUE)objc_duplicateClass((Class)rb_cObject,
+	    "__ModuleObject", 0);
+    assert(rb_cModuleObject != 0);
 
     eqlSel = sel_registerName("eql?:");
 

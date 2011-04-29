@@ -516,41 +516,44 @@ struct rb_objc_recorder_context {
 static int
 rb_objc_yield_classes(VALUE of)
 {
-    int i, count, rcount;
-    Class *buf;
-
-    count = objc_getClassList(NULL, 0);
+    const int count = objc_getClassList(NULL, 0);
     assert(count > 0);
 
-    buf = (Class *)alloca(sizeof(Class) * count);
+    Class *buf = (Class *)alloca(sizeof(Class) * count);
     objc_getClassList(buf, count);
+    const bool only_modules = of == rb_cModule;
 
-    for (i = rcount = 0; i < count; i++) {
-	Class sk, k = buf[i];
-	bool nsobject_based;
-
-	if (class_getName(k)[0] == '_')
+    int rcount = 0;
+    for (int i = 0; i < count; i++) {
+	Class k = buf[i];
+	if (class_getName(k)[0] == '_') {
 	    continue;
+	}
 
-	if (of == rb_cModule && !RCLASS_MODULE(k))
-	    continue;
-
-	nsobject_based = false;
-	sk = k;
-	do {
-	    sk = (Class)RCLASS_SUPER(sk);
-	    if (sk == (Class)rb_cNSObject) {
-		nsobject_based = true;
-		break;
+	if (only_modules) {
+	    if (!RCLASS_MODULE(k)) {
+		continue;
 	    }
 	}
-	while (sk != NULL);	
-
-	if (nsobject_based) {
-	    rb_yield((VALUE)k);
-	    RETURN_IF_BROKEN();
-	    rcount++;
+	else {
+	    bool nsobject_based = false;
+	    Class sk = k;
+	    do {
+		sk = (Class)RCLASS_SUPER(sk);
+		if (sk == (Class)rb_cNSObject) {
+		    nsobject_based = true;
+		    break;
+		}
+	    }
+	    while (sk != NULL);
+	    if (!nsobject_based) {
+		continue;
+	    }
 	}
+
+	rb_yield((VALUE)k);
+	RETURN_IF_BROKEN();
+	rcount++;
     }
 
     return rcount;

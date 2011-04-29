@@ -87,7 +87,8 @@ rb_export_method(VALUE klass, ID name, ID noex)
 
     if (!rb_vm_lookup_method2((Class)klass, name, &sel, NULL, &node)) {
 	if (TYPE(klass) != T_MODULE
-	    || !rb_vm_lookup_method2((Class)rb_cObject, name, &sel, NULL, &node)) {
+		|| !rb_vm_lookup_method2((Class)rb_cObject, name, &sel, NULL,
+		    &node)) {
 	    rb_print_undef(klass, name, 0);
 	}
     }
@@ -112,28 +113,14 @@ rb_export_method(VALUE klass, ID name, ID noex)
 	    break;
     }
 
-    VALUE sklass = RCLASS_SUPER(klass);
-    if (sklass != 0) {
-	IMP imp;
-	rb_vm_method_node_t *snode;
-	if (rb_vm_lookup_method((Class)sklass, sel, &imp, &snode)
-		&& imp == node->objc_imp) {
-	    // The method actually exists on a superclass, we need to duplicate
-	    // it to the current class, keeping the same flags.
-	    if (snode != NULL) {
-		if (snode->flags & VM_METHOD_EMPTY) {
-		    flags |= VM_METHOD_EMPTY;
-		}
-		if (snode->flags & VM_METHOD_FBODY) {
-		    flags |= VM_METHOD_FBODY;
-		}
-	    }
+    if (node->flags != flags) {
+	if (node->klass == (Class)klass) {
+	    node->flags = flags;
+	}
+	else {
 	    rb_vm_define_method2((Class)klass, sel, node, flags, false);
-	    return;
 	}
     }
-
-    node->flags = flags;
 }
 
 void
@@ -645,16 +632,19 @@ rb_mod_modfunc(VALUE module, SEL sel, int argc, VALUE *argv)
 
     for (int i = 0; i < argc; i++) {
 	ID id = rb_to_id(argv[i]);
-	IMP imp;
-	rb_vm_method_node_t *node;
-	SEL sel;
+	IMP imp = NULL;
+	rb_vm_method_node_t *node = NULL;
+	SEL sel = 0;
 
-	if (!rb_vm_lookup_method2((Class)module, id, &sel, &imp, &node)) {
-	    // Methods are checked in set_method_visibility().
+	if (rb_vm_lookup_method2((Class)module, id, &sel, &imp, &node)
+		|| (TYPE(module) == T_MODULE
+		    && rb_vm_lookup_method2((Class)rb_cObject, id, &sel,
+			&imp, &node))) {
+	    rb_vm_define_method2(*(Class *)module, sel, node, -1, false);
+	}
+	else {
 	    rb_bug("undefined method `%s'; can't happen", rb_id2name(id));
 	}
-
-	rb_vm_define_method2(*(Class *)module, sel, node, -1, false);
     }
 
     return module;

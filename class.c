@@ -22,6 +22,7 @@
 
 extern st_table *rb_class_tbl;
 extern VALUE rb_cRubyObject;
+extern VALUE rb_cModuleObject;
 
 VALUE
 rb_class_super(VALUE klass)
@@ -522,7 +523,8 @@ VALUE
 rb_define_module_id(ID id)
 {
     const char *name = id == 0 ? NULL : rb_id2name(id);
-    VALUE mdl = rb_objc_alloc_class(name, rb_cObject, T_MODULE, rb_cModule);
+    VALUE mdl = rb_objc_alloc_class(name, rb_cModuleObject, T_MODULE,
+	    rb_cModule);
     if (rb_mKernel != 0 && id == 0) {
 	// Because Module#initialize can accept a block.
 	rb_objc_define_method(*(VALUE *)mdl, "initialize",

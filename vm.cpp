@@ -1603,16 +1603,24 @@ vm_alias(VALUE outer, ID name, ID def)
     VALUE dest = outer;
     Class klass = (Class)outer;
     Class dest_klass = (Class)dest;
+    const bool klass_is_mod = TYPE(klass) == T_MODULE;
 
     const char *def_str = rb_id2name(def);
     SEL sel = sel_registerName(def_str);
     Method def_method1 = class_getInstanceMethod(klass, sel);
+    if (def_method1 == NULL && klass_is_mod) {
+	def_method1 = class_getInstanceMethod((Class)rb_cObject, sel);
+    }
+
     Method def_method2 = NULL;
     if (def_str[strlen(def_str) - 1] != ':') {
 	char tmp[100];
 	snprintf(tmp, sizeof tmp, "%s:", def_str);
 	sel = sel_registerName(tmp);
  	def_method2 = class_getInstanceMethod(klass, sel);
+	if (def_method2 == NULL && klass_is_mod) {
+	    def_method2 = class_getInstanceMethod((Class)rb_cObject, sel);
+	}
     }
 
     if (def_method1 == NULL && def_method2 == NULL) {
