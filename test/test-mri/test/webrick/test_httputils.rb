@@ -60,6 +60,7 @@ class TestWEBrickHTTPUtils < Test::Unit::TestCase
   end
 
   def test_escape
+    assert_equal("/abcdefghijklmnopqrstuvwxyz", escape("/abcdefghijklmnopqrstuvwxyz"))
     assert_equal("/foo/bar", escape("/foo/bar"))
     assert_equal("/~foo/bar", escape("/~foo/bar"))
     assert_equal("/~foo%20bar", escape("/~foo bar"))
