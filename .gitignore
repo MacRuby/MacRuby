@@ -12,7 +12,7 @@
 *~
 .#*
 *.sw[po]
-tags
+/tags
 GPATH
 GRTAGS
 GSYMS
