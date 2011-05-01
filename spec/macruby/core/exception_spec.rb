@@ -15,5 +15,6 @@ describe "A Ruby exception" do
       raise 'foo'
     end
     TestException.catchRubyException(o).should == 1
+    $!.should == nil
   end
 end

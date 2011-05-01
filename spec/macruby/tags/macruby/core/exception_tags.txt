@@ -1,0 +1,1 @@
+fails:A Ruby exception can be catched from Objective-C
