@@ -1075,8 +1075,8 @@ wait_connectable(int fd)
     struct wait_connectable_arg *arg;
 
     arg = (void *)xmalloc(sizeof(struct wait_connectable_arg));
-    arg->fds_w = (rb_fdset_t *)xmalloc(sizeof(rb_fdset_t));
-    arg->fds_e = (rb_fdset_t *)xmalloc(sizeof(rb_fdset_t));
+    GC_WB(&arg->fds_w, xmalloc(sizeof(rb_fdset_t)));
+    GC_WB(&arg->fds_e, xmalloc(sizeof(rb_fdset_t)));
     rb_fd_init(arg->fds_w);
     rb_fd_init(arg->fds_e);
 #ifdef HAVE_RB_FD_INIT

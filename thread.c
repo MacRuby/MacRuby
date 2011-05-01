@@ -945,7 +945,10 @@ rb_fd_init(volatile rb_fdset_t *fds)
 void
 rb_fd_term(rb_fdset_t *fds)
 {
-    if (fds->fdset) xfree(fds->fdset);
+    if (fds->fdset != NULL) {
+	xfree(fds->fdset);
+	fds->fdset = NULL;
+    }
     fds->maxfd = 0;
     fds->fdset = 0;
 }
