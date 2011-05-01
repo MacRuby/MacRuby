@@ -4192,6 +4192,49 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 #endif
 }
 
+extern "C"
+VALUE
+rb_vm_eval_string(VALUE self, VALUE klass, VALUE src, rb_vm_binding_t *binding,
+	const char *file, const int line)
+{
+#if MACRUBY_STATIC
+    rb_raise(rb_eRuntimeError,
+	    "evaluating strings is not supported in MacRuby static");
+#else
+    RoxorVM *vm = GET_VM();
+    bool old_parse_in_eval = vm->get_parse_in_eval();
+    vm->set_parse_in_eval(true);
+    if (binding != NULL) {
+	// Binding must be added because the parser needs it.
+        vm->push_current_binding(binding);
+    }
+    VALUE old_errinfo = vm->get_errinfo();
+    vm->set_errinfo(Qnil);
+
+    NODE *node = rb_compile_string(file, src, line);
+
+    VALUE errinfo = vm->get_errinfo();
+    vm->set_errinfo(old_errinfo);
+    if (binding != NULL) {
+	// We remove the binding now but we still pass it to the VM, which
+	// will use it for compilation.
+        vm->pop_current_binding();
+    }
+    vm->set_parse_in_eval(old_parse_in_eval);
+
+    if (node == NULL) {
+	if (errinfo != Qnil) {
+            rb_vm_raise(errinfo);
+	}
+	else {
+	    rb_raise(rb_eSyntaxError, "compile error");
+	}
+    }
+
+    return rb_vm_run_under(klass, self, file, node, binding, true);
+#endif
+}
+
 extern VALUE rb_progname;
 extern "C" void rb_vm_aot_load_bs_files(VALUE);
 
