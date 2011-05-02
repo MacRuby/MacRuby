@@ -2746,11 +2746,11 @@ rb_io_init_copy(VALUE dest, SEL sel, VALUE origin)
     rb_io_t *dest_io = ExtractIOStruct(dest);
     rb_io_t *origin_io = ExtractIOStruct(origin);
 
-    rb_io_check_closed(origin_io);
     if (dest_io == origin_io) {
 	return dest;
     }
 
+    rb_io_check_closed(origin_io);
     if (origin_io->fd == -1) {
 	rb_raise(rb_eRuntimeError,
 		"cannot copy from non file descriptor based IO");
