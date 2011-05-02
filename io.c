@@ -2762,6 +2762,16 @@ rb_io_init_copy(VALUE dest, SEL sel, VALUE origin)
     }
     io_replace_streams(fd, dest_io, origin_io);
 
+    if (origin_io->fd != origin_io->write_fd) {
+	const int write_fd = dup(origin_io->write_fd);
+	if (write_fd < 0) {
+	    rb_sys_fail("dup() failed");
+	}
+	dest_io->write_fd = write_fd;
+	dest_io->pid = origin_io->pid;
+	dest_io->mode = origin_io->mode;
+    }
+
     return dest;
 }
 
