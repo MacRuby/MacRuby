@@ -146,17 +146,12 @@ vm_get_const(VALUE outer, uint64_t outer_mask, void *cache_p, ID path,
     rb_vm_outer_t *outer_stack = (rb_vm_outer_t *)outer_stack_p;
     const bool lexical_lookup = (flags & CONST_LOOKUP_LEXICAL);
     const bool dynamic_class = (flags & CONST_LOOKUP_DYNAMIC_CLASS);
-    const bool inside_eval = (flags & CONST_LOOKUP_INSIDE_EVAL);
 
     if (dynamic_class) {
 	Class k = rb_vm_get_current_class();
 	if (lexical_lookup && k != NULL) {
 	    outer = (VALUE)k;
 	}
-    }
-
-    if (inside_eval) {
-	outer_stack = rb_vm_get_outer_stack();
     }
 
     VALUE val;

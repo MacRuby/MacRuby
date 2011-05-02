@@ -1460,9 +1460,8 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
     assert(path > 0);
     rb_vm_check_if_module(outer);
 
-    if (dynamic_class || (flags & DEFINE_INSIDE_EVAL)) {
-	rb_vm_outer_t *o =
-	    (flags & DEFINE_INSIDE_EVAL) ? rb_vm_get_outer_stack() : outer_stack;
+    if (flags & DEFINE_OUTER) {
+	rb_vm_outer_t *o = outer_stack;
 	while (o != NULL && o->pushed_by_eval) {
 	    o = o->outer;
 	}

@@ -1634,9 +1634,6 @@ RoxorCompiler::compile_const(ID id, Value *outer)
     if (dynamic_class) {
 	flags |= CONST_LOOKUP_DYNAMIC_CLASS;
     }
-    if (inside_eval) {
-	flags |= CONST_LOOKUP_INSIDE_EVAL;
-    }
 
     Value *args[] = {
 	outer,
@@ -4023,9 +4020,6 @@ RoxorCompiler::compile_node0(NODE *node)
 		    if (nd_type(node) == NODE_MODULE) {
 			flags |= DEFINE_MODULE;
 		    }
-		    if (inside_eval) {
-			flags |= DEFINE_INSIDE_EVAL;
-		    }
 
 		    Value *args[] = {
 			compile_id(path),
@@ -5031,6 +5025,14 @@ RoxorCompiler::compile_main_function(NODE *node, bool *can_interpret_p)
     should_interpret = true;
     can_interpret = false;
 
+    rb_vm_outer_t *o = rb_vm_get_outer_stack();
+    if (o != NULL) {
+	outer_stack = new GlobalVariable(*RoxorCompiler::module, PtrTy, false,
+					 GlobalValue::InternalLinkage,
+					 compile_const_pointer(o), "");
+	assert(outer_stack != NULL);
+    }
+    
     Value *val = compile_node(node);
     assert(Function::classof(val));
     Function *func =  cast<Function>(val);
