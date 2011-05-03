@@ -103,6 +103,6 @@ assert '42', %{
 }
 
 assert '42', %{
-  def foo(&b); b.call; end
-  method(:foo).to_proc.call(&proc{p 42})
+  def foo(&b); p 42 if b.nil?; end
+  method(:foo).to_proc.call(&proc{})
 }
