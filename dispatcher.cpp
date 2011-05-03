@@ -1215,7 +1215,8 @@ block_call:
     if (b->flags & VM_BLOCK_METHOD) {
 	rb_vm_method_t *m = (rb_vm_method_t *)b->imp;
 	return rb_vm_dispatch(vm, (struct mcache *)m->cache, 0, m->recv,
-		(Class)m->oclass, m->sel, NULL, DISPATCH_FCALL, argc, argv);
+		(Class)m->oclass, m->sel, GET_VM()->current_block(),
+		DISPATCH_FCALL, argc, argv);
     }
     return __rb_vm_bcall(self, sel, (VALUE)b->dvars, b, b->imp, b->arity,
 	    argc, argv);
