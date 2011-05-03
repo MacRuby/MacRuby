@@ -69,7 +69,7 @@ assert ':ok', %{
       p :ok
     end
   end
-}, :known_bug => true
+}
 
 assert ':ok', %{
   module A
