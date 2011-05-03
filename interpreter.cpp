@@ -126,6 +126,10 @@ RoxorInterpreter::interpret_call(CallInst *call)
 	rb_vm_set_current_outer(outer_stack);
 	return Qnil;
     }
+    else if (called == RoxorCompiler::shared->getBlockFunc) {
+	VALUE block = value_as(call_arg(call, 0), VALUE);
+	return (VALUE)vm_get_block(block);
+    }
 
     oops("unrecognized call instruction:", call);
 }
