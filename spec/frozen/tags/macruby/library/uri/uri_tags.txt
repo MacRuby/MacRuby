@@ -1,1 +1,2 @@
 fails:the URI method returns the argument if it is a URI object
+fails:the URI method does not add a URI method to Object instances
