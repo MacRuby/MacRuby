@@ -1,1 +1,0 @@
-fails:Module#method_defined? does not search Object or Kernel when called on a module
