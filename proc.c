@@ -1632,6 +1632,7 @@ Init_Binding(void)
     rb_vm_binding_t *binding = (rb_vm_binding_t *)xmalloc(
 	    sizeof(rb_vm_binding_t));
     GC_WB(&binding->self, rb_vm_top_self());
+    binding->outer_stack = NULL;
     rb_define_global_const("TOPLEVEL_BINDING",
 	    rb_binding_new_from_binding(binding));
 }

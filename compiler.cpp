@@ -1363,11 +1363,14 @@ RoxorCompiler::compile_binding(void)
 {
     if (pushBindingFunc == NULL) {
 	// void rb_vm_push_binding(VALUE self, rb_vm_block_t *current_block,
-	// 	rb_vm_binding_t *top_binding, rb_vm_var_uses **parent_var_uses,
-	//	int lvars_size, ...);
+	// 	rb_vm_binding_t *top_binding, unsigned char dynamic_class,
+	//      rb_vm_outer_t *outer_stack, rb_vm_var_uses **parent_var_uses,
+	// 	int lvars_size, ...);
 	std::vector<const Type *> types;
 	types.push_back(RubyObjTy);
 	types.push_back(PtrTy);
+	types.push_back(PtrTy);
+	types.push_back(Int8Ty);
 	types.push_back(PtrTy);
 	types.push_back(PtrPtrTy);
 	types.push_back(Int32Ty);
@@ -1381,6 +1384,8 @@ RoxorCompiler::compile_binding(void)
     params.push_back(running_block == NULL
 	    ? compile_const_pointer(NULL) : running_block);
     params.push_back(compile_const_pointer(rb_vm_current_binding()));
+    params.push_back(ConstantInt::get(Int8Ty, dynamic_class ? 1 : 0));
+    params.push_back(compile_outer_stack());
     if (current_var_uses == NULL) {
 	// there is no local variables in this scope
 	params.push_back(compile_const_pointer_to_pointer(NULL));

@@ -3279,13 +3279,14 @@ push_local(rb_vm_local_t **l, ID name, VALUE *value)
 extern "C"
 rb_vm_binding_t *
 rb_vm_create_binding(VALUE self, rb_vm_block_t *current_block,
-	rb_vm_binding_t *top_binding, int lvars_size, va_list lvars,
-	bool vm_push)
+	rb_vm_binding_t *top_binding, rb_vm_outer_t *outer_stack, 
+	int lvars_size, va_list lvars, bool vm_push)
 {
     rb_vm_binding_t *binding =
 	(rb_vm_binding_t *)xmalloc(sizeof(rb_vm_binding_t));
     GC_WB(&binding->self, self);
     GC_WB(&binding->next, top_binding);
+    binding->outer_stack = outer_stack;
 
     rb_vm_local_t **l = &binding->locals;
 
@@ -3313,13 +3314,17 @@ rb_vm_create_binding(VALUE self, rb_vm_block_t *current_block,
 extern "C"
 void
 rb_vm_push_binding(VALUE self, rb_vm_block_t *current_block,
-	rb_vm_binding_t *top_binding, rb_vm_var_uses **parent_var_uses,
+	rb_vm_binding_t *top_binding, unsigned char dynamic_class,
+	rb_vm_outer_t *outer_stack, rb_vm_var_uses **parent_var_uses,
 	int lvars_size, ...)
 {
+    if (dynamic_class) {
+	outer_stack = GET_VM()->get_outer_stack();
+    }
     va_list lvars;
     va_start(lvars, lvars_size);
     rb_vm_binding_t *binding = rb_vm_create_binding(self, current_block,
-	    top_binding, lvars_size, lvars, true);
+	    top_binding, outer_stack, lvars_size, lvars, true);
     va_end(lvars);
 
     rb_vm_add_binding_lvar_use(binding, current_block, parent_var_uses);
@@ -4147,6 +4152,13 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
     VALUE old_top_object = vm->get_current_top_object();
     if (binding != NULL) {
 	self = binding->self;
+	rb_vm_outer_t *o = binding->outer_stack;
+	if (o == NULL) {
+	    klass = rb_cNSObject;
+	}
+	else {
+	    klass = (VALUE)o->klass;
+	}
     }
     if (self != 0) {
 	vm->set_current_top_object(self);
@@ -4156,10 +4168,17 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
     rb_vm_outer_t *old_outer_stack = vm->get_outer_stack();
 
     vm->set_current_class((Class)klass);
-    vm->set_outer_stack(vm->get_current_outer());
-    if (klass != 0 && !NIL_P(klass)) {
-	vm->push_outer((Class)klass);
+
+    if (binding == NULL) {
+	vm->set_outer_stack(vm->get_current_outer());
+	if (klass != 0 && !NIL_P(klass)) {
+	    vm->push_outer((Class)klass);
+	}
     }
+    else {
+	vm->set_outer_stack(binding->outer_stack);
+    }
+
     RoxorCompiler::shared->set_dynamic_class(true);
 
     vm->add_current_block(binding != NULL ? binding->block : NULL);
@@ -4170,7 +4189,6 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 	Class old_class;
 	VALUE old_top_object;
 	rb_vm_outer_t *old_outer_stack;
-	bool pushed;
 	Finally(RoxorVM *_vm, bool _dynamic_class, Class _class, VALUE _obj, rb_vm_outer_t *_outer_stack) {
 	    vm = _vm;
 	    old_dynamic_class = _dynamic_class;
