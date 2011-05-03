@@ -1080,7 +1080,7 @@ rb_method_call(VALUE method, SEL sel, int argc, VALUE *argv)
 	}
     }
 
-    VALUE result = rb_vm_method_call(data, NULL, argc, argv);
+    VALUE result = rb_vm_method_call(data, rb_vm_current_block(), argc, argv);
 
     if (safe >= 0) {
 	rb_set_safe_level_force(safe);
