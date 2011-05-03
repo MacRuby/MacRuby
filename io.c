@@ -4021,8 +4021,8 @@ rb_io_s_pipe(VALUE recv, SEL sel, int argc, VALUE *argv)
 	rb_sys_fail("pipe() failed");
     }
 
-    rd = prep_io(fd[0], FMODE_READABLE, rb_cIO);
-    wr = prep_io(fd[1], FMODE_WRITABLE, rb_cIO);
+    rd = prep_io(fd[0], FMODE_READABLE, recv);
+    wr = prep_io(fd[1], FMODE_WRITABLE, recv);
 
     return rb_assoc_new(rd, wr);
 }
