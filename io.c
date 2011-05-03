@@ -869,6 +869,7 @@ rb_io_pid(VALUE io, SEL sel)
 static VALUE
 rb_io_inspect(VALUE io, SEL sel)
 {
+    rb_io_taint_check(io);
     rb_io_t *io_struct = ExtractIOStruct(io);
     if (io_struct == NULL) {
         return rb_any_to_s(io);
