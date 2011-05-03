@@ -96,3 +96,13 @@ assert '0', %{
   X.new.method(:foo).call(21)
   p $SAFE
 }
+
+assert '42', %{
+  def foo(&b); b.call; end
+  method(:foo).call(&proc{p 42})
+}
+
+assert '42', %{
+  def foo(&b); b.call; end
+  method(:foo).to_proc.call(&proc{p 42})
+}
