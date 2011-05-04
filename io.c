@@ -2623,7 +2623,8 @@ rb_f_open(VALUE klass, SEL sel, int argc, VALUE *argv)
     if (argc >= 1) {
 	VALUE cmd = check_pipe_command(argv[0]);
 	if (cmd != Qnil) {
-	    return rb_io_s_popen(rb_cIO, 0, 1, &cmd);
+	    argv[0] = cmd;
+	    return rb_io_s_popen(rb_cIO, 0, argc, argv);
 	}
     }
     VALUE io = rb_class_new_instance(argc, argv, rb_cFile);
