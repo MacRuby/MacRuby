@@ -2290,9 +2290,9 @@ rb_io_binmode_m(VALUE io, SEL sel)
 } while(0)
 
 static VALUE 
-io_from_spawning_new_process(VALUE prog, VALUE mode)
+io_from_spawning_new_process(VALUE klass, VALUE prog, VALUE mode)
 {
-    VALUE io = io_alloc(rb_cIO, 0);
+    VALUE io = io_alloc(klass, 0);
     rb_io_t *io_struct = ExtractIOStruct(io);
     posix_spawn_file_actions_t actions;
 
@@ -2386,12 +2386,12 @@ io_from_spawning_new_process(VALUE prog, VALUE mode)
 }
 
 static VALUE
-io_pipe_open(VALUE prog, VALUE mode)
+io_pipe_open(VALUE klass, VALUE prog, VALUE mode)
 {
     if (NIL_P(mode)) {
 	mode = (VALUE)CFSTR("r");
     }
-    return io_from_spawning_new_process(prog, mode);
+    return io_from_spawning_new_process(klass, prog, mode);
 }
 
 static VALUE
@@ -2400,7 +2400,7 @@ rb_io_s_popen(VALUE klass, SEL sel, int argc, VALUE *argv)
     VALUE process_name, mode;
     rb_scan_args(argc, argv, "11", &process_name, &mode);
 
-    VALUE io = io_pipe_open(process_name, mode);
+    VALUE io = io_pipe_open(klass, process_name, mode);
     if (rb_block_given_p()) {
 	VALUE ret = rb_vm_yield(1, &io);
 	rb_io_close(io);
@@ -2569,7 +2569,7 @@ rb_file_open(VALUE io, int argc, VALUE *argv)
 	VALUE cmd = check_pipe_command(argv[0]);
 	if (cmd != Qnil) {
 	    VALUE modes = (argc >= 2) ? argv[1] : Qnil;
-	    return io_pipe_open(cmd, modes);
+	    return io_pipe_open(rb_cIO, cmd, modes);
 	}
     }
     VALUE path, modes, permissions;
