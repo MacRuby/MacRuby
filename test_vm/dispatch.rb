@@ -550,3 +550,31 @@ assert ":X2_foo\n:X_foo\n:Y2_foo\n:Y_foo\n:Y2_foo\n:Y_foo\n:Y2_foo\n:Y_foo\n:X2_
   o.foo
   o.foo
 }
+
+assert '42', %{
+  class X
+    def initialize
+      yield
+    end
+  end
+  class Y<X
+    def initialize
+      super
+    end
+  end
+  Y.new { p 42 }
+}
+
+assert '42', %{
+  class X
+    def initialize
+      yield
+    end
+  end
+  class Y<X
+    def initialize
+      super()
+    end
+  end
+  Y.new { p 42 }
+}
