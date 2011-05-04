@@ -2820,30 +2820,36 @@ RoxorCore::undef_method(Class klass, SEL sel)
 
 extern "C"
 void
-rb_vm_undef_method(Class klass, ID name, bool must_exist)
+rb_vm_undef_method(Class klass, ID name, bool check)
 {
-    rb_vm_method_node_t *node = NULL;
+    const char *name_str = rb_id2name(name);
+    SEL sel0 = rb_vm_name_to_sel(name_str, 0);
+    SEL sel1 = rb_vm_name_to_sel(name_str, 1);
 
-    if (!rb_vm_lookup_method2((Class)klass, name, NULL, NULL, &node)) {
-	if (must_exist) {
-	    rb_raise(rb_eNameError, "undefined method `%s' for %s `%s'",
-		    rb_id2name(name),
-		    TYPE(klass) == T_MODULE ? "module" : "class",
-		    rb_class2name((VALUE)klass));
-	}
-	const char *namestr = rb_id2name(name);
-	SEL sel = sel_registerName(namestr);
-	GET_CORE()->undef_method(klass, sel);
+    rb_vm_method_node_t *node0 = NULL;
+    rb_vm_method_node_t *node1 = NULL;
+    bool exist0 = rb_vm_lookup_method((Class)klass, sel0, NULL, &node0);
+    bool exist1 = rb_vm_lookup_method((Class)klass, sel1, NULL, &node1);
+
+    if (!exist0 && !exist1 && check) {
+	rb_raise(rb_eNameError, "undefined method `%s' for %s `%s'",
+		name_str,
+		TYPE(klass) == T_MODULE ? "module" : "class",
+		rb_class2name((VALUE)klass));
     }
-    else if (node == NULL) {
-	if (must_exist) {
+
+    if ((exist0 && node0 == NULL) || (exist1 && node1 == NULL)) {
+	if (check) {
 	    rb_raise(rb_eRuntimeError,
 		    "cannot undefine method `%s' because it is a native method",
-		    rb_id2name(name));
+		    name_str);
 	}
     }
-    else {
-	GET_CORE()->undef_method(klass, node->sel);
+    else { 
+	GET_CORE()->undef_method(klass, sel0);
+	if (sel0 != sel1) {
+	    GET_CORE()->undef_method(klass, sel1);
+	}
     }
 }
 
