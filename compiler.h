@@ -399,6 +399,8 @@ class RoxorCompiler {
 	Value *compile_dstr(NODE *node);
 	Value *compile_dvar_slot(ID name);
 	void compile_break_val(Value *val);
+	void compile_break_within_loop(Value *val);
+	void compile_break_within_block(Value *val);
 	void compile_simple_return(Value *val);
 	Value *compile_set_has_ensure(Value *val);
 	void compile_return_from_block(Value *val, int id);

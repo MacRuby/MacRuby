@@ -1921,6 +1921,32 @@ RoxorCompiler::compile_break_val(Value *val)
 }
 
 void
+RoxorCompiler::compile_break_within_loop(Value *val)
+{
+    if (ensure_bb == NULL) {
+	BranchInst::Create(current_loop_end_bb, bb);
+	current_loop_exit_val->addIncoming(val, bb);
+    }
+    else {
+	BranchInst::Create(ensure_bb, bb);
+	ensure_pn->addIncoming(val, bb);
+    }
+}
+
+void
+RoxorCompiler::compile_break_within_block(Value *val)
+{
+    if (ensure_bb == NULL) {
+	compile_break_val(val);
+	ReturnInst::Create(context, val, bb);
+    }
+    else {
+	BranchInst::Create(ensure_bb, bb);
+	ensure_pn->addIncoming(val, bb);
+    }
+}
+
+void
 RoxorCompiler::compile_return_from_block(Value *val, int id)
 {
     if (returnFromBlockFunc == NULL) {
@@ -2006,12 +2032,10 @@ RoxorCompiler::compile_jump(NODE *node)
 		compile_landing_pad_footer();
 	    }
 	    if (within_loop) {
-		BranchInst::Create(current_loop_end_bb, bb);
-		current_loop_exit_val->addIncoming(val, bb);
+		compile_break_within_loop(val);
 	    }
 	    else if (within_block) {
-		compile_break_val(val);
-		ReturnInst::Create(context, val, bb);
+		compile_break_within_block(val);
 	    }
 	    else {
 		rb_raise(rb_eLocalJumpError, "unexpected break");
@@ -2041,6 +2065,9 @@ RoxorCompiler::compile_jump(NODE *node)
 		compile_landing_pad_footer();
 	    }
 	    if (within_loop) {
+		if (ensure_node != NULL) {
+		    compile_node(ensure_node);
+		}
 		BranchInst::Create(current_loop_body_bb, bb);
 	    }
 	    else if (within_block) {
@@ -4735,7 +4762,19 @@ RoxorCompiler::compile_node0(NODE *node)
 		    compile_set_has_ensure(old_has_ensure);
 		    compile_node(node->nd_ensr);
 		    // the return value is the PHINode from all the return
-		    compile_simple_return(new_ensure_pn);
+		    const bool within_loop = current_loop_begin_bb != NULL
+			&& current_loop_body_bb != NULL
+			&& current_loop_end_bb != NULL;
+		    const bool within_block = block_declaration;
+		    if (within_loop) {
+			compile_break_within_loop(new_ensure_pn);
+		    }
+		    else if (within_block) {
+			compile_break_within_block(new_ensure_pn);
+		    }
+		    else {
+			compile_simple_return(new_ensure_pn);
+		    }
 		}
 
 		// we also have to compile the ensure
