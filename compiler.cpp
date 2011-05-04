@@ -3379,7 +3379,7 @@ rescan_args:
 	if (block_given) {
 	    blockVal = compile_prepare_block();
 	}
-	else if (nd_type(node) == NODE_ZSUPER) {
+	else if (nd_type(node) == NODE_SUPER || nd_type(node) == NODE_ZSUPER) {
 	    if (current_block_arg != NULL) {
 		blockVal = compile_block_get(current_block_arg);
 	    }
