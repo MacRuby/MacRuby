@@ -3976,6 +3976,19 @@ rb_f_syscall(VALUE recv, SEL sel, int argc, VALUE *argv)
     }
     return INT2NUM(retval);
 }
+
+static VALUE
+pipe_pair_close(VALUE rw)
+{
+    VALUE *rwp = (VALUE *)rw;
+    rb_io_t *io_r = ExtractIOStruct(rwp[0]);
+    rb_io_t *io_w = ExtractIOStruct(rwp[1]);
+
+    io_close(io_r, true, true);
+    io_close(io_w, true, true);
+    return Qnil;
+}
+
 /*
  *  call-seq:
  *     IO.pipe                    -> [read_io, write_io]
@@ -4039,7 +4052,14 @@ rb_io_s_pipe(VALUE recv, SEL sel, int argc, VALUE *argv)
     rd = prep_io(fd[0], FMODE_READABLE, recv);
     wr = prep_io(fd[1], FMODE_WRITABLE, recv);
 
-    return rb_assoc_new(rd, wr);
+    VALUE ret = rb_assoc_new(rd, wr);
+    if (rb_block_given_p()) {
+	VALUE rw[2];
+	rw[0] = rd;
+	rw[1] = wr;
+	return rb_ensure(rb_yield, ret, pipe_pair_close, (VALUE)rw);
+    }
+    return ret;
 }
 
 /*
