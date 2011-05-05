@@ -1,6 +1,8 @@
 require File.expand_path('../../spec_helper', __FILE__)
 
-module RubyDeploySpecHelper
+module DeploySpecHelper
+  EMBEDDED_FRAMEWORK = '@executable_path/../Frameworks/MacRuby.framework/Versions/Current/usr/lib/libmacruby.dylib'
+  
   def deploy(args)
     ruby_exe(File.join(SOURCE_ROOT, 'bin/ruby_deploy'), :args => "'#{@app_bundle}' #{args} 2>&1")
   end
@@ -8,10 +10,18 @@ module RubyDeploySpecHelper
   def file(path)
     `/usr/bin/file '#{path}'`
   end
+
+  def install_name(path)
+    `/usr/bin/otool -L '#{path}'`
+  end
+
+  def rbos
+    Dir.glob("#{@app_bundle}/Contents/Resources/**/*.rbo")
+  end
 end
 
 describe "ruby_deploy, in general," do
-  extend RubyDeploySpecHelper
+  extend DeploySpecHelper
 
   it "checks if the given path is a valid app bundle" do
     @app_bundle = tmp('ruby_deploy/Dummy.app')
@@ -21,7 +31,7 @@ describe "ruby_deploy, in general," do
 end
 
 describe "The ruby_deploy --compile option" do
-  extend RubyDeploySpecHelper
+  extend DeploySpecHelper
 
   before do
     dir = tmp('ruby_deploy')
@@ -35,7 +45,6 @@ describe "The ruby_deploy --compile option" do
 
   it "compiles the ruby source files in the app's Resources directory" do
     deploy('--compile')
-    rbos = Dir.glob("#{@app_bundle}/Contents/Resources/**/*.rbo")
     rbos.should_not be_empty
     rbos.each do |rbo|
       file(rbo).should include('Mach-O')
@@ -50,5 +59,20 @@ describe "The ruby_deploy --compile option" do
     deploy('--compile')
     rbs = Dir.glob("#{@app_bundle}/Contents/Resources/**/*.rb")
     rbs.should be_empty
+  end
+
+  it "does not change the install_name of binaries if the MacRuby framework is not embedded" do
+    deploy('--compile')
+    rbos.each do |rbo|
+      install_name(rbo).should_not include(DeploySpecHelper::EMBEDDED_FRAMEWORK)
+    end
+  end
+
+  it "changes the install_name of binaries to the embedded MacRuby framework" do
+    FileUtils.mkdir_p File.join(@app_bundle, 'Contents/Frameworks/MacRuby.framework')
+    deploy('--compile')
+    rbos.each do |rbo|
+      install_name(rbo).should include(DeploySpecHelper::EMBEDDED_FRAMEWORK)
+    end
   end
 end
