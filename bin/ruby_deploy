@@ -7,7 +7,11 @@
 
 require 'optparse'
 require 'rbconfig'
-load File.join(File.dirname(__FILE__), 'macrubyc')
+begin
+  load File.join(File.dirname(__FILE__), 'macrubyc')
+rescue LoadError
+  load File.join(File.dirname(__FILE__), 'rubyc')
+end
 
 class Deployer
   NAME = File.basename(__FILE__)
