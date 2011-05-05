@@ -18,6 +18,10 @@ module DeploySpecHelper
   def rbos
     Dir.glob("#{@app_bundle}/Contents/Resources/**/*.rbo")
   end
+
+  def binaries
+    rbos + [File.join(@app_bundle, 'Contents/MacOS/Dummy')]
+  end
 end
 
 describe "ruby_deploy, in general," do
@@ -40,7 +44,7 @@ describe "The ruby_deploy --compile option" do
     FileUtils.cp_r File.join(FIXTURES, 'dummy_app'), @app_bundle
     # we just need a binary file compiled in the arch for the current env
     FileUtils.mkdir File.join(@app_bundle, 'Contents/MacOS')
-    FileUtils.cp File.join(SOURCE_ROOT, 'miniruby'), File.join(@app_bundle, 'Contents/MacOS/Dummy')
+    FileUtils.cp File.join(SOURCE_ROOT, 'lib/irb.rbo'), File.join(@app_bundle, 'Contents/MacOS/Dummy')
   end
 
   it "compiles the ruby source files in the app's Resources directory" do
@@ -63,16 +67,16 @@ describe "The ruby_deploy --compile option" do
 
   it "does not change the install_name of binaries if the MacRuby framework is not embedded" do
     deploy('--compile')
-    rbos.each do |rbo|
-      install_name(rbo).should_not include(DeploySpecHelper::EMBEDDED_FRAMEWORK)
+    binaries.each do |bin|
+      install_name(bin).should_not include(DeploySpecHelper::EMBEDDED_FRAMEWORK)
     end
   end
 
   it "changes the install_name of binaries to the embedded MacRuby framework" do
     FileUtils.mkdir_p File.join(@app_bundle, 'Contents/Frameworks/MacRuby.framework')
     deploy('--compile')
-    rbos.each do |rbo|
-      install_name(rbo).should include(DeploySpecHelper::EMBEDDED_FRAMEWORK)
+    binaries.each do |bin|
+      install_name(bin).should include(DeploySpecHelper::EMBEDDED_FRAMEWORK)
     end
   end
 end
