@@ -3183,7 +3183,15 @@ rb_io_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
     }
 
     if (NIL_P(mode)) {
+#ifdef F_GETFL
+	const int oflags = fcntl(fd, F_GETFL);
+	if (oflags == -1) {
+	    rb_sys_fail("fcntl(2) failed");
+	}
+	mode_flags = convert_oflags_to_fmode(oflags);
+#else
 	mode_flags = FMODE_READABLE;
+#endif
     }
     else if (TYPE(mode) == T_STRING) {
 	mode_flags = convert_mode_string_to_fmode(mode);
