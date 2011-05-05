@@ -3242,6 +3242,9 @@ rb_objc_io_finalize(void *rcv, SEL sel)
 static VALUE
 rb_file_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
 {
+    if (ExtractIOStruct(io)->path) {
+	rb_raise(rb_eRuntimeError, "reinitializing File");
+    }
     if (0 < argc && argc < 3) {
 	VALUE fd = rb_check_convert_type(argv[0], T_FIXNUM, "Fixnum", "to_int");
 
