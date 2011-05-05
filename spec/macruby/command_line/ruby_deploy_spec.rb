@@ -88,4 +88,25 @@ describe "The ruby_deploy --compile option" do
       install_name(bin).should include(DeploySpecHelper::EMBEDDED_FRAMEWORK)
     end
   end
+
+  # TODO is it safe to use `ppc7400' here?
+  it "retrieves the archs that the ruby files should be compiled for from ENV['ARCHS'] and aborts if that leaves no options" do
+    before, ENV['ARCHS'] = ENV['ARCHS'], 'ppc7400'
+    begin
+      deploy('--compile').should =~ /Can't build for.+?ppc7400/
+      $?.success?.should == false
+    ensure
+      ENV['ARCHS'] = before
+    end
+  end
+
+  # TODO is it safe to use `ppc' here?
+  it "retrieves the arch that the ruby files should be compiled for from the app binary and skips those that can't be used" do
+    # copy the system ruby binary which, amongst others, contains `ppc'
+    FileUtils.rm File.join(@app_bundle, 'Contents/MacOS/Dummy')
+    FileUtils.cp '/usr/bin/ruby', File.join(@app_bundle, 'Contents/MacOS/Dummy')
+
+    deploy('--compile').should =~ /Can't build for.+?ppc7400/
+    $?.success?.should == true
+  end
 end
