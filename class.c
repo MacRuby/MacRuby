@@ -115,7 +115,7 @@ rb_obj_imp_description(void *rcv, SEL sel)
 }
 
 static VALUE
-rb_objc_init(VALUE rcv, SEL sel)
+rb_objc_init(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     IMP imp = NULL;
     rb_vm_method_node_t *node = NULL;
@@ -147,7 +147,7 @@ rb_define_object_special_methods(VALUE klass)
     rb_objc_define_method(*(VALUE *)klass, "new",
 	    rb_class_new_instance_imp, -1);
     rb_objc_define_method(klass, "dup", rb_obj_dup, 0);
-    rb_objc_define_private_method(klass, "initialize", rb_objc_init, 0);
+    rb_objc_define_private_method(klass, "initialize", rb_objc_init, -1);
     rb_objc_define_private_method(klass, "initialize_copy",
 	    rb_obj_init_copy, 1);
     rb_objc_define_method(klass, "hash", rb_obj_id, 0);
