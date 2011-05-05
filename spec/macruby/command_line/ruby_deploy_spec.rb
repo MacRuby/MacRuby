@@ -19,6 +19,10 @@ module DeploySpecHelper
     Dir.glob("#{@app_bundle}/Contents/Resources/**/*.rbo")
   end
 
+  def rbs
+    Dir.glob("#{@app_bundle}/Contents/Resources/**/*.rb")
+  end
+
   def binaries
     rbos + [File.join(@app_bundle, 'Contents/MacOS/Dummy')]
   end
@@ -59,10 +63,15 @@ describe "The ruby_deploy --compile option" do
     defined?(DummyController).should == "constant"
   end
 
+  it "does not compile the rb_main.rb file, because this name is hardcoded in the function that starts MacRuby" do
+    deploy('--compile')
+    rbos.map { |f| File.basename(f) }.should_not include('rb_main.rbo')
+    rbs.map { |f| File.basename(f) }.should include('rb_main.rb')
+  end
+
   it "removes the original source files after compilation" do
     deploy('--compile')
-    rbs = Dir.glob("#{@app_bundle}/Contents/Resources/**/*.rb")
-    rbs.should be_empty
+    rbs.map { |f| File.basename(f) }.should == %w{ rb_main.rb }
   end
 
   it "does not change the install_name of binaries if the MacRuby framework is not embedded" do
