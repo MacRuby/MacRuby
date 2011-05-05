@@ -1058,6 +1058,7 @@ rb_io_read_all(rb_io_t *io_struct, VALUE outbuf)
     }
 
     rb_bstr_set_length(outbuf, original_position + bytes_read);
+    OBJ_TAINT(outbuf);
     return outbuf; 
 }
 
@@ -1252,7 +1253,7 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
 	if (outbuf_created) {
 	    rb_str_force_encoding(outbuf, rb_encodings[ENCODING_UTF8]);
 	}
-	return outbuf;
+	goto EXIT;
     }
 
     const long size = FIX2LONG(len);
@@ -1260,7 +1261,8 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
 	rb_raise(rb_eArgError, "negative length %ld given", size);
     }
     if (size == 0) {
-	return rb_str_new2("");
+	outbuf = rb_str_new2("");
+	goto EXIT;
     }
 
     if (size > 1000000000) {
@@ -1277,6 +1279,8 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
 	return Qnil;
     }
 
+  EXIT:
+    OBJ_TAINT(outbuf);
     return outbuf;
 }
 
