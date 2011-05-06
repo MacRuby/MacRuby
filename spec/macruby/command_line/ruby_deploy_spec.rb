@@ -1,6 +1,8 @@
 require File.expand_path('../../spec_helper', __FILE__)
 
 module DeploySpecHelper
+  include FileUtils
+
   EMBEDDED_FRAMEWORK = '@executable_path/../Frameworks/MacRuby.framework/Versions/Current/usr/lib/libmacruby.dylib'
 
   def deploy(args)
@@ -32,10 +34,11 @@ describe "ruby_deploy, in general," do
   extend DeploySpecHelper
 
   it "checks if the given path is a valid app bundle" do
-    @app_bundle = tmp('ruby_deploy/Dummy.app')
-    FileUtils.mkdir_p @app_bundle
+    @dir = tmp('ruby_deploy')
+    @app_bundle = File.join(@dir, 'Dummy.app')
+    mkdir_p @app_bundle
     deploy('--compile').should include("doesn't seem to be a valid application bundle")
-    FileUtils.rm_rf @app_bundle
+    rm_rf @dir
   end
 end
 
@@ -44,16 +47,16 @@ describe "The ruby_deploy --compile option" do
 
   before do
     @dir = tmp('ruby_deploy')
-    FileUtils.mkdir_p @dir
+    mkdir_p @dir
     @app_bundle = File.join(@dir, 'Dummy.app')
-    FileUtils.cp_r File.join(FIXTURES, 'dummy_app'), @app_bundle
+    cp_r File.join(FIXTURES, 'dummy_app'), @app_bundle
     # we just need a binary file compiled in the arch for the current env
-    FileUtils.mkdir File.join(@app_bundle, 'Contents/MacOS')
-    FileUtils.cp File.join(SOURCE_ROOT, 'lib/irb.rbo'), File.join(@app_bundle, 'Contents/MacOS/Dummy')
+    mkdir File.join(@app_bundle, 'Contents/MacOS')
+    cp File.join(SOURCE_ROOT, 'lib/irb.rbo'), File.join(@app_bundle, 'Contents/MacOS/Dummy')
   end
 
   after do
-    FileUtils.rm_rf @dir
+    rm_rf @dir
   end
 
   it "compiles the ruby source files in the app's Resources directory" do
@@ -87,7 +90,7 @@ describe "The ruby_deploy --compile option" do
   end
 
   it "changes the install_name of binaries to the embedded MacRuby framework" do
-    FileUtils.mkdir_p File.join(@app_bundle, 'Contents/Frameworks/MacRuby.framework')
+    mkdir_p File.join(@app_bundle, 'Contents/Frameworks/MacRuby.framework')
     deploy('--compile')
     binaries.each do |bin|
       install_name(bin).should include(DeploySpecHelper::EMBEDDED_FRAMEWORK)
@@ -108,8 +111,8 @@ describe "The ruby_deploy --compile option" do
   # TODO is it safe to use `ppc' here?
   it "retrieves the arch that the ruby files should be compiled for from the app binary and skips those that can't be used" do
     # copy the system ruby binary which, amongst others, contains `ppc'
-    FileUtils.rm File.join(@app_bundle, 'Contents/MacOS/Dummy')
-    FileUtils.cp '/usr/bin/ruby', File.join(@app_bundle, 'Contents/MacOS/Dummy')
+    rm File.join(@app_bundle, 'Contents/MacOS/Dummy')
+    cp '/usr/bin/ruby', File.join(@app_bundle, 'Contents/MacOS/Dummy')
 
     deploy('--compile').should =~ /Can't build for.+?ppc7400/
     $?.success?.should == true
