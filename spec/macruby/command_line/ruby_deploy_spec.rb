@@ -17,16 +17,24 @@ module DeploySpecHelper
     `/usr/bin/otool -L '#{path}'`
   end
 
+  def resources
+    File.join(@app_bundle, 'Contents', 'Resources')
+  end
+
   def rbos
-    Dir.glob("#{@app_bundle}/Contents/Resources/**/*.rbo")
+    Dir.glob("#{resources}/**/*.rbo")
   end
 
   def rbs
-    Dir.glob("#{@app_bundle}/Contents/Resources/**/*.rb")
+    Dir.glob("#{resources}/**/*.rb")
   end
 
   def binaries
-    rbos + [File.join(@app_bundle, 'Contents/MacOS/Dummy')]
+    rbos + [File.join(@app_bundle, 'Contents', 'MacOS', 'Dummy')]
+  end
+
+  def framework
+    File.join(@app_bundle, 'Contents', 'Frameworks', 'MacRuby.framework', 'Versions')
   end
 end
 
@@ -118,6 +126,49 @@ describe "ruby_deploy command line options:" do
       deploy('--compile').should =~ /Can't build for.+?ppc7400/
       $?.success?.should == true
     end
+  end
+
+  describe 'the --embed option' do
+    it 'copies the framework to Contents/Frameworks' do
+      deploy('--embed')
+      Dir.exists?(framework).should == true
+      Dir.exists?(File.join(framework, 'Current/usr/lib/ruby')).should == true
+      File.exists?(File.join(framework, 'Current/usr/lib/libmacruby.1.9.2.dylib'))
+    end
+
+    it 'only copies the Current version' do
+      deploy('--embed')
+      dirs = Dir.entries(framework) - ['.','..']
+      dirs.count.should == 1
+      dirs.should include('Current')
+    end
+
+    it 'does not copy headers, binaries, or documentation into the app bundle' do
+      deploy('--embed')
+      dirs = Dir.entries(File.join(framework, 'Current', 'usr'))
+      ['bin','include','share'].each do |dir|
+        dirs.should_not include(dir)
+      end
+      # TODO is the libmacruby-static.a file used by anyone?
+    end
+
+    # TODO is this test too naive?
+    it 'embeds bridge support files when combined with --bs' do
+      deploy('--embed --bs')
+      bs_dir = File.join(resources, 'BridgeSupport')
+      Dir.exists?(bs_dir)
+      (Dir.entries(bs_dir) - ['.', '..']).should_not be_empty
+    end
+
+    it 'removes the stdlib when combined with --no-stdlib' do
+      deploy('--embed --no-stdlib')
+      stdlib_dir = File.join(framework, 'Current', 'usr', 'lib', 'ruby')
+      Dir.exists?(stdlib_dir).should == false
+    end
+
+    # TODO --gem GEM
+    # TODO make sure installed gems aren't embedded by default
+    # TODO --stdlib LIB
   end
 
 end
