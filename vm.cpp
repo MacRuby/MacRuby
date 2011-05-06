@@ -3867,6 +3867,13 @@ rb_vm_backtrace(int skip)
 	if (GET_CORE()->symbolize_call_address(callstack[i], path, sizeof path,
 		    &ln, name, sizeof name, &interpreter_frame_idx)
 		&& name[0] != '\0' && path[0] != '\0') {
+
+	    // Sanitize the method name to not contain trailing ':' like CRuby.
+	    char *p = &name[strlen(name) - 1];
+	    if (strchr(name, ':') == p) {
+		*p = '\0';
+	    }
+
 	    char entry[PATH_MAX];
 	    if (ln == 0) {
 		snprintf(entry, sizeof entry, "%s:in `%s'",
