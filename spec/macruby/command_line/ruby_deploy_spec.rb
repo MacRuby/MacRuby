@@ -42,7 +42,7 @@ describe "ruby_deploy, in general," do
   end
 end
 
-describe "The ruby_deploy --compile option" do
+describe "ruby_deploy command line options:" do
   extend DeploySpecHelper
 
   before do
@@ -59,62 +59,65 @@ describe "The ruby_deploy --compile option" do
     rm_rf @dir
   end
 
-  it "compiles the ruby source files in the app's Resources directory" do
-    deploy('--compile')
-    rbos.should_not be_empty
-    rbos.each do |rbo|
-      file(rbo).should include('Mach-O')
-      require rbo
+  describe "the --compile option" do
+    it "compiles the ruby source files in the app's Resources directory" do
+      deploy('--compile')
+      rbos.should_not be_empty
+      rbos.each do |rbo|
+        file(rbo).should include('Mach-O')
+        require rbo
+      end
+      # check that the classes defined in the rbos actually work
+      defined?(DummyModel).should == "constant"
+      defined?(DummyController).should == "constant"
     end
-    # check that the classes defined in the rbos actually work
-    defined?(DummyModel).should == "constant"
-    defined?(DummyController).should == "constant"
-  end
 
-  it "does not compile the rb_main.rb file, because this name is hardcoded in the function that starts MacRuby" do
-    deploy('--compile')
-    rbos.map { |f| File.basename(f) }.should_not include('rb_main.rbo')
-    rbs.map { |f| File.basename(f) }.should include('rb_main.rb')
-  end
-
-  it "removes the original source files after compilation" do
-    deploy('--compile')
-    rbs.map { |f| File.basename(f) }.should == %w{ rb_main.rb }
-  end
-
-  it "does not change the install_name of binaries if the MacRuby framework is not embedded" do
-    deploy('--compile')
-    binaries.each do |bin|
-      install_name(bin).should_not include(DeploySpecHelper::EMBEDDED_FRAMEWORK)
+    it "does not compile the rb_main.rb file, because this name is hardcoded in the function that starts MacRuby" do
+      deploy('--compile')
+      rbos.map { |f| File.basename(f) }.should_not include('rb_main.rbo')
+      rbs.map { |f| File.basename(f) }.should include('rb_main.rb')
     end
-  end
 
-  it "changes the install_name of binaries to the embedded MacRuby framework" do
-    mkdir_p File.join(@app_bundle, 'Contents/Frameworks/MacRuby.framework')
-    deploy('--compile')
-    binaries.each do |bin|
-      install_name(bin).should include(DeploySpecHelper::EMBEDDED_FRAMEWORK)
+    it "removes the original source files after compilation" do
+      deploy('--compile')
+      rbs.map { |f| File.basename(f) }.should == %w{ rb_main.rb }
     end
-  end
 
-  # TODO is it safe to use `ppc7400' here?
-  it "retrieves the archs that the ruby files should be compiled for from ENV['ARCHS'] and aborts if that leaves no options" do
-    before, ENV['ARCHS'] = ENV['ARCHS'], 'ppc7400'
-    begin
+    it "does not change the install_name of binaries if the MacRuby framework is not embedded" do
+      deploy('--compile')
+      binaries.each do |bin|
+        install_name(bin).should_not include(DeploySpecHelper::EMBEDDED_FRAMEWORK)
+      end
+    end
+
+    it "changes the install_name of binaries to the embedded MacRuby framework" do
+      mkdir_p File.join(@app_bundle, 'Contents/Frameworks/MacRuby.framework')
+      deploy('--compile')
+      binaries.each do |bin|
+        install_name(bin).should include(DeploySpecHelper::EMBEDDED_FRAMEWORK)
+      end
+    end
+
+    # TODO is it safe to use `ppc7400' here?
+    it "retrieves the archs that the ruby files should be compiled for from ENV['ARCHS'] and aborts if that leaves no options" do
+      before, ENV['ARCHS'] = ENV['ARCHS'], 'ppc7400'
+      begin
+        deploy('--compile').should =~ /Can't build for.+?ppc7400/
+        $?.success?.should == false
+      ensure
+        ENV['ARCHS'] = before
+      end
+    end
+
+    # TODO is it safe to use `ppc' here?
+    it "retrieves the arch that the ruby files should be compiled for from the app binary and skips those that can't be used" do
+      # copy the system ruby binary which, amongst others, contains `ppc'
+      rm File.join(@app_bundle, 'Contents/MacOS/Dummy')
+      cp '/usr/bin/ruby', File.join(@app_bundle, 'Contents/MacOS/Dummy')
+
       deploy('--compile').should =~ /Can't build for.+?ppc7400/
-      $?.success?.should == false
-    ensure
-      ENV['ARCHS'] = before
+      $?.success?.should == true
     end
   end
 
-  # TODO is it safe to use `ppc' here?
-  it "retrieves the arch that the ruby files should be compiled for from the app binary and skips those that can't be used" do
-    # copy the system ruby binary which, amongst others, contains `ppc'
-    rm File.join(@app_bundle, 'Contents/MacOS/Dummy')
-    cp '/usr/bin/ruby', File.join(@app_bundle, 'Contents/MacOS/Dummy')
-
-    deploy('--compile').should =~ /Can't build for.+?ppc7400/
-    $?.success?.should == true
-  end
 end
