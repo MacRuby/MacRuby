@@ -4279,6 +4279,7 @@ rb_io_s_copy_stream(VALUE rcv, SEL sel, int argc, VALUE *argv)
 	assert(copyfile_state_get(s, COPYFILE_STATE_SRC_FD, &src_fd) == 0);
 	struct stat st;
 	if (fstat(src_fd, &st) != 0) {
+	    copyfile_state_free(s);
 	    rb_sys_fail("fstat() failed");
 	}
 	copyfile_state_free(s);
