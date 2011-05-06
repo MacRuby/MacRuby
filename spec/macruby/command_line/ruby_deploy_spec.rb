@@ -2,7 +2,7 @@ require File.expand_path('../../spec_helper', __FILE__)
 
 module DeploySpecHelper
   EMBEDDED_FRAMEWORK = '@executable_path/../Frameworks/MacRuby.framework/Versions/Current/usr/lib/libmacruby.dylib'
-  
+
   def deploy(args)
     ruby_exe(File.join(SOURCE_ROOT, 'bin/ruby_deploy'), :args => "'#{@app_bundle}' #{args} 2>&1")
   end
@@ -35,6 +35,7 @@ describe "ruby_deploy, in general," do
     @app_bundle = tmp('ruby_deploy/Dummy.app')
     FileUtils.mkdir_p @app_bundle
     deploy('--compile').should include("doesn't seem to be a valid application bundle")
+    FileUtils.rm_rf @app_bundle
   end
 end
 
@@ -42,13 +43,17 @@ describe "The ruby_deploy --compile option" do
   extend DeploySpecHelper
 
   before do
-    dir = tmp('ruby_deploy')
-    FileUtils.mkdir_p dir
-    @app_bundle = File.join(dir, 'Dummy.app')
+    @dir = tmp('ruby_deploy')
+    FileUtils.mkdir_p @dir
+    @app_bundle = File.join(@dir, 'Dummy.app')
     FileUtils.cp_r File.join(FIXTURES, 'dummy_app'), @app_bundle
     # we just need a binary file compiled in the arch for the current env
     FileUtils.mkdir File.join(@app_bundle, 'Contents/MacOS')
     FileUtils.cp File.join(SOURCE_ROOT, 'lib/irb.rbo'), File.join(@app_bundle, 'Contents/MacOS/Dummy')
+  end
+
+  after do
+    FileUtils.rm_rf @dir
   end
 
   it "compiles the ruby source files in the app's Resources directory" do
