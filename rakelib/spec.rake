@@ -48,7 +48,12 @@ namespace :spec do
   task :library do
     mspec :ci, ":library"
   end
-  
+
+  desc "Run specs for command line tools"
+  task :command_line do
+    mspec :ci, ":command_line"
+  end
+
   desc "Run the DietRB specs"
   task :irb do
     mspec :ci, ":irb"
