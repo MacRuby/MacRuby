@@ -4214,6 +4214,67 @@ rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
     return rb_ensure(io_s_readlines, (VALUE)&arg, rb_io_close, arg.io);
 }
 
+struct copy_stream_arg {
+    VALUE src;
+    VALUE dst;
+    VALUE len;
+    VALUE offset;
+    VALUE old_offset;
+    bool need_close_src;
+    bool need_close_dst;
+};
+
+static VALUE
+io_s_copy_stream_body(struct copy_stream_arg *arg)
+{
+    VALUE src = arg->src;
+    VALUE dst = arg->dst;
+    VALUE len = arg->len;
+    rb_io_t *io_src = ExtractIOStruct(src);
+    rb_io_t *io_dst = ExtractIOStruct(dst);
+
+    if (io_src->path && io_dst->path && NIL_P(len)) {
+	// Fast path!
+	copyfile_state_t s = copyfile_state_alloc();
+	if (fcopyfile(io_src->fd, io_dst->fd, s, COPYFILE_ALL)
+		!= 0) {
+	    copyfile_state_free(s);
+	    rb_sys_fail("copyfile() failed");
+	}
+	int src_fd = -2;
+	assert(copyfile_state_get(s, COPYFILE_STATE_SRC_FD, &src_fd) == 0);
+	struct stat st;
+	if (fstat(src_fd, &st) != 0) {
+	    copyfile_state_free(s);
+	    rb_sys_fail("fstat() failed");
+	}
+	copyfile_state_free(s);
+	return LONG2NUM(st.st_size);
+    }
+
+    VALUE data_read = NIL_P(len)
+	? io_read(src, 0, 0, NULL) : io_read(src, 0, 1, &len);
+
+    VALUE copied = io_write(dst, 0, data_read);
+
+    if (!NIL_P(arg->old_offset)) {
+	rb_io_seek(src, arg->old_offset, SEEK_SET); // restore the old offset
+    }
+    return copied;
+}
+
+static VALUE
+io_s_copy_stream_close(struct copy_stream_arg *arg)
+{
+    if (arg->need_close_src) {
+	rb_io_close(arg->src);
+    }
+    if (arg->need_close_dst) {
+	rb_io_close(arg->dst);
+    }
+    return Qnil;
+}
+
 /*
  *  call-seq:
  *     IO.copy_stream(src, dst)
@@ -4248,15 +4309,19 @@ rb_io_s_copy_stream(VALUE rcv, SEL sel, int argc, VALUE *argv)
     VALUE src, dst, len, offset;
     rb_scan_args(argc, argv, "22", &src, &dst, &len, &offset);
 
+    struct copy_stream_arg arg;
+    arg.old_offset = Qnil;
+    arg.need_close_src = false;
+    arg.need_close_dst = false;
 
-    VALUE old_src_offset = Qnil;
     if (TYPE(src) != T_FILE) {
 	FilePathValue(src);
 	src = rb_f_open(rcv, 0, 1, &src);
+	arg.need_close_src = true;
     }
     else {
 	if (!NIL_P(offset)) {
-	    old_src_offset = rb_io_tell(src, 0); // save the old offset
+	    arg.old_offset = rb_io_tell(src, 0); // save the old offset
 	    rb_io_seek(src, 0, offset);
 	}
     }
@@ -4267,39 +4332,13 @@ rb_io_s_copy_stream(VALUE rcv, SEL sel, int argc, VALUE *argv)
 	args[0] = dst;
 	args[1] = rb_str_new2("w");
 	dst = rb_f_open(rcv, 0, 2, args);
+	arg.need_close_dst = true;
     }
-    int fd_src = ExtractIOStruct(src)->fd;
-    int fd_dst = ExtractIOStruct(dst)->fd;
+    arg.src = src;
+    arg.dst = dst;
+    arg.len = len;
 
-    if (NIL_P(len)) {
-	// Fast path!
-	copyfile_state_t s = copyfile_state_alloc();
-	if (fcopyfile(fd_src, fd_dst, s, COPYFILE_ALL)
-		!= 0) {
-	    copyfile_state_free(s);
-	    rb_sys_fail("copyfile() failed");
-	}
-	int src_fd = -2; 
-	assert(copyfile_state_get(s, COPYFILE_STATE_SRC_FD, &src_fd) == 0);
-	struct stat st;
-	if (fstat(src_fd, &st) != 0) {
-	    copyfile_state_free(s);
-	    rb_sys_fail("fstat() failed");
-	}
-	copyfile_state_free(s);
-	return LONG2NUM(st.st_size);
-    }
-
-    VALUE data_read = NIL_P(len)
-	? io_read(src, 0, 0, NULL) : io_read(src, 0, 1, &len);
-
-    VALUE copied = io_write(dst, 0, data_read);
-
-    if (!NIL_P(old_src_offset)) {
-	rb_io_seek(src, old_src_offset, SEEK_SET); // restore the old offset
-    }
-
-    return copied;
+    return rb_ensure(io_s_copy_stream_body, (VALUE)&arg, io_s_copy_stream_close, (VALUE)&arg);
 }
 
 /*
