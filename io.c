@@ -4248,12 +4248,11 @@ rb_io_s_copy_stream(VALUE rcv, SEL sel, int argc, VALUE *argv)
     VALUE src, dst, len, offset;
     rb_scan_args(argc, argv, "22", &src, &dst, &len, &offset);
 
-    bool src_is_path = false, dst_is_path = false;
 
     VALUE old_src_offset = Qnil;
     if (TYPE(src) != T_FILE) {
 	FilePathValue(src);
-	src_is_path = true;
+	src = rb_f_open(rcv, 0, 1, &src);
     }
     else {
 	if (!NIL_P(offset)) {
@@ -4264,13 +4263,18 @@ rb_io_s_copy_stream(VALUE rcv, SEL sel, int argc, VALUE *argv)
 
     if (TYPE(dst) != T_FILE) {
 	FilePathValue(dst);
-	dst_is_path = true;
+	VALUE args[2];
+	args[0] = dst;
+	args[1] = rb_str_new2("w");
+	dst = rb_f_open(rcv, 0, 2, args);
     }
+    int fd_src = ExtractIOStruct(src)->fd;
+    int fd_dst = ExtractIOStruct(dst)->fd;
 
-    if (src_is_path && dst_is_path) {
+    if (NIL_P(len)) {
 	// Fast path!
 	copyfile_state_t s = copyfile_state_alloc();
-	if (copyfile(RSTRING_PTR(src), RSTRING_PTR(dst), s, COPYFILE_ALL)
+	if (fcopyfile(fd_src, fd_dst, s, COPYFILE_ALL)
 		!= 0) {
 	    copyfile_state_free(s);
 	    rb_sys_fail("copyfile() failed");
@@ -4284,17 +4288,6 @@ rb_io_s_copy_stream(VALUE rcv, SEL sel, int argc, VALUE *argv)
 	}
 	copyfile_state_free(s);
 	return LONG2NUM(st.st_size);
-    }
-    else {
-	if (src_is_path) {
-	    src = rb_f_open(rcv, 0, 1, &src);
-	}
-	if (dst_is_path) {
-	    VALUE args[2];
-	    args[0] = dst;
-	    args[1] = rb_str_new2("w");
-	    dst = rb_f_open(rcv, 0, 2, args);
-	}
     }
 
     VALUE data_read = NIL_P(len)
