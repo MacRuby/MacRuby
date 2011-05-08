@@ -2175,6 +2175,7 @@ prepare_method(Class klass, bool dynamic_class, SEL sel, void *data,
 	void *objc_imp_types)
 {
     if (dynamic_class) {
+	// KOUJI_TODO: resolve klass from current outer_stack inside eval
 	Class k = GET_VM()->get_current_class();
 	if (k != NULL) {
 	    const bool meta = class_isMetaClass(klass);
@@ -2238,6 +2239,7 @@ prepare_method:
 	if (m != NULL || custom_resolver) {
 	    // The method already exists _or_ the class implemented a custom
 	    // Objective-C method resolver - we need to JIT it.
+	    // KOUJI_TODO: set current outer_stack
 	    if (imp == NULL) {
 		imp = GET_CORE()->compile(func);
 	    }
