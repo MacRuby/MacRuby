@@ -1411,6 +1411,13 @@ rb_vm_get_outer_obsolate(VALUE klass)
 }
 
 extern "C"
+rb_vm_outer_t *
+rb_vm_get_outer(void)
+{
+    return GET_VM()->get_outer_stack();
+}
+
+extern "C"
 VALUE
 rb_vm_module_nesting(void)
 {
