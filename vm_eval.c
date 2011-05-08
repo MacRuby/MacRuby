@@ -483,7 +483,7 @@ rb_obj_instance_eval_imp(VALUE self, SEL sel, VALUE top, int argc, VALUE *argv)
 	    switch (TYPE(top)) {
 		case T_CLASS:
 		case T_MODULE:
-		    rb_vm_set_outer(klass, top);
+		    rb_vm_set_outer_obsolate(klass, top);
 		    break;
 	    }
 	}

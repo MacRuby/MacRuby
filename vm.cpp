@@ -1397,14 +1397,14 @@ RoxorCore::set_outer(Class klass, Class mod)
 
 extern "C"
 void
-rb_vm_set_outer(VALUE klass, VALUE under)
+rb_vm_set_outer_obsolate(VALUE klass, VALUE under)
 {
     GET_CORE()->set_outer((Class)klass, (Class)under);
 }
 
 extern "C"
 VALUE
-rb_vm_get_outer(VALUE klass)
+rb_vm_get_outer_obsolate(VALUE klass)
 {
     rb_vm_outer_t *o = GET_CORE()->get_outer((Class)klass);
     return o == NULL ? Qundef : (VALUE)o->klass;
