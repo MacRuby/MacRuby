@@ -139,11 +139,21 @@ describe "ruby_deploy command line options:" do
       File.exists?(File.join(framework, 'Current/usr/lib/libmacruby.1.9.2.dylib'))
     end
 
-    it 'only copies the Current version' do
+    it 'only copies the Current version which is not a symlink' do
       deploy('--embed')
+
       dirs = Dir.entries(framework) - ['.','..']
       dirs.count.should == 1
       dirs.should include('Current')
+
+      File.symlink?(File.join(framework, 'Current')).should be_false
+
+      rbconfig_dir = RbConfig::CONFIG['archdir'].sub(RbConfig::CONFIG['prefix'], '')
+      rbconfig = File.join(framework, 'Current', 'usr', rbconfig_dir, 'rbconfig.rb')
+      File.read(rbconfig).split("\n").find do |line|
+        line.match /CONFIG\["INSTALL_VERSION"\]\s+=\s+"([\d\.]+)"/
+      end
+      $1.should == MACRUBY_VERSION
     end
 
     it 'does not copy headers, binaries, or documentation into the app bundle' do
