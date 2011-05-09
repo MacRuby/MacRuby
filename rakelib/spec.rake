@@ -50,8 +50,8 @@ namespace :spec do
   end
 
   desc "Run specs for command line tools"
-  task :command_line do
-    mspec :ci, ":command_line"
+  task :bin do
+    mspec :ci, ":bin"
   end
 
   desc "Run the DietRB specs"
