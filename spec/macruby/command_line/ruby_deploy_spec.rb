@@ -1,3 +1,6 @@
+# temporary hack while ruby_deploy specs are dependent on an installed MR
+unless `which macruby`.empty? || `macruby --version`.chomp != RUBY_DESCRIPTION
+
 require File.expand_path('../../spec_helper', __FILE__)
 
 module DeploySpecHelper
@@ -170,5 +173,7 @@ describe "ruby_deploy command line options:" do
     # TODO make sure installed gems aren't embedded by default
     # TODO --stdlib LIB
   end
+
+end
 
 end
