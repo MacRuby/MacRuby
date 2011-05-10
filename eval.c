@@ -231,7 +231,16 @@ ruby_run_node(void *n)
 static VALUE
 rb_mod_nesting(VALUE self, SEL sel)
 {
-    return rb_vm_module_nesting();
+    VALUE ary = rb_ary_new();
+    rb_vm_outer_t *o = rb_vm_get_outer();
+    while (o != NULL && o->outer != NULL) {
+        VALUE klass = (VALUE)o->klass;
+	if (!o->pushed_by_eval && !NIL_P(klass)) {
+	    rb_ary_push(ary, klass);
+	}
+        o = o->outer;
+    }
+    return ary;
 }
 
 /*

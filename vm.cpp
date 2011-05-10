@@ -330,6 +330,8 @@ RoxorCore::RoxorCore(void)
     module_eval_imp = 0;
     instance_eval_imp = 0;
     binding_eval_imp = 0;
+    module_nesting_imp = 0;
+    module_constants_imp = 0;
 #endif // !MACRUBY_STATIC
 }
 
@@ -1031,6 +1033,18 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 	binding_eval_imp = ruby_imp;
     }
 
+    // Module.nesting
+    if (module_nesting_imp == 0 && sel == selNesting &&
+	    class_isMetaClass(klass) && (VALUE)klass == (*(VALUE *)rb_cModule)) {
+	module_nesting_imp = ruby_imp;
+    }
+
+    // Module.constants
+    if (module_constants_imp == 0 && sel ==selConstants &&
+	    class_isMetaClass(klass) && (VALUE)klass == (*(VALUE *)rb_cModule)) {
+	module_constants_imp = ruby_imp;
+    }
+
 #if ROXOR_VM_DEBUG
     printf("defining %c[%s %s] with imp %p/%p types %s flags %d arity %d outer %p\n",
 	    class_isMetaClass(klass) ? '+' : '-',
@@ -1062,7 +1076,9 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 	    && (ruby_imp == eval_imp
 		    || ruby_imp == module_eval_imp
 		    || ruby_imp == instance_eval_imp
-		    || ruby_imp == binding_eval_imp)) {
+		    || ruby_imp == binding_eval_imp
+		    || ruby_imp == module_nesting_imp
+		    || ruby_imp == module_constants_imp)) {
 	real_node->outer = NULL;
     }
     else {
@@ -1459,19 +1475,6 @@ rb_vm_outer_t *
 rb_vm_get_outer(void)
 {
     return GET_VM()->get_outer_stack();
-}
-
-extern "C"
-VALUE
-rb_vm_module_nesting(void)
-{
-    VALUE ary = rb_ary_new();
-    for (rb_vm_outer_t *o = GET_VM()->get_outer_stack(); o != NULL; o = o->outer) {
-	if (!o->pushed_by_eval) {
-	    rb_ary_push(ary, (VALUE)o->klass);
-	}
-    }
-    return ary;
 }
 
 extern "C"
