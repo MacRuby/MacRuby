@@ -1218,21 +1218,31 @@ block_call:
 
     Class old_current_class = vm->get_current_class();
     vm->set_current_class((Class)b->klass);
+    rb_vm_outer_t *old_outer_stack = NULL;
+    if (!(b->flags & VM_BLOCK_METHOD)) {
+	old_outer_stack = vm->get_outer_stack();
+	vm->set_outer_stack(b->outer);
+    }
 
     struct Finally {
 	RoxorVM *vm;
 	rb_vm_block_t *b;
 	Class c;
-	Finally(RoxorVM *_vm, rb_vm_block_t *_b, Class _c) {
+	rb_vm_outer_t *outer_stack;
+	Finally(RoxorVM *_vm, rb_vm_block_t *_b, Class _c, rb_vm_outer_t *_outer_stack) {
 	    vm = _vm;
 	    b = _b;
 	    c = _c;
+	    outer_stack = _outer_stack;
 	}
 	~Finally() {
+	    if (outer_stack != NULL) {
+		vm->set_outer_stack(outer_stack);
+	    }
 	    b->flags &= ~VM_BLOCK_ACTIVE;
 	    vm->set_current_class(c);
 	}
-    } finalizer(vm, b, old_current_class);
+    } finalizer(vm, b, old_current_class, old_outer_stack);
 
     if (b->flags & VM_BLOCK_METHOD) {
 	rb_vm_method_t *m = (rb_vm_method_t *)b->imp;
