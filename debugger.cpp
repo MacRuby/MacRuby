@@ -376,7 +376,7 @@ RoxorDebugger::evaluate_expression(VALUE self, rb_vm_block_t *block,
 {
     if (binding == NULL) {
 	if (frame == 0) {
-	    binding = rb_vm_create_binding(self, block, NULL, NULL, lvars_size, lvars,
+	    binding = rb_vm_create_binding(self, block, NULL, lvars_size, lvars,
 		    false);
 	}
 	else {

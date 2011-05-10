@@ -148,7 +148,6 @@ class RoxorCompiler {
 	bool block_declaration;
 	AllocaInst *argv_buffer;
 	long outer_mask;
-	GlobalVariable *outer_stack;
 
 	Function *writeBarrierFunc;
 	Function *dispatchFunc;
@@ -236,7 +235,6 @@ class RoxorCompiler {
 	Function *setCurrentClassFunc;
         Function *pushOuterFunc;
         Function *popOuterFunc;
-        Function *setCurrentOuterFunc;
 	Function *debugTrapFunc;
 	Function *getFFStateFunc;
 	Function *setFFStateFunc;
@@ -429,8 +427,6 @@ class RoxorCompiler {
 	Value *compile_set_current_class(Value *klass);
 	Value *compile_push_outer(Value *klass);
 	Value *compile_pop_outer(void);
-	Value *compile_outer_stack(void);
-	Value *compile_set_current_outer(void);
 
 	Value *compile_landing_pad_header(void);
 	void compile_landing_pad_footer(bool pop_exception=true);

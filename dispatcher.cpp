@@ -581,6 +581,15 @@ rb_vm_dispatch(void *_vm, struct mcache *cache, VALUE top, VALUE self,
 	Class klass, SEL sel, rb_vm_block_t *block, unsigned char opt,
 	int argc, const VALUE *argv)
 {
+#if ROXOR_VM_DEBUG
+    printf("%s:%d:%s: self(%p) klass(%s) sel(%s) block(%p)\n",
+	   __FILE__, __LINE__, __FUNCTION__,
+	   (void *)self, /* RSTRING_PTR(rb_inspect(self)), */
+	   class_getName(klass),
+	   sel_getName(sel),
+	   block
+	);
+#endif
     RoxorVM *vm = (RoxorVM *)_vm;
 
 #if ROXOR_VM_DEBUG
@@ -824,6 +833,15 @@ dispatch:
 	const bool should_pop_broken_with =
 	    sel != selInitialize && sel != selInitialize2;
 
+#if ROXOR_VM_DEBUG
+	rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
+		cache->as.rcall.node->outer, "rb_vm_method_node_t");
+#endif
+	rb_vm_outer_t *old_outer_stack = vm->get_outer_stack();
+	if (cache->as.rcall.node->outer != 0) {
+	    vm->set_outer_stack(cache->as.rcall.node->outer);
+	}
+
 	struct Finally {
 	    bool block_already_current;
 	    Class current_class;
@@ -831,17 +849,21 @@ dispatch:
 	    SEL current_super_sel;
 	    bool should_pop_broken_with;
 	    RoxorVM *vm;
+	    rb_vm_outer_t *outer_stack;
 	    Finally(bool _block_already_current, Class _current_class,
 		    Class _current_super_class, SEL _current_super_sel,
-		    bool _should_pop_broken_with, RoxorVM *_vm) {
+		    bool _should_pop_broken_with, RoxorVM *_vm,
+		    rb_vm_outer_t *_outer_stack) {
 		block_already_current = _block_already_current;
 		current_class = _current_class;
 		current_super_class = _current_super_class;
 		current_super_sel = _current_super_sel;
 		should_pop_broken_with = _should_pop_broken_with;
 		vm = _vm;
+		outer_stack = _outer_stack;
 	    }
 	    ~Finally() {
+		vm->set_outer_stack(outer_stack);
 		if (!block_already_current) {
 		    vm->pop_current_block();
 		}
@@ -855,7 +877,7 @@ dispatch:
 	    }
 	} finalizer(block_already_current, current_klass,
 		old_current_super_class, old_current_super_sel,
-		should_pop_broken_with, vm);
+		should_pop_broken_with, vm, old_outer_stack);
 
 	// DTrace probe: method__entry
 	if (MACRUBY_METHOD_ENTRY_ENABLED()) {
@@ -1294,6 +1316,13 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
     b->self = self;
     VALUE old_class = b->klass;
     b->klass = klass;
+    rb_vm_outer_t *old_outer_stack = vm->get_outer_stack();
+    vm->set_outer_stack(b->outer);
+
+#if ROXOR_VM_DEBUG
+    rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
+	    b->outer, "rb_vm_block_t");
+#endif
 
     rb_vm_outer_t *o = vm->push_outer((Class)klass);
     o->pushed_by_eval = true;
@@ -1303,20 +1332,23 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
 	rb_vm_block_t *b;
 	VALUE old_class;
 	VALUE old_self;
+	rb_vm_outer_t *outer_stack;
 	Finally(RoxorVM *_vm, rb_vm_block_t *_b, VALUE _old_class,
-		VALUE _old_self) {
+		VALUE _old_self, rb_vm_outer_t *_outer_stack) {
 	    vm = _vm;
 	    b = _b;
 	    old_class = _old_class;
 	    old_self = _old_self;
+	    outer_stack = outer_stack;
 	}
 	~Finally() {
 	    vm->pop_outer();
+	    vm->set_outer_stack(outer_stack);
 	    b->self = old_self;
 	    b->klass = old_class;
 	    vm->add_current_block(b);
 	}
-    } finalizer(vm, b, old_class, old_self);
+    } finalizer(vm, b, old_class, old_self, old_outer_stack);
 
     return vm_block_eval(vm, b, NULL, b->self, argc, argv);
 }
@@ -1409,6 +1441,8 @@ rb_vm_prepare_block(void *function, int flags, VALUE self, rb_vm_arity_t arity,
     b->proc = Qnil;
     GC_WB(&b->self, self);
     b->klass = (VALUE)vm->get_current_class();
+    // KOUJI_TODO: GC_WB
+    b->outer = rb_vm_get_outer();
     b->parent_var_uses = parent_var_uses;
     GC_WB(&b->parent_block, parent_block);
 

@@ -36,6 +36,12 @@ typedef struct rb_vm_local {
 #define VM_BLOCK_AOT	(1<<10) // block is created by the AOT compiler
 				// (temporary)
 
+typedef struct rb_vm_outer {
+    Class klass;
+    bool pushed_by_eval;
+    struct rb_vm_outer *outer;
+} rb_vm_outer_t;
+
 typedef struct rb_vm_block {
     // IMPORTANT: the flags field should always be at the beginning.
     // Look at how rb_vm_take_ownership() is called in compiler.cpp.
@@ -43,6 +49,7 @@ typedef struct rb_vm_block {
     VALUE proc; // a reference to a Proc object, or nil.
     VALUE self;
     VALUE klass;
+    rb_vm_outer_t *outer;
     VALUE userdata; // if VM_BLOCK_IFUNC, contains the user data, otherwise
 		    // contains the key used in the blocks cache.
     rb_vm_arity_t arity;
@@ -55,12 +62,6 @@ typedef struct rb_vm_block {
     // the way the structure is allocated.
     VALUE *dvars[1];
 } rb_vm_block_t;
-
-typedef struct rb_vm_outer {
-    Class klass;
-    bool pushed_by_eval;
-    struct rb_vm_outer *outer;
-} rb_vm_outer_t;
 
 typedef struct rb_vm_binding {
     VALUE self;
@@ -133,6 +134,7 @@ typedef struct rb_vm_method_node {
     IMP objc_imp;
     IMP ruby_imp;
     int flags;
+    rb_vm_outer_t *outer;
 } rb_vm_method_node_t;
 
 typedef struct {
@@ -467,8 +469,7 @@ rb_vm_block_make_detachable_proc(rb_vm_block_t *b)
 }
 
 rb_vm_binding_t *rb_vm_create_binding(VALUE self, rb_vm_block_t *current_block,
-	rb_vm_binding_t *top_binding, rb_vm_outer_t *outer_stack, 
-	int lvars_size, va_list lvars, bool vm_push);
+	rb_vm_binding_t *top_binding, int lvars_size, va_list lvars, bool vm_push);
 rb_vm_binding_t *rb_vm_current_binding(void);
 void rb_vm_add_binding(rb_vm_binding_t *binding);
 void rb_vm_pop_binding();
@@ -498,8 +499,10 @@ Class rb_vm_get_current_class(void);
 
 rb_vm_outer_t *rb_vm_push_outer(Class klass);
 rb_vm_outer_t *rb_vm_pop_outer(void);
+rb_vm_outer_t *rb_vm_set_outer_stack(rb_vm_outer_t *outer_stack);
 rb_vm_outer_t *rb_vm_get_outer_stack(void);
-rb_vm_outer_t *rb_vm_set_current_outer(rb_vm_outer_t *outer);
+void rb_vm_print_outer_stack(const char *fname, NODE *node, const char *function, int line,
+	rb_vm_outer_t *outer_stack, const char *prefix);
 
 bool rb_vm_aot_feature_load(const char *name);
 void rb_vm_load(const char *fname_str, int wrap);
@@ -705,6 +708,7 @@ typedef struct {
     Function *func;
     rb_vm_arity_t arity;
     int flags;
+    rb_vm_outer_t *outer;
 } rb_vm_method_source_t;
 #endif
 
@@ -823,6 +827,12 @@ class RoxorCore {
 	long functions_compiled;
 #endif
 
+	// to check unset outer methods.
+	IMP eval_imp;
+	IMP module_eval_imp;
+	IMP instance_eval_imp;
+	IMP binding_eval_imp;
+
     public:
 	RoxorCore(void);
 	~RoxorCore(void);
@@ -926,16 +936,17 @@ class RoxorCore {
 	rb_vm_method_source_t *method_source_get(Class klass, SEL sel);
 
 	void prepare_method(Class klass, SEL sel, Function *func,
-		const rb_vm_arity_t &arity, int flag);
+		const rb_vm_arity_t &arity, int flag, rb_vm_outer_t *outer);
 	bool resolve_methods(std::map<Class, rb_vm_method_source_t *> *map,
 		Class klass, SEL sel);
 #endif
 	rb_vm_method_node_t *resolve_method(Class klass, SEL sel,
 		void *func, const rb_vm_arity_t &arity, int flags,
-		IMP imp, Method m, void *objc_imp_types);
+		IMP imp, Method m, void *objc_imp_types,
+		rb_vm_outer_t *outer);
 	rb_vm_method_node_t *add_method(Class klass, SEL sel, IMP imp,
 		IMP ruby_imp, const rb_vm_arity_t &arity, int flags,
-		const char *types);
+		const char *types, rb_vm_outer_t *outer);
 	rb_vm_method_node_t *retype_method(Class klass,
 		rb_vm_method_node_t *node, const char *old_types,
 		const char *new_types);
@@ -1075,7 +1086,6 @@ class RoxorVM {
 	std::map<VALUE, rb_vm_catch_t *> catch_nesting;
 	std::vector<VALUE> recursive_objects;
         rb_vm_outer_t *outer_stack;
-        rb_vm_outer_t *current_outer;
 
 	// Method cache.
 	struct mcache *mcache;
@@ -1128,7 +1138,6 @@ class RoxorVM {
 	ACCESSOR(current_mri_method_self, VALUE);
 	ACCESSOR(current_mri_method_sel, SEL);
 	ACCESSOR(outer_stack, rb_vm_outer_t *);
-	ACCESSOR(current_outer, rb_vm_outer_t *);
 
 	void debug_blocks(void);
 
