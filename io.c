@@ -47,6 +47,8 @@ extern void Init_File(void);
 VALUE rb_cIO;
 VALUE rb_eEOFError;
 VALUE rb_eIOError;
+VALUE rb_mWaitReadable;
+VALUE rb_mWaitWritable;
 
 VALUE rb_stdin = 0, rb_stdout = 0, rb_stderr = 0;
 VALUE rb_deferr;		/* rescue VIM plugin */
@@ -1139,15 +1141,31 @@ io_read_nonblock(VALUE io, SEL sel, int argc, VALUE *argv)
  *
  */
 
-#if 0
 static VALUE
 rb_io_write_nonblock(VALUE io, SEL sel, VALUE str)
 {
-    return Qnil;
+    rb_secure(4);
+    if (TYPE(str) != T_STRING) {
+	str = rb_obj_as_string(str);
+    }
+
+    rb_io_t *io_struct = ExtractIOStruct(io);
+    rb_io_check_writable(io_struct);
+
+    const uint8_t *buffer = rb_bstr_bytes(str);
+    const long length = rb_bstr_length(str);
+    
+    rb_io_set_nonblock(io_struct);
+    ssize_t result = write(io_struct->write_fd, buffer, length);
+    if (result == -1) {
+        if (errno == EWOULDBLOCK || errno == EAGAIN) {
+            rb_mod_sys_fail(rb_mWaitWritable, "write would block");
+	}
+	rb_sys_fail("write(2) failed.");
+    }
+
+    return LONG2FIX(result);
 }
-#else
-# define rb_io_write_nonblock rb_f_notimplement
-#endif
 
 /*
  *  call-seq:
@@ -4973,6 +4991,9 @@ Init_IO(void)
 
     rb_cIO = rb_define_class("IO", rb_cObject);
     rb_include_module(rb_cIO, rb_mEnumerable);
+
+    rb_mWaitReadable = rb_define_module_under(rb_cIO, "WaitReadable");
+    rb_mWaitWritable = rb_define_module_under(rb_cIO, "WaitWritable");
 
     rb_objc_define_method(*(VALUE *)rb_cIO, "alloc", io_alloc, 0);
     rb_objc_define_method(*(VALUE *)rb_cIO, "new", rb_io_s_new, -1);
