@@ -1032,7 +1032,7 @@ write_would_block(int nonblock)
 {
     if (nonblock) {
         VALUE exc = ossl_exc_new(eSSLError, "write would block");
-        //rb_extend_object(exc, rb_mWaitWritable);
+        rb_extend_object(exc, rb_mWaitWritable);
         rb_exc_raise(exc);
     }
 }
@@ -1042,7 +1042,7 @@ read_would_block(int nonblock)
 {
     if (nonblock) {
         VALUE exc = ossl_exc_new(eSSLError, "read would block");
-        //rb_extend_object(exc, rb_mWaitReadable);
+        rb_extend_object(exc, rb_mWaitReadable);
         rb_exc_raise(exc);
     }
 }
