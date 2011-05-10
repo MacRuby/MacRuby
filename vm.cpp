@@ -5629,14 +5629,16 @@ rb_vm_load(const char *fname_str, int wrap)
 	    old_outer_stack = vm->get_outer_stack();
 	}
 	~Finally() { 
+	    vm->pop_outer();
 	    vm->set_outer_stack(old_outer_stack);
 	    vm->set_current_class(old_class);
 	}
     } finalizer(vm);
 
     vm->set_current_class(NULL);
-    // KOUJI_TODO: push NSObject and supports wrap.
     vm->set_outer_stack(NULL);
+    vm->push_outer((Class)rb_cObject);
+    // KOUJI_TODO: support wrap.
 
     rb_vm_run(fname_str, node, NULL, false);
 }
