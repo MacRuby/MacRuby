@@ -746,6 +746,7 @@ PRINTF_ARGS(NORETURN(void rb_raise(VALUE, const char*, ...)), 2, 3);
 PRINTF_ARGS(NORETURN(void rb_fatal(const char*, ...)), 1, 2);
 PRINTF_ARGS(NORETURN(void rb_bug(const char*, ...)), 1, 2);
 NORETURN(void rb_sys_fail(const char*));
+NORETURN(void rb_mod_sys_fail(VALUE, const char*));
 void rb_iter_break(void);
 NORETURN(void rb_exit(int));
 NORETURN(void rb_notimplement(void));

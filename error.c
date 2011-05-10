@@ -1200,8 +1200,8 @@ rb_fatal(const char *fmt, ...)
     rb_exc_fatal(rb_exc_new2(rb_eFatal, buf));
 }
 
-void
-rb_sys_fail(const char *mesg)
+static VALUE
+make_errno_exc(const char *mesg)
 {
     int n = errno;
     VALUE arg;
@@ -1212,7 +1212,21 @@ rb_sys_fail(const char *mesg)
     }
 
     arg = mesg ? rb_str_new2(mesg) : Qnil;
-    rb_exc_raise(rb_class_new_instance(1, &arg, get_syserr(n)));
+    return rb_class_new_instance(1, &arg, get_syserr(n));
+}
+
+void
+rb_sys_fail(const char *mesg)
+{
+    rb_exc_raise(make_errno_exc(mesg));
+}
+
+void
+rb_mod_sys_fail(VALUE mod, const char *mesg)
+{
+    VALUE exc = make_errno_exc(mesg);
+    rb_extend_object(exc, mod);
+    rb_exc_raise(exc);
 }
 
 void
