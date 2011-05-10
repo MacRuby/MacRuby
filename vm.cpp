@@ -8,7 +8,7 @@
 
 #define ROXOR_VM_DEBUG		0
 #define ROXOR_COMPILER_DEBUG 	0
-#define ROXOR_VM_DEBUG_CONST	0
+#define ROXOR_VM_DEBUG_OUTER	0
 
 #if MACRUBY_STATIC
 # include <vector>
@@ -460,8 +460,7 @@ RoxorVM::RoxorVM(const RoxorVM &vm)
 
 	    b->proc = orig->proc; // weak
 	    GC_WB(&b->self, orig->self);
-	    // KOUJI_TODO: GC_WB
-	    b->outer = orig->outer;
+	    GC_WB(&b->outer, orig->outer);
 	    GC_WB(&b->locals, orig->locals);
 	    GC_WB(&b->parent_block, orig->parent_block);  // XXX not sure
 #endif
@@ -802,7 +801,7 @@ RoxorCore::constant_cache_get(ID path)
 	cache->outer = 0;
 	cache->outer_mask = 0;
 	cache->val = Qundef;
-	// KOUJI_TODO: outer_stack
+	cache->outer_stack = NULL;
 	ccache[path] = cache;
 	return cache;
     }
@@ -1007,6 +1006,11 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 	const rb_vm_arity_t &arity, int flags, const char *types,
 	rb_vm_outer_t *outer)
 {
+    if (outer == NULL) {
+	// KOUJI_TODO: fix to get outer method
+	outer = rb_vm_get_outer();
+    }
+    
     // #initialize and #initialize_copy are always private.
     if (sel == selInitialize || sel == selInitialize2
 	    || sel == selInitializeCopy) {
@@ -1082,7 +1086,6 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 	real_node->outer = NULL;
     }
     else {
-	// KOUJI_TODO: GC_WB
 	real_node->outer = outer;
     }
 
@@ -1107,7 +1110,6 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 	node->outer = NULL;
     }
     else {
-	// KOUJI_TODO: GC_WB
 	node->outer = outer;
     }
     if (imp != ruby_imp) {
@@ -1179,7 +1181,6 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 		    node->outer = NULL;
 		}
 		else {
-		    // KOUJI_TODO: GC_WB
 		    node->outer = outer;
 		}
 	    }
@@ -1378,7 +1379,7 @@ rb_vm_const_lookup_level(VALUE outer, uint64_t outer_mask, ID path,
 	bool lexical, bool defined, rb_vm_outer_t *outer_stack)
 {
     rb_vm_check_if_module(outer);
-#if ROXOR_VM_DEBUG_CONST
+#if ROXOR_VM_DEBUG_OUTER
     printf("%s:%d:%s:"
 	    "outer(%s) outer_mask(%llu) path(%s) lexical(%s) defined(%s) outer_stack(%p)\n",
 	    __FILE__, __LINE__, __FUNCTION__,
@@ -1390,7 +1391,7 @@ rb_vm_const_lookup_level(VALUE outer, uint64_t outer_mask, ID path,
 	// Let's do a lexical lookup before a hierarchical one, by looking for
 	// the given constant in all modules under the given outer.
 	GET_CORE()->lock();
-#if ROXOR_VM_DEBUG_CONST
+#if ROXOR_VM_DEBUG_OUTER
 	rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
 		outer_stack, "compile time");
 #endif
@@ -1688,10 +1689,9 @@ void
 rb_vm_alias2(VALUE outer, VALUE name, VALUE def, unsigned char dynamic_class)
 {
     if (dynamic_class) {
-	// KOUJI_TODO: resolve klass from current outer_stack inside eval
-	Class k = GET_VM()->get_current_class();
-	if (k != NULL) {
-	    outer = (VALUE)k;
+	VALUE k = rb_vm_get_cbase();
+	if (k != Qundef) {
+	    outer = k;
 	}
 	else if (RCLASS_SUPER(outer) == 0) {
 	    rb_raise(rb_eTypeError, "no class to make alias");
@@ -2193,7 +2193,6 @@ RoxorCore::prepare_method(Class klass, SEL sel, Function *func,
     m->func = func;
     m->arity = arity;
     m->flags = flags;
-    // KOUJI_TODO: GC_WB
     m->outer = outer;
 
     invalidate_respond_to_cache();
@@ -2274,7 +2273,6 @@ prepare_method:
 	if (m != NULL || custom_resolver) {
 	    // The method already exists _or_ the class implemented a custom
 	    // Objective-C method resolver - we need to JIT it.
-	    // KOUJI_TODO: set current outer_stack
 	    if (imp == NULL) {
 		imp = GET_CORE()->compile(func);
 	    }
@@ -2535,7 +2533,6 @@ RoxorCore::copy_method(Class klass, Method m)
 	assert(m2 != NULL);
 	assert(method_getImplementation(m2) == method_getImplementation(m));
 	rb_vm_method_node_t *node2 = method_node_get(m2, true);
-	// KOUJI_TODO: GC_WB only outer
 	memcpy(node2, node, sizeof(rb_vm_method_node_t));
     }
     return true;
@@ -2787,11 +2784,9 @@ rb_vm_define_method(Class klass, SEL sel, IMP imp, NODE *node, bool direct)
 {
     assert(node != NULL);
 
-    // KOUJI_TODO: fix to get outer method
-    rb_vm_outer_t *outer = rb_vm_get_outer();
     // TODO: create objc_imp
     return __rb_vm_define_method(klass, sel, imp, imp, rb_vm_node_arity(node),
-	    rb_vm_node_flags(node), direct, outer);
+	    rb_vm_node_flags(node), direct, NULL);
 }
 
 extern "C"
@@ -3200,11 +3195,16 @@ rb_vm_add_binding_lvar_use(rb_vm_binding_t *binding, rb_vm_block_t *block,
 rb_vm_outer_t *
 RoxorVM::create_outer(Class klass, rb_vm_outer_t *outer, bool pushed_by_eval)
 {
-    // KOUJI_TODO: replace xmalloc and GC_RETAIN.
-    rb_vm_outer_t *o = (rb_vm_outer_t *)malloc(sizeof(rb_vm_outer_t));
+    rb_vm_outer_t *o = (rb_vm_outer_t *)xmalloc(sizeof(rb_vm_outer_t));
     o->klass = klass;
-    o->outer = outer;
+    if (outer == NULL) {
+	o->outer = NULL;
+    }
+    else {
+	GC_WB(&o->outer, outer);
+    }
     o->pushed_by_eval = pushed_by_eval;
+    GC_RETAIN(o);
 
     return o;
 }
@@ -3214,7 +3214,7 @@ RoxorVM::push_outer(Class klass)
 {
     outer_stack = create_outer(klass, outer_stack, false);
     
-#if ROXOR_VM_DEBUG_CONST
+#if ROXOR_VM_DEBUG_OUTER
     rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
 			    outer_stack, "push_outer");
 #endif
@@ -3222,20 +3222,18 @@ RoxorVM::push_outer(Class klass)
     return outer_stack;
 }
 
-rb_vm_outer_t *
+void
 RoxorVM::pop_outer(void)
 {
     assert(outer_stack != NULL);
-    // KOUJI_TODO: collect garbage. but not all, only unused.
     rb_vm_outer_t *old = outer_stack;
     outer_stack = outer_stack->outer;
+    GC_RELEASE(old);
 
-#if ROXOR_VM_DEBUG_CONST
+#if ROXOR_VM_DEBUG_OUTER
     rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
-			    outer_stack, "pop_outer");
+	    outer_stack, "popped outer");
 #endif
-    
-    return old;
 }
 
 rb_vm_outer_t *
@@ -3244,10 +3242,10 @@ rb_vm_push_outer(Class klass)
     return GET_VM()->push_outer(klass);
 }
 
-rb_vm_outer_t *
+void
 rb_vm_pop_outer(void)
 {
-    return GET_VM()->pop_outer();
+    GET_VM()->pop_outer();
 }
 
 rb_vm_outer_t *
@@ -3361,8 +3359,7 @@ rb_vm_create_binding(VALUE self, rb_vm_block_t *current_block,
 	(rb_vm_binding_t *)xmalloc(sizeof(rb_vm_binding_t));
     GC_WB(&binding->self, self);
     GC_WB(&binding->next, top_binding);
-    // KOUJI_TODO: GC_WB
-    binding->outer_stack = rb_vm_get_outer();
+    GC_WB(&binding->outer, rb_vm_get_outer());
 
     rb_vm_local_t **l = &binding->locals;
 
@@ -3390,10 +3387,9 @@ rb_vm_create_binding(VALUE self, rb_vm_block_t *current_block,
 extern "C"
 void
 rb_vm_push_binding(VALUE self, rb_vm_block_t *current_block,
-	rb_vm_binding_t *top_binding, unsigned char dynamic_class,
-	rb_vm_var_uses **parent_var_uses, int lvars_size, ...)
+	rb_vm_binding_t *top_binding, rb_vm_var_uses **parent_var_uses,
+	int lvars_size, ...)
 {
-    // KOUJI_TODO: remove dynamic_class
     va_list lvars;
     va_start(lvars, lvars_size);
     rb_vm_binding_t *binding = rb_vm_create_binding(self, current_block,
@@ -3475,8 +3471,13 @@ rb_vm_create_block_from_method(rb_vm_method_t *method)
     b->proc = Qnil;
     GC_WB(&b->self, method->recv);
     b->klass = 0;
-    // KOUJI_TODO: GC_WB and implement if method->node == NULL
-    b->outer = method->node == NULL ? NULL : method->node->outer;
+    if (method->node == NULL) {
+	// KOUJI_TODO: implement if method->node == NULL
+	b->outer = NULL;
+    }
+    else {
+	GC_WB(&b->outer, method->node->outer);
+    }
     b->arity = method->node == NULL
 	? rb_vm_arity(method->arity) : method->node->arity;
     b->imp = (IMP)method;
@@ -3510,8 +3511,7 @@ rb_vm_create_block_calling_mid(ID mid)
 	    + (2 * sizeof(VALUE *)));
 
     b->klass = 0;
-    // KOUJI_TODO: GC_WB
-    b->outer = rb_vm_get_outer();
+    GC_WB(&b->outer, rb_vm_get_outer());
     b->proc = Qnil;
     b->flags = VM_BLOCK_PROC;
     b->imp = (IMP)rb_vm_block_call_sel;
@@ -3561,8 +3561,7 @@ rb_vm_make_curry_proc(VALUE proc, VALUE passed, VALUE arity)
 	    + (3 * sizeof(VALUE *)));
 
     b->klass = 0;
-    // KOUJI_TODO: GC_WB
-    b->outer = rb_vm_get_outer();
+    GC_WB(&b->outer, rb_vm_get_outer());
     b->proc = Qnil;
     b->arity.min = 0;
     b->arity.max = -1;
@@ -3597,8 +3596,7 @@ rb_iterate(VALUE (*it_proc) (VALUE), VALUE data1, VALUE (*bl_proc) (ANYARGS),
 	    + (2 * sizeof(VALUE *)));
 
     b->klass = 0;
-    // KOUJI_TODO: GC_WB
-    b->outer = rb_vm_get_outer();
+    GC_WB(&b->outer, rb_vm_get_outer());
     b->proc = Qnil;
     b->arity.min = 0;
     b->arity.max = -1;
@@ -4209,7 +4207,6 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 	mnode->sel = sel_registerName("<main>");
 	mnode->objc_imp = mnode->ruby_imp = imp;
 	mnode->flags = 0;
-	// KOUJI_TODO: fix to get outer method
 	mnode->outer = rb_vm_get_outer();
 
 	// Execute the function.
@@ -4246,7 +4243,7 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
     VALUE old_top_object = vm->get_current_top_object();
     if (binding != NULL) {
 	self = binding->self;
-	rb_vm_outer_t *o = binding->outer_stack;
+	rb_vm_outer_t *o = binding->outer;
 	assert(o != NULL);
 	klass = (VALUE)o->klass;
     }
@@ -4267,7 +4264,7 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 	}
     }
     else {
-	vm->set_outer_stack(binding->outer_stack);
+	vm->set_outer_stack(binding->outer);
     }
 
     RoxorCompiler::shared->set_dynamic_class(true);

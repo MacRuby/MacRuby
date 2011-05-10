@@ -67,7 +67,7 @@ typedef struct rb_vm_binding {
     VALUE self;
     rb_vm_block_t *block;
     rb_vm_local_t *locals;
-    rb_vm_outer_t *outer_stack;
+    rb_vm_outer_t *outer;
     struct rb_vm_binding *next;
 } rb_vm_binding_t;
 
@@ -361,6 +361,38 @@ rb_vm_outer_t *rb_vm_get_outer(void);
 VALUE rb_vm_catch(VALUE tag);
 VALUE rb_vm_throw(VALUE tag, VALUE value);
 
+static inline VALUE
+rb_vm_get_cbase(void)
+{
+    rb_vm_outer_t *o = rb_vm_get_outer();
+    VALUE klass = Qundef;
+
+    while (o) {
+	if ((klass = (VALUE)o->klass) != 0) {
+	    break;
+	}
+	o = o->outer;
+    }
+
+    return klass;
+}
+
+static inline VALUE
+rb_vm_get_const_base(void)
+{
+    rb_vm_outer_t *o = rb_vm_get_outer();
+    VALUE klass = Qundef;
+
+    while (o) {
+	if (!o->pushed_by_eval && (klass = (VALUE)o->klass) != 0) {
+	    break;
+	}
+	o = o->outer;
+    }
+
+    return klass;
+}
+
 typedef struct {
     ID name;
     VALUE value; 
@@ -497,7 +529,7 @@ Class rb_vm_set_current_class(Class klass);
 Class rb_vm_get_current_class(void);
 
 rb_vm_outer_t *rb_vm_push_outer(Class klass);
-rb_vm_outer_t *rb_vm_pop_outer(void);
+void rb_vm_pop_outer(void);
 rb_vm_outer_t *rb_vm_set_outer_stack(rb_vm_outer_t *outer_stack);
 rb_vm_outer_t *rb_vm_get_outer_stack(void);
 void rb_vm_print_outer_stack(const char *fname, NODE *node, const char *function, int line,
@@ -1241,7 +1273,7 @@ class RoxorVM {
 	rb_vm_outer_t *create_outer(Class klass, rb_vm_outer_t *outer,
 		bool pushed_by_eval);
         rb_vm_outer_t *push_outer(Class klass);
-        rb_vm_outer_t *pop_outer(void);
+        void pop_outer(void);
 };
 
 #define GET_VM() (RoxorVM::current())

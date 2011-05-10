@@ -1409,8 +1409,7 @@ proc_binding(VALUE self, SEL sel)
     binding->block = NULL;
     GC_WB(&binding->self, block->self);
     GC_WB(&binding->locals, block->locals);
-    // KOUJI_TODO: GC_WB
-    binding->outer_stack = block->outer;
+    GC_WB(&binding->outer, block->outer);
 
     return Data_Wrap_Struct(rb_cBinding, NULL, NULL, binding);
 }
@@ -1634,8 +1633,7 @@ Init_Binding(void)
     rb_vm_binding_t *binding = (rb_vm_binding_t *)xmalloc(
 	    sizeof(rb_vm_binding_t));
     GC_WB(&binding->self, rb_vm_top_self());
-    // KOUJI_TODO: GC_WB
-    binding->outer_stack = rb_vm_get_outer();
+    GC_WB(&binding->outer, rb_vm_get_outer());
     rb_define_global_const("TOPLEVEL_BINDING",
 	    rb_binding_new_from_binding(binding));
 }

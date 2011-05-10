@@ -179,17 +179,7 @@ vm_get_const(VALUE outer, uint64_t outer_mask, void *cache_p, ID path,
 PRIMITIVE void 
 vm_set_const(VALUE outer, ID id, VALUE obj, unsigned char dynamic_class)
 {
-    if (dynamic_class) {
-        // KOUJI_TODO: correct
-	rb_vm_outer_t *o = rb_vm_get_outer();
-	while (o != NULL && o->pushed_by_eval) {
-	    o = o->outer;
-	}
-	if (o != NULL) {
-	    outer = (VALUE)o->klass;
-	}
-    }
-    rb_const_set(outer, id, obj);
+    rb_const_set(dynamic_class ? rb_vm_get_const_base() : outer, id, obj);
 }
 
 static void __attribute__((noinline))
