@@ -1114,15 +1114,48 @@ rb_io_set_nonblock(rb_io_t *fptr)
  *
  */
 
-#if 0
 static VALUE
 io_read_nonblock(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-    return Qnil;
+    VALUE maxlen, buffer;
+    rb_scan_args(argc, argv, "11", &maxlen, &buffer);
+    const long length = FIX2LONG(maxlen);
+    if (length == 0) {
+	buffer = rb_str_new2("");
+	goto EXIT;
+    }
+    else if (length < 0) {
+	rb_raise(rb_eArgError, "negative numbers not valid");
+    }
+
+    if (NIL_P(buffer)) {
+	buffer = rb_bstr_new();
+    }
+
+    rb_bstr_resize(buffer, length);
+    uint8_t *bytes = rb_bstr_bytes(buffer);
+
+    rb_io_t *io_struct = ExtractIOStruct(io);
+    rb_io_check_readable(io_struct);
+    rb_io_set_nonblock(io_struct);
+
+    ssize_t result = read(io_struct->read_fd, bytes, length);
+    if (result == -1) {
+        if (errno == EWOULDBLOCK || errno == EAGAIN) {
+            rb_mod_sys_fail(rb_mWaitReadable, "read would block");
+	}
+	rb_sys_fail("read(2) failed.");
+    }
+
+    rb_bstr_set_length(buffer, result);
+    if (result == 0) {
+	rb_eof_error();
+    }
+
+  EXIT:
+    OBJ_TAINT(buffer);
+    return buffer;
 }
-#else
-# define io_read_nonblock rb_f_notimplement
-#endif
 
 /*
  *  call-seq:
