@@ -2232,8 +2232,7 @@ prepare_method(Class klass, bool dynamic_class, SEL sel, void *data,
 {
     rb_vm_outer_t *outer = rb_vm_get_outer();
     if (dynamic_class) {
-	// KOUJI_TODO: resolve klass from current outer_stack inside eval
-	Class k = GET_VM()->get_current_class();
+	Class k = outer->klass;
 	if (k != NULL) {
 	    const bool meta = class_isMetaClass(klass);
 	    klass = k;
@@ -4250,7 +4249,7 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 extern "C"
 VALUE
 rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
-	rb_vm_binding_t *binding, bool inside_eval)
+	rb_vm_binding_t *binding, bool inside_eval, bool should_push_outer)
 {
 #if MACRUBY_STATIC
     rb_raise(rb_eRuntimeError, "codegen is not supported in MacRuby static");
@@ -4261,12 +4260,8 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
     if (binding != NULL) {
 	self = binding->self;
 	rb_vm_outer_t *o = binding->outer_stack;
-	if (o == NULL) {
-	    klass = rb_cNSObject;
-	}
-	else {
-	    klass = (VALUE)o->klass;
-	}
+	assert(o != NULL);
+	klass = (VALUE)o->klass;
     }
     if (self != 0) {
 	vm->set_current_top_object(self);
@@ -4277,10 +4272,11 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 
     vm->set_current_class((Class)klass);
 
+    bool should_pop_outer = false;
     if (binding == NULL) {
-	// KOUJI_TODO: push_outer
-	if (klass != 0 && !NIL_P(klass)) {
+	if (should_push_outer) {
 	    vm->push_outer((Class)klass);
+	    should_pop_outer = true;
 	}
     }
     else {
@@ -4297,21 +4293,27 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 	Class old_class;
 	VALUE old_top_object;
 	rb_vm_outer_t *old_outer_stack;
-	Finally(RoxorVM *_vm, bool _dynamic_class, Class _class, VALUE _obj, rb_vm_outer_t *_outer_stack) {
+	bool should_pop_outer;
+	Finally(RoxorVM *_vm, bool _dynamic_class, Class _class, VALUE _obj, rb_vm_outer_t *_outer_stack, bool _should_pop_outer) {
 	    vm = _vm;
 	    old_dynamic_class = _dynamic_class;
 	    old_class = _class;
 	    old_top_object = _obj;
 	    old_outer_stack = _outer_stack;
+	    should_pop_outer = _should_pop_outer;
 	}
 	~Finally() { 
 	    RoxorCompiler::shared->set_dynamic_class(old_dynamic_class);
 	    vm->set_current_top_object(old_top_object);
+	    if (should_pop_outer) {
+		vm->pop_outer();
+	    }
 	    vm->set_outer_stack(old_outer_stack);
 	    vm->set_current_class(old_class);
 	    vm->pop_current_block();
 	}
-    } finalizer(vm, old_dynamic_class, old_class, old_top_object, old_outer_stack);
+    } finalizer(vm, old_dynamic_class, old_class, old_top_object, old_outer_stack,
+	    should_pop_outer);
 
     return rb_vm_run(fname, node, binding, inside_eval);
 #endif
@@ -4320,7 +4322,7 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 extern "C"
 VALUE
 rb_vm_eval_string(VALUE self, VALUE klass, VALUE src, rb_vm_binding_t *binding,
-	const char *file, const int line)
+	const char *file, const int line, bool should_push_outer)
 {
 #if MACRUBY_STATIC
     rb_raise(rb_eRuntimeError,
@@ -4356,7 +4358,7 @@ rb_vm_eval_string(VALUE self, VALUE klass, VALUE src, rb_vm_binding_t *binding,
 	}
     }
 
-    return rb_vm_run_under(klass, self, file, node, binding, true);
+    return rb_vm_run_under(klass, self, file, node, binding, true, should_push_outer);
 #endif
 }
 
