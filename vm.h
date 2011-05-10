@@ -358,7 +358,6 @@ void rb_vm_push_methods(VALUE ary, VALUE mod, bool include_objc_methods,
 void rb_vm_set_outer_obsolate(VALUE klass, VALUE under);
 VALUE rb_vm_get_outer_obsolate(VALUE klass);
 rb_vm_outer_t *rb_vm_get_outer(void);
-VALUE rb_vm_module_constants(void);
 VALUE rb_vm_catch(VALUE tag);
 VALUE rb_vm_throw(VALUE tag, VALUE value);
 

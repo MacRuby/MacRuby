@@ -1477,30 +1477,6 @@ rb_vm_get_outer(void)
     return GET_VM()->get_outer_stack();
 }
 
-extern "C"
-VALUE
-rb_vm_module_constants(void)
-{
-    VALUE cbase = 0;
-    void *data = 0;
-    for (rb_vm_outer_t *o = GET_VM()->get_outer_stack(); o != NULL; o = o->outer) {
-	if (!o->pushed_by_eval) {
-	    data = rb_mod_const_at((VALUE)o->klass, data);
-	    if (cbase == 0) {
-		cbase = (VALUE)o->klass;
-	    }
-	}
-    }
-    data = rb_mod_const_at(rb_cObject, data);
-    if (cbase == 0) {
-	cbase = rb_cObject;
-    }
-    if (cbase != 0) {
-	data = rb_mod_const_of(cbase, data);
-    }
-    return rb_const_list(data);
-}
-
 static VALUE
 get_klass_const(VALUE outer, ID path, bool lexical, rb_vm_outer_t *outer_stack)
 {
