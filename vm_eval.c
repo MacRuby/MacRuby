@@ -308,14 +308,14 @@ eval_under(VALUE self, VALUE klass, VALUE src, VALUE scope, const char *file,
     else {
 	SafeStringValue(src);
     }
-    return eval_string_with_should_push_outer(self, klass, src, Qnil, file, line, true);
+    return eval_string_with_should_push_outer(self, klass, src, scope, file, line, true);
 }
 
 static VALUE
 eval_string(VALUE self, VALUE klass, VALUE src, VALUE scope, const char *file,
 	    const int line)
 {
-    return eval_string_with_should_push_outer(self, klass, src, Qnil, file, line, false);
+    return eval_string_with_should_push_outer(self, klass, src, scope, file, line, false);
 }
 
 static VALUE

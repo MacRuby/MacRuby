@@ -3375,6 +3375,7 @@ rb_vm_create_binding(VALUE self, rb_vm_block_t *current_block,
 	(rb_vm_binding_t *)xmalloc(sizeof(rb_vm_binding_t));
     GC_WB(&binding->self, self);
     GC_WB(&binding->next, top_binding);
+    // KOUJI_TODO: GC_WB
     binding->outer_stack = rb_vm_get_outer();
 
     rb_vm_local_t **l = &binding->locals;
