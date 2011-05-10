@@ -1326,39 +1326,36 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
     b->self = self;
     VALUE old_class = b->klass;
     b->klass = klass;
-    rb_vm_outer_t *old_outer_stack = vm->get_outer_stack();
-    vm->set_outer_stack(b->outer);
+    rb_vm_outer_t *old_outer = b->outer;
+    b->outer = vm->create_outer((Class)klass, b->outer, true);
 
 #if ROXOR_VM_DEBUG
     rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
 	    b->outer, "rb_vm_block_t");
 #endif
 
-    rb_vm_outer_t *o = vm->push_outer((Class)klass);
-    o->pushed_by_eval = true;
-
     struct Finally {
 	RoxorVM *vm;
 	rb_vm_block_t *b;
 	VALUE old_class;
 	VALUE old_self;
-	rb_vm_outer_t *outer_stack;
+	rb_vm_outer_t *old_outer;
 	Finally(RoxorVM *_vm, rb_vm_block_t *_b, VALUE _old_class,
-		VALUE _old_self, rb_vm_outer_t *_outer_stack) {
+		VALUE _old_self, rb_vm_outer_t *_old_outer) {
 	    vm = _vm;
 	    b = _b;
 	    old_class = _old_class;
 	    old_self = _old_self;
-	    outer_stack = outer_stack;
+	    old_outer = _old_outer;
 	}
 	~Finally() {
-	    vm->pop_outer();
-	    vm->set_outer_stack(outer_stack);
+	    // KOUJI_TODO: free b->outer
+	    b->outer = old_outer;
 	    b->self = old_self;
 	    b->klass = old_class;
 	    vm->add_current_block(b);
 	}
-    } finalizer(vm, b, old_class, old_self, old_outer_stack);
+    } finalizer(vm, b, old_class, old_self, old_outer);
 
     return vm_block_eval(vm, b, NULL, b->self, argc, argv);
 }

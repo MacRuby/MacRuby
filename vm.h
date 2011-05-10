@@ -1238,6 +1238,8 @@ class RoxorVM {
 	VALUE exec_recursive(VALUE (*func) (VALUE, VALUE, int), VALUE obj,
 		VALUE arg);
 
+	rb_vm_outer_t *create_outer(Class klass, rb_vm_outer_t *outer,
+		bool pushed_by_eval);
         rb_vm_outer_t *push_outer(Class klass);
         rb_vm_outer_t *pop_outer(void);
 };

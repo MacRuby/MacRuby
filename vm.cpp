@@ -3219,21 +3219,28 @@ rb_vm_add_binding_lvar_use(rb_vm_binding_t *binding, rb_vm_block_t *block,
 }
 
 rb_vm_outer_t *
-RoxorVM::push_outer(Class klass)
+RoxorVM::create_outer(Class klass, rb_vm_outer_t *outer, bool pushed_by_eval)
 {
     // KOUJI_TODO: replace xmalloc and GC_RETAIN.
     rb_vm_outer_t *o = (rb_vm_outer_t *)malloc(sizeof(rb_vm_outer_t));
     o->klass = klass;
-    o->outer = outer_stack;
-    o->pushed_by_eval = false;
-    outer_stack = o;
+    o->outer = outer;
+    o->pushed_by_eval = pushed_by_eval;
 
+    return o;
+}
+
+rb_vm_outer_t *
+RoxorVM::push_outer(Class klass)
+{
+    outer_stack = create_outer(klass, outer_stack, false);
+    
 #if ROXOR_VM_DEBUG_CONST
     rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
 			    outer_stack, "push_outer");
 #endif
     
-    return o;
+    return outer_stack;
 }
 
 rb_vm_outer_t *
