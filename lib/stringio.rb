@@ -162,6 +162,7 @@ class StringIO
     val
   end
   alias_method :readpartial, :sysread
+  alias_method :read_nonblock, :sysread
 
   #   strio.readbyte   -> fixnum
   #
@@ -518,6 +519,7 @@ class StringIO
     str.length
   end
   alias_method :syswrite, :write
+  alias_method :write_nonblock, :write
 
   #   strio << obj     -> strio
   #
