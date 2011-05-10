@@ -1013,25 +1013,21 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 
     // Kernel#eval
     if (eval_imp == 0 && sel == selEval && klass == (Class)rb_mKernel) {
-	printf("%s:%d:%s: found Kernel#eval\n", __FILE__, __LINE__, __FUNCTION__);
 	eval_imp = ruby_imp;
     }
 
     // Module#module_eval, Module#class_eval
     if (module_eval_imp == 0 && sel == selModuleEval && klass == (Class)rb_cModule) {
-	printf("%s:%d:%s: found Module#module_eval\n", __FILE__, __LINE__, __FUNCTION__);
 	module_eval_imp = ruby_imp;
     }
     
     // NSObject#instance_eval
     if (instance_eval_imp == 0 && sel == selInstanceEval && klass == (Class)rb_cObject) {
-	printf("%s:%d:%s: found NSObject#instance_eval\n", __FILE__, __LINE__, __FUNCTION__);
 	instance_eval_imp = ruby_imp;
     }
     
     // Binding#eval
     if (binding_eval_imp == 0 && sel == selEval && klass == (Class)rb_cBinding) {
-	printf("%s:%d:%s: found Binding#eval\n", __FILE__, __LINE__, __FUNCTION__);
 	binding_eval_imp = ruby_imp;
     }
 
