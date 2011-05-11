@@ -683,6 +683,13 @@ s_recvfrom_nonblock(VALUE sock, int argc, VALUE *argv, enum sock_recv_type from)
 	    (struct sockaddr *)buf, &alen);
 
     if (slen < 0) {
+	switch (errno) {
+	  case EAGAIN:
+#if defined(EWOULDBLOCK) && EWOULDBLOCK != EAGAIN
+	  case EWOULDBLOCK:
+#endif
+            rb_mod_sys_fail(rb_mWaitReadable, "recvfrom(2) would block");
+	}
 	rb_sys_fail("recvfrom(2)");
     }
     if (slen < rb_bstr_length(str)) {
@@ -1451,6 +1458,17 @@ s_accept_nonblock(VALUE klass, rb_io_t *fptr, struct sockaddr *sockaddr, socklen
     rb_io_set_nonblock(fptr);
     fd2 = accept(fptr->fd, (struct sockaddr*)sockaddr, len);
     if (fd2 < 0) {
+	switch (errno) {
+	  case EAGAIN:
+#if defined(EWOULDBLOCK) && EWOULDBLOCK != EAGAIN
+	  case EWOULDBLOCK:
+#endif
+	  case ECONNABORTED:
+#if defined EPROTO
+	  case EPROTO:
+#endif
+            rb_mod_sys_fail(rb_mWaitReadable, "accept(2) would block");
+	}
         rb_sys_fail("accept(2)");
     }
     make_fd_nonblock(fd2);
@@ -2523,6 +2541,9 @@ sock_connect_nonblock(VALUE sock, SEL sel, VALUE addr)
     rb_io_set_nonblock(fptr);
     n = connect(fptr->fd, (struct sockaddr*)RSTRING_PTR(addr), RSTRING_LEN(addr));
     if (n < 0) {
+        if (errno == EINPROGRESS) {
+            rb_mod_sys_fail(rb_mWaitWritable, "connect(2) would block");
+	}
 	rb_sys_fail("connect(2)");
     }
 
