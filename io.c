@@ -385,11 +385,14 @@ io_close(rb_io_t *io_struct, bool close_read, bool close_write)
 }
 
 static VALUE
-prep_io(int fd, int mode, VALUE klass)
+prep_io(int fd, int mode, VALUE klass, const char *path)
 {
     VALUE io = io_alloc(klass, 0);
     rb_io_t *io_struct = ExtractIOStruct(io);
     prepare_io_from_fd(io_struct, fd, mode);
+    if (path) {
+	GC_WB(&io_struct->path, rb_str_new2(path));
+    }
     return io;
 }
 
@@ -2248,7 +2251,7 @@ rb_io_fdopen(int fd, int mode, const char *path)
     if (path != NULL && strcmp(path, "-") != 0) {
 	klass = rb_cFile;
     }
-    return prep_io(fd, convert_oflags_to_fmode(mode), klass);
+    return prep_io(fd, convert_oflags_to_fmode(mode), klass, path);
 }
 
 VALUE
@@ -3514,9 +3517,9 @@ retry:
 			// copy the groups and owners
 			fchown(fw, st.st_uid, st.st_gid);
 		    }
-		    rb_stdout = prep_io(fw, FMODE_WRITABLE, rb_cFile);
+		    rb_stdout = prep_io(fw, FMODE_WRITABLE, rb_cFile, fn);
 		}
-		GC_WB(&ARGF.current_file, prep_io(fr, FMODE_READABLE, rb_cFile));
+		GC_WB(&ARGF.current_file, prep_io(fr, FMODE_READABLE, rb_cFile, fn));
 	    }
 #if 0 // TODO once we get encodings sorted out.
 	    if (ARGF.encs.enc) {
@@ -4114,8 +4117,8 @@ rb_io_s_pipe(VALUE recv, SEL sel, int argc, VALUE *argv)
 	rb_sys_fail("pipe() failed");
     }
 
-    rd = prep_io(fd[0], FMODE_READABLE, recv);
-    wr = prep_io(fd[1], FMODE_WRITABLE, recv);
+    rd = prep_io(fd[0], FMODE_READABLE, recv, NULL);
+    wr = prep_io(fd[1], FMODE_WRITABLE, recv, NULL);
 
     VALUE ret = rb_assoc_new(rd, wr);
     if (rb_block_given_p()) {
@@ -5145,19 +5148,16 @@ Init_IO(void)
     rb_objc_define_method(rb_cIO, "internal_encoding", rb_io_internal_encoding, 0);
     rb_objc_define_method(rb_cIO, "set_encoding", rb_io_set_encoding, -1);
 
-    rb_stdin = prep_io(fileno(stdin), FMODE_READABLE, rb_cIO);
-    GC_WB(&(ExtractIOStruct(rb_stdin)->path), CFSTR("<STDIN>"));
+    rb_stdin = prep_io(fileno(stdin), FMODE_READABLE, rb_cIO, "<STDIN>");
     rb_define_variable("$stdin", &rb_stdin);
     rb_define_global_const("STDIN", rb_stdin);
     
-    rb_stdout = prep_io(fileno(stdout), FMODE_WRITABLE, rb_cIO);
-    GC_WB(&(ExtractIOStruct(rb_stdout)->path), CFSTR("<STDOUT>"));
+    rb_stdout = prep_io(fileno(stdout), FMODE_WRITABLE, rb_cIO, "<STDOUT>");
     rb_define_hooked_variable("$stdout", &rb_stdout, 0, stdout_setter);
     rb_define_hooked_variable("$>", &rb_stdout, 0, stdout_setter);
     rb_define_global_const("STDOUT", rb_stdout);
     
-    rb_stderr = prep_io(fileno(stderr), FMODE_WRITABLE|FMODE_SYNC, rb_cIO);
-    GC_WB(&(ExtractIOStruct(rb_stderr)->path), CFSTR("<STDERR>"));
+    rb_stderr = prep_io(fileno(stderr), FMODE_WRITABLE|FMODE_SYNC, rb_cIO, "<STDERR>");
     rb_define_hooked_variable("$stderr", &rb_stderr, 0, stdout_setter);
     rb_define_global_const("STDERR", rb_stderr);
  
