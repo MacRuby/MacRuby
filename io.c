@@ -2789,7 +2789,6 @@ rb_io_reopen(VALUE io, SEL sel, int argc, VALUE *argv)
     }
 
     rb_io_t *io_s = ExtractIOStruct(io);
-    rb_io_assert_open(io_s);
 
     // Reassociate it with the stream opened on the given path
     if (NIL_P(mode_string)) {
