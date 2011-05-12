@@ -2773,6 +2773,10 @@ io_reopen(VALUE io, VALUE nfile)
     }
     io_replace_streams(fd, io_s, other);
 
+    if (other->path) {
+	GC_WB(&io_s->path, rb_str_dup(other->path));
+    }
+
     *(VALUE *)io = *(VALUE *)nfile;
 
     return io;
