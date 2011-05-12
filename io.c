@@ -4525,7 +4525,7 @@ argf_to_io(VALUE argf, SEL sel)
 {
     next_argv();
     ARGF_FORWARD(0, 0);
-    return argf;
+    return ARGF.current_file;
 }
 
 static VALUE 
