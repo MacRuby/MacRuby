@@ -2794,15 +2794,14 @@ rb_io_reopen(VALUE io, SEL sel, int argc, VALUE *argv)
     rb_io_t *io_s = ExtractIOStruct(io);
 
     // Reassociate it with the stream opened on the given path
-    if (NIL_P(mode_string)) {
-	mode_string = (VALUE)CFSTR("r");
+    if (!NIL_P(mode_string)) {
+	io_s->mode = convert_mode_string_to_fmode(mode_string);
     }
     FilePathValue(path_or_io); // Sanitize the name
     const char *filepath = RSTRING_PTR(path_or_io);
     const int fd =
-	open(filepath, convert_mode_string_to_oflags(mode_string), 0644);
-    prepare_io_from_fd(io_s, fd,
-		       convert_mode_string_to_fmode(mode_string));
+	open(filepath, convert_fmode_to_oflags(io_s->mode), 0644);
+    prepare_io_from_fd(io_s, fd, io_s->mode);
     GC_WB(&io_s->path, path_or_io);
     io_s->buf = NULL;
     io_s->buf_offset = 0;
