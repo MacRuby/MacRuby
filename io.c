@@ -4759,6 +4759,12 @@ argf_binmode_m(VALUE argf, SEL sel)
 }
 
 static VALUE
+argf_binmode_p(VALUE argf)
+{
+    return ARGF.binmode ? Qtrue : Qfalse;
+}
+
+static VALUE
 argf_skip(VALUE argf, SEL sel)
 {
     if (ARGF.init_p && ARGF.next_p == 0) {
@@ -5199,6 +5205,7 @@ Init_IO(void)
     rb_objc_define_method(rb_cARGF, "eof", argf_eof, 0);
     rb_objc_define_method(rb_cARGF, "eof?", argf_eof, 0);
     rb_objc_define_method(rb_cARGF, "binmode", argf_binmode_m, 0);
+    rb_objc_define_method(rb_cARGF, "binmode?", argf_binmode_p, 0);
 
     rb_objc_define_method(rb_cARGF, "filename", argf_filename, 0);
     rb_objc_define_method(rb_cARGF, "path", argf_filename, 0);
