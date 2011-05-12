@@ -182,6 +182,34 @@ describe "ruby_deploy command line options:" do
       Dir.exists?(framework_stdlib).should == false
     end
 
+    it 'removes .rb files from the stdlib if an .rbo equivalent exists' do
+      deploy('--embed')
+      files = Dir.glob(File.join(framework_stdlib,'**','*.rbo'))
+      files.each { |rbo| File.exists?("#{rbo.chomp!('o')}").should be_false }
+    end
+
+    it 'should only copy specific parts of the stdlib when combined with --stdlib' do
+      deploy('--embed --stdlib ubygems')
+      files = Dir.glob(File.join(framework_stdlib,'**','*.rb*')).map do |f|
+        File.basename(f).chomp(File.extname(f))
+      end.uniq # in case ubygems.rb ever ships with a compiled version
+      files.should == ['ubygems']
+    end
+
+    it 'should only embed the listed libraries' do
+      deploy('--embed --stdlib base64 --stdlib minitest')
+
+      expected = ['base64'] +
+        Dir.glob(File.join(SOURCE_ROOT,'lib','minitest','*')).map do |lib|
+          File.basename(lib).chomp(File.extname(lib))
+      end
+
+      actual = Dir.glob(File.join(framework_stdlib,'**','*.rb')).map do |lib|
+        File.basename(lib).chomp(File.extname(lib))
+      end
+
+      actual.should == expected
+    end
   end
 
 
