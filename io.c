@@ -2747,6 +2747,8 @@ io_reopen(VALUE io, VALUE nfile)
 {
     // Reassociate it with a duplicate of the stream given
     nfile = rb_io_get_io(nfile);
+    rb_io_taint_check(io);
+    rb_io_taint_check(nfile);
 
     rb_io_t *io_s  = ExtractIOStruct(io);
     rb_io_t *other = ExtractIOStruct(nfile);
@@ -2802,6 +2804,8 @@ rb_io_reopen(VALUE io, SEL sel, int argc, VALUE *argv)
 	io_s->mode = convert_mode_string_to_fmode(mode_string);
     }
     FilePathValue(path_or_io); // Sanitize the name
+    rb_io_taint_check(io);
+
     const char *filepath = RSTRING_PTR(path_or_io);
     const int fd =
 	open(filepath, convert_fmode_to_oflags(io_s->mode), 0644);
