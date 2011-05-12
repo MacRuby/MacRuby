@@ -434,7 +434,7 @@ RoxorVM::RoxorVM(const RoxorVM &vm)
 {
     current_top_object = vm.current_top_object;
     current_class = vm.current_class;
-    outer_stack = vm.outer_stack;
+    replace_outer_stack(vm.outer_stack);
     safe_level = vm.safe_level;
 
     std::vector<rb_vm_block_t *> &vm_blocks =
@@ -460,7 +460,7 @@ RoxorVM::RoxorVM(const RoxorVM &vm)
 
 	    b->proc = orig->proc; // weak
 	    GC_WB(&b->self, orig->self);
-	    GC_WB(&b->outer, orig->outer);
+	    GC_REF(&b->outer, orig->outer);
 	    GC_WB(&b->locals, orig->locals);
 	    GC_WB(&b->parent_block, orig->parent_block);  // XXX not sure
 #endif
@@ -824,6 +824,7 @@ RoxorCore::method_node_get(IMP imp, bool create)
 	if (create) {
 	    n = (rb_vm_method_node_t *)malloc(sizeof(rb_vm_method_node_t));
 	    assert(n != NULL);
+	    n->outer = NULL;
 	    ruby_imps[imp] = n;
 	}
 	else {
@@ -846,6 +847,7 @@ RoxorCore::method_node_get(Method m, bool create)
 	if (create) {
 	    n = (rb_vm_method_node_t *)malloc(sizeof(rb_vm_method_node_t));
 	    assert(n != NULL);
+	    n->outer = NULL;
 	    ruby_methods[m] = n;
 	}
 	else {
@@ -1006,10 +1008,25 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 	const rb_vm_arity_t &arity, int flags, const char *types,
 	rb_vm_outer_t *outer)
 {
+    bool got_outer = false;
     if (outer == NULL) {
 	// KOUJI_TODO: fix to get outer method
-	outer = rb_vm_get_outer();
+	rb_vm_get_outer(&outer);
+	got_outer = true;
     }
+    struct Finally {
+	bool got_outer;
+	rb_vm_outer_t *outer;
+	Finally(bool _got_outer, rb_vm_outer_t *_outer) {
+	    got_outer = _got_outer;
+	    outer = _outer;
+	}
+	~Finally() {
+	    if (got_outer) {
+		rb_vm_release_outer(&outer);
+	    }
+	}
+    } finalizer(got_outer, outer);
     
     // #initialize and #initialize_copy are always private.
     if (sel == selInitialize || sel == selInitialize2
@@ -1076,6 +1093,7 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
     real_node->arity = arity;
     real_node->flags = flags;
     real_node->sel = sel;
+    GC_UNREF(&real_node->outer);
     if (ruby_imp != 0
 	    && (ruby_imp == eval_imp
 		    || ruby_imp == module_eval_imp
@@ -1083,10 +1101,10 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 		    || ruby_imp == binding_eval_imp
 		    || ruby_imp == module_nesting_imp
 		    || ruby_imp == module_constants_imp)) {
-	real_node->outer = NULL;
+	GC_REF(&real_node->outer, NULL);
     }
     else {
-	real_node->outer = outer;
+	GC_REF(&real_node->outer, outer);
     }
 
     // Cache the implementation.
@@ -1095,6 +1113,7 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
     if (iter2 == ruby_imps.end()) {
 	node = (rb_vm_method_node_t *)malloc(sizeof(rb_vm_method_node_t));
 	node->objc_imp = imp;
+	node->outer = 0;
 	ruby_imps[imp] = node;
     }
     else {
@@ -1106,12 +1125,7 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
     node->flags = flags;
     node->sel = sel;
     node->ruby_imp = ruby_imp;
-    if (real_node->outer == NULL) {
-	node->outer = NULL;
-    }
-    else {
-	node->outer = outer;
-    }
+    GC_REPLACE(&node->outer, real_node->outer);
     if (imp != ruby_imp) {
 	ruby_imps[ruby_imp] = node;
     }
@@ -1177,16 +1191,12 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 		node->arity = arity;
 		node->flags = flags;
 		node->sel = sel;
-		if (real_node->outer == NULL) {
-		    node->outer = NULL;
-		}
-		else {
-		    node->outer = outer;
-		}
+		GC_UNREF(&node->outer);
+		GC_REF(&node->outer, real_node->outer);
 	    }
 	}
     }
-
+    
     return real_node;
 }
 
@@ -1471,18 +1481,22 @@ rb_vm_get_outer_obsolate(VALUE klass)
     return o == NULL ? Qundef : (VALUE)o->klass;
 }
 
-extern "C"
-rb_vm_outer_t *
-rb_vm_get_outer(void)
-{
-    return GET_VM()->get_outer_stack();
-}
-
 static VALUE
-get_klass_const(VALUE outer, ID path, bool lexical, rb_vm_outer_t *outer_stack)
+get_klass_const(VALUE outer, ID path, bool lexical)
 {
     VALUE klass = Qundef;
     if (lexical) {
+	rb_vm_outer_t *outer_stack;
+	rb_vm_get_outer(&outer_stack);
+	struct Finally {
+	    rb_vm_outer_t *outer;
+	    Finally(rb_vm_outer_t *_outer) {
+		outer = _outer;
+	    }
+	    ~Finally() {
+		rb_vm_release_outer(&outer);		
+	    }
+	} finalizer(outer_stack);
 	if (rb_vm_const_lookup(outer, path, true, true, outer_stack) == Qtrue) {
 	    klass = rb_vm_const_lookup(outer, path, true, false, outer_stack);
 	}
@@ -1510,18 +1524,11 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
     assert(path > 0);
     rb_vm_check_if_module(outer);
 
-    rb_vm_outer_t *outer_stack = rb_vm_get_outer();
     if (flags & DEFINE_OUTER) {
-	rb_vm_outer_t *o = outer_stack;
-	while (o != NULL && o->pushed_by_eval) {
-	    o = o->outer;
-	}
-	if (o != NULL) {
-	    outer = (VALUE)o->klass;
-	}
+	outer = rb_vm_get_const_base();
     }
 
-    VALUE klass = get_klass_const(outer, path, dynamic_class, outer_stack);
+    VALUE klass = get_klass_const(outer, path, dynamic_class);
     if (klass != Qundef) {
 	// Constant is already defined.
 	if (!(flags & DEFINE_MODULE) && super != 0) {
@@ -1689,11 +1696,8 @@ void
 rb_vm_alias2(VALUE outer, VALUE name, VALUE def, unsigned char dynamic_class)
 {
     if (dynamic_class) {
-	VALUE k = rb_vm_get_cbase();
-	if (k != Qundef) {
-	    outer = k;
-	}
-	else if (RCLASS_SUPER(outer) == 0) {
+	outer = (VALUE)GET_VM()->get_outer_stack()->klass;
+	if (RCLASS_SUPER(outer) == 0) {
 	    rb_raise(rb_eTypeError, "no class to make alias");
 	}
     }
@@ -1761,7 +1765,18 @@ rb_vm_defined(VALUE self, int type, VALUE what, VALUE what2)
 	case DEFINED_CONST:
 	case DEFINED_LCONST:
 	    {
-		if (rb_vm_const_lookup(what2, (ID)what, type == DEFINED_LCONST, true, rb_vm_get_outer())) {
+		rb_vm_outer_t *o;
+		rb_vm_get_outer(&o);
+		struct Finally {
+		    rb_vm_outer_t *outer;
+		    Finally(rb_vm_outer_t *_outer) {
+			outer = _outer;
+		    }
+		    ~Finally() {
+			rb_vm_release_outer(&outer);		
+		    }
+		} finalizer(o);
+		if (rb_vm_const_lookup(what2, (ID)what, type == DEFINED_LCONST, true, o)) {
 		    str = "constant";
 		}
 	    }
@@ -2095,6 +2110,7 @@ RoxorCore::resolve_methods(std::map<Class, rb_vm_method_source_t *> *map,
 	    resolve_method(iter->first, sel, m->func, m->arity, m->flags,
 		    NULL, NULL, NULL, m->outer);
 	    map->erase(iter++);
+	    GC_UNREF(&m->outer);
 	    free(m);
 	    did_something = true;
 	}
@@ -2193,7 +2209,7 @@ RoxorCore::prepare_method(Class klass, SEL sel, Function *func,
     m->func = func;
     m->arity = arity;
     m->flags = flags;
-    m->outer = outer;
+    GC_REPLACE(&m->outer, outer);
 
     invalidate_respond_to_cache();
 }
@@ -2208,7 +2224,17 @@ prepare_method(Class klass, bool dynamic_class, SEL sel, void *data,
 	const rb_vm_arity_t &arity, int flags, bool precompiled,
 	void *objc_imp_types)
 {
-    rb_vm_outer_t *outer = rb_vm_get_outer();
+    rb_vm_outer_t *outer;
+    rb_vm_get_outer(&outer);
+    struct Finally {
+	rb_vm_outer_t *outer;
+	Finally(rb_vm_outer_t *_outer) {
+	    outer = _outer;
+	}
+	~Finally() {
+	    rb_vm_release_outer(&outer);		
+	}
+    } finalizer(outer);
     if (dynamic_class) {
 	Class k = outer->klass;
 	if (k != NULL) {
@@ -2637,7 +2663,7 @@ RoxorCore::copy_methods(Class from_class, Class to_class)
 	    m->func = m_src->func;
 	    m->arity = m_src->arity;
 	    m->flags = m_src->flags;
-	    m->outer = m_src->outer;
+	    GC_REF(&m->outer, m_src->outer);
 	    dict->insert(std::make_pair(to_class, m));
 	    sels_to_add.push_back(sel);
 	}
@@ -3204,7 +3230,6 @@ RoxorVM::create_outer(Class klass, rb_vm_outer_t *outer, bool pushed_by_eval)
 	GC_WB(&o->outer, outer);
     }
     o->pushed_by_eval = pushed_by_eval;
-    GC_RETAIN(o);
 
     return o;
 }
@@ -3212,7 +3237,7 @@ RoxorVM::create_outer(Class klass, rb_vm_outer_t *outer, bool pushed_by_eval)
 rb_vm_outer_t *
 RoxorVM::push_outer(Class klass)
 {
-    outer_stack = create_outer(klass, outer_stack, false);
+    GC_REF(&outer_stack, create_outer(klass, outer_stack, false));
     
 #if ROXOR_VM_DEBUG_OUTER
     rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
@@ -3227,8 +3252,9 @@ RoxorVM::pop_outer(void)
 {
     assert(outer_stack != NULL);
     rb_vm_outer_t *old = outer_stack;
-    outer_stack = outer_stack->outer;
-    GC_RELEASE(old);
+    assert(old != NULL);
+    GC_REF(&outer_stack, outer_stack->outer);
+    GC_UNREF(&old);
 
 #if ROXOR_VM_DEBUG_OUTER
     rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
@@ -3236,10 +3262,10 @@ RoxorVM::pop_outer(void)
 #endif
 }
 
-rb_vm_outer_t *
+void
 rb_vm_push_outer(Class klass)
 {
-    return GET_VM()->push_outer(klass);
+    GET_VM()->push_outer(klass);
 }
 
 void
@@ -3248,19 +3274,63 @@ rb_vm_pop_outer(void)
     GET_VM()->pop_outer();
 }
 
-rb_vm_outer_t *
-rb_vm_set_outer_stack(rb_vm_outer_t *outer_stack)
+void
+RoxorVM::replace_outer_stack(rb_vm_outer_t *new_outer_stack)
 {
-    RoxorVM *vm = GET_VM();
-    rb_vm_outer_t *old = vm->get_outer_stack();
-    vm->set_outer_stack(outer_stack);
-    return old;
+    GC_REPLACE(&outer_stack, new_outer_stack);
 }
-    
-rb_vm_outer_t *
-rb_vm_get_outer_stack(void)
+
+void
+rb_vm_set_outer(rb_vm_outer_t *outer)
 {
-    return GET_VM()->get_outer_stack();
+    GET_VM()->replace_outer_stack(outer);
+}
+
+void
+rb_vm_get_outer(rb_vm_outer_t **dest_ptr)
+{
+    GC_REF(dest_ptr, GET_VM()->get_outer_stack());
+}
+
+void
+rb_vm_release_outer(rb_vm_outer_t **dest_ptr)
+{
+    GC_UNREF(dest_ptr);
+}
+
+VALUE
+rb_vm_get_cbase(void)
+{
+    rb_vm_outer_t *root_outer;
+    rb_vm_get_outer(&root_outer);
+    VALUE klass = Qundef;
+    for (rb_vm_outer_t *o = root_outer; o != NULL; o = o->outer) {
+	klass = (VALUE)o->klass;
+	if (klass != 0) {
+	    break;
+	}
+    }
+    rb_vm_release_outer(&root_outer);
+    return klass;
+}
+
+VALUE
+rb_vm_get_const_base(void)
+{
+    rb_vm_outer_t *root_outer;
+    rb_vm_get_outer(&root_outer);
+    VALUE klass = Qundef;
+    for (rb_vm_outer_t *o = root_outer; o != NULL; o = o->outer) {
+	if (o->pushed_by_eval) {
+	    continue;
+	}
+	klass = (VALUE)o->klass;
+	if (klass != 0) {
+	    break;
+	}
+    }
+    rb_vm_release_outer(&root_outer);
+    return klass;
 }
 
 struct rb_vm_kept_local {
@@ -3359,7 +3429,7 @@ rb_vm_create_binding(VALUE self, rb_vm_block_t *current_block,
 	(rb_vm_binding_t *)xmalloc(sizeof(rb_vm_binding_t));
     GC_WB(&binding->self, self);
     GC_WB(&binding->next, top_binding);
-    GC_WB(&binding->outer, rb_vm_get_outer());
+    rb_vm_get_outer(&binding->outer);
 
     rb_vm_local_t **l = &binding->locals;
 
@@ -3476,7 +3546,7 @@ rb_vm_create_block_from_method(rb_vm_method_t *method)
 	b->outer = NULL;
     }
     else {
-	GC_WB(&b->outer, method->node->outer);
+	GC_REF(&b->outer, method->node->outer);
     }
     b->arity = method->node == NULL
 	? rb_vm_arity(method->arity) : method->node->arity;
@@ -3511,7 +3581,7 @@ rb_vm_create_block_calling_mid(ID mid)
 	    + (2 * sizeof(VALUE *)));
 
     b->klass = 0;
-    GC_WB(&b->outer, rb_vm_get_outer());
+    rb_vm_get_outer(&b->outer);
     b->proc = Qnil;
     b->flags = VM_BLOCK_PROC;
     b->imp = (IMP)rb_vm_block_call_sel;
@@ -3561,7 +3631,7 @@ rb_vm_make_curry_proc(VALUE proc, VALUE passed, VALUE arity)
 	    + (3 * sizeof(VALUE *)));
 
     b->klass = 0;
-    GC_WB(&b->outer, rb_vm_get_outer());
+    rb_vm_get_outer(&b->outer);
     b->proc = Qnil;
     b->arity.min = 0;
     b->arity.max = -1;
@@ -3596,7 +3666,7 @@ rb_iterate(VALUE (*it_proc) (VALUE), VALUE data1, VALUE (*bl_proc) (ANYARGS),
 	    + (2 * sizeof(VALUE *)));
 
     b->klass = 0;
-    GC_WB(&b->outer, rb_vm_get_outer());
+    rb_vm_get_outer(&b->outer);
     b->proc = Qnil;
     b->arity.min = 0;
     b->arity.max = -1;
@@ -4207,7 +4277,9 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 	mnode->sel = sel_registerName("<main>");
 	mnode->objc_imp = mnode->ruby_imp = imp;
 	mnode->flags = 0;
-	mnode->outer = rb_vm_get_outer();
+	rb_vm_release_outer(&mnode->outer);
+	rb_vm_get_outer(&mnode->outer);
+	// KOUJI_TODO: where and who does mnode delete?
 
 	// Execute the function.
 	lock.unlock();
@@ -4252,7 +4324,8 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
     }
     Class old_class = GET_VM()->get_current_class();
     bool old_dynamic_class = RoxorCompiler::shared->is_dynamic_class();
-    rb_vm_outer_t *old_outer_stack = vm->get_outer_stack();
+    rb_vm_outer_t *old_outer_stack;
+    rb_vm_get_outer(&old_outer_stack);
 
     vm->set_current_class((Class)klass);
 
@@ -4264,7 +4337,7 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 	}
     }
     else {
-	vm->set_outer_stack(binding->outer);
+	rb_vm_set_outer(binding->outer);
     }
 
     RoxorCompiler::shared->set_dynamic_class(true);
@@ -4292,7 +4365,8 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 	    if (should_pop_outer) {
 		vm->pop_outer();
 	    }
-	    vm->set_outer_stack(old_outer_stack);
+	    rb_vm_set_outer(old_outer_stack);
+	    rb_vm_release_outer(&old_outer_stack);
 	    vm->set_current_class(old_class);
 	    vm->pop_current_block();
 	}
@@ -5602,17 +5676,17 @@ rb_vm_load(const char *fname_str, int wrap)
 	Finally(RoxorVM *_vm) {
 	    vm = _vm;
 	    old_class = vm->get_current_class();
-	    old_outer_stack = vm->get_outer_stack();
+	    GC_REF(&old_outer_stack, vm->get_outer_stack());
 	}
 	~Finally() { 
 	    vm->pop_outer();
-	    vm->set_outer_stack(old_outer_stack);
+	    vm->replace_outer_stack(old_outer_stack);
 	    vm->set_current_class(old_class);
 	}
     } finalizer(vm);
 
     vm->set_current_class(NULL);
-    vm->set_outer_stack(NULL);
+    vm->replace_outer_stack(NULL);
     vm->push_outer((Class)rb_cObject);
     // KOUJI_TODO: support wrap.
 

@@ -232,7 +232,9 @@ static VALUE
 rb_mod_nesting(VALUE self, SEL sel)
 {
     VALUE ary = rb_ary_new();
-    rb_vm_outer_t *o = rb_vm_get_outer();
+    rb_vm_outer_t *root_outer;
+    rb_vm_get_outer(&root_outer);
+    rb_vm_outer_t *o = root_outer;
     while (o != NULL && o->outer != NULL) {
         VALUE klass = (VALUE)o->klass;
 	if (!o->pushed_by_eval && !NIL_P(klass)) {
@@ -240,6 +242,7 @@ rb_mod_nesting(VALUE self, SEL sel)
 	}
         o = o->outer;
     }
+    rb_vm_release_outer(&root_outer);
     return ary;
 }
 
@@ -262,17 +265,17 @@ VALUE rb_mod_constants(VALUE, SEL, int, VALUE *);
 static VALUE
 rb_mod_s_constants(VALUE mod, SEL sel, int argc, VALUE *argv)
 {
-    const rb_vm_outer_t *o = rb_vm_get_outer();
-    VALUE klass;
-    VALUE cbase = 0;
-    void *data = 0;
-
     if (argc > 0) {
 	return rb_mod_constants(rb_cModule, 0, argc, argv);
     }
 
+    VALUE cbase = 0;
+    void *data = 0;
+    rb_vm_outer_t *root_outer;
+    rb_vm_get_outer(&root_outer);
+    rb_vm_outer_t *o = root_outer;
     while (o != NULL) {
-        klass = (VALUE)o->klass;
+        VALUE klass = (VALUE)o->klass;
 	if (!o->pushed_by_eval && !NIL_P(klass)) {
 	    data = rb_mod_const_at(klass, data);
 	    if (cbase == 0) {
@@ -281,6 +284,7 @@ rb_mod_s_constants(VALUE mod, SEL sel, int argc, VALUE *argv)
 	}
         o = o->outer;
     }
+    rb_vm_release_outer(&root_outer);
 
     if (cbase != 0) {
 	data = rb_mod_const_of(cbase, data);

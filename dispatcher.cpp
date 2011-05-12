@@ -1085,7 +1085,7 @@ dup_block(rb_vm_block_t *src_b)
     GC_WB(&new_b->parent_block, src_b->parent_block);
     GC_WB(&new_b->self, src_b->self);
     new_b->flags = src_b->flags & ~VM_BLOCK_ACTIVE;
-    GC_WB(&new_b->outer, src_b->outer);
+    GC_REF(&new_b->outer, src_b->outer);
 
     rb_vm_local_t *src_l = src_b->locals;
     rb_vm_local_t **new_l = &new_b->locals;
@@ -1327,8 +1327,9 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
     b->self = self;
     VALUE old_class = b->klass;
     b->klass = klass;
-    rb_vm_outer_t *old_outer = b->outer;
-    b->outer = vm->create_outer((Class)klass, b->outer, true);
+    rb_vm_outer_t *old_outer;
+    GC_REF(&old_outer, b->outer);
+    GC_REPLACE(&b->outer, vm->create_outer((Class)klass, b->outer, true));
 
 #if ROXOR_VM_DEBUG
     rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
@@ -1350,8 +1351,7 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
 	    old_outer = _old_outer;
 	}
 	~Finally() {
-	    GC_RELEASE(b->outer);
-	    b->outer = old_outer;
+	    GC_REPLACE(&b->outer, old_outer);
 	    b->self = old_self;
 	    b->klass = old_class;
 	    vm->add_current_block(b);
@@ -1449,7 +1449,7 @@ rb_vm_prepare_block(void *function, int flags, VALUE self, rb_vm_arity_t arity,
     b->proc = Qnil;
     GC_WB(&b->self, self);
     b->klass = (VALUE)vm->get_current_class();
-    GC_WB(&b->outer, rb_vm_get_outer());
+    rb_vm_get_outer(&b->outer);
     b->parent_var_uses = parent_var_uses;
     GC_WB(&b->parent_block, parent_block);
 

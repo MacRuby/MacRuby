@@ -2612,10 +2612,10 @@ Value *
 RoxorCompiler::compile_push_outer(Value *klass)
 {
     if (pushOuterFunc == NULL) {
-	// rb_vm_outer_t *rb_vm_push_outer(Class klass)
+	// void rb_vm_push_outer(Class klass)
 	pushOuterFunc = cast<Function>(
 	    module->getOrInsertFunction("rb_vm_push_outer",
-					PtrTy, RubyObjTy, NULL));
+					VoidTy, RubyObjTy, NULL));
     }
     
     Value *val = CallInst::Create(pushOuterFunc, klass, "", bb);
