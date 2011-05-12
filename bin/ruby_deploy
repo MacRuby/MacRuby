@@ -224,12 +224,16 @@ class Deployer
     rm_rf(File.join(app_macruby, 'Headers'))
     rm_rf(File.join(app_macruby, 'Versions', 'Current', 'Headers'))
 
-    # Only keep specific libs from stdlib.
+    lib = File.join(app_macruby_usr, STDLIB_PATTERN)
+    all = Dir.glob(File.join(lib, '**/*'))
+    # Only if specific libs from stdlib are being kept.
     unless @stdlib.empty?
-      lib = File.join(app_macruby_usr, STDLIB_PATTERN)
-      all, keep = ["**/*", KEEP_STDLIB_PATTERN % @stdlib.join(',')].map { |p| Dir.glob(File.join(lib, p)) }
-      keep.reject! { |f| File.extname(f) == '.rb' && keep.include?("#{f}o") } # only keep .rbo for duplicates
+      keep = Dir.glob(File.join(lib, KEEP_STDLIB_PATTERN % @stdlib.join(',')))
       all.select { |f| keep.grep(/^#{f}/).empty? }.each { |x| rm_rf(x) }
+    end
+    # Remove .rb files if the .rbo exists
+    all.each do |f|
+      rm_rf f if File.extname(f) == '.rb' && all.include?("#{f}o")
     end
 
     # Copy the gems libdirs.
