@@ -39,6 +39,14 @@ module DeploySpecHelper
   def framework
     File.join(@app_bundle, 'Contents', 'Frameworks', 'MacRuby.framework', 'Versions')
   end
+
+  def framework_resources
+    File.join(framework, 'Current', 'Resources')
+  end
+
+  def framework_stdlib
+    File.join(framework, 'Current', 'usr', 'lib', 'ruby')
+  end
 end
 
 describe "ruby_deploy, in general," do
@@ -70,7 +78,7 @@ describe "ruby_deploy command line options:" do
     rm_rf @dir
   end
 
-  describe "the --compile option" do
+  describe "--compile" do
     it "compiles the ruby source files in the app's Resources directory" do
       deploy('--compile')
       rbos.should_not be_empty
@@ -131,11 +139,11 @@ describe "ruby_deploy command line options:" do
     end
   end
 
-  describe 'the --embed option' do
+  describe '--embed' do
     it 'copies the framework to Contents/Frameworks' do
       deploy('--embed')
       Dir.exists?(framework).should == true
-      Dir.exists?(File.join(framework, 'Current/usr/lib/ruby')).should == true
+      Dir.exists?(framework_stdlib).should == true
       File.exists?(File.join(framework, 'Current/usr/lib/libmacruby.1.9.2.dylib'))
     end
 
@@ -148,12 +156,8 @@ describe "ruby_deploy command line options:" do
 
       File.symlink?(File.join(framework, 'Current')).should be_false
 
-      rbconfig_dir = RbConfig::CONFIG['archdir'].sub(RbConfig::CONFIG['prefix'], '')
-      rbconfig = File.join(framework, 'Current', 'usr', rbconfig_dir, 'rbconfig.rb')
-      File.read(rbconfig).split("\n").find do |line|
-        line.match /CONFIG\["INSTALL_VERSION"\]\s+=\s+"([\d\.]+)"/
-      end
-      $1.should == MACRUBY_VERSION
+      info = load_plist(IO.read(File.join(framework_resources, 'Info.plist')))
+      info['CFBundleShortVersionString'].should == MACRUBY_VERSION
     end
 
     it 'does not copy headers, binaries, or documentation into the app bundle' do
@@ -165,7 +169,7 @@ describe "ruby_deploy command line options:" do
       # TODO is the libmacruby-static.a file used by anyone?
     end
 
-    # TODO is this test too naive?
+    # TODO this test is too naive
     it 'embeds bridge support files when combined with --bs' do
       deploy('--embed --bs')
       bs_dir = File.join(resources, 'BridgeSupport')
@@ -175,15 +179,11 @@ describe "ruby_deploy command line options:" do
 
     it 'removes the stdlib when combined with --no-stdlib' do
       deploy('--embed --no-stdlib')
-      stdlib_dir = File.join(framework, 'Current', 'usr', 'lib', 'ruby')
-      Dir.exists?(stdlib_dir).should == false
+      Dir.exists?(framework_stdlib).should == false
     end
 
-    # TODO --gem GEM
-    # TODO make sure installed gems aren't embedded by default
-    # TODO --stdlib LIB
   end
 
-end
 
+end
 end
