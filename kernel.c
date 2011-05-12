@@ -170,9 +170,9 @@ vm_get_const(VALUE outer, uint64_t outer_mask, void *cache_p, ID path,
 }
 
 PRIMITIVE void 
-vm_set_const(VALUE outer, ID id, VALUE obj, unsigned char dynamic_class)
+vm_set_const(VALUE outer, ID id, VALUE obj, unsigned char lexical_lookup)
 {
-    rb_const_set(dynamic_class ? rb_vm_get_const_base() : outer, id, obj);
+    rb_const_set((lexical_lookup == 1) ? rb_vm_get_cbase() : outer, id, obj);
 }
 
 static void __attribute__((noinline))

@@ -1524,11 +1524,13 @@ Value *
 RoxorCompiler::compile_constant_declaration(NODE *node, Value *val)
 {
     int flags = 0;
+    bool lexical_lookup = false;
 
     Value *args[4];
 
     if (node->nd_vid > 0) {
-	args[0] = compile_current_class();
+	lexical_lookup = true;
+	args[0] = nilVal;
 	args[1] = compile_id(node->nd_vid);
     }
     else {
@@ -1536,10 +1538,10 @@ RoxorCompiler::compile_constant_declaration(NODE *node, Value *val)
 	args[0] = compile_class_path(node->nd_else, &flags, NULL);
 	assert(node->nd_else->nd_mid > 0);
 	args[1] = compile_id(node->nd_else->nd_mid);
+	lexical_lookup = flags & DEFINE_OUTER;
     }
     args[2] = val;
-    args[3] = ConstantInt::get(Int8Ty,
-	    dynamic_class && (flags & DEFINE_OUTER) ? 1 : 0);
+    args[3] = ConstantInt::get(Int8Ty, lexical_lookup ? 1 : 0);
 
     CallInst::Create(setConstFunc, args, args + 4, "", bb);
 

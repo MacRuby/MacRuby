@@ -1093,7 +1093,6 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
     real_node->arity = arity;
     real_node->flags = flags;
     real_node->sel = sel;
-    GC_UNREF(&real_node->outer);
     if (ruby_imp != 0
 	    && (ruby_imp == eval_imp
 		    || ruby_imp == module_eval_imp
@@ -1101,10 +1100,10 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 		    || ruby_imp == binding_eval_imp
 		    || ruby_imp == module_nesting_imp
 		    || ruby_imp == module_constants_imp)) {
-	GC_REF(&real_node->outer, NULL);
+	GC_REPLACE(&real_node->outer, NULL);
     }
     else {
-	GC_REF(&real_node->outer, outer);
+	GC_REPLACE(&real_node->outer, outer);
     }
 
     // Cache the implementation.
@@ -1191,12 +1190,11 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 		node->arity = arity;
 		node->flags = flags;
 		node->sel = sel;
-		GC_UNREF(&node->outer);
-		GC_REF(&node->outer, real_node->outer);
+		GC_REPLACE(&node->outer, real_node->outer);
 	    }
 	}
     }
-    
+
     return real_node;
 }
 
@@ -1375,7 +1373,7 @@ rb_vm_print_outer_stack(const char *fname, NODE *node, const char *function, int
 	else {
 	    printf(" > ");
 	}
-	printf("%s", class_getName(o->klass));
+	printf("%s", NIL_P(o->klass) ? "nil" : class_getName(o->klass));
 	if (o->pushed_by_eval) {
 	    printf("[skip]");
 	}
@@ -1525,7 +1523,7 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
     rb_vm_check_if_module(outer);
 
     if (flags & DEFINE_OUTER) {
-	outer = rb_vm_get_const_base();
+	outer = rb_vm_get_cbase();
     }
 
     VALUE klass = get_klass_const(outer, path, dynamic_class);
@@ -1696,7 +1694,7 @@ void
 rb_vm_alias2(VALUE outer, VALUE name, VALUE def, unsigned char dynamic_class)
 {
     if (dynamic_class) {
-	outer = (VALUE)GET_VM()->get_outer_stack()->klass;
+	outer = rb_vm_get_cbase();
 	if (RCLASS_SUPER(outer) == 0) {
 	    rb_raise(rb_eTypeError, "no class to make alias");
 	}
@@ -2237,7 +2235,7 @@ prepare_method(Class klass, bool dynamic_class, SEL sel, void *data,
     } finalizer(outer);
     if (dynamic_class) {
 	Class k = outer->klass;
-	if (k != NULL) {
+	if (!NIL_P(k)) {
 	    const bool meta = class_isMetaClass(klass);
 	    klass = k;
 	    if (meta && !class_isMetaClass(klass)) {
@@ -3223,12 +3221,7 @@ RoxorVM::create_outer(Class klass, rb_vm_outer_t *outer, bool pushed_by_eval)
 {
     rb_vm_outer_t *o = (rb_vm_outer_t *)xmalloc(sizeof(rb_vm_outer_t));
     o->klass = klass;
-    if (outer == NULL) {
-	o->outer = NULL;
-    }
-    else {
-	GC_WB(&o->outer, outer);
-    }
+    GC_REF(&o->outer, outer);
     o->pushed_by_eval = pushed_by_eval;
 
     return o;
@@ -3251,10 +3244,7 @@ void
 RoxorVM::pop_outer(void)
 {
     assert(outer_stack != NULL);
-    rb_vm_outer_t *old = outer_stack;
-    assert(old != NULL);
-    GC_REF(&outer_stack, outer_stack->outer);
-    GC_UNREF(&old);
+    GC_REPLACE(&outer_stack, outer_stack->outer);
 
 #if ROXOR_VM_DEBUG_OUTER
     rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
@@ -3301,17 +3291,7 @@ rb_vm_release_outer(rb_vm_outer_t **dest_ptr)
 VALUE
 rb_vm_get_cbase(void)
 {
-    rb_vm_outer_t *root_outer;
-    rb_vm_get_outer(&root_outer);
-    VALUE klass = Qundef;
-    for (rb_vm_outer_t *o = root_outer; o != NULL; o = o->outer) {
-	klass = (VALUE)o->klass;
-	if (klass != 0) {
-	    break;
-	}
-    }
-    rb_vm_release_outer(&root_outer);
-    return klass;
+    return (VALUE)GET_VM()->get_outer_stack()->klass;
 }
 
 VALUE
@@ -3321,11 +3301,8 @@ rb_vm_get_const_base(void)
     rb_vm_get_outer(&root_outer);
     VALUE klass = Qundef;
     for (rb_vm_outer_t *o = root_outer; o != NULL; o = o->outer) {
-	if (o->pushed_by_eval) {
-	    continue;
-	}
-	klass = (VALUE)o->klass;
-	if (klass != 0) {
+	if (!o->pushed_by_eval) {
+	    klass = (VALUE)o->klass;
 	    break;
 	}
     }
@@ -4277,7 +4254,7 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 	mnode->sel = sel_registerName("<main>");
 	mnode->objc_imp = mnode->ruby_imp = imp;
 	mnode->flags = 0;
-	rb_vm_release_outer(&mnode->outer);
+	GC_UNREF(&mnode->outer);
 	rb_vm_get_outer(&mnode->outer);
 	// KOUJI_TODO: where and who does mnode delete?
 
@@ -4324,11 +4301,12 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
     }
     Class old_class = GET_VM()->get_current_class();
     bool old_dynamic_class = RoxorCompiler::shared->is_dynamic_class();
-    rb_vm_outer_t *old_outer_stack;
-    rb_vm_get_outer(&old_outer_stack);
 
     vm->set_current_class((Class)klass);
 
+    rb_vm_outer_t *old_outer_stack;
+    GC_REF(&old_outer_stack, vm->get_outer_stack());
+    
     bool should_pop_outer = false;
     if (binding == NULL) {
 	if (should_push_outer) {
@@ -4337,7 +4315,7 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 	}
     }
     else {
-	rb_vm_set_outer(binding->outer);
+	vm->replace_outer_stack(binding->outer);
     }
 
     RoxorCompiler::shared->set_dynamic_class(true);
@@ -4365,8 +4343,8 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 	    if (should_pop_outer) {
 		vm->pop_outer();
 	    }
-	    rb_vm_set_outer(old_outer_stack);
-	    rb_vm_release_outer(&old_outer_stack);
+	    vm->replace_outer_stack(old_outer_stack);
+	    GC_UNREF(&old_outer_stack);
 	    vm->set_current_class(old_class);
 	    vm->pop_current_block();
 	}
@@ -5681,6 +5659,7 @@ rb_vm_load(const char *fname_str, int wrap)
 	~Finally() { 
 	    vm->pop_outer();
 	    vm->replace_outer_stack(old_outer_stack);
+	    GC_UNREF(&old_outer_stack);
 	    vm->set_current_class(old_class);
 	}
     } finalizer(vm);

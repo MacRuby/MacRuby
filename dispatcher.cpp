@@ -581,15 +581,6 @@ rb_vm_dispatch(void *_vm, struct mcache *cache, VALUE top, VALUE self,
 	Class klass, SEL sel, rb_vm_block_t *block, unsigned char opt,
 	int argc, const VALUE *argv)
 {
-#if ROXOR_VM_DEBUG
-    printf("%s:%d:%s: self(%p) klass(%s) sel(%s) block(%p)\n",
-	   __FILE__, __LINE__, __FUNCTION__,
-	   (void *)self, /* RSTRING_PTR(rb_inspect(self)), */
-	   class_getName(klass),
-	   sel_getName(sel),
-	   block
-	);
-#endif
     RoxorVM *vm = (RoxorVM *)_vm;
 
 #if ROXOR_VM_DEBUG
@@ -833,13 +824,10 @@ dispatch:
 	const bool should_pop_broken_with =
 	    sel != selInitialize && sel != selInitialize2;
 
-#if ROXOR_VM_DEBUG
-	rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
-		cache->as.rcall.node->outer, "rb_vm_method_node_t");
-#endif
-	rb_vm_outer_t *old_outer_stack = vm->get_outer_stack();
+	rb_vm_outer_t *old_outer_stack = NULL;
 	if (cache->as.rcall.node->outer != 0) {
-	    vm->set_outer_stack(cache->as.rcall.node->outer);
+	    GC_REF(&old_outer_stack, vm->get_outer_stack());
+	    vm->replace_outer_stack(cache->as.rcall.node->outer);
 	}
 
 	struct Finally {
@@ -863,7 +851,10 @@ dispatch:
 		outer_stack = _outer_stack;
 	    }
 	    ~Finally() {
-		vm->set_outer_stack(outer_stack);
+		if (outer_stack != NULL) {
+		    vm->replace_outer_stack(outer_stack);
+		    GC_UNREF(&outer_stack);
+		}
 		if (!block_already_current) {
 		    vm->pop_current_block();
 		}
@@ -1221,8 +1212,8 @@ block_call:
     vm->set_current_class((Class)b->klass);
     rb_vm_outer_t *old_outer_stack = NULL;
     if (!(b->flags & VM_BLOCK_METHOD)) {
-	old_outer_stack = vm->get_outer_stack();
-	vm->set_outer_stack(b->outer);
+	GC_REF(&old_outer_stack, vm->get_outer_stack());
+	vm->replace_outer_stack(b->outer);
     }
 
     struct Finally {
@@ -1238,7 +1229,8 @@ block_call:
 	}
 	~Finally() {
 	    if (outer_stack != NULL) {
-		vm->set_outer_stack(outer_stack);
+		vm->replace_outer_stack(outer_stack);
+		GC_UNREF(&outer_stack);
 	    }
 	    b->flags &= ~VM_BLOCK_ACTIVE;
 	    vm->set_current_class(c);
@@ -1331,11 +1323,6 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
     GC_REF(&old_outer, b->outer);
     GC_REPLACE(&b->outer, vm->create_outer((Class)klass, b->outer, true));
 
-#if ROXOR_VM_DEBUG
-    rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
-	    b->outer, "rb_vm_block_t");
-#endif
-
     struct Finally {
 	RoxorVM *vm;
 	rb_vm_block_t *b;
@@ -1352,6 +1339,7 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
 	}
 	~Finally() {
 	    GC_REPLACE(&b->outer, old_outer);
+	    GC_UNREF(&old_outer);
 	    b->self = old_self;
 	    b->klass = old_class;
 	    vm->add_current_block(b);
