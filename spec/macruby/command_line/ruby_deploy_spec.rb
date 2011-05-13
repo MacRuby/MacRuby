@@ -226,6 +226,14 @@ describe "ruby_deploy command line options:" do
         actual.should == expected
       end
     end
+
+    it 'removes previous embedded frameworks before a new embedding' do
+      deploy('--embed')
+      file = File.join(framework_resources, 'fake')
+      File.open(file,'w') { |f| f.write 'This file does not exist' }
+      deploy('--embed')
+      File.exists?(file).should be_false
+    end
   end
 
 
