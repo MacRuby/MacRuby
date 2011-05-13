@@ -452,7 +452,7 @@ assert ':ok', %{
   rescue ArgumentError
     p :ko
   end
-}, :known_bug => true
+}
 
 assert '42', %{
   class C1

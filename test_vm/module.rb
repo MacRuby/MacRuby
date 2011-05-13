@@ -212,11 +212,11 @@ assert ':ok', %{
   end
   class Y<X
   end
-}
+}, :known_bug => true
 
 assert ':ok', %{
   m = Module.new do
     define_method(:foo) { p :ok }
   end
   Class.new.extend(m).foo
-}
+}, :known_bug => true
