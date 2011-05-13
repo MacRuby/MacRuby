@@ -164,6 +164,13 @@ describe "ruby_deploy command line options:" do
       info['CFBundleShortVersionString'].should == MACRUBY_VERSION
     end
 
+    it 'changes the install_name of .rbo files in the embedded framework' do
+      deploy('--embed')
+      glob_join(framework_stdlib,'**','*.rbo').each do |rbo|
+        install_name(rbo).should include(DeploySpecHelper::EMBEDDED_FRAMEWORK)
+      end
+    end
+
     it 'does not copy headers, binaries, or documentation into the app bundle' do
       deploy('--embed')
       dirs = Dir.entries(File.join(framework, 'Current', 'usr'))
