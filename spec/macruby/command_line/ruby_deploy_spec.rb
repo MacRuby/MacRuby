@@ -20,16 +20,20 @@ module DeploySpecHelper
     `/usr/bin/otool -L '#{path}'`
   end
 
+  def glob_join(*path)
+    Dir.glob(File.join(*path))
+  end
+
   def resources
     File.join(@app_bundle, 'Contents', 'Resources')
   end
 
   def rbos
-    Dir.glob("#{resources}/**/*.rbo")
+    glob_join(resources, '**', '*.rbo')
   end
 
   def rbs
-    Dir.glob("#{resources}/**/*.rb")
+    glob_join(resources, '**','*.rb')
   end
 
   def binaries
@@ -184,31 +188,36 @@ describe "ruby_deploy command line options:" do
 
     it 'removes .rb files from the stdlib if an .rbo equivalent exists' do
       deploy('--embed')
-      files = Dir.glob(File.join(framework_stdlib,'**','*.rbo'))
+      files = glob_join(framework_stdlib,'**','*.rbo')
       files.each { |rbo| File.exists?("#{rbo.chomp!('o')}").should be_false }
     end
 
-    it 'should only copy specific parts of the stdlib when combined with --stdlib' do
-      deploy('--embed --stdlib ubygems')
-      files = Dir.glob(File.join(framework_stdlib,'**','*.rb*')).map do |f|
-        File.basename(f).chomp(File.extname(f))
-      end.uniq # in case ubygems.rb ever ships with a compiled version
-      files.should == ['ubygems']
-    end
 
-    it 'should only embed the listed libraries' do
-      deploy('--embed --stdlib base64 --stdlib minitest')
 
-      expected = ['base64'] +
-        Dir.glob(File.join(SOURCE_ROOT,'lib','minitest','*')).map do |lib|
+
+    describe 'when combined with --stdlib' do
+      it 'a specific lib to be embedded' do
+        deploy('--embed --stdlib ubygems')
+        files = glob_join(framework_stdlib,'**','*.rb*').map do |f|
+          File.basename(f).chomp(File.extname(f))
+        end.uniq # in case ubygems.rb ever ships with a compiled version
+        files.should == ['ubygems']
+      end
+
+      it 'any number of times, all listed libs will be embedded' do
+        deploy('--embed --stdlib base64 --stdlib minitest')
+
+        expected = ['base64'] +
+          glob_join(SOURCE_ROOT,'lib','minitest','*').map do |lib|
           File.basename(lib).chomp(File.extname(lib))
-      end
+        end
 
-      actual = Dir.glob(File.join(framework_stdlib,'**','*.rb')).map do |lib|
-        File.basename(lib).chomp(File.extname(lib))
-      end
+        actual = glob_join(framework_stdlib,'**','*.rb').map do |lib|
+          File.basename(lib).chomp(File.extname(lib))
+        end
 
-      actual.should == expected
+        actual.should == expected
+      end
     end
   end
 
