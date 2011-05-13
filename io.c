@@ -1437,22 +1437,27 @@ prepare_getline_args(int argc, VALUE *argv, VALUE *rsp, long *lim, VALUE io)
 	}
     }
     else {
-	VALUE tmp = rb_check_string_type(sep);
-	if(!NIL_P(tmp)) {
-	    sep = tmp;
+	if (argc == 2) {
+	    StringValue(sep);
 	}
-	if (TYPE(sep) != T_STRING) {
-	    // sep wasn't given, limit was.
-	    limit = sep;
-	    sep = rb_rs;
+	else {
+	    VALUE tmp = rb_check_string_type(sep);
+	    if(!NIL_P(tmp)) {
+		sep = tmp;
+	    }
+	    else {
+		// sep wasn't given, limit was.
+		limit = sep;
+		sep = rb_rs;
+	    }
 	}
-	else if (RSTRING_LEN(sep) == 0) {
+	if (RSTRING_LEN(sep) == 0) {
 	    sep = (VALUE)CFSTR("\n\n");
 	}
     }
 
     *rsp = sep;
-    *lim = NIL_P(limit) ? -1 : FIX2LONG(limit);
+    *lim = NIL_P(limit) ? -1 : NUM2LONG(limit);
 }
 
 static VALUE
