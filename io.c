@@ -1437,6 +1437,10 @@ prepare_getline_args(int argc, VALUE *argv, VALUE *rsp, long *lim, VALUE io)
 	}
     }
     else {
+	VALUE tmp = rb_check_string_type(sep);
+	if(!NIL_P(tmp)) {
+	    sep = tmp;
+	}
 	if (TYPE(sep) != T_STRING) {
 	    // sep wasn't given, limit was.
 	    limit = sep;
