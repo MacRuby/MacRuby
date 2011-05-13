@@ -1491,6 +1491,7 @@ rb_io_getline_1(VALUE sep, long line_limit, VALUE io)
 	    else {
 		io_struct->buf_offset -= rest_size;
 	    }
+	    lseek(io_struct->read_fd, -rest_size, SEEK_END);
 	    r = range.location + 1;
 	}
 	// Resize the buffer to whatever was actually read (can be different
