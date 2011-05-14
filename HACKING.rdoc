@@ -122,10 +122,13 @@ The following environment variables might help you debug easy bugs.
   builtin interpreter (generally used on cold paths).
 
 * VM_DUMP_IR: set it to any value to dump the LLVM IR on $stderr before the
-  interpreter quits.
+  program quits.
 
 * VM_VERIFY_IR: set it to any value to force a LLVM module verification before
-  the interpreter quits.
+  the program quits.
+
+* VM_STATS: set it to any value to collect then print compiler statistics
+  before the program quits.
 
 * VM_OPT_LEVEL: set it either to 0, 1, 2 or 3 to change the optimization level
   of the LLVM code generator.

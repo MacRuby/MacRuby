@@ -48,6 +48,7 @@
 # include <llvm/Intrinsics.h>
 # include <llvm/Bitcode/ReaderWriter.h>
 # include <llvm/LLVMContext.h>
+# include "llvm/ADT/Statistic.h"
 using namespace llvm;
 #endif // MACRUBY_STATIC
 
@@ -5188,6 +5189,8 @@ class_has_custom_resolver(Class klass)
 # include ".objs/kernel_data.c"
 #endif
 
+static bool vm_enable_stats = false;
+
 extern "C"
 void 
 Init_PreVM(void)
@@ -5201,6 +5204,11 @@ Init_PreVM(void)
     llvm::DisablePrettyStackTrace = true;
     // To not corrupt stack pointer (essential for backtracing).
     llvm::NoFramePointerElim = true;
+
+    if (getenv("VM_STATS") != NULL) {
+	vm_enable_stats = true;
+	llvm::EnableStatistics();
+    }
 
     MemoryBuffer *mbuf = NULL;
     const char *kernel_file = getenv("VM_KERNEL_PATH");
@@ -5559,6 +5567,10 @@ rb_vm_finalize(void)
     if (getenv("VM_VERIFY_IR") != NULL) {
 	rb_verify_module();
 	printf("IR verified!\n");
+    }
+
+    if (vm_enable_stats) {
+	llvm::PrintStatistics();
     }
 #endif
 
