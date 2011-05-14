@@ -335,35 +335,31 @@ RoxorCore::prepare_jit(void)
     assert(ee == NULL);
     jmm = new RoxorJITManager;
 
-    CodeGenOpt::Level opt = CodeGenOpt::Default;
-    inlining_enabled = false;
-    optims_enabled = true;
+    opt_level = CodeGenOpt::Default;
     const char *env_str = getenv("VM_OPT_LEVEL");
     if (env_str != NULL) {
 	const int tmp = atoi(env_str);
 	if (tmp >= 0 && tmp <= 3) {
 	    switch (tmp) {
 		case 0:
-		    opt = CodeGenOpt::None;
-		    optims_enabled = false;
+		    opt_level = CodeGenOpt::None;
 		    break;
 		case 1:
-		    opt = CodeGenOpt::Less;
+		    opt_level = CodeGenOpt::Less;
 		    break;
 		case 2:
-		    opt = CodeGenOpt::Default;
+		    opt_level = CodeGenOpt::Default;
 		    break;
 		case 3:
-		    opt = CodeGenOpt::Aggressive;
-		    inlining_enabled = true;
+		    opt_level = CodeGenOpt::Aggressive;
 		    break;
 	    }
 	}
     }
 
     std::string err;
-    ee = ExecutionEngine::createJIT(RoxorCompiler::module, &err, jmm, opt,
-	    false);
+    ee = ExecutionEngine::createJIT(RoxorCompiler::module, &err, jmm,
+	    opt_level, false);
     if (ee == NULL) {
 	fprintf(stderr, "error while creating JIT: %s\n", err.c_str());
 	abort();
@@ -539,14 +535,36 @@ RoxorCore::debug_outers(Class k)
 }
 
 #if !defined(MACRUBY_STATIC)
+static bool
+should_optimize(Function *func)
+{
+    // Don't optimize big functions.
+    size_t insns = 0;
+    for (Function::iterator i = func->begin(); i != func->end(); ++i) {
+	insns += i->size();
+    }
+    return insns < 2000;
+}
+
 void
 RoxorCore::optimize(Function *func)
 {
-    if (inlining_enabled) {
-	RoxorCompiler::shared->inline_function_calls(func);
-    }
-    if (optims_enabled && fpm != NULL) {
-	fpm->run(*func);
+    switch (opt_level) {
+	case CodeGenOpt::None:
+	    break;
+
+	case CodeGenOpt::Aggressive:
+	    RoxorCompiler::shared->inline_function_calls(func);
+	    goto optimize;
+
+	default:
+	    if (ruby_aot_compile || should_optimize(func)) {
+optimize:
+		if (fpm != NULL) {	
+		    fpm->run(*func);
+		}
+	    }
+	    break;    
     }
 }
 

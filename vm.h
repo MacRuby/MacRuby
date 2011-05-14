@@ -755,9 +755,8 @@ class RoxorCore {
 	pthread_mutex_t gl;
 
 	// State.
+	CodeGenOpt::Level opt_level;
 	bool interpreter_enabled;
-	bool inlining_enabled;
-	bool optims_enabled;
 	bool running;
 	bool abort_on_exception;
 	VALUE loaded_features;
