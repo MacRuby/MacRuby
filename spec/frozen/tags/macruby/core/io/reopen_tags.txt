@@ -1,7 +1,1 @@
-fails:IO#reopen with a String does not raise an exception when called on a closed stream with a path
 fails:IO#reopen with a String effects exec/system/fork performed after it
-fails:IO#reopen with a String opens a path after writing to the original file descriptor
-fails:IO#reopen with a String creates the file if it doesn't exist if the IO is opened in write mode
-fails:IO#reopen with a String raises an Errno::ENOENT if the file does not exist and the IO is not opened in write mode
-fails:IO#reopen with an IO associates the IO instance with the other IO's stream
-fails:IO#reopen with an IO sets path equals to the other IO's path if other IO is File
