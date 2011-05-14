@@ -4140,11 +4140,15 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 	lock.unlock();
 	ret = ((VALUE(*)(VALUE, SEL))imp)(vm->get_current_top_object(), 0);
 
+#if 0
+	// FIXME deleting functions causes crashes in the C++ EH personality
+	// function. To investigate!
 	if (inside_eval) {
 	    // XXX We only delete functions created by #eval. In theory it
 	    // should also work for other functions, but it makes spec:ci crash.
 	    GET_CORE()->delenda(func);
 	}
+#endif
     }
 
     rb_node_release(node);
