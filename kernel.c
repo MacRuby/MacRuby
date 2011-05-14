@@ -977,17 +977,15 @@ vm_ary_ptr(VALUE ary)
 }
 
 PRIMITIVE VALUE
-vm_rary_new(int len)
+vm_rary_new(int argc, VALUE *argv)
 {
-    VALUE ary = rb_ary_new2(len);
-    RARY(ary)->len = len;
+    VALUE ary = rb_ary_new2(argc);
+    int i;
+    for (i = 0; i < argc; i++) {
+	rary_elt_set(ary, i, argv[i]);
+    }
+    RARY(ary)->len = argc;
     return ary;
-}
-
-PRIMITIVE void
-vm_rary_aset(VALUE ary, int i, VALUE obj)
-{
-    rary_elt_set(ary, i, obj);
 }
 
 PRIMITIVE VALUE

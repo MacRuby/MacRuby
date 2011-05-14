@@ -75,7 +75,7 @@ RoxorCompiler *RoxorCompiler::shared = NULL;
     __save_state(PHINode *, ensure_pn);\
     __save_state(NODE *, ensure_node);\
     __save_state(bool, block_declaration);\
-    __save_state(AllocaInst *, dispatch_argv);\
+    __save_state(AllocaInst *, argv_buffer);\
     __save_state(uint64_t, outer_mask);\
     __save_state(GlobalVariable *, outer_stack);
 
@@ -111,7 +111,7 @@ RoxorCompiler *RoxorCompiler::shared = NULL;
     __restore_state(ensure_pn);\
     __restore_state(ensure_node);\
     __restore_state(block_declaration);\
-    __restore_state(dispatch_argv);\
+    __restore_state(argv_buffer);\
     __restore_state(outer_mask);\
     __restore_state(outer_stack);
 
@@ -146,7 +146,7 @@ RoxorCompiler *RoxorCompiler::shared = NULL;
     ensure_pn = NULL;\
     ensure_node = NULL;\
     block_declaration = false;\
-    dispatch_argv = NULL;\
+    argv_buffer = NULL;\
     outer_mask = 0;\
     outer_stack = NULL;
 
@@ -209,7 +209,6 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     catArrayFunc = get_function("vm_ary_cat");
     dupArrayFunc = get_function("vm_ary_dup");
     newArrayFunc = get_function("vm_rary_new");
-    asetArrayFunc = get_function("vm_rary_aset");
     entryArrayFunc = get_function("vm_ary_entry");
     checkArrayFunc = get_function("vm_ary_check");
     lengthArrayFunc = get_function("vm_ary_length");
@@ -876,39 +875,43 @@ RoxorCompiler::generate_location_path(std::string &path, DILocation loc)
 }
 
 Value *
-RoxorCompiler::recompile_dispatch_argv(std::vector<Value *> &params, int offset)
+RoxorCompiler::compile_argv_buffer(const long argc)
 {
-    const long argc = params.size() - offset;
-
     if (argc == 0) {
 	return compile_const_pointer(NULL, RubyObjPtrTy);
     }
-
     assert(argc > 0);
 
     Instruction *first = bb->getParent()->getEntryBlock().getFirstNonPHI();
-    if (dispatch_argv == NULL) {
-	dispatch_argv = new AllocaInst(RubyObjTy,
+    if (argv_buffer == NULL) {
+	argv_buffer = new AllocaInst(RubyObjTy,
 		ConstantInt::get(Int32Ty, argc), "argv", first);
     }
     else {
-	Value *size = dispatch_argv->getArraySize();
+	Value *size = argv_buffer->getArraySize();
 	if (argc > cast<ConstantInt>(size)->getSExtValue()) {
 	    AllocaInst *new_argv = new AllocaInst(RubyObjTy,
 		    ConstantInt::get(Int32Ty, argc), "argv", first);
-	    dispatch_argv->replaceAllUsesWith(new_argv);
-	    dispatch_argv->eraseFromParent();
-	    dispatch_argv = new_argv;
+	    argv_buffer->replaceAllUsesWith(new_argv);
+	    argv_buffer->eraseFromParent();
+	    argv_buffer = new_argv;
 	}
     }
+    return argv_buffer;
+}
+
+Value *
+RoxorCompiler::recompile_dispatch_argv(std::vector<Value *> &params, int offset)
+{
+    const long argc = params.size() - offset;
+    Value *argv = compile_argv_buffer(argc);
 
     for (int i = 0; i < argc; i++) {
 	Value *idx = ConstantInt::get(Int32Ty, i);
-	Value *slot = GetElementPtrInst::Create(dispatch_argv, idx, "", bb);
+	Value *slot = GetElementPtrInst::Create(argv, idx, "", bb);
 	new StoreInst(params[offset + i], slot, bb);
     }
-
-    return dispatch_argv;
+    return argv;
 }
 
 Value *
@@ -1132,20 +1135,20 @@ RoxorCompiler::compile_multiple_assignment(NODE *node)
 
 	// Compile return value (a new Array) which is eliminated later if
 	// never used.
-	CallInst *ary = CallInst::Create(newArrayFunc,
-		ConstantInt::get(Int32Ty, tmp_rights.size()), "", bb);
+	const int argc = tmp_rights.size();
+	Value *argv = compile_argv_buffer(argc);
+	for (int i = 0; i < argc; i++) {
+	    Value *idx = ConstantInt::get(Int32Ty, i);
+	    Value *slot = GetElementPtrInst::Create(argv, idx, "", bb);
+	    new StoreInst(tmp_rights[i], slot, bb);
+	}
+	Value *args[] = {
+	    ConstantInt::get(Int32Ty, argc),
+	    argv
+	};
+	CallInst *ary = CallInst::Create(newArrayFunc, args, args + 2, "", bb);
 	RoxorCompiler::MAsgnValue val;
 	val.ary = ary;
-	for (unsigned int i = 0; i < tmp_rights.size(); i++) {
-	    Value *args[] = {
-		ary,
-		ConstantInt::get(Int32Ty, i),
-		tmp_rights[i]
-	    };
-	    CallInst *insn = CallInst::Create(asetArrayFunc, args, args + 3,
-		    "", bb);
-	    val.sets.push_back(insn);
-	}
 	masgn_values.push_back(val);
 	return ary;
     }
@@ -2814,14 +2817,14 @@ RoxorCompiler::compile_scope(NODE *node)
     ensure_node = NULL;
     ensure_bb = NULL;
 
-    AllocaInst *old_dispatch_argv = dispatch_argv;
+    AllocaInst *old_argv_buffer = argv_buffer;
     BasicBlock *old_rescue_invoke_bb = rescue_invoke_bb;
     BasicBlock *old_rescue_rethrow_bb = rescue_rethrow_bb;
     BasicBlock *old_entry_bb = entry_bb;
     BasicBlock *old_bb = bb;
     BasicBlock *new_rescue_invoke_bb = NULL;
     BasicBlock *new_rescue_rethrow_bb = NULL;
-    dispatch_argv = NULL;
+    argv_buffer = NULL;
     rescue_invoke_bb = NULL;
     rescue_rethrow_bb = NULL;
     bb = BasicBlock::Create(context, "MainBlock", f);
@@ -3105,12 +3108,7 @@ RoxorCompiler::compile_scope(NODE *node)
     for (std::vector<MAsgnValue>::iterator i = masgn_values.begin();
 	    i != masgn_values.end(); ++i) {
 	MAsgnValue &v = *i;
-	if (v.ary->hasNUses(v.sets.size())) {
-	    for (std::vector<CallInst *>::iterator j = v.sets.begin();
-		    j != v.sets.end(); ++j) {
-		CallInst *insn = *j;
-		insn->eraseFromParent();
-	    }
+	if (v.ary->hasNUses(0)) {
 	    v.ary->eraseFromParent();
 	}
     }
@@ -3122,7 +3120,7 @@ RoxorCompiler::compile_scope(NODE *node)
 
     ensure_node = old_ensure_node;
     ensure_bb = old_ensure_bb;
-    dispatch_argv = old_dispatch_argv;
+    argv_buffer = old_argv_buffer;
     bb = old_bb;
     entry_bb = old_entry_bb;
     lvars = old_lvars;
@@ -4240,34 +4238,31 @@ RoxorCompiler::compile_node0(NODE *node)
 	case NODE_ZARRAY:
 	case NODE_VALUES:
 	    {
-		Value *ary;
-
-		if (nd_type(node) == NODE_ZARRAY) {
-		    ary = CallInst::Create(newArrayFunc,
-			    ConstantInt::get(Int32Ty, 0), "", bb);
-		}
-		else {
-		    const int count = node->nd_alen;
-		    ary = CallInst::Create(newArrayFunc,
-			    ConstantInt::get(Int32Ty, count), "", bb);
-
+		int count = 0;
+		std::vector<Value *> elems;
+		if (nd_type(node) != NODE_ZARRAY) {
+		    count = node->nd_alen;
 		    NODE *n = node;
 		    for (int i = 0; i < count; i++) {
 			assert(n->nd_head != NULL);
 			Value *elem = compile_node(n->nd_head);
-
-			Value *args[] = {
-			    ary,
-			    ConstantInt::get(Int32Ty, i),
-			    elem
-			};
-			CallInst::Create(asetArrayFunc, args, args + 3, "", bb);
-
+			elems.push_back(elem);
 			n = n->nd_next;
 		    }
 		}
 
-		return ary;
+		Value *argv = compile_argv_buffer(count);
+		for (int i = 0; i < count; i++) {
+		    Value *idx = ConstantInt::get(Int32Ty, i);
+		    Value *slot = GetElementPtrInst::Create(argv, idx, "", bb);
+		    new StoreInst(elems[i], slot, bb);
+		}
+
+		Value *args[] = {
+		    ConstantInt::get(Int32Ty, count),
+		    argv
+		};
+		return CallInst::Create(newArrayFunc, args, args + 2, "", bb);
 	    }
 	    break;
 
@@ -6138,11 +6133,10 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 			    PointerType::getUnqual(elem_type), "", bb);
 		}
 
-		Value *ary = CallInst::Create(newArrayFunc,
-			ConstantInt::get(Int32Ty, elem_count), "", bb);
+		Value *elems = compile_argv_buffer(elem_count);
 		for (long i = 0; i < elem_count; i++) {
 		    Value *idx = ConstantInt::get(Int32Ty, i);
-		    Value *elem;
+		    Value *elem = NULL;
 		    if (is_ary) {
 			elem = ExtractValueInst::Create(val, i, "", bb);
 		    }
@@ -6151,14 +6145,15 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 				bb);
 			elem = new LoadInst(slot, "", bb);
 		    }
-		    Value *args[] = {
-			ary,
-			idx,
-			compile_conversion_to_ruby(elem_c_type, elem_type, elem)
-		    };
-		    CallInst::Create(asetArrayFunc, args, args + 3, "", bb);
+		    Value *slot = GetElementPtrInst::Create(elems, idx, "", bb);
+		    new StoreInst(elem, slot, bb);
 		}
-		return ary;
+
+		Value *args[] = {
+		    ConstantInt::get(Int32Ty, elem_count),
+		    elems
+		};
+		return CallInst::Create(newArrayFunc, args, args + 2, "", bb);
 	    }
 	    break;
     }
