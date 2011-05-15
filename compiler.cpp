@@ -6145,6 +6145,8 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 				bb);
 			elem = new LoadInst(slot, "", bb);
 		    }
+		    elem = compile_conversion_to_ruby(elem_c_type, elem_type,
+			    elem);
 		    Value *slot = GetElementPtrInst::Create(elems, idx, "", bb);
 		    new StoreInst(elem, slot, bb);
 		}
