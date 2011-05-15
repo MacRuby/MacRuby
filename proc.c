@@ -18,6 +18,9 @@
 
 #define GetProcPtr(obj, ptr) GetCoreDataFromValue(obj, rb_vm_block_t, ptr)
 
+#define GetBindingPtr(obj, ptr) \
+  GetCoreDataFromValue((obj), rb_vm_binding_t, (ptr))
+
 VALUE rb_cUnboundMethod;
 VALUE rb_cMethod;
 VALUE rb_cBinding;
@@ -192,26 +195,20 @@ proc_lambda_p(VALUE procval, SEL sel)
 /* Binding */
 
 static VALUE
-binding_alloc(VALUE klass)
-{
-    VALUE obj;
-    rb_vm_binding_t *bind;
-    obj = Data_Make_Struct(klass, rb_vm_binding_t,
-			   NULL, NULL, bind);
-    return obj;
-}
-
-static VALUE
 binding_dup(VALUE self, SEL sel)
 {
-    VALUE bindval = binding_alloc(rb_cBinding);
-#if 0 // TODO
-    rb_binding_t *src, *dst;
+    rb_vm_binding_t *src;
     GetBindingPtr(self, src);
-    GetBindingPtr(bindval, dst);
-    dst->env = src->env;
-#endif
-    return bindval;
+    rb_vm_binding_t *dst = (rb_vm_binding_t *)xmalloc(
+	sizeof(rb_vm_binding_t));
+
+    GC_WB(&dst->self, src->self);
+    GC_WB(&dst->next, src->next);
+    GC_WB(&dst->locals, src->locals);
+    GC_WB(&dst->outer, src->outer);
+    GC_WB(&dst->block, src->block);
+
+    return Data_Wrap_Struct(rb_cBinding, NULL, NULL, dst);
 }
 
 static VALUE
