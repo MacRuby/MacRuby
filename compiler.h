@@ -147,7 +147,6 @@ class RoxorCompiler {
 	int return_from_block_ids;
 	bool block_declaration;
 	AllocaInst *argv_buffer;
-	long outer_mask;
 
 	Function *writeBarrierFunc;
 	Function *dispatchFunc;
