@@ -3222,9 +3222,7 @@ rb_vm_get_const_base(void)
     for (rb_vm_outer_t *o = root_outer; o != NULL; o = o->outer) {
 	if (!o->pushed_by_eval) {
 	    klass = (VALUE)o->klass;
-	    if (klass != 0) {
-		break;
-	    }
+	    break;
 	}
     }
     if (klass == 0) {
