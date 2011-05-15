@@ -1320,10 +1320,10 @@ retry:
     return Qundef;
 }
 
+#if ROXOR_VM_DEBUG_OUTER
 extern "C" const char *ruby_node_name(int node);
 
-extern "C"
-void
+static void
 rb_vm_print_outer_stack(const char *fname, NODE *node, const char *function, int line,
 			rb_vm_outer_t *outer_stack, const char *prefix)
 {
@@ -1347,13 +1347,14 @@ rb_vm_print_outer_stack(const char *fname, NODE *node, const char *function, int
 	else {
 	    printf(" > ");
 	}
-	printf("%s", NIL_P(o->klass) ? "nil" : class_getName(o->klass));
+	printf("%s", class_getName(o->klass));
 	if (o->pushed_by_eval) {
 	    printf("[skip]");
 	}
     }
     printf(")\n");
 }
+#endif
 
 extern "C"
 VALUE
@@ -1365,7 +1366,7 @@ rb_vm_const_lookup_level(VALUE outer, ID path,
     printf("%s:%d:%s:"
 	    "outer(%s) path(%s) lexical(%s) defined(%s) outer_stack(%p)\n",
 	    __FILE__, __LINE__, __FUNCTION__,
-	    class_getName((Class)outer), rb_id2name(path),
+	    NIL_P(outer) ? "nil" : class_getName((Class)outer), rb_id2name(path),
 	    lexical ? "true" : "false", defined ? "true" : "false", outer_stack);
 #endif
 
@@ -1375,7 +1376,7 @@ rb_vm_const_lookup_level(VALUE outer, ID path,
 	GET_CORE()->lock();
 #if ROXOR_VM_DEBUG_OUTER
 	rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
-		outer_stack, "compile time");
+		outer_stack, "outer_stack");
 #endif
 	rb_vm_outer_t *root_outer = outer_stack;
 	while (root_outer != NULL && root_outer->pushed_by_eval) {
@@ -1391,7 +1392,7 @@ rb_vm_const_lookup_level(VALUE outer, ID path,
 		return defined ? Qtrue : val;
 	    }
 	}
-	if (root_outer && !NIL_P(root_outer->klass)) {
+	if (root_outer && root_outer->klass != 0) {
 	    outer = (VALUE)root_outer->klass;
 	}
 	GET_CORE()->unlock();

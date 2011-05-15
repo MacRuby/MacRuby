@@ -500,8 +500,6 @@ void rb_vm_set_outer_stack(rb_vm_outer_t *outer);
 rb_vm_outer_t *rb_vm_get_outer_stack(void);
 VALUE rb_vm_get_cbase(void);
 VALUE rb_vm_get_const_base(void);
-void rb_vm_print_outer_stack(const char *fname, NODE *node, const char *function, int line,
-	rb_vm_outer_t *outer_stack, const char *prefix);
 
 VALUE rb_vm_module_nesting(void);
 VALUE rb_vm_module_constants(void);
