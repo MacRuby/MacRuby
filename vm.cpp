@@ -1452,11 +1452,10 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
 	unsigned char dynamic_class)
 {
     assert(path > 0);
-    rb_vm_check_if_module(outer);
-
     if (flags & DEFINE_OUTER) {
 	outer = rb_vm_get_const_base();
     }
+    rb_vm_check_if_module(outer);
 
     VALUE klass = get_klass_const(outer, path, dynamic_class);
     if (klass != Qundef) {
