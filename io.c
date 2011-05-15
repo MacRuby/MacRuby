@@ -1781,7 +1781,6 @@ rb_io_readlines(VALUE io, SEL sel, int argc, VALUE *argv)
  *     4: And so on...
  */
 
-static SEL sel_each_line = 0;
 static SEL sel_each_byte = 0;
 static SEL sel_each_char = 0;
 
@@ -1862,28 +1861,6 @@ rb_io_each_char(VALUE io, SEL sel)
 	c = rb_io_getc(io, 0);
     }
     return io;
-}
-
-/*
- *  call-seq:
- *     ios.lines(sep=$/)     => anEnumerator
- *     ios.lines(limit)      => anEnumerator
- *     ios.lines(sep, limit) => anEnumerator
- *
- *  Returns an enumerator that gives each line in <em>ios</em>.
- *  The stream must be opened for reading or an <code>IOError</code>
- *  will be raised.
- *
- *     f = File.new("testfile")
- *     f.lines.to_a  #=> ["foo\n", "bar\n"]
- *     f.rewind
- *     f.lines.sort  #=> ["bar\n", "foo\n"]
- */
-
-static VALUE
-rb_io_lines(VALUE io, SEL sel, int argc, VALUE *argv)
-{
-    return rb_enumeratorize(io, sel_each_line, 0, NULL);
 }
 
 /*
@@ -5122,7 +5099,7 @@ Init_IO(void)
     rb_objc_define_method(rb_cIO, "each_line",  rb_io_each_line, -1);
     rb_objc_define_method(rb_cIO, "each_byte",  rb_io_each_byte, 0);
     rb_objc_define_method(rb_cIO, "each_char",  rb_io_each_char, 0);
-    rb_objc_define_method(rb_cIO, "lines",  rb_io_lines, -1);
+    rb_objc_define_method(rb_cIO, "lines",  rb_io_each_line, -1);
     rb_objc_define_method(rb_cIO, "bytes",  rb_io_bytes, 0);
     rb_objc_define_method(rb_cIO, "chars",  rb_io_chars, 0);
 
@@ -5294,7 +5271,6 @@ Init_IO(void)
 
     sel_each_byte = sel_registerName("each_byte");
     sel_each_char = sel_registerName("each_char");
-    sel_each_line = sel_registerName("each_line");
 
     // MacRuby extensions:
     rb_objc_define_module_function(rb_mKernel, "getpass", rb_getpass, 1);
