@@ -389,7 +389,7 @@ class RoxorCompiler {
 	Value *compile_current_class(void);
 	virtual Value *compile_nsobject(void);
 	virtual Value *compile_standarderror(void);
-	Value *compile_class_path(NODE *node, int *flags, int *outer_level);
+	Value *compile_class_path(NODE *node, int *flags);
 	Value *compile_const(ID id, Value *outer);
 	Value *compile_singleton_class(Value *obj);
 	Value *compile_defined_expression(NODE *node);

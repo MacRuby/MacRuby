@@ -788,7 +788,6 @@ RoxorCore::constant_cache_get(ID path)
 	struct ccache *cache = (struct ccache *)malloc(sizeof(struct ccache));
 	assert(cache != NULL);
 	cache->outer = 0;
-	cache->outer_mask = 0;
 	cache->val = Qundef;
 	cache->outer_stack = NULL;
 	ccache[path] = cache;
@@ -1358,15 +1357,15 @@ rb_vm_print_outer_stack(const char *fname, NODE *node, const char *function, int
 
 extern "C"
 VALUE
-rb_vm_const_lookup_level(VALUE outer, uint64_t outer_mask, ID path,
+rb_vm_const_lookup_level(VALUE outer, ID path,
 	bool lexical, bool defined, rb_vm_outer_t *outer_stack)
 {
     rb_vm_check_if_module(outer);
 #if ROXOR_VM_DEBUG_OUTER
     printf("%s:%d:%s:"
-	    "outer(%s) outer_mask(%llu) path(%s) lexical(%s) defined(%s) outer_stack(%p)\n",
+	    "outer(%s) path(%s) lexical(%s) defined(%s) outer_stack(%p)\n",
 	    __FILE__, __LINE__, __FUNCTION__,
-	    class_getName((Class)outer), outer_mask, rb_id2name(path),
+	    class_getName((Class)outer), rb_id2name(path),
 	    lexical ? "true" : "false", defined ? "true" : "false", outer_stack);
 #endif
 
@@ -1628,7 +1627,7 @@ rb_vm_alias2(VALUE outer, VALUE name, VALUE def, unsigned char dynamic_class)
 {
     if (dynamic_class) {
 	outer = rb_vm_get_cbase();
-	if (RCLASS_SUPER(outer) == 0) {
+	if (NIL_P(outer) || RCLASS_SUPER(outer) == 0) {
 	    rb_raise(rb_eTypeError, "no class to make alias");
 	}
     }
