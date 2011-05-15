@@ -507,6 +507,7 @@ VALUE rb_vm_module_nesting(void);
 VALUE rb_vm_module_constants(void);
 
 bool rb_vm_aot_feature_load(const char *name);
+void rb_vm_dln_load(void (*init_fct)(void), IMP __mrep__);
 void rb_vm_load(const char *fname_str, int wrap);
 
 bool rb_vm_generate_objc_class_name(const char *name, char *buf,
