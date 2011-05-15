@@ -74,41 +74,6 @@ rb_objc_release(void *addr)
 }
 #define GC_RELEASE(obj) (rb_objc_release((void *)obj))
 
-#define GC_REF(dst, newval) \
-    do { \
-	void *v = (void *)(newval); \
-	if (!SPECIAL_CONST_P(v)) { \
-	    if (auto_zone_is_valid_pointer(__auto_zone, (const void *)dst)) { \
-		auto_zone_set_write_barrier(__auto_zone, \
-			(const void *)dst, (const void *)v); \
-	    } \
-	    else { \
-		auto_zone_retain(__auto_zone, v); \
-	    } \
-	} \
-	*(void **)dst = v; \
-    } \
-    while (0)
-
-#define GC_UNREF(dst) \
-    do { \
-	void *v = (void *)*(dst); \
-	if (!SPECIAL_CONST_P(v) \
-		&& !auto_zone_is_valid_pointer(__auto_zone, (const void *)dst)) { \
-	    auto_zone_release(__auto_zone, v); \
-	} \
-	*(void **)dst = 0; \
-    } \
-    while (0)
-
-#define GC_REPLACE(dst, newval) \
-    do { \
-	void *_v = (void *)(newval); \
-	GC_UNREF(dst); \
-	GC_REF(dst, _v); \
-    } \
-    while (0)
-
 // MacRubyIntern.h
 
 /* enumerator.c */

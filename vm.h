@@ -355,8 +355,6 @@ bool rb_vm_respond_to2(VALUE obj, VALUE klass, SEL sel, bool priv, bool check_ov
 VALUE rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv);
 void rb_vm_push_methods(VALUE ary, VALUE mod, bool include_objc_methods,
 	int (*filter) (VALUE, ID, VALUE));
-void rb_vm_set_outer_obsolate(VALUE klass, VALUE under);
-VALUE rb_vm_get_outer_obsolate(VALUE klass);
 VALUE rb_vm_catch(VALUE tag);
 VALUE rb_vm_throw(VALUE tag, VALUE value);
 
@@ -497,13 +495,15 @@ Class rb_vm_get_current_class(void);
 
 void rb_vm_push_outer(Class klass);
 void rb_vm_pop_outer(void);
-void rb_vm_set_outer(rb_vm_outer_t *outer);
-void rb_vm_get_outer(rb_vm_outer_t **dest_ptr);
-void rb_vm_release_outer(rb_vm_outer_t **dest_ptr);
+void rb_vm_set_outer_stack(rb_vm_outer_t *outer);
+rb_vm_outer_t *rb_vm_get_outer_stack(void);
 VALUE rb_vm_get_cbase(void);
 VALUE rb_vm_get_const_base(void);
 void rb_vm_print_outer_stack(const char *fname, NODE *node, const char *function, int line,
 	rb_vm_outer_t *outer_stack, const char *prefix);
+
+VALUE rb_vm_module_nesting(void);
+VALUE rb_vm_module_constants(void);
 
 bool rb_vm_aot_feature_load(const char *name);
 void rb_vm_load(const char *fname_str, int wrap);
@@ -785,9 +785,6 @@ class RoxorCore {
 	// Constants cache.
 	std::map<ID, struct ccache *> ccache;
 
-	// Outers map (where a class is actually defined).
-	std::map<Class, struct rb_vm_outer *> outers;
-
 #if !defined(MACRUBY_STATIC)
 	// Optimized selectors redefinition cache.
 	std::map<SEL, GlobalVariable *> redefined_ops_gvars;
@@ -969,9 +966,6 @@ class RoxorCore {
 	struct ccache *constant_cache_get(ID path);
 	void const_defined(ID path);
 	
-	struct rb_vm_outer *get_outer(Class klass);
-	void set_outer(Class klass, Class mod);
-
 #if !defined(MACRUBY_STATIC)
 	size_t get_sizeof(const Type *type);
 	size_t get_sizeof(const char *type);
@@ -990,8 +984,6 @@ class RoxorCore {
 	}
 	bool respond_to(VALUE obj, VALUE klass, SEL sel, bool priv,
 		bool check_override);
-
-	void debug_outers(Class k);
 
     private:
 	bool register_bs_boxed(bs_element_type_t type, void *value);

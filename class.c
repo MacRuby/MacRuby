@@ -423,10 +423,6 @@ rb_make_metaclass(VALUE obj, VALUE super)
     }
     else {
 	VALUE klass = rb_make_singleton_class(super);
-	VALUE outer = rb_vm_get_outer_obsolate(super);
-	if (outer != Qundef) {
-	    rb_vm_set_outer_obsolate(klass, outer);
-	}
 	RBASIC(obj)->klass = klass;
 	rb_singleton_class_attached(klass, obj);
 	return klass;
@@ -478,7 +474,6 @@ rb_define_class(const char *name, VALUE super)
     st_add_direct(rb_class_tbl, id, klass);
     rb_name_class(klass, id);
     rb_const_set(rb_cObject, id, klass);
-    rb_vm_set_outer_obsolate(klass, rb_cObject);
     rb_class_inherited(super, klass);
 
     return klass;
@@ -555,7 +550,6 @@ rb_define_module(const char *name)
     module = rb_define_module_id(id);
     st_add_direct(rb_class_tbl, id, module);
     rb_const_set(rb_cObject, id, module);
-    rb_vm_set_outer_obsolate(module, rb_cObject);
 
     return module;
 }
@@ -1146,7 +1140,6 @@ rb_singleton_class(VALUE obj)
 	    case T_CLASS:
 	    case T_MODULE:
 		klass = *(VALUE *)obj;
-		rb_vm_set_outer_obsolate(klass, obj);
 		break;
 
 	    default:

@@ -143,8 +143,8 @@ vm_get_const(VALUE outer, uint64_t outer_mask, void *cache_p, ID path,
 	int flags)
 {
     struct ccache *cache = (struct ccache *)cache_p;
-    rb_vm_outer_t *outer_stack;
-    rb_vm_get_outer(&outer_stack);
+    rb_vm_outer_t *outer_stack = rb_vm_get_outer_stack();
+    GC_RETAIN(outer_stack);
     const bool lexical_lookup = (flags & CONST_LOOKUP_LEXICAL);
     const bool dynamic_class = (flags & CONST_LOOKUP_DYNAMIC_CLASS);
 
@@ -162,17 +162,19 @@ vm_get_const(VALUE outer, uint64_t outer_mask, void *cache_p, ID path,
 		lexical_lookup, false, outer_stack);
 	cache->outer = outer;
 	cache->outer_mask = outer_mask;
-	GC_REPLACE(&cache->outer_stack, outer_stack);
+	GC_RELEASE(cache->outer_stack);
+	cache->outer_stack = outer_stack;
+	GC_RETAIN(cache->outer_stack);
 	cache->val = val;
     }
-    rb_vm_release_outer(&outer_stack);
+    GC_RELEASE(outer_stack);
     return val;
 }
 
 PRIMITIVE void 
 vm_set_const(VALUE outer, ID id, VALUE obj, unsigned char lexical_lookup)
 {
-    rb_const_set((lexical_lookup == 1) ? rb_vm_get_cbase() : outer, id, obj);
+    rb_const_set(lexical_lookup == 1 ? rb_vm_get_cbase() : outer, id, obj);
 }
 
 static void __attribute__((noinline))

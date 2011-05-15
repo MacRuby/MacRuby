@@ -495,18 +495,10 @@ rb_obj_instance_eval_imp(VALUE self, SEL sel, VALUE top, int argc, VALUE *argv)
     VALUE klass;
 
     if (SPECIAL_CONST_P(self) || CLASS_OF(self) == rb_cSymbol) {
-	klass = Qnil;
+	klass = 0;
     }
     else {
 	klass = rb_singleton_class(self);
-	if (top != Qundef) {
-	    switch (TYPE(top)) {
-		case T_CLASS:
-		case T_MODULE:
-		    rb_vm_set_outer_obsolate(klass, top);
-		    break;
-	    }
-	}
     }
     return specific_eval(argc, argv, klass, self);
 }

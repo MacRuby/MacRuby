@@ -75,7 +75,7 @@ RoxorCompiler *RoxorCompiler::shared = NULL;
     __save_state(PHINode *, ensure_pn);\
     __save_state(NODE *, ensure_node);\
     __save_state(bool, block_declaration);\
-    __save_state(AllocaInst *, dispatch_argv);\
+    __save_state(AllocaInst *, argv_buffer);\
     __save_state(uint64_t, outer_mask);
 
 #define restore_compiler_state() \
@@ -110,7 +110,7 @@ RoxorCompiler *RoxorCompiler::shared = NULL;
     __restore_state(ensure_pn);\
     __restore_state(ensure_node);\
     __restore_state(block_declaration);\
-    __restore_state(dispatch_argv);\
+    __restore_state(argv_buffer);\
     __restore_state(outer_mask);
 
 #define reset_compiler_state() \
@@ -144,7 +144,7 @@ RoxorCompiler *RoxorCompiler::shared = NULL;
     ensure_pn = NULL;\
     ensure_node = NULL;\
     block_declaration = false;\
-    dispatch_argv = NULL;\
+    argv_buffer = NULL;\
     outer_mask = 0;
 
 RoxorCompiler::RoxorCompiler(bool _debug_mode)
