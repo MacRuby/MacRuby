@@ -1781,8 +1781,6 @@ rb_io_readlines(VALUE io, SEL sel, int argc, VALUE *argv)
  *     4: And so on...
  */
 
-static SEL sel_each_char = 0;
-
 static VALUE
 rb_io_each_line(VALUE io, SEL sel, int argc, VALUE *argv)
 {
@@ -1860,27 +1858,6 @@ rb_io_each_char(VALUE io, SEL sel)
 	c = rb_io_getc(io, 0);
     }
     return io;
-}
-
-/*
- *  call-seq:
- *     ios.chars   => anEnumerator
- *  
- *  Returns an enumerator that gives each character in <em>ios</em>.
- *  The stream must be opened for reading or an <code>IOError</code>
- *  will be raised.
- *     
- *     f = File.new("testfile")
- *     f.chars.to_a  #=> ["h", "e", "l", "l", "o"]
- *     f.rewind
- *     f.chars.sort  #=> ["e", "h", "l", "l", "o"]
- */
-
-
-static VALUE
-rb_io_chars(VALUE io, SEL sel)
-{
-    return rb_enumeratorize(io, sel_each_char, 0, NULL);
 }
 
 /*
@@ -5080,7 +5057,7 @@ Init_IO(void)
     rb_objc_define_method(rb_cIO, "each_char",  rb_io_each_char, 0);
     rb_objc_define_method(rb_cIO, "lines",  rb_io_each_line, -1);
     rb_objc_define_method(rb_cIO, "bytes",  rb_io_each_byte, 0);
-    rb_objc_define_method(rb_cIO, "chars",  rb_io_chars, 0);
+    rb_objc_define_method(rb_cIO, "chars",  rb_io_each_char, 0);
 
     rb_objc_define_method(rb_cIO, "syswrite", rb_io_syswrite, 1);
     rb_objc_define_method(rb_cIO, "sysread",  rb_io_sysread, -1);
@@ -5247,8 +5224,6 @@ Init_IO(void)
     rb_file_const("NOCTTY", INT2FIX(O_NOCTTY));
     rb_file_const("BINARY", INT2FIX(0));
     rb_file_const("SYNC", INT2FIX(O_SYNC));
-
-    sel_each_char = sel_registerName("each_char");
 
     // MacRuby extensions:
     rb_objc_define_module_function(rb_mKernel, "getpass", rb_getpass, 1);
