@@ -1451,9 +1451,6 @@ prepare_getline_args(int argc, VALUE *argv, VALUE *rsp, long *lim, VALUE io)
 		sep = rb_rs;
 	    }
 	}
-	if (RSTRING_LEN(sep) == 0) {
-	    sep = (VALUE)CFSTR("\n\n");
-	}
     }
 
     *rsp = sep;
@@ -1465,6 +1462,12 @@ rb_io_getline_1(VALUE sep, long line_limit, VALUE io)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
     VALUE bstr = rb_bstr_new();
+
+    bool paragraph = false;
+    if (!NIL_P(sep) && RSTRING_LEN(sep) == 0) {
+	paragraph = true;
+	sep = (VALUE)CFSTR("\n\n");
+    }
 
     rb_io_assert_readable(io_struct);
     if (NIL_P(sep)) {
@@ -1487,6 +1490,17 @@ rb_io_getline_1(VALUE sep, long line_limit, VALUE io)
 	long r = rb_io_read_internal(io_struct, bytes, line_limit);
 	if (r == 0 && line_limit != 0) {
 	    return Qnil;
+	}
+	if (paragraph) {
+	    int newline = 0;
+	    while (*bytes == '\n') {
+		bytes++;
+		r--;
+		newline++;
+	    }
+	    if (newline > 0) {
+		bstr = rb_bstr_new_with_data(bytes, r);
+	    }
 	}
 
 	CFRange range = CFStringFind((CFStringRef)bstr, (CFStringRef)sep, 0);
@@ -1518,6 +1532,12 @@ rb_io_getline_1(VALUE sep, long line_limit, VALUE io)
 	    // Read from cache (fast).
 	    const UInt8 *cache = CFDataGetMutableBytePtr(io_struct->buf)
 		+ io_struct->buf_offset;
+	    if (paragraph) {
+		while (*cache == '\n') {
+		    cache++;
+		    io_struct->buf_offset++;
+		}
+	    }
 	    const long cache_len = CFDataGetLength(io_struct->buf)
 		- io_struct->buf_offset;
 	    const UInt8 *pos = cache;
