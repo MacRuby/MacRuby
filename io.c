@@ -2462,7 +2462,7 @@ rb_io_s_open(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     VALUE io = rb_io_s_new0(klass, argc, argv);
     if (rb_block_given_p()) {
-	return rb_ensure(rb_yield, io, rb_io_close, io);
+	return rb_ensure(rb_yield, io, io_close2, io);
     }
     return io;
 }
