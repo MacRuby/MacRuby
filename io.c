@@ -66,6 +66,8 @@ VALUE rb_default_rs;
 static VALUE argf;
 
 static ID id_write, id_read, id_getc, id_flush, id_encode, id_readpartial;
+static SEL sel_to_open;
+static SEL sel_close;
 
 struct argf {
     VALUE filename, current_file;
@@ -382,6 +384,18 @@ io_close(rb_io_t *io_struct, bool close_read, bool close_write)
 	CLOSE_FD(io_struct->fd);
 	io_struct->fd = -1;
     }
+}
+
+static VALUE
+io_call_close(VALUE io)
+{
+    return rb_vm_call(io, sel_close, 0, 0);
+}
+
+static VALUE
+io_close2(VALUE io)
+{
+    return rb_rescue(io_call_close, io, 0, 0);
 }
 
 static VALUE
@@ -2646,6 +2660,13 @@ VALUE
 rb_f_open(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     if (argc >= 1) {
+	if (rb_vm_respond_to(argv[0], sel_to_open, false)) {
+	    VALUE io = rb_vm_call(argv[0], sel_to_open, argc - 1, argv + 1);
+	    if (rb_block_given_p()) {
+		return rb_ensure(rb_yield, io, io_close2, io);
+	    }
+	    return io;
+	}
 	FilePathValue(argv[0]);
 	VALUE cmd = check_pipe_command(argv[0]);
 	if (cmd != Qnil) {
@@ -5267,6 +5288,9 @@ Init_IO(void)
     rb_file_const("BINARY", INT2FIX(0));
     rb_file_const("SYNC", INT2FIX(O_SYNC));
 
+    sel_to_open = sel_registerName("to_open");
+    sel_close = sel_registerName("close");
+    
     // MacRuby extensions:
     rb_objc_define_module_function(rb_mKernel, "getpass", rb_getpass, 1);
 }
