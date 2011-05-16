@@ -103,7 +103,6 @@ class RoxorCompiler {
 	class MAsgnValue {
 	    public:
 		CallInst *ary;
-		std::vector<CallInst *> sets;
 	};
 	std::vector<MAsgnValue> masgn_values;
 
@@ -147,7 +146,7 @@ class RoxorCompiler {
 	int return_from_block;
 	int return_from_block_ids;
 	bool block_declaration;
-	AllocaInst *dispatch_argv;
+	AllocaInst *argv_buffer;
 	long outer_mask;
 	GlobalVariable *outer_stack;
 
@@ -194,7 +193,6 @@ class RoxorCompiler {
 	Function *catArrayFunc;
 	Function *dupArrayFunc;
 	Function *newArrayFunc;
-	Function *asetArrayFunc;
 	Function *entryArrayFunc;
 	Function *checkArrayFunc;
 	Function *lengthArrayFunc;
@@ -351,6 +349,7 @@ class RoxorCompiler {
 		Value **args_end);
 	Instruction *compile_protected_call(Value *imp, std::vector<Value *>
 		&params);
+	Value *compile_argv_buffer(const long argc);
 	Value *recompile_dispatch_argv(std::vector<Value *> &params, int idx);
 	void compile_dispatch_arguments(NODE *args,
 		std::vector<Value *> &arguments, int *pargc);
@@ -399,6 +398,8 @@ class RoxorCompiler {
 	Value *compile_dstr(NODE *node);
 	Value *compile_dvar_slot(ID name);
 	void compile_break_val(Value *val);
+	void compile_break_within_loop(Value *val);
+	void compile_break_within_block(Value *val);
 	void compile_simple_return(Value *val);
 	Value *compile_set_has_ensure(Value *val);
 	void compile_return_from_block(Value *val, int id);

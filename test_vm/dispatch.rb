@@ -141,7 +141,7 @@ assert ":ok", "def foo(*args); :ok; end; p foo"
 assert ":ok", "def foo(&block); :ok; end; p foo"
 assert ":ok", "def foo(*args, &block); :ok; end; p foo"
 assert ":ok", "def foo(x, *args, &block); x; end; p foo(:ok)"
-assert ":ok", "def f(&proc) p :ok; end; f(&nil)", :known_bug => true
+assert ":ok", "def f(&proc) p :ok; end; f(&nil)"
 
 assert ":ok", %{
   def foo(&block) p(block ? :ko : :ok) end
@@ -452,7 +452,7 @@ assert ':ok', %{
   rescue ArgumentError
     p :ko
   end
-}, :known_bug => true
+}
 
 assert '42', %{
   class C1
@@ -549,4 +549,32 @@ assert ":X2_foo\n:X_foo\n:Y2_foo\n:Y_foo\n:Y2_foo\n:Y_foo\n:Y2_foo\n:Y_foo\n:X2_
   o = X::X2.new
   o.foo
   o.foo
+}
+
+assert '42', %{
+  class X
+    def initialize
+      yield
+    end
+  end
+  class Y<X
+    def initialize
+      super
+    end
+  end
+  Y.new { p 42 }
+}
+
+assert '42', %{
+  class X
+    def initialize
+      yield
+    end
+  end
+  class Y<X
+    def initialize
+      super()
+    end
+  end
+  Y.new { p 42 }
 }

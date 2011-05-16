@@ -56,10 +56,17 @@ typedef struct rb_vm_block {
     VALUE *dvars[1];
 } rb_vm_block_t;
 
+typedef struct rb_vm_outer {
+    Class klass;
+    bool pushed_by_eval;
+    struct rb_vm_outer *outer;
+} rb_vm_outer_t;
+
 typedef struct rb_vm_binding {
     VALUE self;
     rb_vm_block_t *block;
     rb_vm_local_t *locals;
+    rb_vm_outer_t *outer_stack;
     struct rb_vm_binding *next;
 } rb_vm_binding_t;
 
@@ -178,12 +185,6 @@ typedef struct rb_vm_thread {
     VALUE group;	// always a ThreadGroup object
     VALUE mutexes;	// an Array object or Qnil
 } rb_vm_thread_t;
-
-typedef struct rb_vm_outer {
-    Class klass;
-    bool pushed_by_eval;
-    struct rb_vm_outer *outer;
-} rb_vm_outer_t;
 
 static inline rb_vm_arity_t
 rb_vm_arity(int argc)
@@ -465,8 +466,8 @@ rb_vm_block_make_detachable_proc(rb_vm_block_t *b)
 }
 
 rb_vm_binding_t *rb_vm_create_binding(VALUE self, rb_vm_block_t *current_block,
-	rb_vm_binding_t *top_binding, int lvars_size, va_list lvars,
-	bool vm_push);
+	rb_vm_binding_t *top_binding, rb_vm_outer_t *outer_stack, 
+	int lvars_size, va_list lvars, bool vm_push);
 rb_vm_binding_t *rb_vm_current_binding(void);
 void rb_vm_add_binding(rb_vm_binding_t *binding);
 void rb_vm_pop_binding();
@@ -714,7 +715,6 @@ typedef VALUE rb_vm_long_arity_bstub_t(IMP imp, id self, SEL sel,
 #define DEFINE_MODULE		0x1
 #define DEFINE_OUTER 		0x2
 #define DEFINE_SUB_OUTER	0x4
-#define DEFINE_INSIDE_EVAL	0x8
 
 class RoxorCompiler;
 class RoxorJITManager;
@@ -755,9 +755,8 @@ class RoxorCore {
 	pthread_mutex_t gl;
 
 	// State.
+	CodeGenOpt::Level opt_level;
 	bool interpreter_enabled;
-	bool inlining_enabled;
-	bool optims_enabled;
 	bool running;
 	bool abort_on_exception;
 	VALUE loaded_features;

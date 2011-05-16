@@ -146,17 +146,18 @@ vm_get_const(VALUE outer, uint64_t outer_mask, void *cache_p, ID path,
     rb_vm_outer_t *outer_stack = (rb_vm_outer_t *)outer_stack_p;
     const bool lexical_lookup = (flags & CONST_LOOKUP_LEXICAL);
     const bool dynamic_class = (flags & CONST_LOOKUP_DYNAMIC_CLASS);
-    const bool inside_eval = (flags & CONST_LOOKUP_INSIDE_EVAL);
 
-    if (dynamic_class) {
-	Class k = rb_vm_get_current_class();
-	if (lexical_lookup && k != NULL) {
-	    outer = (VALUE)k;
+    if (dynamic_class && lexical_lookup) {
+	rb_vm_outer_t *o = outer_stack;
+	while (o != NULL && o->pushed_by_eval) {
+	    o = o->outer;
 	}
-    }
-
-    if (inside_eval) {
-	outer_stack = rb_vm_get_outer_stack();
+	if (o == NULL) {
+            outer = rb_cNSObject;
+        }
+        else {
+	    outer = (VALUE)o->klass;
+	}
     }
 
     VALUE val;
@@ -976,17 +977,15 @@ vm_ary_ptr(VALUE ary)
 }
 
 PRIMITIVE VALUE
-vm_rary_new(int len)
+vm_rary_new(int argc, VALUE *argv)
 {
-    VALUE ary = rb_ary_new2(len);
-    RARY(ary)->len = len;
+    VALUE ary = rb_ary_new2(argc);
+    int i;
+    for (i = 0; i < argc; i++) {
+	rary_elt_set(ary, i, argv[i]);
+    }
+    RARY(ary)->len = argc;
     return ary;
-}
-
-PRIMITIVE void
-vm_rary_aset(VALUE ary, int i, VALUE obj)
-{
-    rary_elt_set(ary, i, obj);
 }
 
 PRIMITIVE VALUE

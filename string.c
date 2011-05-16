@@ -27,6 +27,7 @@
 
 #include <unicode/unum.h>
 #include <unicode/utrans.h>
+#include <unicode/uchar.h>
 
 #define SET_CLASS(dst, src)						\
     do{									\
@@ -2945,7 +2946,8 @@ str_inspect(rb_str_t *str, bool dump)
     inspect_append(result, '"', false);
     __block UChar32 prev = 0;
     str_each_uchar32(str, ^(UChar32 c, long start_index, long char_len, bool *stop) {
-	bool print = iswprint(c);
+	// 1.9 considers U+00AD (soft-hyphen) printable whereas ICU does not
+	bool print = u_isprint(c) || (c == 0xAD);
 	if (IS_BINARY_ENC(str->encoding) && c > 127) {
 	    print = false;
 	}

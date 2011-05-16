@@ -1,3 +1,2 @@
-fails:IO#gets with no separator returns tainted strings
 fails:IO#gets with an empty String separator returns the next paragraph
 fails:IO#gets with an empty String separator reads until the beginning of the next paragraph

@@ -7,7 +7,11 @@
 
 require 'optparse'
 require 'rbconfig'
-load File.join(File.dirname(__FILE__), 'macrubyc')
+begin
+  load File.join(File.dirname(__FILE__), 'macrubyc')
+rescue LoadError
+  load File.join(File.dirname(__FILE__), 'rubyc')
+end
 
 class Deployer
   NAME = File.basename(__FILE__)
@@ -104,6 +108,36 @@ class Deployer
     File.join(app_macruby, 'Versions', 'Current', 'usr')
   end
 
+  def app_binary
+    File.join(@app_bundle, 'Contents', 'MacOS', File.basename(@app_bundle, '.app'))
+  end
+
+  def app_archs
+    unless @archs
+      @archs = if ENV['ARCHS']
+        # Use Xcode ARCHS env var to determine which archs to compile for
+        ENV['ARCHS'].strip.split
+      else
+        # Try to inflect the archs the app was built for from output like:
+        #  * Architectures in the fat file: /usr/bin/ruby are: x86_64 i386 ppc7400
+        #  * Non-fat file: Progress.app/Contents/MacOS/Progress is architecture: x86_64
+        `/usr/bin/lipo -info #{app_binary}`.split(':').last.split
+      end
+      # Check that `archs' contains valid values
+      supported_archs = RbConfig::CONFIG['ARCH_FLAG'].gsub('-arch', '').strip.split
+      unsupported_archs = @archs - supported_archs
+      @archs -= unsupported_archs
+      unless unsupported_archs.empty?
+        count = unsupported_archs.size
+        msg =  "Can't build for arch#{'s' if count > 1} `#{unsupported_archs.join(' ')}', "
+        msg << "because #{count == 1 ? 'it is' : 'they are'} not supported by this MacRuby build (#{supported_archs.join(' ')})."
+        # No point in trying to compile for no archs.
+        @archs.empty? ? die(msg) : puts(msg)
+      end
+    end
+    @archs
+  end
+
   def macruby_usr
     @macruby_usr ||= ensure_path(File.join(@macruby_framework_path, 'Versions', @macruby_install_version, 'usr'))
   end
@@ -119,18 +153,7 @@ class Deployer
       next if base == 'rb_main'
       obj = File.join(File.dirname(source), base + '.rbo')
       if !File.exist?(obj) or File.mtime(source) > File.mtime(obj)
-        compile_options = { bundle: true, output: obj, files: [source] }
-        # Use Xcode ARCHS env var to determine which archs to compile for
-        compile_options[:archs] = ENV['ARCHS'].strip.split if ENV['ARCHS']
-        # Check that the ARCHS env var contains valid values
-        supported_archs = RbConfig::CONFIG['ARCH_FLAG'].gsub('-arch', '').strip.split
-        compile_options[:archs].delete_if do |arch| 
-          unless supported_archs.include?(arch)
-            puts "Can't build for arch #{arch} because it is not supported"
-            true
-          end
-        end
-        instance = Compiler.new compile_options
+        instance = Compiler.new(bundle: true, output: obj, files: [source], archs: app_archs)
         begin
           instance.run
         rescue
@@ -201,12 +224,16 @@ class Deployer
     rm_rf(File.join(app_macruby, 'Headers'))
     rm_rf(File.join(app_macruby, 'Versions', 'Current', 'Headers'))
 
-    # Only keep specific libs from stdlib.
+    lib = File.join(app_macruby_usr, STDLIB_PATTERN)
+    all = Dir.glob(File.join(lib, '**/*'))
+    # Only if specific libs from stdlib are being kept.
     unless @stdlib.empty?
-      lib = File.join(app_macruby_usr, STDLIB_PATTERN)
-      all, keep = ["**/*", KEEP_STDLIB_PATTERN % @stdlib.join(',')].map { |p| Dir.glob(File.join(lib, p)) }
-      keep.reject! { |f| File.extname(f) == '.rb' && keep.include?("#{f}o") } # only keep .rbo for duplicates
+      keep = Dir.glob(File.join(lib, KEEP_STDLIB_PATTERN % @stdlib.join(',')))
       all.select { |f| keep.grep(/^#{f}/).empty? }.each { |x| rm_rf(x) }
+    end
+    # Remove .rb files if the .rbo exists
+    all.each do |f|
+      rm_rf f if File.extname(f) == '.rb' && all.include?("#{f}o")
     end
 
     # Copy the gems libdirs.

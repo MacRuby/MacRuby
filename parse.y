@@ -8821,6 +8821,9 @@ static NODE *
 process_named_args_gen(struct parser_params *parser, NODE *n)
 {
     NODE *args = n->nd_args;
+    if (args != NULL && nd_type(n->nd_args) == NODE_BLOCK_PASS) {
+        args = args->nd_head;
+    }
     if (args != NULL 
 	&& (args->nd_argc == 2 || args->nd_argc == 3)
 	&& nd_type(args->u3.node->u1.node) == NODE_ARRAY
@@ -8858,7 +8861,12 @@ process_named_args_gen(struct parser_params *parser, NODE *n)
 		list_append(new_argv, p->nd_head);
             }
 	}
-	GC_WB(&n->nd_args, new_argv);
+        if (nd_type(n->nd_args) == NODE_BLOCK_PASS) {
+            GC_WB(&n->nd_args->nd_head, new_argv);
+        }
+        else {
+            GC_WB(&n->nd_args, new_argv);
+        }
     }
     return n;
 }

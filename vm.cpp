@@ -48,6 +48,7 @@
 # include <llvm/Intrinsics.h>
 # include <llvm/Bitcode/ReaderWriter.h>
 # include <llvm/LLVMContext.h>
+# include "llvm/ADT/Statistic.h"
 using namespace llvm;
 #endif // MACRUBY_STATIC
 
@@ -334,35 +335,31 @@ RoxorCore::prepare_jit(void)
     assert(ee == NULL);
     jmm = new RoxorJITManager;
 
-    CodeGenOpt::Level opt = CodeGenOpt::Default;
-    inlining_enabled = false;
-    optims_enabled = true;
+    opt_level = CodeGenOpt::Default;
     const char *env_str = getenv("VM_OPT_LEVEL");
     if (env_str != NULL) {
 	const int tmp = atoi(env_str);
 	if (tmp >= 0 && tmp <= 3) {
 	    switch (tmp) {
 		case 0:
-		    opt = CodeGenOpt::None;
-		    optims_enabled = false;
+		    opt_level = CodeGenOpt::None;
 		    break;
 		case 1:
-		    opt = CodeGenOpt::Less;
+		    opt_level = CodeGenOpt::Less;
 		    break;
 		case 2:
-		    opt = CodeGenOpt::Default;
+		    opt_level = CodeGenOpt::Default;
 		    break;
 		case 3:
-		    opt = CodeGenOpt::Aggressive;
-		    inlining_enabled = true;
+		    opt_level = CodeGenOpt::Aggressive;
 		    break;
 	    }
 	}
     }
 
     std::string err;
-    ee = ExecutionEngine::createJIT(RoxorCompiler::module, &err, jmm, opt,
-	    false);
+    ee = ExecutionEngine::createJIT(RoxorCompiler::module, &err, jmm,
+	    opt_level, false);
     if (ee == NULL) {
 	fprintf(stderr, "error while creating JIT: %s\n", err.c_str());
 	abort();
@@ -538,14 +535,36 @@ RoxorCore::debug_outers(Class k)
 }
 
 #if !defined(MACRUBY_STATIC)
+static bool
+should_optimize(Function *func)
+{
+    // Don't optimize big functions.
+    size_t insns = 0;
+    for (Function::iterator i = func->begin(); i != func->end(); ++i) {
+	insns += i->size();
+    }
+    return insns < 2000;
+}
+
 void
 RoxorCore::optimize(Function *func)
 {
-    if (inlining_enabled) {
-	RoxorCompiler::shared->inline_function_calls(func);
-    }
-    if (optims_enabled && fpm != NULL) {
-	fpm->run(*func);
+    switch (opt_level) {
+	case CodeGenOpt::None:
+	    break;
+
+	case CodeGenOpt::Aggressive:
+	    RoxorCompiler::shared->inline_function_calls(func);
+	    goto optimize;
+
+	default:
+	    if (ruby_aot_compile || should_optimize(func)) {
+optimize:
+		if (fpm != NULL) {	
+		    fpm->run(*func);
+		}
+	    }
+	    break;    
     }
 }
 
@@ -1460,9 +1479,8 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
     assert(path > 0);
     rb_vm_check_if_module(outer);
 
-    if (dynamic_class || (flags & DEFINE_INSIDE_EVAL)) {
-	rb_vm_outer_t *o =
-	    (flags & DEFINE_INSIDE_EVAL) ? rb_vm_get_outer_stack() : outer_stack;
+    if (flags & DEFINE_OUTER) {
+	rb_vm_outer_t *o = outer_stack;
 	while (o != NULL && o->pushed_by_eval) {
 	    o = o->outer;
 	}
@@ -2821,30 +2839,36 @@ RoxorCore::undef_method(Class klass, SEL sel)
 
 extern "C"
 void
-rb_vm_undef_method(Class klass, ID name, bool must_exist)
+rb_vm_undef_method(Class klass, ID name, bool check)
 {
-    rb_vm_method_node_t *node = NULL;
+    const char *name_str = rb_id2name(name);
+    SEL sel0 = rb_vm_name_to_sel(name_str, 0);
+    SEL sel1 = rb_vm_name_to_sel(name_str, 1);
 
-    if (!rb_vm_lookup_method2((Class)klass, name, NULL, NULL, &node)) {
-	if (must_exist) {
-	    rb_raise(rb_eNameError, "undefined method `%s' for %s `%s'",
-		    rb_id2name(name),
-		    TYPE(klass) == T_MODULE ? "module" : "class",
-		    rb_class2name((VALUE)klass));
-	}
-	const char *namestr = rb_id2name(name);
-	SEL sel = sel_registerName(namestr);
-	GET_CORE()->undef_method(klass, sel);
+    rb_vm_method_node_t *node0 = NULL;
+    rb_vm_method_node_t *node1 = NULL;
+    bool exist0 = rb_vm_lookup_method((Class)klass, sel0, NULL, &node0);
+    bool exist1 = rb_vm_lookup_method((Class)klass, sel1, NULL, &node1);
+
+    if (!exist0 && !exist1 && check) {
+	rb_raise(rb_eNameError, "undefined method `%s' for %s `%s'",
+		name_str,
+		TYPE(klass) == T_MODULE ? "module" : "class",
+		rb_class2name((VALUE)klass));
     }
-    else if (node == NULL) {
-	if (must_exist) {
+
+    if ((exist0 && node0 == NULL) || (exist1 && node1 == NULL)) {
+	if (check) {
 	    rb_raise(rb_eRuntimeError,
 		    "cannot undefine method `%s' because it is a native method",
-		    rb_id2name(name));
+		    name_str);
 	}
     }
-    else {
-	GET_CORE()->undef_method(klass, node->sel);
+    else { 
+	GET_CORE()->undef_method(klass, sel0);
+	if (sel0 != sel1) {
+	    GET_CORE()->undef_method(klass, sel1);
+	}
     }
 }
 
@@ -3280,13 +3304,14 @@ push_local(rb_vm_local_t **l, ID name, VALUE *value)
 extern "C"
 rb_vm_binding_t *
 rb_vm_create_binding(VALUE self, rb_vm_block_t *current_block,
-	rb_vm_binding_t *top_binding, int lvars_size, va_list lvars,
-	bool vm_push)
+	rb_vm_binding_t *top_binding, rb_vm_outer_t *outer_stack, 
+	int lvars_size, va_list lvars, bool vm_push)
 {
     rb_vm_binding_t *binding =
 	(rb_vm_binding_t *)xmalloc(sizeof(rb_vm_binding_t));
     GC_WB(&binding->self, self);
     GC_WB(&binding->next, top_binding);
+    binding->outer_stack = outer_stack;
 
     rb_vm_local_t **l = &binding->locals;
 
@@ -3314,13 +3339,17 @@ rb_vm_create_binding(VALUE self, rb_vm_block_t *current_block,
 extern "C"
 void
 rb_vm_push_binding(VALUE self, rb_vm_block_t *current_block,
-	rb_vm_binding_t *top_binding, rb_vm_var_uses **parent_var_uses,
+	rb_vm_binding_t *top_binding, unsigned char dynamic_class,
+	rb_vm_outer_t *outer_stack, rb_vm_var_uses **parent_var_uses,
 	int lvars_size, ...)
 {
+    if (dynamic_class) {
+	outer_stack = GET_VM()->get_outer_stack();
+    }
     va_list lvars;
     va_start(lvars, lvars_size);
     rb_vm_binding_t *binding = rb_vm_create_binding(self, current_block,
-	    top_binding, lvars_size, lvars, true);
+	    top_binding, outer_stack, lvars_size, lvars, true);
     va_end(lvars);
 
     rb_vm_add_binding_lvar_use(binding, current_block, parent_var_uses);
@@ -3857,6 +3886,13 @@ rb_vm_backtrace(int skip)
 	if (GET_CORE()->symbolize_call_address(callstack[i], path, sizeof path,
 		    &ln, name, sizeof name, &interpreter_frame_idx)
 		&& name[0] != '\0' && path[0] != '\0') {
+
+	    // Sanitize the method name to not contain trailing ':' like CRuby.
+	    char *p = &name[strlen(name) - 1];
+	    if (strchr(name, ':') == p) {
+		*p = '\0';
+	    }
+
 	    char entry[PATH_MAX];
 	    if (ln == 0) {
 		snprintf(entry, sizeof entry, "%s:in `%s'",
@@ -4122,11 +4158,15 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 	lock.unlock();
 	ret = ((VALUE(*)(VALUE, SEL))imp)(vm->get_current_top_object(), 0);
 
+#if 0
+	// FIXME deleting functions causes crashes in the C++ EH personality
+	// function. To investigate!
 	if (inside_eval) {
 	    // XXX We only delete functions created by #eval. In theory it
 	    // should also work for other functions, but it makes spec:ci crash.
 	    GET_CORE()->delenda(func);
 	}
+#endif
     }
 
     rb_node_release(node);
@@ -4148,6 +4188,13 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
     VALUE old_top_object = vm->get_current_top_object();
     if (binding != NULL) {
 	self = binding->self;
+	rb_vm_outer_t *o = binding->outer_stack;
+	if (o == NULL) {
+	    klass = rb_cNSObject;
+	}
+	else {
+	    klass = (VALUE)o->klass;
+	}
     }
     if (self != 0) {
 	vm->set_current_top_object(self);
@@ -4157,10 +4204,17 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
     rb_vm_outer_t *old_outer_stack = vm->get_outer_stack();
 
     vm->set_current_class((Class)klass);
-    vm->set_outer_stack(vm->get_current_outer());
-    if (klass != 0 && !NIL_P(klass)) {
-	vm->push_outer((Class)klass);
+
+    if (binding == NULL) {
+	vm->set_outer_stack(vm->get_current_outer());
+	if (klass != 0 && !NIL_P(klass)) {
+	    vm->push_outer((Class)klass);
+	}
     }
+    else {
+	vm->set_outer_stack(binding->outer_stack);
+    }
+
     RoxorCompiler::shared->set_dynamic_class(true);
 
     vm->add_current_block(binding != NULL ? binding->block : NULL);
@@ -4171,7 +4225,6 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 	Class old_class;
 	VALUE old_top_object;
 	rb_vm_outer_t *old_outer_stack;
-	bool pushed;
 	Finally(RoxorVM *_vm, bool _dynamic_class, Class _class, VALUE _obj, rb_vm_outer_t *_outer_stack) {
 	    vm = _vm;
 	    old_dynamic_class = _dynamic_class;
@@ -4189,6 +4242,49 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
     } finalizer(vm, old_dynamic_class, old_class, old_top_object, old_outer_stack);
 
     return rb_vm_run(fname, node, binding, inside_eval);
+#endif
+}
+
+extern "C"
+VALUE
+rb_vm_eval_string(VALUE self, VALUE klass, VALUE src, rb_vm_binding_t *binding,
+	const char *file, const int line)
+{
+#if MACRUBY_STATIC
+    rb_raise(rb_eRuntimeError,
+	    "evaluating strings is not supported in MacRuby static");
+#else
+    RoxorVM *vm = GET_VM();
+    bool old_parse_in_eval = vm->get_parse_in_eval();
+    vm->set_parse_in_eval(true);
+    if (binding != NULL) {
+	// Binding must be added because the parser needs it.
+        vm->push_current_binding(binding);
+    }
+    VALUE old_errinfo = vm->get_errinfo();
+    vm->set_errinfo(Qnil);
+
+    NODE *node = rb_compile_string(file, src, line);
+
+    VALUE errinfo = vm->get_errinfo();
+    vm->set_errinfo(old_errinfo);
+    if (binding != NULL) {
+	// We remove the binding now but we still pass it to the VM, which
+	// will use it for compilation.
+        vm->pop_current_binding();
+    }
+    vm->set_parse_in_eval(old_parse_in_eval);
+
+    if (node == NULL) {
+	if (errinfo != Qnil) {
+            rb_vm_raise(errinfo);
+	}
+	else {
+	    rb_raise(rb_eSyntaxError, "compile error");
+	}
+    }
+
+    return rb_vm_run_under(klass, self, file, node, binding, true);
 #endif
 }
 
@@ -5115,6 +5211,8 @@ class_has_custom_resolver(Class klass)
 # include ".objs/kernel_data.c"
 #endif
 
+static bool vm_enable_stats = false;
+
 extern "C"
 void 
 Init_PreVM(void)
@@ -5128,6 +5226,11 @@ Init_PreVM(void)
     llvm::DisablePrettyStackTrace = true;
     // To not corrupt stack pointer (essential for backtracing).
     llvm::NoFramePointerElim = true;
+
+    if (getenv("VM_STATS") != NULL) {
+	vm_enable_stats = true;
+	llvm::EnableStatistics();
+    }
 
     MemoryBuffer *mbuf = NULL;
     const char *kernel_file = getenv("VM_KERNEL_PATH");
@@ -5486,6 +5589,10 @@ rb_vm_finalize(void)
     if (getenv("VM_VERIFY_IR") != NULL) {
 	rb_verify_module();
 	printf("IR verified!\n");
+    }
+
+    if (vm_enable_stats) {
+	llvm::PrintStatistics();
     }
 #endif
 

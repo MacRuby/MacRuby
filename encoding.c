@@ -525,10 +525,10 @@ rb_enc_to_index(VALUE enc)
 void
 rb_enc_set_index(VALUE obj, int encindex)
 {
-    if (encindex < ENCODINGS_COUNT) {
-	return ;
+    assert(encindex >= 0 && encindex < ENCODINGS_COUNT);
+    if (TYPE(obj) == T_STRING) {
+	rb_str_force_encoding(obj, rb_encodings[encindex]);
     }
-    rb_str_force_encoding(obj, rb_encodings[encindex]);
 }
 
 int

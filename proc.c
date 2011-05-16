@@ -1080,7 +1080,7 @@ rb_method_call(VALUE method, SEL sel, int argc, VALUE *argv)
 	}
     }
 
-    VALUE result = rb_vm_method_call(data, NULL, argc, argv);
+    VALUE result = rb_vm_method_call(data, rb_vm_current_block(), argc, argv);
 
     if (safe >= 0) {
 	rb_set_safe_level_force(safe);
@@ -1632,6 +1632,7 @@ Init_Binding(void)
     rb_vm_binding_t *binding = (rb_vm_binding_t *)xmalloc(
 	    sizeof(rb_vm_binding_t));
     GC_WB(&binding->self, rb_vm_top_self());
+    binding->outer_stack = NULL;
     rb_define_global_const("TOPLEVEL_BINDING",
 	    rb_binding_new_from_binding(binding));
 }

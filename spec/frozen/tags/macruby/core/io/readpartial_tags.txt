@@ -1,0 +1,1 @@
+fails:IO#readpartial reads after ungetc with multibyte characters in the buffer

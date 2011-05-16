@@ -281,44 +281,6 @@ rb_each(VALUE obj)
     return rb_call(obj, idEach, 0, 0, CALL_FCALL, false);
 }
 
-VALUE
-rb_vm_eval_string(VALUE self, VALUE klass, VALUE src, rb_vm_binding_t *binding,
-	const char *file, const int line)
-{
-#if MACRUBY_STATIC
-    rb_raise(rb_eRuntimeError,
-	    "evaluating strings is not supported in MacRuby static");
-#else
-    bool old_parse_in_eval = rb_vm_parse_in_eval();
-    rb_vm_set_parse_in_eval(true);
-    if (binding != NULL) {
-	// Binding must be added because the parser needs it.
-	rb_vm_add_binding(binding);
-    }
-
-    NODE *node = rb_compile_string(file, src, line);
-
-    if (binding != NULL) {
-	// We remove the binding now but we still pass it to the VM, which
-	// will use it for compilation.
-	rb_vm_pop_binding();
-    }
-    rb_vm_set_parse_in_eval(old_parse_in_eval);
-
-    if (node == NULL) {
-	VALUE exc = rb_vm_current_exception();
-	if (exc != Qnil) {
-	    rb_vm_raise_current_exception();
-	}
-	else {
-	    rb_raise(rb_eSyntaxError, "compile error");
-	}
-    }
-
-    return rb_vm_run_under(klass, self, file, node, binding, true);
-#endif
-}
-
 #define GetBindingPtr(obj) ((rb_vm_binding_t *)DATA_PTR(obj))
 
 static VALUE
