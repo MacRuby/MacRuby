@@ -2590,12 +2590,20 @@ rb_file_open(VALUE io, int argc, VALUE *argv)
 	}
     }
     VALUE path, modes, permissions;
+    VALUE intmode;
+    int flags;
     rb_scan_args(argc, argv, "12", &path, &modes, &permissions);
     if (NIL_P(modes)) {
-	modes = (VALUE)CFSTR("r");
+	flags = O_RDONLY;
+    }
+    else if (!NIL_P(intmode = rb_check_to_integer(modes, "to_int"))) {
+        flags = NUM2INT(intmode);
+    }
+    else {
+	SafeStringValue(modes);
+	flags = convert_mode_string_to_oflags(modes);
     }
     const char *filepath = RSTRING_PTR(path);
-    const int flags = convert_mode_string_to_oflags(modes);
     const mode_t perm = NIL_P(permissions) ? 0666 : NUM2UINT(permissions);
     int fd, retry = 0;
     while (true) {
