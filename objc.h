@@ -75,9 +75,6 @@ rb_objc_is_kind_of(id object, Class klass)
     return false;
 }
 
-id rb_rb2oc_exception(VALUE exc);
-VALUE rb_oc2rb_exception(id exc, bool *created);
-
 size_t rb_objc_type_size(const char *type);
 
 static inline int

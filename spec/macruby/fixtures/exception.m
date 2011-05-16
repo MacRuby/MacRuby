@@ -10,15 +10,25 @@
     [NSException raise:@"SinkingShipException" format:@"the ship is sinking!"];
 }
 
-+ (BOOL)catchRubyException:(id)obj
++ (id)catchRubyException:(id)obj
 {
     @try {
 	[obj performSelector:@selector(raiseRubyException)];
     }
     @catch (id e) {
-	return YES;
+	return e;
     }
-    return NO;
+    return nil;
+}
+
++ (NSString *)catchRubyExceptionAndReturnName:(id)obj
+{
+  return [[self catchRubyException:obj] name];
+}
+
++ (NSString *)catchRubyExceptionAndReturnReason:(id)obj
+{
+  return [[self catchRubyException:obj] reason];
 }
 
 @end

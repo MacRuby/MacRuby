@@ -480,17 +480,13 @@ __rb_vm_objc_dispatch(rb_vm_objc_stub_t *stub, IMP imp, id rcv, SEL sel,
 	return (*stub)(imp, rcv, sel, argc, argv);
     }
     @catch (id exc) {
-	bool created = false;
-	VALUE rbexc = rb_oc2rb_exception(exc, &created);
-#if __LP64__
 	if (rb_vm_current_exception() == Qnil) {
-	    rb_vm_set_current_exception(rbexc);
+            rb_ivar_set((VALUE)exc, rb_intern("bt"), rb_vm_backtrace(0));
+	    rb_vm_set_current_exception((VALUE)exc);
 	    throw;
 	}
-#endif
-	if (created) {
-	    rb_exc_raise(rbexc);
-	}
+	// TODO what exactly did this do? i.e. how did it reach this path?
+	rb_exc_raise((VALUE)exc);
 	throw;
     }
     abort(); // never reached

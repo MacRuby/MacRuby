@@ -599,6 +599,19 @@ exc_equal(VALUE exc, SEL sel, VALUE obj)
     return Qtrue;
 }
 
+static VALUE
+exc_name(VALUE exc, SEL sel)
+{
+    return rb_class_name(CLASS_OF(exc));
+}
+
+static VALUE
+exc_reason(VALUE exc, SEL sel)
+{
+    SEL sel_message = sel_registerName("message");
+    return rb_vm_call(exc, sel_message, 0, NULL);
+}
+
 /*
  * call-seq:
  *   SystemExit.new(status=0)   => system_exit
@@ -970,10 +983,6 @@ syserr_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 	    error = mesg; mesg = Qnil;
 	}
 	if (!NIL_P(error) && st_lookup(syserr_tbl, NUM2LONG(error), &klass)) {
-	    /* change class */
-	    if (TYPE(self) != T_OBJECT) { /* insurance to avoid type crash */
-		rb_raise(rb_eTypeError, "invalid instance type");
-	    }
 	    RBASIC(self)->klass = klass;
 	}
     }
@@ -1077,7 +1086,8 @@ errno_code(VALUE self, SEL sel)
 void
 Init_Exception(void)
 {
-    rb_eException   = rb_define_class("Exception", rb_cObject);
+    rb_eException   = rb_define_class("Exception", (VALUE)objc_getClass("NSException"));
+    rb_objc_define_method(*(VALUE *)rb_eException, "new", rb_class_new_instance_imp, -1);
     rb_objc_define_method(*(VALUE *)rb_eException, "exception", rb_class_new_instance_imp, -1);
     rb_objc_define_method(rb_eException, "exception", exc_exception, -1);
     rb_objc_define_method(rb_eException, "initialize", exc_initialize, -1);
@@ -1087,6 +1097,9 @@ Init_Exception(void)
     rb_objc_define_method(rb_eException, "inspect", exc_inspect, 0);
     rb_objc_define_method(rb_eException, "backtrace", exc_backtrace, 0);
     rb_objc_define_method(rb_eException, "set_backtrace", exc_set_backtrace, 1);
+    // MacRuby specific addition
+    rb_objc_define_method(rb_eException, "name", exc_name, 0);
+    rb_objc_define_method(rb_eException, "reason", exc_reason, 0);
 
     rb_eSystemExit  = rb_define_class("SystemExit", rb_eException);
     rb_objc_define_method(rb_eSystemExit, "initialize", exit_initialize, -1);
