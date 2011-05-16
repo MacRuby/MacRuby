@@ -4246,6 +4246,44 @@ rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
     return rb_ensure(io_s_readlines, (VALUE)&arg, rb_io_close, arg.io);
 }
 
+/*
+ *  call-seq:
+ *     IO.binread(name, [length [, offset]] )   -> string
+ *
+ *  Opens the file, optionally seeks to the given <i>offset</i>, then returns
+ *  <i>length</i> bytes (defaulting to the rest of the file).
+ *  <code>binread</code> ensures the file is closed before returning.
+ *  The open mode would be "rb:ASCII-8BIT".
+ *
+ *     IO.binread("testfile")           #=> "This is line one\nThis is line two\nThis is line three\nAnd so on...\n"
+ *     IO.binread("testfile", 20)       #=> "This is line one\nThi"
+ *     IO.binread("testfile", 20, 10)   #=> "ne one\nThis is line "
+ */
+
+static VALUE
+rb_io_s_binread(VALUE recv, SEL sel, int argc, VALUE *argv)
+{
+    VALUE fname, offset;
+    struct foreach_arg arg;
+
+    rb_scan_args(argc, argv, "12", &fname, NULL, &offset);
+    FilePathValue(argv[0]);
+    VALUE open_arg[2];
+    open_arg[0] = fname;
+    open_arg[1] = (VALUE)CFSTR("rb");
+    // TODO
+    //open_arg[1] = (VALUE)CFSTR("rb:ASCII-8BIT");
+
+    arg.io = rb_file_open(io_alloc(recv, 0), 2, open_arg);
+    arg.argc = (argc > 1) ? 1 : 0;
+    arg.argv = argv + 1;
+
+    if (!NIL_P(offset)) {
+	rb_io_seek(arg.io, offset, SEEK_SET);
+    }
+    return rb_ensure(io_s_read, (VALUE)&arg, rb_io_close, arg.io);
+}
+
 struct copy_stream_arg {
     VALUE src;
     VALUE dst;
@@ -5022,6 +5060,7 @@ Init_IO(void)
     rb_objc_define_method(*(VALUE *)rb_cIO, "foreach", rb_io_s_foreach, -1);
     rb_objc_define_method(*(VALUE *)rb_cIO, "readlines", rb_io_s_readlines, -1);
     rb_objc_define_method(*(VALUE *)rb_cIO, "read", rb_io_s_read, -1);
+    rb_objc_define_method(*(VALUE *)rb_cIO, "binread", rb_io_s_binread, -1);
     rb_objc_define_method(*(VALUE *)rb_cIO, "select", rb_f_select, -1);
     rb_objc_define_method(*(VALUE *)rb_cIO, "pipe", rb_io_s_pipe, -1);
     rb_objc_define_method(*(VALUE *)rb_cIO, "try_convert", rb_io_s_try_convert, 1);
