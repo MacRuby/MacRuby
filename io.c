@@ -2638,6 +2638,7 @@ VALUE
 rb_f_open(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     if (argc >= 1) {
+	FilePathValue(argv[0]);
 	VALUE cmd = check_pipe_command(argv[0]);
 	if (cmd != Qnil) {
 	    argv[0] = cmd;
@@ -4338,7 +4339,6 @@ rb_io_s_copy_stream(VALUE rcv, SEL sel, int argc, VALUE *argv)
     arg.need_close_dst = false;
 
     if (TYPE(src) != T_FILE) {
-	FilePathValue(src);
 	src = rb_f_open(rcv, 0, 1, &src);
 	arg.need_close_src = true;
     }
@@ -4350,7 +4350,6 @@ rb_io_s_copy_stream(VALUE rcv, SEL sel, int argc, VALUE *argv)
     }
 
     if (TYPE(dst) != T_FILE) {
-	FilePathValue(dst);
 	VALUE args[2];
 	args[0] = dst;
 	args[1] = rb_str_new2("w");
