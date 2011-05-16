@@ -2437,7 +2437,7 @@ rb_io_s_popen(VALUE klass, SEL sel, int argc, VALUE *argv)
 
     VALUE io = io_pipe_open(klass, process_name, mode);
     if (rb_block_given_p()) {
-	return rb_ensure(rb_yield, io, rb_io_close, io);
+	return rb_ensure(rb_yield, io, io_close2, io);
     }
     return io;
 }
