@@ -4049,11 +4049,9 @@ static VALUE
 pipe_pair_close(VALUE rw)
 {
     VALUE *rwp = (VALUE *)rw;
-    rb_io_t *io_r = ExtractIOStruct(rwp[0]);
-    rb_io_t *io_w = ExtractIOStruct(rwp[1]);
 
-    io_close(io_r, true, true);
-    io_close(io_w, true, true);
+    io_close2(rwp[0]);
+    io_close2(rwp[1]);
     return Qnil;
 }
 
