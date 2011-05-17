@@ -31,6 +31,7 @@ boolean_t auto_zone_set_write_barrier(void *zone, const void *dest, const void *
 void auto_zone_add_root(void *zone, void *address_of_root_ptr, void *value);
 void auto_zone_retain(void *zone, void *ptr);
 unsigned int auto_zone_release(void *zone, void *ptr);
+boolean_t auto_zone_is_valid_pointer(void *zone, const void *ptr);
 extern void *__auto_zone;
 #else
 extern auto_zone_t *__auto_zone;
