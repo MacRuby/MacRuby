@@ -2367,7 +2367,12 @@ io_from_spawning_new_process(VALUE klass, VALUE prog, VALUE mode)
 	char **spawnedArgs =
 		malloc((len + 1) * sizeof(char *));
 	assert(spawnedArgs != NULL);
-	for (long i = 0; i < len; i++) {
+
+	struct rb_exec_arg earg;
+	VALUE cmd = rb_exec_arg_init(len, (VALUE*)RARRAY_PTR(argArray), FALSE, &earg);
+	spawnedArgs[0] = StringValuePtr(cmd);
+
+	for (long i = 1; i < len; i++) {
 	    VALUE str = RARRAY_AT(argArray, i);
 	    spawnedArgs[i] = StringValuePtr(str);
 	}
