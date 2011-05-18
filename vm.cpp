@@ -2135,9 +2135,11 @@ RoxorCore::prepare_method(Class klass, SEL sel, Function *func,
     m->func = func;
     m->arity = arity;
     m->flags = flags;
-    GC_RELEASE(m->outer);
-    m->outer = outer;
-    GC_RETAIN(m->outer);
+    if (m->outer != outer) {
+	GC_RELEASE(m->outer);
+	m->outer = outer;
+	GC_RETAIN(m->outer);
+    }
     
     invalidate_respond_to_cache();
 }
@@ -2477,7 +2479,12 @@ RoxorCore::copy_method(Class klass, Method m)
 	assert(m2 != NULL);
 	assert(method_getImplementation(m2) == method_getImplementation(m));
 	rb_vm_method_node_t *node2 = method_node_get(m2, true);
+	rb_vm_outer_t *old_node2_outer = node2->outer;
 	memcpy(node2, node, sizeof(rb_vm_method_node_t));
+	if (old_node2_outer != node2->outer) {
+	    GC_RELEASE(old_node2_outer);
+	    GC_RETAIN(node2->outer);
+	}
     }
     return true;
 }
@@ -3191,10 +3198,11 @@ rb_vm_pop_outer(void)
 void
 RoxorVM::replace_outer_stack(rb_vm_outer_t *new_outer_stack)
 {
-    rb_vm_outer_t *old = outer_stack;
-    outer_stack = new_outer_stack;
-    GC_RETAIN(outer_stack);
-    GC_RELEASE(old);
+    if (outer_stack != new_outer_stack) {
+	GC_RELEASE(outer_stack);
+	outer_stack = new_outer_stack;
+	GC_RETAIN(outer_stack);
+    }
 }
 
 void
