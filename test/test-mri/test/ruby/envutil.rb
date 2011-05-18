@@ -1,5 +1,6 @@
 require "open3"
 require "timeout"
+require "tempfile"
 
 TIMEOUT = 5
 
@@ -47,7 +48,11 @@ module EnvUtil
   def invoke_ruby(args, stdin_data="", capture_stdout=false, capture_stderr=false, opt={})
     args = [args] if args.kind_of?(String)
     begin
-      in_c, in_p = IO.pipe
+      # TODO : needs to fix a #1282
+      tmp = Tempfile.new("invoke_ruby")
+      File.open(tmp.path, "w") {|f| f.write stdin_data.to_str }
+      in_c = File.open(tmp.path, "r")
+
       out_p, out_c = IO.pipe if capture_stdout
       err_p, err_c = IO.pipe if capture_stderr
       opt = opt.dup
@@ -71,8 +76,6 @@ module EnvUtil
       err_c.close if capture_stderr
       th_stdout = Thread.new { out_p.read } if capture_stdout
       th_stderr = Thread.new { err_p.read } if capture_stderr
-      in_p.write stdin_data.to_str
-      in_p.close
       if (!capture_stdout || th_stdout.join(TIMEOUT)) && (!capture_stderr || th_stderr.join(TIMEOUT))
         stdout = th_stdout.value if capture_stdout
         stderr = th_stderr.value if capture_stderr
@@ -85,7 +88,6 @@ module EnvUtil
       status = $?
     ensure
       in_c.close if in_c && !in_c.closed?
-      in_p.close if in_p && !in_p.closed?
       out_c.close if out_c && !out_c.closed?
       out_p.close if out_p && !out_p.closed?
       err_c.close if err_c && !err_c.closed?
