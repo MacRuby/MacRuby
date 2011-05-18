@@ -232,7 +232,7 @@ assert ':ok', %{
     end
     foo { p :ok }
   end
-}, :known_bug => true
+}
 
 assert '42', %{
   class Foo

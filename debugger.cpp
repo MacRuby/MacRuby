@@ -376,7 +376,7 @@ RoxorDebugger::evaluate_expression(VALUE self, rb_vm_block_t *block,
 {
     if (binding == NULL) {
 	if (frame == 0) {
-	    binding = rb_vm_create_binding(self, block, NULL, NULL, lvars_size, lvars,
+	    binding = rb_vm_create_binding(self, block, NULL, lvars_size, lvars,
 		    false);
 	}
 	else {
@@ -388,7 +388,7 @@ RoxorDebugger::evaluate_expression(VALUE self, rb_vm_block_t *block,
 
     try {
 	return rb_vm_eval_string(self, 0, rb_str_new2(expr.c_str()), binding,
-		"(eval)", 1);
+		"(eval)", 1, false);
     }
     catch (...) {
 	rb_vm_print_current_exception();

@@ -284,8 +284,8 @@ rb_each(VALUE obj)
 #define GetBindingPtr(obj) ((rb_vm_binding_t *)DATA_PTR(obj))
 
 static VALUE
-eval_string(VALUE self, VALUE klass, VALUE src, VALUE scope, const char *file,
-	    const int line)
+eval_string_with_should_push_outer(VALUE self, VALUE klass, VALUE src, VALUE scope,
+	const char *file, const int line, bool should_push_outer)
 {
     rb_vm_binding_t *binding = NULL;
     if (scope != Qnil) {
@@ -295,7 +295,27 @@ eval_string(VALUE self, VALUE klass, VALUE src, VALUE scope, const char *file,
 	}
 	binding = GetBindingPtr(scope);
     }
-    return rb_vm_eval_string(self, klass, src, binding, file, line);
+    return rb_vm_eval_string(self, klass, src, binding, file, line, should_push_outer);
+}
+
+static VALUE
+eval_under(VALUE self, VALUE klass, VALUE src, VALUE scope, const char *file,
+	const int line)
+{
+    if (rb_safe_level() >= 4) {
+	StringValue(src);
+    }
+    else {
+	SafeStringValue(src);
+    }
+    return eval_string_with_should_push_outer(self, klass, src, scope, file, line, true);
+}
+
+static VALUE
+eval_string(VALUE self, VALUE klass, VALUE src, VALUE scope, const char *file,
+	    const int line)
+{
+    return eval_string_with_should_push_outer(self, klass, src, scope, file, line, false);
 }
 
 static VALUE
@@ -340,7 +360,7 @@ specific_eval(int argc, VALUE *argv, VALUE klass, VALUE self)
 	    file = StringValuePtr(argv[1]);
 	}
 	rb_vm_set_current_scope(klass, SCOPE_PUBLIC);
-	retval = eval_string(self, klass, argv[0], Qnil, file, line);
+	retval = eval_under(self, klass, argv[0], Qnil, file, line);
     }
 
     RCLASS_SET_VERSION(klass, old_version);
@@ -479,14 +499,6 @@ rb_obj_instance_eval_imp(VALUE self, SEL sel, VALUE top, int argc, VALUE *argv)
     }
     else {
 	klass = rb_singleton_class(self);
-	if (top != Qundef) {
-	    switch (TYPE(top)) {
-		case T_CLASS:
-		case T_MODULE:
-		    rb_vm_set_outer(klass, top);
-		    break;
-	    }
-	}
     }
     return specific_eval(argc, argv, klass, self);
 }
