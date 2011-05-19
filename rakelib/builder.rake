@@ -47,7 +47,7 @@ def build_objects
     $builder.archs.each do |x| 
       output = File.join($builder.objsdir, "kernel-#{x}.bc")
       # Compile the IR for the kernel.c source file & optimize it.
-      sh "#{llvm_gcc} -arch #{x} -fexceptions -fno-stack-protector #{cflags} --emit-llvm -c kernel.c -o #{output}"
+      sh "#{llvm_gcc} -arch #{x} -fexceptions -fno-stack-protector -fwrapv #{cflags} --emit-llvm -c kernel.c -o #{output}"
       sh "#{opt} -O3 #{output} -o=#{output}"
       # Convert the bitcode into a C static array. We append a null byte to the
       # bitcode file because xxd doesn't, and it's needed by the bitcode
