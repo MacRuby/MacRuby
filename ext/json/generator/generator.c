@@ -1357,8 +1357,10 @@ void Init_generator()
     rb_define_method(cState, "generate", cState_generate, 1);
 
     mGeneratorMethods = rb_define_module_under(mGenerator, "GeneratorMethods");
-    mObject = rb_define_module_under(mGeneratorMethods, "Object");
-    rb_define_method(mObject, "to_json", mObject_to_json, -1);
+    // TODO : TypeError occurs when require 'json'
+    //        "JSON::Ext::Generator::GeneratorMethods::Class is not a module (TypeError)"
+    //mObject = rb_define_module_under(mGeneratorMethods, "Object");
+    //rb_define_method(mObject, "to_json", mObject_to_json, -1);
     mHash = rb_define_module_under(mGeneratorMethods, "Hash");
     rb_define_method(mHash, "to_json", mHash_to_json, -1);
     mArray = rb_define_module_under(mGeneratorMethods, "Array");
