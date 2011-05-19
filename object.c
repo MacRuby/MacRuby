@@ -962,7 +962,7 @@ rb_obj_untrusted_imp(VALUE obj, SEL sel)
     if (SPECIAL_CONST_P(obj)) {
 	if (immediate_flags_tbl && FIXFLOAT_P(obj)) {
 	    VALUE flags = 0;
-	    if (st_lookup(immediate_flags_tbl, obj, &flags) && (flags && FL_UNTRUSTED)) {
+	    if (st_lookup(immediate_flags_tbl, obj, &flags) && (flags & FL_UNTRUSTED)) {
 		return Qtrue;
 	    }
 	}
