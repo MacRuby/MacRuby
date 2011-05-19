@@ -1708,7 +1708,7 @@ rb_f_exec(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     struct rb_exec_arg earg;
 
-    rb_exec_arg_init(argc, argv, Qtrue, &earg);
+    rb_exec_arg_init(argc, argv, TRUE, &earg);
     if (NIL_P(rb_ary_entry(earg.options, EXEC_OPTION_CLOSE_OTHERS)))
         rb_exec_arg_addopt(&earg, ID2SYM(rb_intern("close_others")), Qfalse);
     rb_exec_arg_fixup(&earg);
@@ -2639,7 +2639,7 @@ rb_spawn_internal(int argc, VALUE *argv, int default_close_others)
     struct rb_exec_arg sarg;
 #endif
 
-    prog = rb_exec_arg_init(argc, argv, Qtrue, &earg);
+    prog = rb_exec_arg_init(argc, argv, TRUE, &earg);
     if (NIL_P(rb_ary_entry(earg.options, EXEC_OPTION_CLOSE_OTHERS))) {
         VALUE v = default_close_others ? Qtrue : Qfalse;
         rb_exec_arg_addopt(&earg, ID2SYM(rb_intern("close_others")), v);
