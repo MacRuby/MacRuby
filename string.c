@@ -2909,6 +2909,11 @@ rstr_intern(VALUE self, SEL sel)
     return rb_str_intern_fast(self);
 }
 
+VALUE
+rb_str_intern(VALUE self)
+{
+    return rstr_intern(self, 0);
+}
 /*
  * call-seq:
  *   str.inspect   => string
