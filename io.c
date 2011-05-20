@@ -1004,7 +1004,7 @@ rb_io_read_update(rb_io_t *io_struct, long len)
     lseek(io_struct->read_fd, io_struct->buf_offset, SEEK_SET);
 
     if (io_struct->buf_offset == CFDataGetLength(io_struct->buf)) {
-	CFDataSetLength(io_struct->buf, 0);
+	GC_WB(&io_struct->buf, NULL);
 	io_struct->buf_offset = 0;
     }
 }
