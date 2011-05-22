@@ -148,7 +148,7 @@ AOT_STDLIB = [
   #'lib/stringio.rb', #spec fails
   'lib/rexml.rb',
   'lib/rexml/**/*.rb',
-  'lib/rubygems.rb',
+  'lib/{r,}ubygems.rb',
   'lib/rubygems/**/*.rb',
   'lib/thread.rb',
   'lib/time.rb',

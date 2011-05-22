@@ -207,7 +207,7 @@ describe "ruby_deploy command line options:" do
         deploy('--embed --stdlib ubygems')
         files = glob_join(framework_stdlib,'**','*.rb*').map do |f|
           File.basename(f).chomp(File.extname(f))
-        end.uniq # in case ubygems.rb ever ships with a compiled version
+        end.uniq
         files.should == ['ubygems']
       end
 
