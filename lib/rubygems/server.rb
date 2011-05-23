@@ -568,14 +568,14 @@ div.method-source-code pre { color: #ffdead; overflow: hidden; }
       res['content-type'] = 'application/x-deflate'
       res.body << Gem.deflate(index.sort.join("\n"))
     when %r|^/quick/(Marshal.#{Regexp.escape Gem.marshal_version}/)?(.*?)-([0-9.]+)(-.*?)?\.gemspec\.rz$| then
-      dep = Gem::Dependency.new $2, $3
+      marshal_format, name, version, platform = $1, $2, $3, $4
+      dep = Gem::Dependency.new name, version
       specs = @source_index.search dep
-      marshal_format = $1
 
-      selector = [$2, $3, $4].map { |s| s.inspect }.join ' '
+      selector = [name, version, platform].map { |s| s.inspect }.join ' '
 
-      platform = if $4 then
-                   Gem::Platform.new $4.sub(/^-/, '')
+      platform = if platform then
+                   Gem::Platform.new platform.sub(/^-/, '')
                  else
                    Gem::Platform::RUBY
                  end
