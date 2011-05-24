@@ -223,7 +223,7 @@ ruby_getnameinfo__aix(sa, salen, host, hostlen, serv, servlen, flags)
 #define close closesocket
 #endif
 
-#define GetOpenFile(obj, fp) (fp = ExtractIOStruct(obj))
+#define GetOpenFile(obj, fp) rb_io_check_closed(fp = ExtractIOStruct(obj))
 
 #define MakeOpenFile(obj, fp) \
     do { \
