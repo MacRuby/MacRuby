@@ -1393,7 +1393,7 @@ rb_str_get_uchars_always(VALUE str, rb_str_uchars_buf_t *buf)
 	    }
 	    else {
 		if (len > STR_UCHARS_STATIC_BUFSIZE) {
-		    buf->chars = (UChar *)malloc(sizeof(UChar) * len);
+		    buf->chars = (UChar *)xmalloc(sizeof(UChar) * len);
 		    assert(buf->chars != NULL);
 		}
 		else {
@@ -1407,7 +1407,7 @@ rb_str_get_uchars_always(VALUE str, rb_str_uchars_buf_t *buf)
 	len = CFStringGetLength((CFStringRef)str);
 	if (len > 0) {
 	    if (len > STR_UCHARS_STATIC_BUFSIZE) {
-		buf->chars = (UChar *)malloc(sizeof(UChar) * len);
+		buf->chars = (UChar *)xmalloc(sizeof(UChar) * len);
 		assert(buf->chars != NULL);
 	    }
 	    else {
