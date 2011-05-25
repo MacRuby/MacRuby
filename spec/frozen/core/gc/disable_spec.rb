@@ -12,6 +12,7 @@ describe "GC.disable" do
     GC.enable
     GC.disable.should == false
     GC.disable.should == true
+    GC.enable # XXX MacRuby workaround for http://www.macruby.org/trac/ticket/1303
   end
 
 end
