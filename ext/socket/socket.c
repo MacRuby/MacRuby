@@ -297,7 +297,6 @@ bsock_close_read(VALUE sock)
 	rb_raise(rb_eSecurityError, "Insecure: can't close socket");
     }
     GetOpenFile(sock, fptr);
-    rb_io_check_closed(fptr);
     shutdown(fptr->fd, 0);
     if (!(fptr->mode & FMODE_WRITABLE)) {
 	return rb_io_close(sock);
@@ -317,7 +316,6 @@ bsock_close_write(VALUE sock)
 	rb_raise(rb_eSecurityError, "Insecure: can't close socket");
     }
     GetOpenFile(sock, fptr);
-    rb_io_check_closed(fptr);
     if (!(fptr->mode & FMODE_READABLE)) {
 	return rb_io_close(sock);
     }
@@ -406,7 +404,6 @@ bsock_setsockopt(VALUE sock, SEL sel, VALUE lev, VALUE optname, VALUE val)
     }
 
     GetOpenFile(sock, fptr);
-    rb_io_check_closed(fptr);
     if (setsockopt(fptr->fd, level, option, v, vlen) < 0)
 	rb_sys_fail(fptr->path == 0 ? NULL : RSTRING_PTR(fptr->path));
 
@@ -2722,7 +2719,6 @@ sock_listen(VALUE sock, SEL sel, VALUE log)
     rb_secure(4);
     backlog = NUM2INT(log);
     GetOpenFile(sock, fptr);
-    rb_io_check_closed(fptr);    
     if (listen(fptr->fd, backlog) < 0)
 	rb_sys_fail("listen(2)");
 
