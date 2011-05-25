@@ -760,7 +760,9 @@ class RoxorCore {
 	pthread_mutex_t gl;
 
 	// State.
+#if !defined(MACRUBY_STATIC)
 	CodeGenOpt::Level opt_level;
+#endif
 	bool interpreter_enabled;
 	bool running;
 	bool abort_on_exception;
