@@ -63,10 +63,10 @@ module Rake
             number_of_files += 1
           end
 
-          Compiler.new(output: compiled_name,
-                       bundle: true,
-                       files: [source]
-                       ).run
+          MacRuby::Compiler.new(output: compiled_name,
+                                bundle: true,
+                                 files: [source]
+                                ).run
         end
 
         if @verbose

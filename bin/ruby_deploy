@@ -153,7 +153,7 @@ class Deployer
       next if base == 'rb_main'
       obj = File.join(File.dirname(source), base + '.rbo')
       if !File.exist?(obj) or File.mtime(source) > File.mtime(obj)
-        instance = Compiler.new(bundle: true, output: obj, files: [source], archs: app_archs)
+        instance = MacRuby::Compiler.new(bundle: true, output: obj, files: [source], archs: app_archs)
         begin
           instance.run
         rescue
