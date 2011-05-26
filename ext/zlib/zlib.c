@@ -1072,6 +1072,8 @@ rb_deflate_init_copy(VALUE self, SEL sel, VALUE orig)
     }
     z1->input = NIL_P(z2->input) ? Qnil : rb_str_dup(z2->input);
     z1->buf   = NIL_P(z2->buf)   ? Qnil : rb_str_dup(z2->buf);
+    GC_WB(&z1->input, z1->input);
+    GC_WB(&z1->buf, z1->buf);
     z1->buf_filled = z2->buf_filled;
     z1->flags = z2->flags;
 
@@ -2589,7 +2591,7 @@ rb_gzwriter_initialize(VALUE obj, SEL sel, int argc, VALUE *argv)
     if (err != Z_OK) {
 	raise_zlib_error(err, gz->z.stream.msg);
     }
-    gz->io = io;
+    GC_WB(&gz->io, io);
     ZSTREAM_READY(&gz->z);
 
     return obj;
