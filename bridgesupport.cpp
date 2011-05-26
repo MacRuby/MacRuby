@@ -916,7 +916,7 @@ rb_pointer_s_magic_cookie(VALUE rcv, SEL sel, VALUE val)
     long magic_cookie = NUM2LONG(val);
 
     rb_vm_pointer_t *ptr = (rb_vm_pointer_t *)xmalloc(sizeof(rb_vm_pointer_t));
-    ptr->type = rb_str_new2("^v");
+    GC_WB(&ptr->type, rb_str_new2("^v"));
     ptr->type_size = sizeof(void *);
     ptr->convert_to_rval = NULL;
     ptr->convert_to_ocval = NULL;
