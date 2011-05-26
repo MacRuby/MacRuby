@@ -752,11 +752,8 @@ assert ':ok', %{
     yield
   end
   def bar
-    x = true
-    while x
-      x = false
-      foo { yield }
-    end
+    foo { yield }
+    :nok
   end
-  p bar { break :ok }"
+  p bar { break :ok }
 }
