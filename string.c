@@ -839,6 +839,8 @@ str_splice(rb_str_t *self, long pos, long len, rb_str_t *str)
 	}
     }
 
+    str_reset_flags(self);
+
     const long bytes_to_splice = end.end_offset_in_bytes
 	- beg.start_offset_in_bytes;
 
@@ -6161,10 +6163,11 @@ rb_str_bstr(VALUE str)
 	    str = rb_str_new2(cptr);
 	}
 	else {
+	    // +1 is for the NUL terminator
 	    const long max = CFStringGetMaximumSizeForEncoding(
-		    CFStringGetLength((CFStringRef)str), kCFStringEncodingUTF8);
-	    assert(max > 0);
-	    char *buf = (char *)malloc(max + 1);
+		    CFStringGetLength((CFStringRef)str), kCFStringEncodingUTF8) + 1;
+	    assert(max > 1);
+	    char *buf = (char *)malloc(max);
 	    assert(buf != NULL);
 	    if (!CFStringGetCString((CFStringRef)str, buf, max,
 			kCFStringEncodingUTF8)) {
