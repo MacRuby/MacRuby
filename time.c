@@ -2024,7 +2024,7 @@ rb_strftime(char **buf, const char *format, struct tm *time)
 	 * format string, it's not failing for lack of room.
 	 */
 	if (len > 0 || size >= 1024 * flen) return len;
-	free(*buf);
+	xfree(*buf);
     }
     /* not reached */
 }
