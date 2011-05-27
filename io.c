@@ -3404,8 +3404,7 @@ argf_initialize_copy(VALUE argf, SEL sel, VALUE orig)
     GC_WB(&(ARGF.argv), rb_obj_dup(ARGF.argv));
     if (ARGF.inplace) {
 	const char *inplace = ARGF.inplace;
-	ARGF.inplace = 0;
-	GC_WB(&ARGF.inplace, ruby_strdup(inplace));
+	ARGF.inplace = strdup(inplace);
     }
     return argf;
 }
