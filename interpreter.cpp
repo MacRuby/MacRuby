@@ -93,7 +93,9 @@ RoxorInterpreter::interpret_call(CallInst *call)
 	    RoxorCompiler::shared->generate_location_path(path, loc);
 
 	    Frame frame;
-	    frame.name = (const char *)sel;
+	    if (sel != NULL) {
+		frame.name = (const char *)sel;
+	    }
 	    frame.path = path;
 	    frame.line = loc.getLineNumber();
 	    frames.push_back(frame);
@@ -123,6 +125,9 @@ RoxorInterpreter::interpret_call(CallInst *call)
     else if (called == RoxorCompiler::shared->getBlockFunc) {
 	VALUE block = value_as(call_arg(call, 0), VALUE);
 	return (VALUE)vm_get_block(block);
+    }
+    else if (called == RoxorCompiler::shared->currentBlockFunc) {
+	return (VALUE)rb_vm_current_block();
     }
 
     oops("unrecognized call instruction:", call);
