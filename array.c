@@ -3665,6 +3665,26 @@ imp_rary_objectAtIndex(void *rcv, SEL sel, CFIndex idx)
     return RB2OC(rary_elt((VALUE)rcv, idx));
 }
 
+/*
+ *  call-seq:
+ *     Array(arg)    => array
+ *  
+ *  Returns <i>arg</i> as an <code>Array</code>. First tries to call
+ *  <i>arg</i><code>.to_ary</code>, then <i>arg</i><code>.to_a</code>.
+ *     
+ *     Array(1..5)   #=> [1, 2, 3, 4, 5]
+ */
+
+VALUE
+rb_f_array(VALUE obj, SEL sel, VALUE arg)
+{
+    VALUE ary = rb_Array(arg);
+    if (!IS_RARY(ary)) {
+	ary = rary_copy(ary, rb_cRubyArray);	
+    }
+    return ary;
+}
+
 static void
 imp_rary_insertObjectAtIndex(void *rcv, SEL sel, void *obj, CFIndex idx)
 {

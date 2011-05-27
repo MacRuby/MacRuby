@@ -376,6 +376,7 @@ str_check_ascii_compatible(VALUE str)
     }
 }
 
+VALUE rb_f_string(VALUE, SEL, VALUE);
 VALUE rstr_new_path(const char *path);
 
 const char *nsstr_cstr(VALUE str);

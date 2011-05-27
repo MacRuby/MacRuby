@@ -2890,30 +2890,6 @@ rb_str2cstr(VALUE str, long *len)
 }
 
 VALUE
-rb_String(VALUE val)
-{
-    return rb_convert_type(val, T_STRING, "String", "to_s");
-}
-
-/*
- *  call-seq:
- *     String(arg)   => string
- *  
- *  Converts <i>arg</i> to a <code>String</code> by calling its
- *  <code>to_s</code> method.
- *     
- *     String(self)        #=> "main"
- *     String(self.class)  #=> "Object"
- *     String(123456)      #=> "123456"
- */
-
-static VALUE
-rb_f_string(VALUE obj, SEL sel, VALUE arg)
-{
-    return rb_String(arg);
-}
-
-VALUE
 rb_Array(VALUE val)
 {
     VALUE tmp = rb_check_array_type(val);
@@ -2927,20 +2903,10 @@ rb_Array(VALUE val)
     return tmp;
 }
 
-/*
- *  call-seq:
- *     Array(arg)    => array
- *  
- *  Returns <i>arg</i> as an <code>Array</code>. First tries to call
- *  <i>arg</i><code>.to_ary</code>, then <i>arg</i><code>.to_a</code>.
- *     
- *     Array(1..5)   #=> [1, 2, 3, 4, 5]
- */
-
-static VALUE
-rb_f_array(VALUE obj, SEL sel, VALUE arg)
+VALUE
+rb_String(VALUE val)
 {
-    return rb_Array(arg);
+    return rb_convert_type(val, T_STRING, "String", "to_s");
 }
 
 static VALUE
@@ -3159,8 +3125,8 @@ Init_Object(void)
 
     rb_objc_define_module_function(rb_mKernel, "Integer", rb_f_integer, -1);
     rb_objc_define_module_function(rb_mKernel, "Float", rb_f_float, 1);
-    rb_objc_define_module_function(rb_mKernel, "String", rb_f_string, 1);
-    rb_objc_define_module_function(rb_mKernel, "Array", rb_f_array, 1);
+    rb_objc_define_module_function(rb_mKernel, "String", rb_f_string, 1); /* in string.c */
+    rb_objc_define_module_function(rb_mKernel, "Array", rb_f_array, 1); /* in array.c */
 
     rb_const_set(rb_cObject, rb_intern("NSNull"), (VALUE)objc_getClass("NSNull"));
 

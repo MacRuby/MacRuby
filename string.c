@@ -5979,6 +5979,29 @@ nsdata_to_str(VALUE data, SEL sel)
 	    CFDataGetLength(dataref));
 }
 
+
+/*
+ *  call-seq:
+ *     String(arg)   => string
+ *  
+ *  Converts <i>arg</i> to a <code>String</code> by calling its
+ *  <code>to_s</code> method.
+ *     
+ *     String(self)        #=> "main"
+ *     String(self.class)  #=> "Object"
+ *     String(123456)      #=> "123456"
+ */
+
+VALUE
+rb_f_string(VALUE obj, SEL sel, VALUE arg)
+{
+    VALUE str = rb_String(arg);
+    if (!IS_RSTR(str)) {
+	str = (VALUE)str_new_from_cfstring((CFStringRef)str);
+    }
+    return str;
+}
+
 void Init_NSString(void);
 
 void

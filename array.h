@@ -185,6 +185,7 @@ VALUE rary_and(VALUE ary1, SEL sel, VALUE ary2);
 VALUE rary_or(VALUE ary1, SEL sel, VALUE ary2);
 
 unsigned long rb_ary_hash(VALUE ary);
+VALUE rb_f_array(VALUE, SEL, VALUE);
 
 #if defined(__cplusplus)
 } // extern "C"
