@@ -3319,7 +3319,7 @@ rb_stat_init(VALUE obj, SEL sel, VALUE fname)
 	rb_sys_fail(RSTRING_PTR(fname));
     }
     if (DATA_PTR(obj)) {
-	free(DATA_PTR(obj));
+	xfree(DATA_PTR(obj));
 	DATA_PTR(obj) = NULL;
     }
     nst = ALLOC(struct stat);
@@ -3342,8 +3342,8 @@ rb_stat_init_copy(VALUE copy, SEL sel, VALUE orig)
 	rb_raise(rb_eTypeError, "wrong argument class");
     }
     if (DATA_PTR(copy)) {
-	free(DATA_PTR(copy));
-	DATA_PTR(copy) = 0;
+	xfree(DATA_PTR(copy));
+	DATA_PTR(copy) = NULL;
     }
     if (DATA_PTR(orig)) {
 	nst = ALLOC(struct stat);
