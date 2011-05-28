@@ -5189,15 +5189,18 @@ Init_IO(void)
     rb_objc_define_method(rb_cIO, "set_encoding", rb_io_set_encoding, -1);
 
     rb_stdin = prep_io(fileno(stdin), FMODE_READABLE, rb_cIO, "<STDIN>");
+    GC_RETAIN(rb_stdin);
     rb_define_variable("$stdin", &rb_stdin);
     rb_define_global_const("STDIN", rb_stdin);
     
     rb_stdout = prep_io(fileno(stdout), FMODE_WRITABLE, rb_cIO, "<STDOUT>");
+    GC_RETAIN(rb_stdout);
     rb_define_hooked_variable("$stdout", &rb_stdout, 0, stdout_setter);
     rb_define_hooked_variable("$>", &rb_stdout, 0, stdout_setter);
     rb_define_global_const("STDOUT", rb_stdout);
     
     rb_stderr = prep_io(fileno(stderr), FMODE_WRITABLE|FMODE_SYNC, rb_cIO, "<STDERR>");
+    GC_RETAIN(rb_stderr);
     rb_define_hooked_variable("$stderr", &rb_stderr, 0, stdout_setter);
     rb_define_global_const("STDERR", rb_stderr);
  
