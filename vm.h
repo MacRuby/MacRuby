@@ -36,12 +36,6 @@ typedef struct rb_vm_local {
 #define VM_BLOCK_AOT	(1<<10) // block is created by the AOT compiler
 				// (temporary)
 
-typedef struct rb_vm_outer {
-    Class klass;
-    bool pushed_by_eval;
-    struct rb_vm_outer *outer;
-} rb_vm_outer_t;
-
 typedef struct rb_vm_block {
     // IMPORTANT: the flags field should always be at the beginning.
     // Look at how rb_vm_take_ownership() is called in compiler.cpp.
@@ -49,7 +43,6 @@ typedef struct rb_vm_block {
     VALUE proc; // a reference to a Proc object, or nil.
     VALUE self;
     VALUE klass;
-    rb_vm_outer_t *outer;
     VALUE userdata; // if VM_BLOCK_IFUNC, contains the user data, otherwise
 		    // contains the key used in the blocks cache.
     rb_vm_arity_t arity;
@@ -63,11 +56,17 @@ typedef struct rb_vm_block {
     VALUE *dvars[1];
 } rb_vm_block_t;
 
+typedef struct rb_vm_outer {
+    Class klass;
+    bool pushed_by_eval;
+    struct rb_vm_outer *outer;
+} rb_vm_outer_t;
+
 typedef struct rb_vm_binding {
     VALUE self;
     rb_vm_block_t *block;
     rb_vm_local_t *locals;
-    rb_vm_outer_t *outer;
+    rb_vm_outer_t *outer_stack;
     struct rb_vm_binding *next;
 } rb_vm_binding_t;
 
@@ -134,7 +133,6 @@ typedef struct rb_vm_method_node {
     IMP objc_imp;
     IMP ruby_imp;
     int flags;
-    rb_vm_outer_t *outer;
 } rb_vm_method_node_t;
 
 typedef struct {
@@ -290,12 +288,11 @@ rb_vm_cfunc_node_from_imp(Class klass, int arity, IMP imp, int noex)
 }
 
 VALUE rb_vm_eval_string(VALUE self, VALUE klass, VALUE src,
-	rb_vm_binding_t *binding, const char *file, const int line,
-	bool should_push_outer);
+	rb_vm_binding_t *binding, const char *file, const int line);
 VALUE rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 	bool inside_eval);
 VALUE rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
-	rb_vm_binding_t *binding, bool inside_eval, bool should_push_outer);
+	rb_vm_binding_t *binding, bool inside_eval);
 void rb_vm_aot_compile(NODE *node);
 
 void rb_vm_init_compiler(void);
@@ -319,13 +316,12 @@ VALUE rb_vm_top_self(void);
 void rb_vm_const_is_defined(ID path);
 VALUE rb_vm_resolve_const_value(VALUE val, VALUE klass, ID name);
 
-VALUE rb_vm_const_lookup_level(VALUE outer, ID path,
+VALUE rb_vm_const_lookup_level(VALUE outer, uint64_t outer_mask, ID path,
 	bool lexical, bool defined, rb_vm_outer_t *outer_stack);
 static inline VALUE
-rb_vm_const_lookup(VALUE outer, ID path, bool lexical, bool defined,
-	rb_vm_outer_t *outer_stack)
+rb_vm_const_lookup(VALUE outer, ID path, bool lexical, bool defined, rb_vm_outer_t *outer_stack)
 {
-    return rb_vm_const_lookup_level(outer, path, lexical, defined, outer_stack);
+    return rb_vm_const_lookup_level(outer, 0, path, lexical, defined, outer_stack);
 }
 
 bool rb_vm_lookup_method(Class klass, SEL sel, IMP *pimp,
@@ -356,6 +352,10 @@ bool rb_vm_respond_to2(VALUE obj, VALUE klass, SEL sel, bool priv, bool check_ov
 VALUE rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv);
 void rb_vm_push_methods(VALUE ary, VALUE mod, bool include_objc_methods,
 	int (*filter) (VALUE, ID, VALUE));
+void rb_vm_set_outer(VALUE klass, VALUE under);
+VALUE rb_vm_get_outer(VALUE klass);
+VALUE rb_vm_module_nesting(void);
+VALUE rb_vm_module_constants(void);
 VALUE rb_vm_catch(VALUE tag);
 VALUE rb_vm_throw(VALUE tag, VALUE value);
 
@@ -468,7 +468,8 @@ rb_vm_block_make_detachable_proc(rb_vm_block_t *b)
 }
 
 rb_vm_binding_t *rb_vm_create_binding(VALUE self, rb_vm_block_t *current_block,
-	rb_vm_binding_t *top_binding, int lvars_size, va_list lvars, bool vm_push);
+	rb_vm_binding_t *top_binding, rb_vm_outer_t *outer_stack, 
+	int lvars_size, va_list lvars, bool vm_push);
 rb_vm_binding_t *rb_vm_current_binding(void);
 void rb_vm_add_binding(rb_vm_binding_t *binding);
 void rb_vm_pop_binding();
@@ -496,18 +497,12 @@ void rb_vm_set_abort_on_exception(bool flag);
 Class rb_vm_set_current_class(Class klass);
 Class rb_vm_get_current_class(void);
 
-void rb_vm_push_outer(Class klass);
-void rb_vm_pop_outer(void);
-void rb_vm_set_outer_stack(rb_vm_outer_t *outer);
+rb_vm_outer_t *rb_vm_push_outer(Class klass);
+rb_vm_outer_t *rb_vm_pop_outer(void);
 rb_vm_outer_t *rb_vm_get_outer_stack(void);
-VALUE rb_vm_get_cbase(void);
-VALUE rb_vm_get_const_base(void);
-
-VALUE rb_vm_module_nesting(void);
-VALUE rb_vm_module_constants(void);
+rb_vm_outer_t *rb_vm_set_current_outer(rb_vm_outer_t *outer);
 
 bool rb_vm_aot_feature_load(const char *name);
-void rb_vm_dln_load(void (*init_fct)(void), IMP __mrep__);
 void rb_vm_load(const char *fname_str, int wrap);
 
 bool rb_vm_generate_objc_class_name(const char *name, char *buf,
@@ -594,6 +589,7 @@ struct icache *rb_vm_ivar_slot_allocate(void);
 
 struct ccache {
     VALUE outer;
+    uint64_t outer_mask;
     rb_vm_outer_t *outer_stack;
     VALUE val;
 };
@@ -710,7 +706,6 @@ typedef struct {
     Function *func;
     rb_vm_arity_t arity;
     int flags;
-    rb_vm_outer_t *outer;
 } rb_vm_method_source_t;
 #endif
 
@@ -788,6 +783,9 @@ class RoxorCore {
 	// Constants cache.
 	std::map<ID, struct ccache *> ccache;
 
+	// Outers map (where a class is actually defined).
+	std::map<Class, struct rb_vm_outer *> outers;
+
 #if !defined(MACRUBY_STATIC)
 	// Optimized selectors redefinition cache.
 	std::map<SEL, GlobalVariable *> redefined_ops_gvars;
@@ -827,14 +825,6 @@ class RoxorCore {
 #if ROXOR_VM_DEBUG
 	long functions_compiled;
 #endif
-
-	// to check unset outer methods.
-	IMP eval_imp;
-	IMP module_eval_imp;
-	IMP instance_eval_imp;
-	IMP binding_eval_imp;
-	IMP module_nesting_imp;
-	IMP module_constants_imp;
 
     public:
 	RoxorCore(void);
@@ -939,17 +929,16 @@ class RoxorCore {
 	rb_vm_method_source_t *method_source_get(Class klass, SEL sel);
 
 	void prepare_method(Class klass, SEL sel, Function *func,
-		const rb_vm_arity_t &arity, int flag, rb_vm_outer_t *outer);
+		const rb_vm_arity_t &arity, int flag);
 	bool resolve_methods(std::map<Class, rb_vm_method_source_t *> *map,
 		Class klass, SEL sel);
 #endif
 	rb_vm_method_node_t *resolve_method(Class klass, SEL sel,
 		void *func, const rb_vm_arity_t &arity, int flags,
-		IMP imp, Method m, void *objc_imp_types,
-		rb_vm_outer_t *outer);
+		IMP imp, Method m, void *objc_imp_types);
 	rb_vm_method_node_t *add_method(Class klass, SEL sel, IMP imp,
 		IMP ruby_imp, const rb_vm_arity_t &arity, int flags,
-		const char *types, rb_vm_outer_t *outer);
+		const char *types);
 	rb_vm_method_node_t *retype_method(Class klass,
 		rb_vm_method_node_t *node, const char *old_types,
 		const char *new_types);
@@ -969,6 +958,9 @@ class RoxorCore {
 	struct ccache *constant_cache_get(ID path);
 	void const_defined(ID path);
 	
+	struct rb_vm_outer *get_outer(Class klass);
+	void set_outer(Class klass, Class mod);
+
 #if !defined(MACRUBY_STATIC)
 	size_t get_sizeof(const Type *type);
 	size_t get_sizeof(const char *type);
@@ -1086,6 +1078,7 @@ class RoxorVM {
 	std::map<VALUE, rb_vm_catch_t *> catch_nesting;
 	std::vector<VALUE> recursive_objects;
         rb_vm_outer_t *outer_stack;
+        rb_vm_outer_t *current_outer;
 
 	// Method cache.
 	struct mcache *mcache;
@@ -1138,6 +1131,7 @@ class RoxorVM {
 	ACCESSOR(current_mri_method_self, VALUE);
 	ACCESSOR(current_mri_method_sel, SEL);
 	ACCESSOR(outer_stack, rb_vm_outer_t *);
+	ACCESSOR(current_outer, rb_vm_outer_t *);
 
 	void debug_blocks(void);
 
@@ -1237,11 +1231,8 @@ class RoxorVM {
 	VALUE exec_recursive(VALUE (*func) (VALUE, VALUE, int), VALUE obj,
 		VALUE arg);
 
-	rb_vm_outer_t *create_outer(Class klass, rb_vm_outer_t *outer,
-		bool pushed_by_eval);
         rb_vm_outer_t *push_outer(Class klass);
-        void pop_outer(void);
-	void replace_outer_stack(rb_vm_outer_t *new_outer_stack);
+        rb_vm_outer_t *pop_outer(void);
 };
 
 #define GET_VM() (RoxorVM::current())
