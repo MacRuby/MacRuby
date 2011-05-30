@@ -2735,6 +2735,9 @@ io_replace_streams(int fd, rb_io_t *dest, rb_io_t *origin)
 	dest->buf = NULL;
     }
     dest->buf_offset = origin->buf_offset;
+    if (origin->path) {
+	GC_WB(&dest->path, rb_str_dup(origin->path));
+    }
 }
 
 static VALUE
@@ -2769,10 +2772,6 @@ io_reopen(VALUE io, VALUE nfile)
 	rb_sys_fail("dup2() failed");
     }
     io_replace_streams(fd, io_s, other);
-
-    if (other->path) {
-	GC_WB(&io_s->path, rb_str_dup(other->path));
-    }
 
     *(VALUE *)io = *(VALUE *)nfile;
 
