@@ -164,6 +164,7 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     fname = "";
     inside_eval = false;
     current_line = 0;
+    outer_stack_uses = false;
 
     reset_compiler_state();
 
@@ -2640,16 +2641,18 @@ RoxorCompiler::compile_push_outer(Value *klass)
     return val;
 }
 
-Value *
-RoxorCompiler::compile_pop_outer(void)
+void
+RoxorCompiler::compile_pop_outer(bool need_release)
 {
     if (popOuterFunc == NULL) {
-	// rb_vm_outer_t *rb_vm_pop_outer(void)
+	// void rb_vm_pop_outer(unsigned char need_release)
 	popOuterFunc = cast<Function>(
-	    module->getOrInsertFunction("rb_vm_pop_outer", PtrTy, NULL));
+	    module->getOrInsertFunction("rb_vm_pop_outer",
+		    VoidTy, Int8Ty, NULL));
     }
-
-    return CallInst::Create(popOuterFunc, "", bb);
+    
+    Value *val = ConstantInt::get(Int8Ty, need_release ? 1 : 0);
+    CallInst::Create(popOuterFunc, val, "", bb);
 }
 
 Value *
@@ -3450,6 +3453,7 @@ rescan_args:
 	    || sel == selModuleEval
 	    || sel == selNesting
 	    || sel == selConstants)) {
+	outer_stack_uses = true;
 	compile_set_current_outer();
     }
 
@@ -4084,6 +4088,7 @@ RoxorCompiler::compile_node0(NODE *node)
 			bool old_dynamic_class = dynamic_class;
 
 			GlobalVariable *old_outer_stack = outer_stack;
+			bool old_outer_stack_uses = outer_stack_uses;
 			compile_push_outer(classVal);
 
 			current_block_chain = false;
@@ -4144,15 +4149,16 @@ RoxorCompiler::compile_node0(NODE *node)
 			// propagating the exception.
 			bb = new_rescue_invoke_bb;
 			compile_landing_pad_header();
-			compile_pop_outer();
+			compile_pop_outer(!outer_stack_uses);
 			compile_set_current_scope(classVal, defaultScope);
 			compile_rethrow_exception();
 
 			// The normal block - restore context.
 			bb = normal_bb;
-			compile_pop_outer();
+			compile_pop_outer(!outer_stack_uses);
 			compile_set_current_scope(classVal, defaultScope);
 
+			outer_stack_uses = old_outer_stack_uses;
 			dynamic_class = old_dynamic_class;
 			current_self = old_self;
 			current_opened_class = old_class;
@@ -4186,6 +4192,9 @@ RoxorCompiler::compile_node0(NODE *node)
 
 	case NODE_CONST:
 	    assert(node->nd_vid > 0);
+	    if (current_mid != 0) {
+		outer_stack_uses = true;
+	    }
 	    return compile_const(node->nd_vid, NULL);
 
 	case NODE_CDECL:

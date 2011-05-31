@@ -149,6 +149,7 @@ class RoxorCompiler {
 	AllocaInst *argv_buffer;
 	long outer_mask;
 	GlobalVariable *outer_stack;
+	bool outer_stack_uses;
 
 	Function *writeBarrierFunc;
 	Function *dispatchFunc;
@@ -429,7 +430,7 @@ class RoxorCompiler {
 	void compile_set_current_scope(Value *klass, Value *scope);
 	Value *compile_set_current_class(Value *klass);
 	Value *compile_push_outer(Value *klass);
-	Value *compile_pop_outer(void);
+	void compile_pop_outer(bool need_release = false);
 	Value *compile_outer_stack(void);
 	Value *compile_set_current_outer(void);
 
