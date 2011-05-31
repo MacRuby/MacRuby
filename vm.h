@@ -498,7 +498,7 @@ Class rb_vm_set_current_class(Class klass);
 Class rb_vm_get_current_class(void);
 
 rb_vm_outer_t *rb_vm_push_outer(Class klass);
-rb_vm_outer_t *rb_vm_pop_outer(void);
+void rb_vm_pop_outer(unsigned char need_release);
 rb_vm_outer_t *rb_vm_get_outer_stack(void);
 rb_vm_outer_t *rb_vm_set_current_outer(rb_vm_outer_t *outer);
 
@@ -1232,7 +1232,7 @@ class RoxorVM {
 		VALUE arg);
 
         rb_vm_outer_t *push_outer(Class klass);
-        rb_vm_outer_t *pop_outer(void);
+        void pop_outer(bool need_release = false);
 };
 
 #define GET_VM() (RoxorVM::current())

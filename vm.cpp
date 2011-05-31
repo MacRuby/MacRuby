@@ -3159,11 +3159,12 @@ rb_vm_add_binding_lvar_use(rb_vm_binding_t *binding, rb_vm_block_t *block,
 rb_vm_outer_t *
 RoxorVM::push_outer(Class klass)
 {
-    rb_vm_outer_t *o = (rb_vm_outer_t *)malloc(sizeof(rb_vm_outer_t));
+    rb_vm_outer_t *o = (rb_vm_outer_t *)xmalloc(sizeof(rb_vm_outer_t));
     o->klass = klass;
-    o->outer = outer_stack;
+    GC_WB(&o->outer, outer_stack);
     o->pushed_by_eval = false;
     outer_stack = o;
+    GC_RETAIN(outer_stack);
 
 #if ROXOR_VM_DEBUG_CONST
     rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
@@ -3173,20 +3174,20 @@ RoxorVM::push_outer(Class klass)
     return o;
 }
 
-rb_vm_outer_t *
-RoxorVM::pop_outer(void)
+void
+RoxorVM::pop_outer(bool need_release)
 {
     assert(outer_stack != NULL);
-    // KOUJI_TODO: collect garbage. but not all, only unused.
     rb_vm_outer_t *old = outer_stack;
     outer_stack = outer_stack->outer;
+    if (need_release) {
+	GC_RELEASE(old);
+    }
 
 #if ROXOR_VM_DEBUG_CONST
     rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
 			    outer_stack, "pop_outer");
 #endif
-    
-    return old;
 }
 
 rb_vm_outer_t *
@@ -3195,10 +3196,10 @@ rb_vm_push_outer(Class klass)
     return GET_VM()->push_outer(klass);
 }
 
-rb_vm_outer_t *
-rb_vm_pop_outer(void)
+void
+rb_vm_pop_outer(unsigned char need_release)
 {
-    return GET_VM()->pop_outer();
+    GET_VM()->pop_outer(need_release);
 }
 
 rb_vm_outer_t *
