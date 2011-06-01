@@ -76,6 +76,8 @@ class RoxorCompiler {
 	void set_inside_eval(bool flag) { inside_eval = flag; }
 	bool is_dynamic_class(void) { return dynamic_class; }
 	void set_dynamic_class(bool flag) { dynamic_class = flag; }
+	bool get_outer_stack_uses(void) { return outer_stack_uses; }
+	void set_outer_stack_uses(bool flag) { outer_stack_uses = flag; }
 
 	void generate_location_path(std::string &path, DILocation loc);
 
