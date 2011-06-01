@@ -4026,6 +4026,9 @@ RoxorCompiler::compile_node0(NODE *node)
 			    = ivars_slots_cache;
 			old_ivars_slots_cache.clear();
 
+			std::vector<ID> old_dvars = dvars;
+			dvars.clear();
+
 			// Compile the scope.
 			DEBUG_LEVEL_INC();
 			Value *val = compile_node(body);
@@ -4033,6 +4036,8 @@ RoxorCompiler::compile_node0(NODE *node)
 			Function *f = cast<Function>(val);
 			GET_CORE()->optimize(f);
 			DEBUG_LEVEL_DEC();
+
+			dvars = old_dvars;
 
 			ivars_slots_cache = old_ivars_slots_cache;
 			block_declaration = old_block_declaration;
