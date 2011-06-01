@@ -4208,6 +4208,7 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 
     rb_vm_outer_t *old_outer_stack = NULL;
     bool should_pop_outer = false;
+    bool old_outer_stack_uses;
     if (binding == NULL) {
 	if (vm->get_outer_stack() != vm->get_current_outer()) {
 	    old_outer_stack = vm->get_outer_stack();
@@ -4218,6 +4219,9 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 	if (should_push_outer && klass != 0 && !NIL_P(klass)) {
 	    vm->push_outer((Class)klass);
 	    should_pop_outer = true;
+	    old_outer_stack_uses =
+		RoxorCompiler::shared->get_outer_stack_uses();
+	    RoxorCompiler::shared->set_outer_stack_uses(false);
 	}
     }
     else {
@@ -4238,19 +4242,22 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 	VALUE old_top_object;
 	rb_vm_outer_t *old_outer_stack;
 	bool should_pop_outer;
-	Finally(RoxorVM *_vm, bool _dynamic_class, Class _class, VALUE _obj, rb_vm_outer_t *_outer_stack, bool _should_pop_outer) {
+	bool outer_stack_uses;
+	Finally(RoxorVM *_vm, bool _dynamic_class, Class _class, VALUE _obj, rb_vm_outer_t *_outer_stack, bool _should_pop_outer, bool _outer_stack_uses) {
 	    vm = _vm;
 	    old_dynamic_class = _dynamic_class;
 	    old_class = _class;
 	    old_top_object = _obj;
 	    old_outer_stack = _outer_stack;
 	    should_pop_outer = _should_pop_outer;
+	    outer_stack_uses = _outer_stack_uses;
 	}
 	~Finally() { 
 	    RoxorCompiler::shared->set_dynamic_class(old_dynamic_class);
 	    vm->set_current_top_object(old_top_object);
 	    if (should_pop_outer) {
-		vm->pop_outer(); // KOUJI_TODO: call with false if outer_stack_uses is false after rb_vm_run
+		vm->pop_outer(!RoxorCompiler::shared->get_outer_stack_uses());
+		RoxorCompiler::shared->set_outer_stack_uses(outer_stack_uses);
 	    }
 	    if (old_outer_stack != NULL) {
 		vm->set_outer_stack(old_outer_stack);
@@ -4258,7 +4265,7 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 	    vm->set_current_class(old_class);
 	    vm->pop_current_block();
 	}
-    } finalizer(vm, old_dynamic_class, old_class, old_top_object, old_outer_stack, should_pop_outer);
+    } finalizer(vm, old_dynamic_class, old_class, old_top_object, old_outer_stack, should_pop_outer, old_outer_stack_uses);
 
     return rb_vm_run(fname, node, binding, inside_eval);
 #endif
