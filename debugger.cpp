@@ -388,7 +388,7 @@ RoxorDebugger::evaluate_expression(VALUE self, rb_vm_block_t *block,
 
     try {
 	return rb_vm_eval_string(self, 0, rb_str_new2(expr.c_str()), binding,
-		"(eval)", 1);
+		"(eval)", 1, false);
     }
     catch (...) {
 	rb_vm_print_current_exception();

@@ -288,11 +288,12 @@ rb_vm_cfunc_node_from_imp(Class klass, int arity, IMP imp, int noex)
 }
 
 VALUE rb_vm_eval_string(VALUE self, VALUE klass, VALUE src,
-	rb_vm_binding_t *binding, const char *file, const int line);
+	rb_vm_binding_t *binding, const char *file, const int line,
+	bool should_push_outer);
 VALUE rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 	bool inside_eval);
 VALUE rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
-	rb_vm_binding_t *binding, bool inside_eval);
+	rb_vm_binding_t *binding, bool inside_eval, bool should_push_outer);
 void rb_vm_aot_compile(NODE *node);
 
 void rb_vm_init_compiler(void);
