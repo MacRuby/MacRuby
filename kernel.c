@@ -180,12 +180,12 @@ PRIMITIVE void
 vm_set_const(VALUE outer, ID id, VALUE obj, unsigned char dynamic_class, void *outer_stack_p)
 {
     if (dynamic_class) {
-	rb_vm_outer_t *o = (rb_vm_outer_t *)outer_stack_p;
-	while (o != NULL && o->pushed_by_eval) {
-	    o = o->outer;
+	rb_vm_outer_t *outer_stack = (rb_vm_outer_t *)outer_stack_p;
+	if (outer_stack == NULL) {
+	    outer = rb_cNSObject;
 	}
-	if (o != NULL) {
-	    outer = (VALUE)o->klass;
+	else {
+	    outer = outer_stack->klass ? (VALUE)outer_stack->klass : Qnil;
 	}
     }
     rb_const_set(outer, id, obj);

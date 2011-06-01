@@ -4214,9 +4214,7 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 	    old_outer_stack = vm->get_outer_stack();
 	    vm->set_outer_stack(vm->get_current_outer());
 	}
-	// KOUJI_TODO: klass != 0 && !NIL_P(klass)のチェックは不要。参
-	// 照するときに0かどうかをチェックすること。
-	if (should_push_outer && klass != 0 && !NIL_P(klass)) {
+	if (should_push_outer) {
 	    vm->push_outer((Class)klass);
 	    should_pop_outer = true;
 	    old_outer_stack_uses =
