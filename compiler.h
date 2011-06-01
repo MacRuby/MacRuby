@@ -224,7 +224,8 @@ class RoxorCompiler {
 	Function *cvarGetFunc;
 	Function *currentExceptionFunc;
 	Function *popExceptionFunc;
-	Function *getSpecialFunc;
+	Function *getBackrefNth;
+	Function *getBackrefSpecial;
 	Function *breakFunc;
 	Function *returnFromBlockFunc;
 	Function *returnedFromBlockFunc;

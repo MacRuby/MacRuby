@@ -237,7 +237,8 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     cvarGetFunc = get_function("vm_cvar_get");
     currentExceptionFunc = NULL;
     popExceptionFunc = NULL;
-    getSpecialFunc = get_function("vm_get_special");
+    getBackrefNth = NULL;
+    getBackrefSpecial = NULL;
     breakFunc = NULL;
     returnFromBlockFunc = NULL;
     returnedFromBlockFunc = get_function("vm_returned_from_block");
@@ -4392,9 +4393,22 @@ RoxorCompiler::compile_node0(NODE *node)
 	    return current_self;
 
 	case NODE_NTH_REF:
+	    if (getBackrefNth == NULL) {
+		getBackrefNth = cast<Function>(
+			module->getOrInsertFunction("rb_backref_nth_get",
+			    RubyObjTy, Int32Ty, NULL));
+	    }
+	    return CallInst::Create(getBackrefNth,
+		    ConstantInt::get(Int32Ty, node->nd_nth), "", bb);
+
 	case NODE_BACK_REF:
-	    return CallInst::Create(getSpecialFunc,
-		    ConstantInt::get(Int8Ty, (char)node->nd_nth), "", bb);
+	    if (getBackrefSpecial == NULL) {
+		getBackrefSpecial = cast<Function>(
+			module->getOrInsertFunction("rb_backref_special_get",
+			    RubyObjTy, Int32Ty, NULL));
+	    }
+	    return CallInst::Create(getBackrefSpecial,
+		    ConstantInt::get(Int32Ty, node->nd_nth), "", bb);
 
 	case NODE_BEGIN:
 	    can_interpret = true;

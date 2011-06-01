@@ -4574,6 +4574,40 @@ rb_backref_get(void)
 }
 
 extern "C"
+VALUE
+rb_backref_nth_get(int nth)
+{
+    VALUE backref = rb_backref_get();
+    if (backref == Qnil) {
+	return Qnil;
+    }
+    return rb_reg_nth_match(nth, backref);
+}
+
+extern "C"
+VALUE
+rb_backref_special_get(int code)
+{
+    VALUE backref = rb_backref_get();
+    if (backref == Qnil) {
+	return Qnil;
+    }
+    switch (code) {
+	case '&':
+	    return rb_reg_last_match(backref);
+	case '`':
+	    return rb_reg_match_pre(backref);
+	case '\'':
+	    return rb_reg_match_post(backref);
+	case '+':
+	    return rb_reg_match_last(backref);
+    }
+    // This can't happen.
+    printf("invalid backref special code: %d (%c)\n", code, code);
+    abort(); 
+}
+
+extern "C"
 void
 rb_backref_set(VALUE val)
 {

@@ -1024,36 +1024,6 @@ vm_masgn_get_splat(VALUE ary, int before_splat_count, int after_splat_count)
     }
 }
 
-PRIMITIVE VALUE
-vm_get_special(char code)
-{
-    VALUE backref = rb_backref_get();
-    if (backref == Qnil) {
-	return Qnil;
-    }
-
-    VALUE val;
-    switch (code) {
-	case '&':
-	    val = rb_reg_last_match(backref);
-	    break;
-	case '`':
-	    val = rb_reg_match_pre(backref);
-	    break;
-	case '\'':
-	    val = rb_reg_match_post(backref);
-	    break;
-	case '+':
-	    val = rb_reg_match_last(backref);
-	    break;
-	default:
-	    // Boundaries check is done in rb_reg_nth_match().
-	    val = rb_reg_nth_match((int)code, backref);
-	    break;
-    }
-    return val;
-}
-
 // Support for C-level blocks.
 // Following the ABI specifications as documented in the
 // BlockImplementation.txt file of LLVM.
