@@ -1295,16 +1295,6 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
     VALUE old_class = b->klass;
     b->klass = klass;
 
-    // KOUJI_TODO: フラグ(outer_stack_uses)をリセットしておき、
-    // 処理が終わって時点でフラグが立っていたらpopはするけどreleaseしな
-    // い。
-    //
-    // instance_evalのときでかつレシーバがモジュールやクラスではないと
-    // きにklassがnilであることに注意する。
-
-    rb_vm_outer_t *o = vm->push_outer((Class)klass);
-    o->pushed_by_eval = true;
-
     struct Finally {
 	RoxorVM *vm;
 	rb_vm_block_t *b;
@@ -1318,7 +1308,6 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
 	    old_self = _old_self;
 	}
 	~Finally() {
-	    vm->pop_outer();
 	    b->self = old_self;
 	    b->klass = old_class;
 	    vm->add_current_block(b);

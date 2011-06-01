@@ -149,7 +149,7 @@ vm_get_const(VALUE outer, uint64_t outer_mask, void *cache_p, ID path,
 
     if (dynamic_class && lexical_lookup) {
 	rb_vm_outer_t *o = outer_stack;
-	while (o != NULL && o->pushed_by_eval) {
+	while (o != NULL) {
 	    o = o->outer;
 	}
 	if (o == NULL) {
@@ -181,7 +181,7 @@ vm_set_const(VALUE outer, ID id, VALUE obj, unsigned char dynamic_class, void *o
 {
     if (dynamic_class) {
 	rb_vm_outer_t *o = (rb_vm_outer_t *)outer_stack_p;
-	while (o != NULL && o->pushed_by_eval) {
+	while (o != NULL) {
 	    o = o->outer;
 	}
 	if (o != NULL) {
