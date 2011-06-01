@@ -58,6 +58,7 @@ typedef struct rb_vm_block {
 
 typedef struct rb_vm_outer {
     Class klass;
+    bool pushed_by_eval;
     struct rb_vm_outer *outer;
 } rb_vm_outer_t;
 
