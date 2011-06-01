@@ -1467,8 +1467,12 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
     rb_vm_check_if_module(outer);
 
     if (flags & DEFINE_OUTER) {
-	if (outer_stack != NULL) {
-	    outer = (VALUE)outer_stack->klass;
+	rb_vm_outer_t *o = outer_stack;
+	while (o != NULL) {
+	    o = o->outer;
+	}
+	if (o != NULL) {
+	    outer = (VALUE)o->klass;
 	}
     }
 
