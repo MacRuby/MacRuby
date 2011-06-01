@@ -1477,17 +1477,15 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
 	unsigned char dynamic_class, rb_vm_outer_t *outer_stack)
 {
     assert(path > 0);
-    rb_vm_check_if_module(outer);
-
     if (flags & DEFINE_OUTER) {
-	rb_vm_outer_t *o = outer_stack;
-	while (o != NULL && o->pushed_by_eval) {
-	    o = o->outer;
+	if (outer_stack == NULL) {
+	    outer = rb_cNSObject;
 	}
-	if (o != NULL) {
-	    outer = (VALUE)o->klass;
+	else {
+	    outer = outer_stack->klass ? (VALUE)outer_stack->klass : Qnil;
 	}
     }
+    rb_vm_check_if_module(outer);
 
     VALUE klass = get_klass_const(outer, path, dynamic_class, outer_stack);
     if (klass != Qundef) {
