@@ -3453,8 +3453,10 @@ rescan_args:
 	    || sel == selModuleEval
 	    || sel == selNesting
 	    || sel == selConstants)) {
-	outer_stack_uses = true;
-	compile_set_current_outer();
+	if (current_mid != 0) {
+	    outer_stack_uses = true;
+	    compile_set_current_outer();
+	}
     }
 
     // Can we optimize the call?
