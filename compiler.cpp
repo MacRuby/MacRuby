@@ -3455,8 +3455,8 @@ rescan_args:
 	    || sel == selConstants)) {
 	if (current_mid != 0) {
 	    outer_stack_uses = true;
-	    compile_set_current_outer();
 	}
+	compile_set_current_outer();
     }
 
     // Can we optimize the call?
