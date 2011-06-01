@@ -1295,9 +1295,6 @@ rb_vm_print_outer_stack(const char *fname, NODE *node, const char *function, int
 	    printf(" > ");
 	}
 	printf("%s", class_getName(o->klass));
-	if (o->pushed_by_eval) {
-	    printf("[skip]");
-	}
     }
     printf(")\n");
 }
@@ -1335,13 +1332,7 @@ rb_vm_const_lookup_level(VALUE outer, uint64_t outer_mask, ID path,
 				outer_stack, "compile time");
 #endif
 	rb_vm_outer_t *root_outer = outer_stack;
-	while (root_outer != NULL && root_outer->pushed_by_eval) {
-	    root_outer = root_outer->outer;
-	}
 	for (rb_vm_outer_t *o = root_outer; o != NULL; o = o->outer) {
-	    if (o->pushed_by_eval) {
-		continue;
-	    }
 	    VALUE val = rb_const_get_direct((VALUE)o->klass, path);
 	    if (val != Qundef) {
 		GET_CORE()->unlock();
@@ -1416,9 +1407,7 @@ rb_vm_module_nesting(void)
 {
     VALUE ary = rb_ary_new();
     for (rb_vm_outer_t *o = GET_VM()->get_current_outer(); o != NULL; o = o->outer) {
-	if (!o->pushed_by_eval) {
-	    rb_ary_push(ary, (VALUE)o->klass);
-	}
+	rb_ary_push(ary, (VALUE)o->klass);
     }
     return ary;
 }
@@ -1430,11 +1419,9 @@ rb_vm_module_constants(void)
     VALUE cbase = 0;
     void *data = 0;
     for (rb_vm_outer_t *o = GET_VM()->get_current_outer(); o != NULL; o = o->outer) {
-	if (!o->pushed_by_eval) {
-	    data = rb_mod_const_at((VALUE)o->klass, data);
-	    if (cbase == 0) {
-		cbase = (VALUE)o->klass;
-	    }
+	data = rb_mod_const_at((VALUE)o->klass, data);
+	if (cbase == 0) {
+	    cbase = (VALUE)o->klass;
 	}
     }
     data = rb_mod_const_at(rb_cObject, data);
@@ -1481,7 +1468,7 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
 
     if (flags & DEFINE_OUTER) {
 	rb_vm_outer_t *o = outer_stack;
-	while (o != NULL && o->pushed_by_eval) {
+	while (o != NULL) {
 	    o = o->outer;
 	}
 	if (o != NULL) {
@@ -3161,7 +3148,6 @@ RoxorVM::push_outer(Class klass)
     rb_vm_outer_t *o = (rb_vm_outer_t *)xmalloc(sizeof(rb_vm_outer_t));
     o->klass = klass;
     GC_WB(&o->outer, outer_stack);
-    o->pushed_by_eval = false;
     outer_stack = o;
     GC_RETAIN(outer_stack);
 
