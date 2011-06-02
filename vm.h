@@ -502,6 +502,7 @@ rb_vm_outer_t *rb_vm_get_outer_stack(void);
 rb_vm_outer_t *rb_vm_set_current_outer(rb_vm_outer_t *outer);
 
 bool rb_vm_aot_feature_load(const char *name);
+void rb_vm_dln_load(void (*init_fct)(void), IMP __mrep__);
 void rb_vm_load(const char *fname_str, int wrap);
 
 bool rb_vm_generate_objc_class_name(const char *name, char *buf,

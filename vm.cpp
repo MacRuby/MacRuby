@@ -4148,7 +4148,7 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 
     rb_vm_outer_t *old_outer_stack = NULL;
     bool should_pop_outer = false;
-    bool old_outer_stack_uses;
+    bool old_outer_stack_uses = false;
     if (binding == NULL) {
 	if (vm->get_outer_stack() != vm->get_current_outer()) {
 	    old_outer_stack = vm->get_outer_stack();
@@ -5522,6 +5522,41 @@ rb_vm_aot_feature_provide(const char *name, void *init_func)
 }
 
 void
+rb_vm_dln_load(void (*init_fct)(void), IMP __mrep__)
+{
+    RoxorVM *vm = GET_VM();
+
+    struct Finally {
+	RoxorVM *vm;
+	Class old_class;
+	rb_vm_outer_t *old_outer_stack;
+	rb_vm_outer_t *old_current_outer;
+	Finally(RoxorVM *_vm) {
+	    vm = _vm;
+	    old_class = vm->get_current_class();
+	    old_outer_stack = vm->get_outer_stack();
+	    old_current_outer = vm->get_current_outer();
+	}
+	~Finally() { 
+	    vm->set_current_outer(old_current_outer);
+	    vm->set_outer_stack(old_outer_stack);
+	    vm->set_current_class(old_class);
+	}
+    } finalizer(vm);
+
+    vm->set_current_class(NULL);
+    vm->set_outer_stack(NULL);
+    vm->set_current_outer(NULL);
+
+    if (__mrep__ == NULL) {
+	(*init_fct)();
+    }
+    else {
+	(__mrep__)((id)vm->get_current_top_object(), 0);
+    }
+}
+
+void
 rb_vm_load(const char *fname_str, int wrap)
 {
     RoxorVM *vm = GET_VM();
@@ -5541,12 +5576,15 @@ rb_vm_load(const char *fname_str, int wrap)
 	RoxorVM *vm;
 	Class old_class;
 	rb_vm_outer_t *old_outer_stack;
+	rb_vm_outer_t *old_current_outer;
 	Finally(RoxorVM *_vm) {
 	    vm = _vm;
 	    old_class = vm->get_current_class();
 	    old_outer_stack = vm->get_outer_stack();
+	    old_current_outer = vm->get_current_outer();
 	}
 	~Finally() { 
+	    vm->set_current_outer(old_current_outer);
 	    vm->set_outer_stack(old_outer_stack);
 	    vm->set_current_class(old_class);
 	}
@@ -5554,6 +5592,7 @@ rb_vm_load(const char *fname_str, int wrap)
 
     vm->set_current_class(NULL);
     vm->set_outer_stack(NULL);
+    vm->set_current_outer(NULL);
 
     rb_vm_run(fname_str, node, NULL, false);
 }
