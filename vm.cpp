@@ -429,6 +429,7 @@ RoxorVM::RoxorVM(const RoxorVM &vm)
     current_top_object = vm.current_top_object;
     current_class = vm.current_class;
     outer_stack = vm.outer_stack;
+    GC_RETAIN(outer_stack);
     current_outer = vm.current_outer;
     safe_level = vm.safe_level;
 
@@ -491,6 +492,7 @@ RoxorVM::~RoxorVM(void)
     }
     blocks.clear();
 
+    GC_RELEASE(outer_stack);
     GC_RELEASE(backref);
     GC_RELEASE(broken_with);
     GC_RELEASE(last_status);
