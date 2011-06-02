@@ -18,6 +18,9 @@
 
 #define GetProcPtr(obj, ptr) GetCoreDataFromValue(obj, rb_vm_block_t, ptr)
 
+#define GetBindingPtr(obj, ptr) \
+    GetCoreDataFromValue((obj), rb_vm_binding_t, (ptr))
+
 VALUE rb_cUnboundMethod;
 VALUE rb_cMethod;
 VALUE rb_cBinding;
@@ -205,12 +208,14 @@ static VALUE
 binding_dup(VALUE self, SEL sel)
 {
     VALUE bindval = binding_alloc(rb_cBinding);
-#if 0 // TODO
-    rb_binding_t *src, *dst;
+    rb_vm_binding_t *src, *dst;
     GetBindingPtr(self, src);
     GetBindingPtr(bindval, dst);
-    dst->env = src->env;
-#endif
+    GC_WB(&dst->self, src->self);
+    GC_WB(&dst->next, src->next);
+    GC_WB(&dst->locals, src->locals);
+    dst->outer_stack = src->outer_stack;
+    GC_WB(&dst->block, src->block);
     return bindval;
 }
 
