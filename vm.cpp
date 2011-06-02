@@ -522,18 +522,6 @@ RoxorVM::debug_exceptions(void)
     printf("\n");
 }
 
-void
-RoxorCore::debug_outers(Class k)
-{
-    struct rb_vm_outer *o = get_outer(k);
-    std::string s;
-    while (o != NULL) {
-	printf("%p ", o->klass);
-	o = o->outer;
-    }
-    printf("\n");
-}
-
 #if !defined(MACRUBY_STATIC)
 static bool
 should_optimize(Function *func)
@@ -1319,9 +1307,7 @@ rb_vm_const_lookup_level(VALUE outer, uint64_t outer_mask, ID path,
 
 	rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
 				GET_VM()->get_current_outer(), "vm->get_current_outer");
-	
-	rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
-				GET_CORE()->get_outer((Class)outer), "core->get_outer");
+
 	GET_CORE()->unlock();
     }
 #endif
@@ -1363,51 +1349,6 @@ void
 rb_vm_const_is_defined(ID path)
 {
     GET_CORE()->const_defined(path);
-}
-
-struct rb_vm_outer *
-RoxorCore::get_outer(Class klass)
-{
-    std::map<Class, struct rb_vm_outer *>::iterator iter =
-	outers.find(klass);
-    return iter == outers.end() ? NULL : iter->second;
-}
-
-void
-RoxorCore::set_outer(Class klass, Class mod) 
-{
-    if (klass != mod) {
-	struct rb_vm_outer *mod_outer = get_outer(mod);
-	struct rb_vm_outer *class_outer = get_outer(klass);
-	if (class_outer == NULL || class_outer->outer != mod_outer) {
-	    if (class_outer == NULL) {
-		class_outer = (struct rb_vm_outer *)
-		    malloc(sizeof(struct rb_vm_outer));
-		class_outer->klass = klass;
-	    }
-	    class_outer->outer = mod_outer;
-	    outers[klass] = class_outer;
-#if ROXOR_VM_DEBUG
-	    printf("set outer of %s to %s (%p)\n", class_getName(klass),
-		    class_getName(mod), mod_outer);
-#endif
-	}
-    }
-}
-
-extern "C"
-void
-rb_vm_set_outer(VALUE klass, VALUE under)
-{
-    GET_CORE()->set_outer((Class)klass, (Class)under);
-}
-
-extern "C"
-VALUE
-rb_vm_get_outer(VALUE klass)
-{
-    rb_vm_outer_t *o = GET_CORE()->get_outer((Class)klass);
-    return o == NULL ? Qundef : (VALUE)o->klass;
 }
 
 extern "C"

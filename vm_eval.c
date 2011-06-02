@@ -503,14 +503,6 @@ rb_obj_instance_eval_imp(VALUE self, SEL sel, VALUE top, int argc, VALUE *argv)
     }
     else {
 	klass = rb_singleton_class(self);
-	if (top != Qundef) {
-	    switch (TYPE(top)) {
-		case T_CLASS:
-		case T_MODULE:
-		    rb_vm_set_outer(klass, top);
-		    break;
-	    }
-	}
     }
     return specific_eval(argc, argv, klass, self);
 }

@@ -353,8 +353,6 @@ bool rb_vm_respond_to2(VALUE obj, VALUE klass, SEL sel, bool priv, bool check_ov
 VALUE rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv);
 void rb_vm_push_methods(VALUE ary, VALUE mod, bool include_objc_methods,
 	int (*filter) (VALUE, ID, VALUE));
-void rb_vm_set_outer(VALUE klass, VALUE under);
-VALUE rb_vm_get_outer(VALUE klass);
 VALUE rb_vm_module_nesting(void);
 VALUE rb_vm_module_constants(void);
 VALUE rb_vm_catch(VALUE tag);
@@ -959,9 +957,6 @@ class RoxorCore {
 	struct ccache *constant_cache_get(ID path);
 	void const_defined(ID path);
 	
-	struct rb_vm_outer *get_outer(Class klass);
-	void set_outer(Class klass, Class mod);
-
 #if !defined(MACRUBY_STATIC)
 	size_t get_sizeof(const Type *type);
 	size_t get_sizeof(const char *type);

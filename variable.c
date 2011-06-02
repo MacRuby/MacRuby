@@ -282,8 +282,6 @@ rb_set_class_path2(VALUE klass, VALUE under, const char *name, VALUE outer)
     }
     OBJ_FREEZE(str);
     rb_ivar_set(klass, classpath, str);
-
-    rb_vm_set_outer(klass, outer);
 }
 
 void
