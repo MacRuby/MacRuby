@@ -1825,12 +1825,15 @@ RoxorCompiler::compile_defined_expression(NODE *node)
     Value *val = NULL;
     if (!expression) {
 	// Call the runtime.
-	Value *outer_stack_val = nilVal;
+	Value *outer_stack_val;
 	if (type == DEFINED_CONST || type == DEFINED_LCONST) {
 	    if (current_mid != 0) {
 		outer_stack_uses = true;
 	    }
 	    outer_stack_val = compile_outer_stack();
+	}
+	else {
+	    outer_stack_val = compile_const_pointer(NULL);
 	}
 	Value *args[] = {
 	    self,
