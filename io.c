@@ -1069,13 +1069,7 @@ rb_io_read_all(rb_io_t *io_struct, VALUE outbuf)
     while (true) {
 	rb_bstr_resize(outbuf, original_position + bytes_read + bufsize);
 	uint8_t *bytes = rb_bstr_bytes(outbuf) + original_position + bytes_read;
-        long last_read;
-	if (io_struct->buf != NULL) {
-	    last_read = rb_io_read_internal(io_struct, bytes, bufsize);
-	}
-	else {
-	    last_read = read_internal(io_struct->read_fd, (UInt8 *)bytes, bufsize);
-	}
+        const long last_read = rb_io_read_internal(io_struct, bytes, bufsize);
         bytes_read += last_read;
 	if (last_read == 0) {
 	    break;
@@ -1347,14 +1341,7 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
     rb_bstr_resize(outbuf, size);
     uint8_t *bytes = rb_bstr_bytes(outbuf);
 
-    long data_read;
-    if (io_struct->buf != NULL) {
-	data_read = rb_io_read_internal(io_struct, bytes, size);
-    }
-    else {
-	data_read = read_internal(io_struct->read_fd, (UInt8 *)bytes, size);
-    }
-
+    const long data_read = rb_io_read_internal(io_struct, bytes, size);
     rb_bstr_set_length(outbuf, data_read);
 
     if (data_read == 0) {
