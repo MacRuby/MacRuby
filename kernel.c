@@ -139,8 +139,8 @@ vm_cvar_set(VALUE klass, ID id, VALUE val, unsigned char dynamic_class)
 }
 
 PRIMITIVE VALUE
-vm_get_const(VALUE outer, uint64_t outer_mask, void *cache_p, ID path,
-	int flags, void *outer_stack_p)
+vm_get_const(VALUE outer, void *cache_p, ID path, int flags,
+	void *outer_stack_p)
 {
     struct ccache *cache = (struct ccache *)cache_p;
     rb_vm_outer_t *outer_stack = (rb_vm_outer_t *)outer_stack_p;
@@ -161,15 +161,14 @@ vm_get_const(VALUE outer, uint64_t outer_mask, void *cache_p, ID path,
     }
 
     VALUE val;
-    if (cache->outer == outer && cache->outer_mask == outer_mask
-	    && cache->outer_stack == outer_stack && cache->val != Qundef) {
+    if (cache->outer == outer && cache->outer_stack == outer_stack
+	    && cache->val != Qundef) {
 	val = cache->val;
     }
     else {
-	val = rb_vm_const_lookup_level(outer, outer_mask, path,
-		lexical_lookup, false, outer_stack);
+	val = rb_vm_const_lookup_level(outer, path, lexical_lookup, false,
+		outer_stack);
 	cache->outer = outer;
-	cache->outer_mask = outer_mask;
 	cache->outer_stack = outer_stack;
 	cache->val = val;
     }
