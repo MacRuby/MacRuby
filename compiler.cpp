@@ -1825,12 +1825,19 @@ RoxorCompiler::compile_defined_expression(NODE *node)
     Value *val = NULL;
     if (!expression) {
 	// Call the runtime.
+	Value *outer_stack_val = nilVal;
+	if (type == DEFINED_CONST || type == DEFINED_LCONST) {
+	    if (current_mid != 0) {
+		outer_stack_uses = true;
+	    }
+	    outer_stack_val = compile_outer_stack();
+	}
 	Value *args[] = {
 	    self,
 	    ConstantInt::get(Int32Ty, type),
 	    what1 == NULL ? nilVal : what1,
 	    what2 == NULL ? nilVal : what2,
-	    compile_outer_stack()
+	    outer_stack_val
 	};
 	val = compile_protected_call(definedFunc, args, args + 5);
     }
