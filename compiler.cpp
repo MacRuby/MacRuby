@@ -4133,7 +4133,6 @@ RoxorCompiler::compile_node0(NODE *node)
 			params.push_back(compile_const_pointer(NULL));
 			val = compile_protected_call(f, params);
 			BasicBlock *normal_bb = bb;
-			outer_stack = old_outer_stack;
 
 			// The rescue block - restore context before
 			// propagating the exception.
@@ -4149,6 +4148,7 @@ RoxorCompiler::compile_node0(NODE *node)
 			compile_set_current_scope(classVal, defaultScope);
 
 			outer_stack_uses = old_outer_stack_uses;
+			outer_stack = old_outer_stack;
 			dynamic_class = old_dynamic_class;
 			current_self = old_self;
 			current_opened_class = old_class;
