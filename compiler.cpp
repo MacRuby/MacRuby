@@ -76,7 +76,6 @@ RoxorCompiler *RoxorCompiler::shared = NULL;
     __save_state(NODE *, ensure_node);\
     __save_state(bool, block_declaration);\
     __save_state(AllocaInst *, argv_buffer);\
-    __save_state(uint64_t, outer_mask);\
     __save_state(GlobalVariable *, outer_stack);
 
 #define restore_compiler_state() \
@@ -112,7 +111,6 @@ RoxorCompiler *RoxorCompiler::shared = NULL;
     __restore_state(ensure_node);\
     __restore_state(block_declaration);\
     __restore_state(argv_buffer);\
-    __restore_state(outer_mask);\
     __restore_state(outer_stack);
 
 #define reset_compiler_state() \
@@ -147,7 +145,6 @@ RoxorCompiler *RoxorCompiler::shared = NULL;
     ensure_node = NULL;\
     block_declaration = false;\
     argv_buffer = NULL;\
-    outer_mask = 0;\
     outer_stack = NULL;
 
 RoxorCompiler::RoxorCompiler(bool _debug_mode)
@@ -1546,7 +1543,7 @@ RoxorCompiler::compile_constant_declaration(NODE *node, Value *val)
     }
     else {
 	assert(node->nd_else != NULL);
-	args[0] = compile_class_path(node->nd_else, &flags, NULL);
+	args[0] = compile_class_path(node->nd_else, &flags);
 	assert(node->nd_else->nd_mid > 0);
 	args[1] = compile_id(node->nd_else->nd_mid);
 	lexical_lookup = flags & DEFINE_OUTER;
@@ -1654,13 +1651,12 @@ RoxorCompiler::compile_const(ID id, Value *outer)
 
     Value *args[] = {
 	outer,
-	ConstantInt::get(Int64Ty, outer_mask),
 	compile_ccache(id),
 	compile_id(id),
 	ConstantInt::get(Int32Ty, flags),
 	compile_outer_stack()
     };
-    Instruction *insn = compile_protected_call(getConstFunc, args, args + 6);
+    Instruction *insn = compile_protected_call(getConstFunc, args, args + 5);
     attach_current_line_metadata(insn);
     return insn;
 }
@@ -2151,15 +2147,12 @@ RoxorCompiler::compile_set_has_ensure(Value *val)
 }
 
 Value *
-RoxorCompiler::compile_class_path(NODE *node, int *flags, int *outer_level)
+RoxorCompiler::compile_class_path(NODE *node, int *flags)
 {
     if (nd_type(node) == NODE_COLON3) {
 	// ::Foo
 	if (flags != NULL) {
 	    *flags = 0;
-	}
-	if (outer_level != NULL) {
-	    *outer_level = 0;
 	}
 	return compile_nsobject();
     }
@@ -2168,24 +2161,11 @@ RoxorCompiler::compile_class_path(NODE *node, int *flags, int *outer_level)
 	if (flags != NULL) {
 	    *flags = DEFINE_SUB_OUTER;
 	}
-	if (outer_level != NULL) {
-	    // Count the number of outers.
-	    int level = 0;
-	    NODE *n = node;
-	    while (n != NULL && nd_type(n) == NODE_COLON2) {
-		n = n->nd_head;
-		level++;
-	    }
-	    *outer_level = level;
-	}
 	return compile_node(node->nd_head);
     }
     else {
 	if (flags != NULL) {
 	    *flags = DEFINE_OUTER;
-	}
-	if (outer_level != NULL) {
-	    *outer_level = 0;
 	}
 	return compile_current_class();
     }
@@ -4046,7 +4026,6 @@ RoxorCompiler::compile_node0(NODE *node)
 		assert(node->nd_cpath != NULL);
 
 		Value *classVal = NULL;
-		int current_outer_level = 0;
 		if (nd_type(node) == NODE_SCLASS) {
 		    classVal =
 			compile_singleton_class(compile_node(node->nd_recv));
@@ -4069,8 +4048,7 @@ RoxorCompiler::compile_node0(NODE *node)
 		    }
 
 		    int flags = 0;
-		    Value *cpath = compile_class_path(node->nd_cpath, &flags,
-			&current_outer_level);
+		    Value *cpath = compile_class_path(node->nd_cpath, &flags);
 		    if (nd_type(node) == NODE_MODULE) {
 			flags |= DEFINE_MODULE;
 		    }
@@ -4126,12 +4104,6 @@ RoxorCompiler::compile_node0(NODE *node)
 
 			std::vector<ID> old_dvars = dvars;
 			dvars.clear();
-			// Increase the outer mask.
-			int old_outer_mask = outer_mask;
-			outer_mask <<= current_outer_level + 1;
-			for (int i = 0; i < current_outer_level; i++) {
-			    outer_mask |= (1 << (i + 1));
-			} 
 
 			// Compile the scope.
 			DEBUG_LEVEL_INC();
@@ -4143,7 +4115,6 @@ RoxorCompiler::compile_node0(NODE *node)
 
 			dvars = old_dvars;
 
-			outer_mask = old_outer_mask;
 			ivars_slots_cache = old_ivars_slots_cache;
 			block_declaration = old_block_declaration;
 

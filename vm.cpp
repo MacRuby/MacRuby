@@ -783,7 +783,6 @@ RoxorCore::constant_cache_get(ID path)
 	struct ccache *cache = (struct ccache *)malloc(sizeof(struct ccache));
 	assert(cache != NULL);
 	cache->outer = 0;
-	cache->outer_mask = 0;
 	cache->val = Qundef;
 	ccache[path] = cache;
 	return cache;
@@ -1295,13 +1294,13 @@ rb_vm_print_outer_stack(const char *fname, NODE *node, const char *function, int
 
 extern "C"
 VALUE
-rb_vm_const_lookup_level(VALUE outer, uint64_t outer_mask, ID path,
-	bool lexical, bool defined, rb_vm_outer_t *outer_stack)
+rb_vm_const_lookup_level(VALUE outer, ID path, bool lexical, bool defined,
+	rb_vm_outer_t *outer_stack)
 {
     rb_vm_check_if_module(outer);
 #if ROXOR_VM_DEBUG_CONST
-    printf("%s:%d:%s:outer(%s) outer_mask(%llu) path(%s) lexical(%s) defined(%s) outer_stack(%p)\n", __FILE__, __LINE__, __FUNCTION__,
-	   class_getName((Class)outer), outer_mask, rb_id2name(path), lexical ? "true" : "false", defined ? "true" : "false", outer_stack);
+    printf("%s:%d:%s:outer(%s) path(%s) lexical(%s) defined(%s) outer_stack(%p)\n", __FILE__, __LINE__, __FUNCTION__,
+	   class_getName((Class)outer), rb_id2name(path), lexical ? "true" : "false", defined ? "true" : "false", outer_stack);
     if (lexical) {
         GET_CORE()->lock();
 	rb_vm_print_outer_stack(NULL, NULL, __FUNCTION__, __LINE__,
