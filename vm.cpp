@@ -5504,6 +5504,29 @@ rb_vm_aot_feature_load(const char *name)
     }
     void *init_func = iter->second;
     if (init_func != NULL) {
+	RoxorVM *vm = GET_VM();
+	struct Finally {
+	    RoxorVM *vm;
+	    Class old_class;
+	    rb_vm_outer_t *old_outer_stack;
+	    rb_vm_outer_t *old_current_outer;
+	    Finally(RoxorVM *_vm) {
+		vm = _vm;
+		old_class = vm->get_current_class();
+		old_outer_stack = vm->get_outer_stack();
+		old_current_outer = vm->get_current_outer();
+	    }
+	    ~Finally() { 
+		vm->set_current_outer(old_current_outer);
+		vm->set_outer_stack(old_outer_stack);
+		vm->set_current_class(old_class);
+	    }
+	} finalizer(vm);
+	
+	vm->set_current_class(NULL);
+	vm->set_outer_stack(NULL);
+	vm->set_current_outer(NULL);
+	
         ((void *(*)(void *, void *))init_func)((void *)rb_vm_top_self(), NULL);
         iter->second = NULL;
     }
