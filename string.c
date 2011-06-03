@@ -2584,9 +2584,10 @@ rstr_times(VALUE self, SEL sel, VALUE times)
 	for (i = 1; i <= n/2; i *= 2) {
 	    str_concat_string(RSTR(new), RSTR(new));
 	}
-	for (; i < n; i++) {
-	    str_concat_string(RSTR(new), RSTR(self));
-	}
+	memcpy(RSTR(new)->bytes + RSTR(new)->length_in_bytes,
+	       RSTR(new)->bytes,
+	       (n - i) * RSTR(self)->length_in_bytes);
+	RSTR(new)->length_in_bytes = n * RSTR(self)->length_in_bytes;
     }
     OBJ_INFECT(new, self);
     return new;
