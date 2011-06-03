@@ -2116,7 +2116,14 @@ prepare_method(Class klass, bool dynamic_class, SEL sel, void *data,
 	void *objc_imp_types)
 {
     if (dynamic_class) {
-	Class k = GET_VM()->get_current_class();
+	Class k;
+	rb_vm_outer_t *o = GET_VM()->get_outer_stack();
+	if (o == NULL) {
+	    k = (Class)rb_cNSObject;
+	}
+	else {
+	    k = o->klass;
+	}
 	if (k != NULL) {
 	    const bool meta = class_isMetaClass(klass);
 	    klass = k;
@@ -2125,6 +2132,12 @@ prepare_method(Class klass, bool dynamic_class, SEL sel, void *data,
 	    }
 	}
 	else if (RCLASS_SUPER(klass) == 0) {
+	    rb_raise(rb_eTypeError, "no class/module to add method");
+	}
+    }
+    else {
+	rb_vm_outer_t *o = GET_VM()->get_outer_stack();
+	if (o != NULL && o->klass == NULL) {
 	    rb_raise(rb_eTypeError, "no class/module to add method");
 	}
     }
