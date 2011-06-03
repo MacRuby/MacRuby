@@ -2656,7 +2656,7 @@ Value *
 RoxorCompiler::compile_outer_stack(void)
 {
     if (outer_stack == NULL) {
-	return compile_const_pointer(NULL);
+	return compile_const_pointer(rb_vm_get_outer_stack());
     }
     return new LoadInst(outer_stack, "", bb);
 }
@@ -5081,14 +5081,6 @@ RoxorCompiler::compile_main_function(NODE *node, bool *can_interpret_p)
     should_interpret = true;
     can_interpret = false;
 
-    rb_vm_outer_t *o = rb_vm_get_outer_stack();
-    if (o != NULL) {
-	outer_stack = new GlobalVariable(*RoxorCompiler::module, PtrTy, false,
-					 GlobalValue::InternalLinkage,
-					 compile_const_pointer(o), "");
-	assert(outer_stack != NULL);
-    }
-    
     Value *val = compile_node(node);
     assert(Function::classof(val));
     Function *func =  cast<Function>(val);
