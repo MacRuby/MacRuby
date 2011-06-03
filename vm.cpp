@@ -783,6 +783,7 @@ RoxorCore::constant_cache_get(ID path)
 	struct ccache *cache = (struct ccache *)malloc(sizeof(struct ccache));
 	assert(cache != NULL);
 	cache->outer = 0;
+	cache->outer_stack = NULL;
 	cache->val = Qundef;
 	ccache[path] = cache;
 	return cache;
