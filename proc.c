@@ -223,7 +223,11 @@ VALUE
 rb_binding_new(void)
 {
     rb_vm_binding_t *bind = rb_vm_current_binding();
-    assert(bind != NULL);
+    if (bind == NULL) {
+	// Should very rarely happen (when the compiler does not generate a
+        // binding).
+	rb_raise(rb_eRuntimeError, "current binding not defined");
+    }
     return Data_Wrap_Struct(rb_cBinding, NULL, NULL, bind);
 }
 
