@@ -2578,8 +2578,15 @@ rstr_times(VALUE self, SEL sel, VALUE times)
 
     VALUE new = str_new_like(self);
     str_resize_bytes(RSTR(new), n * RSTR(self)->length_in_bytes);
-    for (long i = 0; i < n; ++i) {
+    if (n) {
 	str_concat_string(RSTR(new), RSTR(self));
+	long i;
+	for (i = 1; i <= n/2; i *= 2) {
+	    str_concat_string(RSTR(new), RSTR(new));
+	}
+	for (; i < n; i++) {
+	    str_concat_string(RSTR(new), RSTR(self));
+	}
     }
     OBJ_INFECT(new, self);
     return new;
