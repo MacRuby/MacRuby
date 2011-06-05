@@ -1790,8 +1790,10 @@ static VALUE
 rstr_replace(VALUE self, SEL sel, VALUE arg)
 {
     rstr_modify(self);
-    str_replace(RSTR(self), arg);
-    OBJ_INFECT(self, arg);
+    if (self != arg) {
+	str_replace(RSTR(self), arg);
+	OBJ_INFECT(self, arg);
+    }
     return self;
 }
 
@@ -1807,10 +1809,7 @@ rstr_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE orig;
     if (argc > 0 && rb_scan_args(argc, argv, "01", &orig) == 1) {
-	rstr_modify(self);
-	if (self != orig) {
-	    rstr_replace(self, 0, orig);
-	}
+	rstr_replace(self, 0, orig);
     }
     return self;
 }
