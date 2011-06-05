@@ -2187,8 +2187,10 @@ rary_replace(VALUE rcv, SEL sel, VALUE other)
 {
     rary_modify(rcv);
     other = to_ary(other);
-    rary_remove_all(RARY(rcv));
-    rary_concat(rcv, other, 0, RARRAY_LEN(other));
+    if (rcv != other) {
+	rary_remove_all(RARY(rcv));
+	rary_concat(rcv, other, 0, RARRAY_LEN(other));
+    }
     return rcv;
 }
 
