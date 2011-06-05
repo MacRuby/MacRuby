@@ -46,6 +46,9 @@ rary_reserve(VALUE ary, size_t newlen)
 	    if (rary->cap > 0) {
 		newlen *= 2;
 	    }
+	    if (newlen < ARY_DEFAULT_SIZE) {
+		newlen = ARY_DEFAULT_SIZE;
+	    }
 	    if (rary->elements == NULL) {
 		GC_WB(&rary->elements, xmalloc_ptrs(sizeof(VALUE) * newlen));
 	    }
