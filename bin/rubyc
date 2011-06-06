@@ -54,7 +54,7 @@ class MacRuby::Compiler
       path = File.join(RbConfig::CONFIG['bindir'], progname)
       unless File.exist?(path)
         if must_be_in_bindir
-          raise "Can't locate program `#{progname}' in #{Config::CONFIG['bindir']}"
+          raise "Can't locate program `#{progname}' in #{RbConfig::CONFIG['bindir']}"
         end
         path = `which #{progname}`.strip
         raise "Can't locate program `#{progname}'" if path.empty?

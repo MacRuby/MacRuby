@@ -59,7 +59,7 @@ class Deployer
     @install_name_tool = locate('install_name_tool')
 
     # Locate the MacRuby framework.
-    @macruby_framework_path = Config::CONFIG['libdir'].scan(/^.+MacRuby\.framework/)[0]
+    @macruby_framework_path = RbConfig::CONFIG['libdir'].scan(/^.+MacRuby\.framework/)[0]
     ensure_path @macruby_framework_path, "Cannot locate MacRuby.framework from rbconfig.rb"
     @macruby_install_version = RbConfig::CONFIG["INSTALL_VERSION"]
   end
