@@ -313,7 +313,7 @@ rstr_encode(VALUE str, SEL sel, int argc, VALUE *argv)
         }
     }
 
-    rb_str_t *self = RSTR(str);
+    rb_str_t *self = str_need_string(str);
     rb_str_t *replacement_str = NULL;
     rb_encoding_t *src_encoding, *dst_encoding;
     transcode_behavior_t behavior_for_invalid = TRANSCODE_BEHAVIOR_RAISE_EXCEPTION;
@@ -381,8 +381,11 @@ rstr_encode_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 void
 Init_Transcode(void)
 {
-    rb_objc_define_method(rb_cRubyString, "encode", rstr_encode, -1);
+    // #encode works on both NSStrings and RubyStrings, #encode! only works
+    // on RubyStrings.
+    rb_objc_define_method(rb_cNSString, "encode", rstr_encode, -1);
     rb_objc_define_method(rb_cRubyString, "encode!", rstr_encode_bang, -1);
+    rb_objc_define_method(rb_cNSString, "encode!", rstr_only, -1);
 
     rb_cEncodingConverter = rb_define_class_under(rb_cEncoding, "Converter", rb_cObject);
     rb_objc_define_method(*(VALUE *)rb_cEncodingConverter, "alloc", rb_econv_alloc, 0);

@@ -383,6 +383,14 @@ VALUE rstr_new_path(const char *path);
 const char *nsstr_cstr(VALUE str);
 long nsstr_clen(VALUE str);
 
+static inline id
+rstr_only(id rcv, SEL sel)
+{
+    rb_raise(rb_eArgError, "method `%s' does not work on NSStrings",
+            sel_getName(sel));
+    return rcv; // never reached
+}
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif

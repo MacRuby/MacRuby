@@ -180,14 +180,6 @@ nsstr_include(id rcv, SEL sel, VALUE other)
     return range.location == NSNotFound ? Qfalse : Qtrue;
 }
 
-static id
-rstr_only(id rcv, SEL sel)
-{
-    rb_raise(rb_eArgError, "method `%s' does not work on NSStrings",
-	    sel_getName(sel));
-    return rcv; // never reached
-}
-
 static VALUE
 nsstr_to_rstr(id nsstr)
 {
