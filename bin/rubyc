@@ -34,14 +34,23 @@ require 'rbconfig'
 #
 # becomes:
 #   load File.join(RbConfig::CONFIG['bindir'], 'macrubyc')
-#   instance = MacRuby::Compiler.new( bundle: true, output: 'program.rbo', files: ['program.rb'] )
-#   instance.run
+#   MacRuby::Compiler.compile_file('program.rb')
 
 class MacRuby::Compiler
   VALID_ARCHS = ['i386', 'x86_64']
 
   # Misc.
   TMPDIR = (ENV['TMPDIR'] or '/tmp')
+
+  def self.compile_file(file, opts={})
+    base = File.basename(file, '.rb')
+    obj  = File.join(File.dirname(file), base + '.rbo')
+    new({
+          bundle: true,
+           files: [file],
+          output: obj
+        }.merge(opts)).run
+  end
 
   def locate(progname, must_be_in_bindir=false)
     if ['.', '/'].include?(progname[0])
