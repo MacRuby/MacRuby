@@ -56,12 +56,22 @@ end
 describe "ruby_deploy, in general," do
   extend DeploySpecHelper
 
-  it "checks if the given path is a valid app bundle" do
+  before do
     @dir = tmp('ruby_deploy')
+  end
+
+  after do
+    rm_rf @dir
+  end
+
+  it 'gives a helpful message if the app bundle does not exist' do
+    deploy('--compile').should include('make sure you build the app before running')
+  end
+
+  it "checks if the given path is a valid app bundle" do
     @app_bundle = File.join(@dir, 'Dummy.app')
     mkdir_p @app_bundle
     deploy('--compile').should include("doesn't seem to be a valid application bundle")
-    rm_rf @dir
   end
 end
 

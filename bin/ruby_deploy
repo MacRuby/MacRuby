@@ -52,7 +52,7 @@ class Deployer
       end
     end
 
-    ensure_path @app_bundle
+    ensure_path @app_bundle, 'The application bundle was not found; make sure you build the app before running macruby_deploy'
     ensure_path File.join(@app_bundle, 'Contents'), "Path `%s' doesn't seem to be a valid application bundle"
 
     # Locate necessary programs.
