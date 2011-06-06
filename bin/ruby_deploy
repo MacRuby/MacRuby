@@ -241,6 +241,13 @@ class Deployer
       mkdir_p(gems_libdirs_dest)
       gems_libdirs_to_embed.each do |libdir|
         execute("/usr/bin/ditto \"#{libdir}\" \"#{gems_libdirs_dest}\"")
+        Dir.glob(File.join(libdir, '**', '*.bundle')).each do |file|
+          linked_libs = execute("/usr/bin/otool -L #{file}")
+          if linked_libs.include?('/opt') || linked_libs.include?('/usr/local')
+            warn "'#{File.basename(file)}' is linked against libraries that are not standard to Mac OS X"
+            warn linked_libs
+          end
+        end
       end
     end
 
