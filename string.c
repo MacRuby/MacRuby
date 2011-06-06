@@ -387,7 +387,7 @@ str_dup(rb_str_t *source)
     return destination;
 }
 
-static rb_str_t *
+rb_str_t *
 str_new_from_cfstring(CFStringRef source)
 {
     rb_str_t *destination = str_alloc(rb_cRubyString);

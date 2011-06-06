@@ -54,7 +54,7 @@ to_str(VALUE str)
 static id
 nsstr_dup(id rcv, SEL sel)
 {
-    id dup = [rcv mutableCopy];
+    id dup = (id)str_new_from_cfstring((CFStringRef)rcv);
     if (OBJ_TAINTED(rcv)) {
 	OBJ_TAINT(dup);
     }
