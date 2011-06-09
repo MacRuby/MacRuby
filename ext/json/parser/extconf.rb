@@ -13,4 +13,5 @@ end
 
 have_header("re.h")
 have_header("ruby/st.h")
+$INCFLAGS << ' -I../../..'
 create_makefile 'json/ext/parser'

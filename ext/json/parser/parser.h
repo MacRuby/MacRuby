@@ -3,7 +3,7 @@
 
 #include "ruby.h"
 
-#if WITH_OBJC
+#ifdef __MACRUBY__
 /* We cannot use the GC memory functions here because the underlying libedit
  * function will call free() on the memory, resulting in a leak.
  */
