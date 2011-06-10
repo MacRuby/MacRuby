@@ -1,7 +1,11 @@
 GET_LOG_SEGFAULT = true
 DIR_RESULT       = "result"
 
-task :default do
+task :default => :test
+
+
+desc 'Run the entire suite of unit tests for MRI against MacRuby'
+task :test do
   date    = Time.now.strftime('%Y-%m-%d-%H%M%S')
   output  = "log_#{date}.txt"
   error   = "crash_#{date}.txt"
@@ -37,6 +41,8 @@ task :default do
 
 end
 
+
+desc 'Kill any running MacRuby processes'
 task :kill do
   require 'pp'
 

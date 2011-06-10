@@ -17,11 +17,11 @@
 
 * Attention
 
-  1. The zombi process of MacRuby might be generated with Test.
-     When kills all MacRuby process,
+  1. MacRuby zombie processes might be generated after running the tests.
+     To kill all MacRuby process:
      $ rake kill
 
-  2. The "~/.gemrc" and "~/.gem" might be changed with Test.
+  2. Your "~/.gemrc" and "~/.gem" files might be changed after running the tests.
      Please back up beforehand.
 
-  3. Now, it takes around 1 hour till Test is completed.
+  3. Now, it takes around 1 hour to run the tests.

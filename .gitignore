@@ -54,3 +54,4 @@ spec/ruby
 test/test-mri/result
 test/test-mri/test/csv/temp.gz
 y.tab.c
+test-mri/result
