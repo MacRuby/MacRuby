@@ -506,7 +506,8 @@ rb_obj_imp_isaForAutonotifying(void *rcv, SEL sel)
 
 - (NSArray *)backtrace
 {
-  return (NSArray *)rb_attr_get((VALUE)self, rb_intern("bt"));
+  VALUE rb_bt = rb_attr_get((VALUE)self, rb_intern("bt"));
+  return rb_bt == Qnil ? [self callStackSymbols] : (NSArray *)rb_bt;
 }
 
 @end
