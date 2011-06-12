@@ -565,8 +565,8 @@ rb_define_module_under(VALUE outer, const char *name)
 	module = rb_const_get_at(outer, id);
 	if (TYPE(module) == T_MODULE)
 	    return module;
-	rb_raise(rb_eTypeError, "%s::%s is not a module",
-		 rb_class2name(outer), rb_obj_classname(module));
+	rb_raise(rb_eTypeError, "%s::%s:%s is not a module",
+		 rb_class2name(outer), name, rb_obj_classname(module));
     }
     module = rb_define_module_id(id);
     rb_const_set(outer, id, module);
