@@ -1,4 +1,3 @@
 fails:A method definition in an eval creates a class method
 fails:Defining an 'initialize_copy' method should make it private
-fails:The def keyword within a closure looks outside the closure for the visibility
 fails:Defining an 'initialize_copy' method sets the method's visibility to private

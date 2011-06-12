@@ -1,6 +1,4 @@
 fails:The next statement from within the block skips following code outside an exception block
 fails:The next statement in a while loop causes nested ensure blocks to run
-fails:The next statement in a while loop causes ensure blocks to run when mixed with break
 fails:The next statement in an until loop causes nested ensure blocks to run
-fails:The next statement in an until loop causes ensure blocks to run when mixed with break
 fails:The next statement in a loop causes ensure blocks to run when mixed with break
