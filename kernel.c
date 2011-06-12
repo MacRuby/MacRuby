@@ -139,40 +139,55 @@ vm_cvar_set(VALUE klass, ID id, VALUE val, unsigned char dynamic_class)
 }
 
 PRIMITIVE VALUE
-vm_get_const(VALUE outer, void *cache_p, ID path, int flags)
+vm_get_const(VALUE outer, void *cache_p, ID path, int flags,
+	void *outer_stack_p)
 {
     struct ccache *cache = (struct ccache *)cache_p;
-    rb_vm_outer_t *outer_stack = rb_vm_get_outer_stack();
-    GC_RETAIN(outer_stack);
+    rb_vm_outer_t *outer_stack = (rb_vm_outer_t *)outer_stack_p;
     const bool lexical_lookup = (flags & CONST_LOOKUP_LEXICAL);
     const bool dynamic_class = (flags & CONST_LOOKUP_DYNAMIC_CLASS);
 
     if (dynamic_class && lexical_lookup) {
-	outer = rb_vm_get_const_base();
+	rb_vm_outer_t *o = outer_stack;
+	while (o != NULL && o->pushed_by_eval) {
+	    o = o->outer;
+	}
+	if (o == NULL) {
+            outer = rb_cNSObject;
+        }
+        else {
+	    outer = (VALUE)o->klass;
+	}
     }
 
     VALUE val;
-    if (cache->outer == outer
-	    && cache->outer_stack == outer_stack && cache->val != Qundef) {
+    if (cache->outer == outer && cache->outer_stack == outer_stack
+	    && cache->val != Qundef) {
 	val = cache->val;
     }
     else {
 	val = rb_vm_const_lookup_level(outer, path, lexical_lookup, false,
 		outer_stack);
 	cache->outer = outer;
-	GC_RELEASE(cache->outer_stack);
 	cache->outer_stack = outer_stack;
-	GC_RETAIN(cache->outer_stack);
 	cache->val = val;
     }
-    GC_RELEASE(outer_stack);
     return val;
 }
 
 PRIMITIVE void 
-vm_set_const(VALUE outer, ID id, VALUE obj, unsigned char lexical_lookup)
+vm_set_const(VALUE outer, ID id, VALUE obj, unsigned char dynamic_class, void *outer_stack_p)
 {
-    rb_const_set(lexical_lookup == 1 ? rb_vm_get_const_base() : outer, id, obj);
+    if (dynamic_class) {
+	rb_vm_outer_t *outer_stack = (rb_vm_outer_t *)outer_stack_p;
+	if (outer_stack == NULL) {
+	    outer = rb_cNSObject;
+	}
+	else {
+	    outer = outer_stack->klass ? (VALUE)outer_stack->klass : Qnil;
+	}
+    }
+    rb_const_set(outer, id, obj);
 }
 
 static void __attribute__((noinline))

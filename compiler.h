@@ -76,6 +76,8 @@ class RoxorCompiler {
 	void set_inside_eval(bool flag) { inside_eval = flag; }
 	bool is_dynamic_class(void) { return dynamic_class; }
 	void set_dynamic_class(bool flag) { dynamic_class = flag; }
+	bool get_outer_stack_uses(void) { return outer_stack_uses; }
+	void set_outer_stack_uses(bool flag) { outer_stack_uses = flag; }
 
 	void generate_location_path(std::string &path, DILocation loc);
 
@@ -147,6 +149,8 @@ class RoxorCompiler {
 	int return_from_block_ids;
 	bool block_declaration;
 	AllocaInst *argv_buffer;
+	GlobalVariable *outer_stack;
+	bool outer_stack_uses;
 
 	Function *writeBarrierFunc;
 	Function *dispatchFunc;
@@ -235,6 +239,7 @@ class RoxorCompiler {
 	Function *setCurrentClassFunc;
         Function *pushOuterFunc;
         Function *popOuterFunc;
+        Function *setCurrentOuterFunc;
 	Function *debugTrapFunc;
 	Function *getFFStateFunc;
 	Function *setFFStateFunc;
@@ -426,7 +431,9 @@ class RoxorCompiler {
 	void compile_set_current_scope(Value *klass, Value *scope);
 	Value *compile_set_current_class(Value *klass);
 	Value *compile_push_outer(Value *klass);
-	Value *compile_pop_outer(void);
+	void compile_pop_outer(bool need_release = false);
+	Value *compile_outer_stack(void);
+	Value *compile_set_current_outer(void);
 
 	Value *compile_landing_pad_header(void);
 	void compile_landing_pad_footer(bool pop_exception=true);
