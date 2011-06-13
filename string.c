@@ -1837,18 +1837,6 @@ rstr_dup(VALUE str, SEL sel)
     return dup;
 }
 
-static VALUE
-rstr_clone(VALUE str, SEL sel)
-{
-    VALUE clone = rstr_copy(str, CLASS_OF(str));
-
-    OBJ_INFECT(clone, str);
-    if (OBJ_FROZEN(str)) {
-	OBJ_FREEZE(clone);
-    }
-    return clone;
-}
-
 /*
  *  call-seq:
  *     string.clear    ->  string
@@ -6027,7 +6015,6 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "initialize", rstr_initialize, -1);
     rb_objc_define_method(rb_cRubyString, "initialize_copy", rstr_replace, 1);
     rb_objc_define_method(rb_cRubyString, "dup", rstr_dup, 0);
-    rb_objc_define_method(rb_cRubyString, "clone", rstr_clone, 0);
     rb_objc_define_method(rb_cRubyString, "replace", rstr_replace, 1);
     rb_objc_define_method(rb_cRubyString, "clear", rstr_clear, 0);
     rb_objc_define_method(rb_cRubyString, "encoding", rstr_encoding, 0);

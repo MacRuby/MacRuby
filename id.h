@@ -46,6 +46,7 @@ extern ID idSend;
 extern ID id__send__;
 extern ID idRespond_to;
 extern ID idInitialize;
+extern ID idAttached;
 #if WITH_OBJC
 extern SEL selPLUS;
 extern SEL selMINUS;
@@ -114,6 +115,7 @@ extern SEL selInherited;
 extern SEL selLambda;
 extern SEL selObjectForKey;
 extern SEL selSetObjectForKey;
+extern SEL selFinalize;
 extern SEL sel__method__;
 extern SEL sel__callee__;
 extern ID idIncludedModules;

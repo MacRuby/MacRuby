@@ -1194,23 +1194,6 @@ rary_dup(VALUE ary, SEL sel)
     return dup;
 }
 
-static VALUE
-rary_clone(VALUE ary, SEL sel)
-{
-    VALUE clone = rary_copy(ary, CLASS_OF(ary));
-
-    if (OBJ_TAINTED(ary)) {
-	OBJ_TAINT(clone);
-    }
-    if (OBJ_UNTRUSTED(ary)) {
-	OBJ_UNTRUST(clone);
-    }
-    if (OBJ_FROZEN(ary)) {
-	OBJ_FREEZE(clone);
-    }
-    return clone;
-}
-
 /*
  *  call-seq:
  *     array.join(sep=$,)    -> str
@@ -3761,7 +3744,6 @@ Init_Array(void)
     rb_objc_define_method(rb_cRubyArray, "initialize_copy", rary_replace, 1);
     rb_objc_define_method(rb_cRubyArray, "to_a", rary_to_a, 0);
     rb_objc_define_method(rb_cRubyArray, "dup", rary_dup, 0);
-    rb_objc_define_method(rb_cRubyArray, "clone", rary_clone, 0);
     rb_objc_define_method(rb_cRubyArray, "to_s", rary_inspect, 0);
     rb_objc_define_method(rb_cRubyArray, "inspect", rary_inspect, 0);
     rb_objc_define_method(rb_cRubyArray, "==", rary_equal, 1);

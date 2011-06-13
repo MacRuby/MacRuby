@@ -51,16 +51,6 @@ nsary_dup(id rcv, SEL sel)
 }
 
 static id
-nsary_clone(id rcv, SEL sel)
-{
-    id clone = nsary_dup(rcv, 0);
-    if (OBJ_FROZEN(rcv)) {
-	OBJ_FREEZE(clone);
-    }
-    return clone;
-}
-
-static id
 nsary_clear(id rcv, SEL sel)
 {
     CHECK_MUTABLE(rcv);
@@ -1000,7 +990,6 @@ Init_NSArray(void)
     rb_include_module(rb_cArray, rb_mEnumerable);
 
     rb_objc_define_method(rb_cArray, "dup", nsary_dup, 0);
-    rb_objc_define_method(rb_cArray, "clone", nsary_clone, 0);
     rb_objc_define_method(rb_cArray, "clear", nsary_clear, 0);
     rb_objc_define_method(rb_cArray, "to_s", nsary_inspect, 0);
     rb_objc_define_method(rb_cArray, "inspect", nsary_inspect, 0);

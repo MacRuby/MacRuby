@@ -359,6 +359,8 @@ void rb_vm_push_methods(VALUE ary, VALUE mod, bool include_objc_methods,
 VALUE rb_vm_catch(VALUE tag);
 VALUE rb_vm_throw(VALUE tag, VALUE value);
 
+void rb_vm_dispose_class(Class k);
+
 typedef struct {
     ID name;
     VALUE value; 
@@ -985,6 +987,8 @@ class RoxorCore {
 	}
 	bool respond_to(VALUE obj, VALUE klass, SEL sel, bool priv,
 		bool check_override);
+
+	void dispose_class(Class k);
 
     private:
 	bool register_bs_boxed(bs_element_type_t type, void *value);

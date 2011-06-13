@@ -1066,8 +1066,9 @@ print_memory_object(task_t task, void *context, unsigned type_mask,
     for (vm_range_t *r = ranges, *end = ranges + range_count; r < end; r++) {
 	const size_t size = auto_zone_size(__auto_zone, (void *)r->address);
 	if (size >= min_size) {
-	    printf("address %p size %ld layout type ",
-		    (void *)r->address, size);
+	    printf("address %p size %ld rc %d layout type ",
+		    (void *)r->address, size,
+		    auto_zone_retain_count(__auto_zone, (void *)r->address));
 	    switch (auto_zone_get_layout_type(__auto_zone,
 			(void *)r->address)) {
 		case AUTO_OBJECT:

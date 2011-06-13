@@ -969,7 +969,7 @@ RoxorCore::method_added(Class klass, SEL sel)
 	if (mid != 0) {
 	    VALUE sym = ID2SYM(mid);
 	    if (RCLASS_SINGLETON(klass)) {
-		VALUE sk = rb_iv_get((VALUE)klass, "__attached__");
+		VALUE sk = rb_singleton_class_attached_object((VALUE)klass);
 		rb_vm_call(sk, selSingletonMethodAdded, 1, &sym);
 	    }
 	    else {
@@ -2395,6 +2395,7 @@ void
 RoxorCore::get_methods(VALUE ary, Class klass, bool include_objc_methods,
 	int (*filter) (VALUE, ID, VALUE))
 {
+    RoxorCoreLock lock;
     // TODO take into account undefined methods
 
     unsigned int count;
@@ -2437,7 +2438,7 @@ RoxorCore::get_methods(VALUE ary, Class klass, bool include_objc_methods,
 extern "C"
 void
 rb_vm_push_methods(VALUE ary, VALUE mod, bool include_objc_methods,
-		   int (*filter) (VALUE, ID, VALUE))
+	int (*filter) (VALUE, ID, VALUE))
 {
     GET_CORE()->get_methods(ary, (Class)mod, include_objc_methods, filter);
 }
@@ -2816,7 +2817,7 @@ RoxorCore::undef_method(Class klass, SEL sel)
 	if (mid != 0) {
 	    VALUE sym = ID2SYM(mid);
 	    if (RCLASS_SINGLETON(klass)) {
-		VALUE sk = rb_iv_get((VALUE)klass, "__attached__");
+		VALUE sk = rb_singleton_class_attached_object((VALUE)klass);
 		rb_vm_call(sk, selSingletonMethodUndefined, 1, &sym);
 	    }
 	    else {
@@ -2880,7 +2881,7 @@ RoxorCore::remove_method(Class klass, SEL sel)
     if (mid != 0) {
 	VALUE sym = ID2SYM(mid);
 	if (RCLASS_SINGLETON(klass)) {
-	    VALUE sk = rb_iv_get((VALUE)klass, "__attached__");
+	    VALUE sk = rb_singleton_class_attached_object((VALUE)klass);
 	    rb_vm_call(sk, selSingletonMethodRemoved, 1, &sym);
 	}
 	else {
@@ -5343,6 +5344,8 @@ Init_PreVM(void)
     // To not corrupt stack pointer (essential for backtracing).
     llvm::NoFramePointerElim = true;
 
+    llvm::UnwindTablesMandatory = true;
+
     if (getenv("VM_STATS") != NULL) {
 	vm_enable_stats = true;
 	llvm::EnableStatistics();
@@ -5711,6 +5714,58 @@ rb_vm_load(const char *fname_str, int wrap)
     // KOUJI_TODO: support wrap.
 
     rb_vm_run(fname_str, node, NULL, false);
+}
+
+void
+RoxorCore::dispose_class(Class k)
+{
+//printf("%p %d\n", k, auto_zone_retain_count(__auto_zone, k));
+//    if (auto_zone_retain_count(__auto_zone, k) > 1) {
+//	return;
+//    }
+//return;
+
+    RoxorCoreLock lock;
+
+    // Free ivars dict.
+    rb_class_ivar_set_dict((VALUE)k, NULL);
+
+    // Free class flags.
+    rb_class_erase_mask(k);
+
+#if !defined(MACRUBY_STATIC)
+    // Free lazy-JIT caches.
+    std::multimap<Class, SEL>::iterator iter =
+	method_source_sels.find(k);
+
+    if (iter != method_source_sels.end()) {
+	std::multimap<Class, SEL>::iterator first = iter;
+	std::multimap<Class, SEL>::iterator last =
+	    method_source_sels.upper_bound(k);
+
+	for (; iter != last; iter++) {
+	    SEL sel = iter->second;
+			
+	    std::map<SEL, std::map<Class, rb_vm_method_source_t *> *>::iterator
+		iter2 = method_sources.find(sel);
+	    if (iter2 != method_sources.end()) {
+		delete iter2->second;
+		method_sources.erase(iter2);
+	    }
+	}
+	method_source_sels.erase(first, last);
+    }
+#endif
+
+    // Free the runtime bits.
+    objc_disposeClassPair(k);
+}
+
+extern "C"
+void
+rb_vm_dispose_class(Class k)
+{
+    GET_CORE()->dispose_class(k);
 }
 
 extern "C"

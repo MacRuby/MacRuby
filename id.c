@@ -37,7 +37,7 @@ Init_id(void)
     idEqTilde = rb_intern("=~");
     idNot = rb_intern("!");
     idNeq = rb_intern("!=");
-
+    idAttached = rb_intern("__attached__");
 #if WITH_OBJC
     selPLUS = sel_registerName("+:");
     selMINUS = sel_registerName("-:");
@@ -106,6 +106,7 @@ Init_id(void)
     selLambda = sel_registerName("lambda");
     selObjectForKey = sel_registerName("objectForKey:");
     selSetObjectForKey = sel_registerName("setObject:forKey:");
+    selFinalize = sel_registerName("finalize");
 
     sel__method__= sel_registerName("__method__");
     sel__callee__ = sel_registerName("__callee__");

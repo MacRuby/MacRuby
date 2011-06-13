@@ -192,19 +192,14 @@ rb_obj_class(VALUE obj)
 static void
 init_copy(VALUE dest, VALUE obj)
 {
-    if (NATIVE(obj)) {
-	if (OBJ_TAINTED(obj)) {
-	    OBJ_TAINT(dest);
-	} 
-	goto call_init_copy;
-    }
     if (OBJ_FROZEN(dest)) {
-        rb_raise(rb_eTypeError, "[bug] frozen object (%s) allocated", rb_obj_classname(dest));
+        rb_raise(rb_eTypeError, "[bug] frozen object (%s) allocated",
+		rb_obj_classname(dest));
     }
-    RBASIC(dest)->flags &= ~(T_MASK|FL_EXIVAR);
-    RBASIC(dest)->flags |= RBASIC(obj)->flags & (T_MASK|FL_EXIVAR|FL_TAINT);
+
     rb_copy_generic_ivar(dest, obj);
     rb_gc_copy_finalizer(dest, obj);
+
     switch (TYPE(obj)) {
 	case T_OBJECT:
 	    if (ROBJECT(obj)->num_slots > 0) {
@@ -221,28 +216,30 @@ init_copy(VALUE dest, VALUE obj)
 	    }
 	    ROBJECT(dest)->num_slots = ROBJECT(obj)->num_slots;
 	    break;
+
       case T_CLASS:
       case T_MODULE:
 	{
-	    CFMutableDictionaryRef dest_dict, obj_dict;
-	    
-	    obj_dict = rb_class_ivar_dict(obj);
-	    dest_dict = rb_class_ivar_dict(dest);
-	    if (dest_dict != NULL)
+	    CFMutableDictionaryRef dest_dict = rb_class_ivar_dict(dest);
+	    if (dest_dict != NULL) {
 		CFDictionaryRemoveAllValues(dest_dict);
+	    }
+	    CFMutableDictionaryRef obj_dict = rb_class_ivar_dict(obj);
 	    if (obj_dict != NULL) {
-		dest_dict = CFDictionaryCreateMutableCopy(NULL, 0, (CFDictionaryRef)obj_dict);
+		dest_dict = CFDictionaryCreateMutableCopy(NULL, 0,
+			(CFDictionaryRef)obj_dict);
 		CFMakeCollectable(dest_dict);
 		rb_class_ivar_set_dict(dest, dest_dict);
 	    }
 	    else {
-		if (dest_dict)
+		if (dest_dict) {
 		    rb_class_ivar_set_dict(dest, NULL);
+		}
 	    }
 	}
         break;
     }
-call_init_copy:
+
     rb_vm_call(dest, selInitializeCopy, 1, &obj);
 }
 
@@ -275,32 +272,43 @@ static VALUE rb_class_s_alloc(VALUE, SEL);
 static VALUE
 rb_obj_clone_imp(VALUE obj, SEL sel)
 {
-    VALUE clone;
-
     if (rb_special_const_p(obj)) {
         rb_raise(rb_eTypeError, "can't clone %s", rb_obj_classname(obj));
     }
+
+    // #alloc
+    VALUE clone;
     switch (TYPE(obj)) {
-	case T_NATIVE:
-	    clone = rb_obj_alloc(rb_obj_class(obj));
-	    RBASIC(clone)->klass = rb_singleton_class_clone(obj);
-	    break;
 	case T_CLASS:
 	case T_MODULE:
 	    clone = rb_class_s_alloc(Qnil, 0);
 	    break;
+
 	default:
 	    clone = rb_obj_alloc(rb_obj_class(obj));
-	    RBASIC(clone)->klass = rb_singleton_class_clone(obj);
-	    RBASIC(clone)->flags = (RBASIC(obj)->flags | FL_TEST(clone, FL_TAINT)) & ~(FL_FREEZE|FL_FINALIZE);
+	    do {
+		VALUE klass = rb_singleton_class_clone(obj);
+		if (klass != RBASIC(obj)->klass) {
+		    RBASIC(clone)->klass = klass;
+		}
+	    }
+	    while (0);
 	    break;
     }
 
+    // #initialize_copy
     init_copy(clone, obj);
+
+    // Copy flags.
+    if (OBJ_TAINTED(obj)) {
+	OBJ_TAINT(clone);
+    }
+    if (OBJ_UNTRUSTED(obj)) {
+	OBJ_UNTRUST(clone);
+    }
     if (OBJ_FROZEN(obj)) {
 	OBJ_FREEZE(clone);
     }
-
     return clone;
 }
 
@@ -338,9 +346,12 @@ rb_obj_dup(VALUE obj)
     }
     dup = rb_obj_alloc(rb_obj_class(obj));
     init_copy(dup, obj);
-    if (OBJ_UNTRUSTED(obj))
+    if (OBJ_TAINTED(obj)) {
+	OBJ_TAINT(dup);
+    }
+    if (OBJ_UNTRUSTED(obj)) {
 	OBJ_UNTRUST(dup);
-
+    }
     return dup;
 }
 
@@ -1616,7 +1627,7 @@ rb_mod_to_s(VALUE klass, SEL sel)
 {
     if (RCLASS_SINGLETON(klass)) {
 	VALUE s = rb_usascii_str_new2("#<");
-	VALUE v = rb_iv_get(klass, "__attached__");
+	VALUE v = rb_singleton_class_attached_object(klass);
 
 	rb_str_cat2(s, "Class:");
 	switch (TYPE(v)) {
@@ -3020,7 +3031,6 @@ Init_Object(void)
     rb_define_object_special_methods(rb_cModule);
     rb_cClass =  boot_defclass("Class",  rb_cModule);
     rb_cRubyObject = boot_defclass("RubyObject", rb_cObject);
-    RCLASS_SET_VERSION_FLAG(rb_cRubyObject, RCLASS_IS_SINGLETON);
     RCLASS_SET_VERSION_FLAG(rb_cRubyObject, RCLASS_IS_OBJECT_SUBCLASS);
     rb_define_object_special_methods(rb_cRubyObject);
     rb_objc_install_NSObject_special_methods((Class)rb_cRubyObject);

@@ -62,16 +62,6 @@ nsstr_dup(id rcv, SEL sel)
 }
 
 static id
-nsstr_clone(id rcv, SEL sel)
-{
-    id clone = nsstr_dup(rcv, 0);
-    if (OBJ_FROZEN(rcv)) {
-	OBJ_FREEZE(clone);
-    }
-    return clone;
-}
-
-static id
 nsstr_to_s(id rcv, SEL sel)
 {
     return rcv;
@@ -286,7 +276,6 @@ Init_NSString(void)
     assert(rb_cNSMutableString != 0);
 
     rb_objc_define_method(rb_cString, "dup", nsstr_dup, 0);
-    rb_objc_define_method(rb_cString, "clone", nsstr_clone, 0);
     rb_objc_define_method(rb_cString, "to_s", nsstr_to_s, 0);
     rb_objc_define_method(rb_cString, "to_str", nsstr_to_s, 0);
     rb_objc_define_method(rb_cString, "replace", nsstr_replace, 1);

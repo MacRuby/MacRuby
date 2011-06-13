@@ -27,7 +27,7 @@ extern VALUE rb_cModuleObject;
 static bool
 rb_class_hidden(VALUE klass)
 {
-    return klass == rb_cModuleObject || RCLASS_SINGLETON(klass);
+    return klass == rb_cModuleObject || klass == rb_cRubyObject || RCLASS_SINGLETON(klass);
 }
 
 VALUE
@@ -344,60 +344,90 @@ rb_singleton_class_clone(VALUE obj)
     if (!RCLASS_SINGLETON(klass)) {
 	return klass;
     }
-    else {
-	/* copy singleton(unnamed) class */
-	VALUE clone = rb_objc_create_class(NULL, RCLASS_SUPER(klass));
 
-	CFMutableDictionaryRef ivar_dict = rb_class_ivar_dict(klass);
-	if (ivar_dict != NULL) {
-	    CFMutableDictionaryRef cloned_ivar_dict;
+    // Create new singleton class.
+    VALUE clone = rb_objc_create_class(NULL, RCLASS_SUPER(klass));
 
-	    cloned_ivar_dict = CFDictionaryCreateMutableCopy(NULL, 0, (CFDictionaryRef)ivar_dict);
-	    rb_class_ivar_set_dict(clone, cloned_ivar_dict);
-	    CFMakeCollectable(cloned_ivar_dict);
-	}
-
-	Method *methods;
-	unsigned i, methods_count;
-	methods = class_copyMethodList((Class)klass, &methods_count);
-	if (methods != NULL) {
-	    for (i = 0; i < methods_count; i++) {
-		Method method = methods[i], method2;
-		method2 = class_getInstanceMethod((Class)clone, method_getName(method));
-		if (method2 != class_getInstanceMethod((Class)RCLASS_SUPER(clone), method_getName(method))) {
-		    method_setImplementation(method2, method_getImplementation(method));
-		}
-		else {
-		    assert(class_addMethod((Class)clone, 
-				method_getName(method), 
-				method_getImplementation(method), 
-				method_getTypeEncoding(method)));
-		}
-	    }
-	    free(methods);
-	}
-
-	rb_singleton_class_attached(RBASIC(clone)->klass, (VALUE)clone);
-	if (RCLASS_SUPER(clone) == rb_cRubyObject) {
-	    long v = RCLASS_VERSION(clone) ^ RCLASS_IS_OBJECT_SUBCLASS;
-	    RCLASS_SET_VERSION(clone, v);
-	}
-	RCLASS_SET_VERSION_FLAG(clone, RCLASS_IS_SINGLETON);
-
-	return clone;
+    // Copy ivars.
+    CFMutableDictionaryRef ivar_dict = rb_class_ivar_dict(klass);
+    if (ivar_dict != NULL) {
+	CFMutableDictionaryRef cloned_ivar_dict =
+	    CFDictionaryCreateMutableCopy(NULL, 0, (CFDictionaryRef)ivar_dict);
+	rb_class_ivar_set_dict(clone, cloned_ivar_dict);
+	CFMakeCollectable(cloned_ivar_dict);
     }
+
+    // Copy methods.
+    rb_vm_copy_methods((Class)klass, (Class)clone);	
+
+    rb_singleton_class_attached(clone, obj);
+    if (RCLASS_SUPER(clone) == rb_cRubyObject) {
+	long v = RCLASS_VERSION(clone) ^ RCLASS_IS_OBJECT_SUBCLASS;
+	RCLASS_SET_VERSION(clone, v);
+    }
+    RCLASS_SET_VERSION_FLAG(clone, RCLASS_IS_SINGLETON);
+    return clone;
+}
+
+static void
+robj_sclass_finalize_imp(void *rcv, SEL sel)
+{
+    bool changed = false;
+    while (true) {
+	VALUE k = *(VALUE *)rcv;
+	if (!RCLASS_SINGLETON(k)
+		|| !rb_singleton_class_attached_object(k) == (VALUE)rcv) {
+	    break;
+	}
+	VALUE sk = RCLASS_SUPER(k);
+	if (sk == 0) {
+	    // This can't happen, but we are never sure...
+	    break;
+	}
+	*(VALUE *)rcv = sk;
+
+	rb_vm_dispose_class((Class)k);
+
+	changed = true;
+    }
+
+#if 0
+    if (changed) {
+	objc_msgSend(rcv, selFinalize);
+    }
+#endif
+}
+
+void
+rb_singleton_class_promote_for_gc(VALUE klass)
+{
+    rb_objc_install_method2((Class)klass, "finalize",
+	    (IMP)robj_sclass_finalize_imp);
 }
 
 void
 rb_singleton_class_attached(VALUE klass, VALUE obj)
 {
     if (RCLASS_SINGLETON(klass)) {
-	static ID attachedId = 0;
-	if (attachedId == 0) {
-	    attachedId = rb_intern("__attached__");
-	}
-	rb_ivar_set(klass, attachedId, obj);
+	// Weak ref.
+	VALUE wobj = LONG2NUM((long)obj);
+	rb_ivar_set(klass, idAttached, wobj);
+	// FIXME commented for now as it breaks some RubySpecs.
+	//rb_singleton_class_promote_for_gc(klass);
     }
+}
+
+VALUE
+rb_singleton_class_attached_object(VALUE klass)
+{
+    if (RCLASS_SINGLETON(klass)) {
+	// Weak ref.
+	VALUE obj = rb_ivar_get(klass, idAttached);
+	if (FIXNUM_P(obj)) {
+	    return (VALUE)NUM2LONG(obj);
+	}
+    }
+    return Qnil;
 }
 
 VALUE
@@ -417,16 +447,24 @@ rb_make_singleton_class(VALUE super)
 VALUE
 rb_make_metaclass(VALUE obj, VALUE super)
 {
+    VALUE klass;
     if (TYPE(obj) == T_CLASS && RCLASS_SINGLETON(obj)) {
 	RBASIC(obj)->klass = rb_cClass;
-	return rb_cClass;
+	klass = rb_cClass;
     }
     else {
-	VALUE klass = rb_make_singleton_class(super);
-	RBASIC(obj)->klass = klass;
-	rb_singleton_class_attached(klass, obj);
-	return klass;
+	VALUE objk = RBASIC(obj)->klass;
+	if (RCLASS_SINGLETON(objk)
+		&& rb_singleton_class_attached_object(objk) == obj) {
+	    klass = objk;
+	}
+	else {
+	    klass = rb_make_singleton_class(super);
+	    RBASIC(obj)->klass = klass;
+	    rb_singleton_class_attached(klass, obj);
+	}
     }
+    return klass;
 }
 
 VALUE
@@ -1115,8 +1153,6 @@ rb_undef_method(VALUE klass, const char *name)
 VALUE
 rb_singleton_class(VALUE obj)
 {
-    VALUE klass;
-
     if (FIXNUM_P(obj) || SYMBOL_P(obj) || FIXFLOAT_P(obj)) {
 	rb_raise(rb_eTypeError, "can't define singleton");
     }
@@ -1127,45 +1163,18 @@ rb_singleton_class(VALUE obj)
 	rb_bug("unknown immediate %ld", obj);
     }
 
-#if 0
-    DEFER_INTS;
-    if (RCLASS_SINGLETON(RBASIC(obj)->klass) &&
-	rb_iv_get(RBASIC(obj)->klass, "__attached__") == obj) {
-	klass = RBASIC(obj)->klass;
-    }
-    else
-#endif	
-    {
-	switch (TYPE(obj)) {
-	    case T_CLASS:
-	    case T_MODULE:
-		klass = *(VALUE *)obj;
-		break;
+    VALUE klass;
+    switch (TYPE(obj)) {
+	case T_CLASS:
+	case T_MODULE:
+	    // FIXME we should really create a new metaclass here.
+	    klass = *(VALUE *)obj;
+	    break;
 
-	    default:
-		if (RCLASS_SINGLETON(RBASIC(obj)->klass) &&
-		    rb_iv_get(RBASIC(obj)->klass, "__attached__") == obj) {
-		    klass = RBASIC(obj)->klass;
-		}
-		else {
-		    klass = rb_make_metaclass(obj, RBASIC(obj)->klass);
-		}
-		break;
-	}
+	default:
+	    klass = rb_make_metaclass(obj, RBASIC(obj)->klass);
+	    break;
     }
-#if 0
-    if (OBJ_TAINTED(obj)) {
-	OBJ_TAINT(klass);
-    }
-    else {
-	OBJ_UNTAINT(klass);
-    }
-    if (OBJ_FROZEN(obj)) {
-	OBJ_FREEZE(klass);
-    }
-#endif
-//    ALLOW_INTS;
-
     return klass;
 }
 
@@ -1290,6 +1299,16 @@ Init_PreClass(void)
     rb_class_flags = (rb_class_flags_cache_t *)calloc(
 	    CLASS_FLAGS_CACHE_SIZE, sizeof(rb_class_flags_cache_t));
     assert(rb_class_flags != NULL);
+}
+
+void
+Init_Class(void)
+{
+#if 0
+    rb_cSClassFinalizer = rb_define_class("__SClassFinalizer", rb_cObject);
+    sclass_finalize_imp_super = rb_objc_install_method2(
+	    (Class)rb_cSClassFinalizer, "finalize", (IMP)sclass_finalize_imp);
+#endif
 }
 
 static int

@@ -172,18 +172,6 @@ rhash_dup(VALUE rcv, SEL sel)
     return dup;
 }
 
-static VALUE
-rhash_clone(VALUE rcv, SEL sel)
-{
-    VALUE clone = rhash_copy(rcv, CLASS_OF(rcv));
-
-    OBJ_INFECT(clone, rcv);
-    if (OBJ_FROZEN(rcv)) {
-	OBJ_FREEZE(clone);
-    }
-    return clone;
-}
-
 VALUE
 rb_hash_new(void)
 {
@@ -1001,13 +989,17 @@ rhash_replace(VALUE hash, SEL sel, VALUE hash2)
 	return hash;
     }
 
-    rhash_clear(hash, 0);
-    rb_hash_foreach(hash2, replace_i, hash);
-
+    // Copy RubyHash properties.
     if (IS_RHASH(hash2)) {
+	if (RHASH(hash2)->tbl->type == &identhash) {
+	    RHASH(hash)->tbl->type = &identhash;
+	}
 	GC_WB(&RHASH(hash)->ifnone, RHASH(hash2)->ifnone);
 	RHASH(hash)->has_proc_default = RHASH(hash2)->has_proc_default;
     }
+
+    rhash_clear(hash, 0);
+    rb_hash_foreach(hash2, replace_i, hash);
     return hash;
 }
 
@@ -1852,7 +1844,6 @@ Init_Hash(void)
     rb_objc_define_method(rb_cRubyHash, "initialize", rhash_initialize, -1);
     rb_objc_define_method(rb_cRubyHash, "initialize_copy", rhash_replace, 1);
     rb_objc_define_method(rb_cRubyHash, "dup", rhash_dup, 0);
-    rb_objc_define_method(rb_cRubyHash, "clone", rhash_clone, 0);
     rb_objc_define_method(rb_cRubyHash, "rehash", rhash_rehash, 0);
     rb_objc_define_method(rb_cRubyHash, "to_hash", rhash_to_hash, 0);
     rb_objc_define_method(rb_cRubyHash, "to_a", rhash_to_a, 0);

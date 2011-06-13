@@ -56,16 +56,6 @@ nshash_dup(id rcv, SEL sel)
 }
 
 static id
-nshash_clone(id rcv, SEL sel)
-{
-    id clone = nshash_dup(rcv, 0);
-    if (OBJ_FROZEN(rcv)) {
-	OBJ_FREEZE(clone);
-    }
-    return clone;
-}
-
-static id
 nshash_rehash(id rcv, SEL sel)
 {
     CHECK_MUTABLE(rcv);
@@ -475,7 +465,6 @@ Init_NSDictionary(void)
     rb_include_module(rb_cHash, rb_mEnumerable);
 
     rb_objc_define_method(rb_cHash, "dup", nshash_dup, 0);
-    rb_objc_define_method(rb_cHash, "clone", nshash_clone, 0);
     rb_objc_define_method(rb_cHash, "rehash", nshash_rehash, 0);
     rb_objc_define_method(rb_cHash, "to_hash", nshash_to_hash, 0);
     rb_objc_define_method(rb_cHash, "to_a", nshash_to_a, 0);
