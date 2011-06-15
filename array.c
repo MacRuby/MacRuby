@@ -1172,8 +1172,8 @@ rary_copy(VALUE rcv, VALUE klass)
     VALUE dup = rary_alloc(klass, 0);
     if (IS_RARY(rcv)) {
 	rary_reserve(dup, RARY(rcv)->len);
-	GC_MEMMOVE(&RARY(dup)->elements[0],
-		   &RARY(rcv)->elements[RARY(rcv)->beg],
+	GC_MEMMOVE(rary_ptr(dup),
+		   rary_ptr(rcv),
 		   sizeof(VALUE) * RARY(rcv)->len);
 	RARY(dup)->len = RARY(rcv)->len;
     }
