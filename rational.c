@@ -337,8 +337,8 @@ nurat_s_new_internal(VALUE klass, VALUE num, VALUE den)
     NEWOBJ(obj, struct RRational);
     OBJSETUP(obj, klass, T_RATIONAL);
 
-    obj->num = num;
-    obj->den = den;
+    GC_WB(&obj->num, num);
+    GC_WB(&obj->den, den);
 
     return (VALUE)obj;
 }
