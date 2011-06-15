@@ -214,7 +214,7 @@ binding_dup(VALUE self, SEL sel)
     GC_WB(&dst->self, src->self);
     GC_WB(&dst->next, src->next);
     GC_WB(&dst->locals, src->locals);
-    dst->outer_stack = src->outer_stack;
+    GC_WB(&dst->outer_stack, src->outer_stack);
     GC_WB(&dst->block, src->block);
     return bindval;
 }
@@ -1418,6 +1418,7 @@ proc_binding(VALUE self, SEL sel)
     binding->block = NULL;
     GC_WB(&binding->self, block->self);
     GC_WB(&binding->locals, block->locals);
+    binding->outer_stack = NULL;
 
     return Data_Wrap_Struct(rb_cBinding, NULL, NULL, binding);
 }
