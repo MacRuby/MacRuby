@@ -3424,6 +3424,22 @@ rescan_args:
     }
     params[3] = blockVal;
 
+    // If we are calling a method that needs a reference to the current outer,
+    // compile a reference to it.
+    if (!super_call
+	    && (sel == selEval
+		    || sel == selInstanceEval
+		    || sel == selClassEval
+		    || sel == selModuleEval
+		    || sel == selNesting
+		    || sel == selConstants
+		    || sel == selBinding)) {
+	if (current_mid != 0) {
+	    outer_stack_uses = true;
+	}
+	compile_set_current_outer();
+    }
+
     // If we are calling a method that needs a top-level binding object, let's
     // create it. (Note: this won't work if the method is aliased, but we can
     // live with that for now)
@@ -3439,21 +3455,6 @@ rescan_args:
     }
     else {
 	can_interpret = true;
-    }
-
-    // If we are calling a method that needs a reference to the current outer,
-    // compile a reference to it.
-    if (!super_call
-	&& (sel == selEval
-	    || sel == selInstanceEval
-	    || sel == selClassEval
-	    || sel == selModuleEval
-	    || sel == selNesting
-	    || sel == selConstants)) {
-	if (current_mid != 0) {
-	    outer_stack_uses = true;
-	}
-	compile_set_current_outer();
     }
 
     // Can we optimize the call?
