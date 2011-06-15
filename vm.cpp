@@ -5344,8 +5344,6 @@ Init_PreVM(void)
     // To not corrupt stack pointer (essential for backtracing).
     llvm::NoFramePointerElim = true;
 
-    llvm::UnwindTablesMandatory = true;
-
     if (getenv("VM_STATS") != NULL) {
 	vm_enable_stats = true;
 	llvm::EnableStatistics();
