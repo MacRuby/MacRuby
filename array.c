@@ -37,9 +37,9 @@ rary_reserve(VALUE ary, size_t newlen)
 	    else {
 		newlen -= rary->beg;
 	    }
-	    for (size_t i = 0; i < rary->len; i++) {
-		GC_WB(&rary->elements[i], rary->elements[rary->beg + i]);
-	    }
+	    GC_MEMMOVE(&rary->elements[0],
+		       &rary->elements[rary->beg],
+		       sizeof(VALUE) * rary->len);
 	    rary->beg = 0;
 	}
 	if (newlen > rary->cap) {
