@@ -109,10 +109,9 @@ rary_concat(VALUE ary, VALUE other, size_t beg, size_t len)
 {
     rary_reserve(ary, RARY(ary)->len + len);
     if (IS_RARY(other)) {
-	for (size_t i = 0; i < len; i++) {
-	    rary_elt_set(ary, i + RARY(ary)->len,
-		    rary_elt(other, beg + i));
-	}
+	GC_MEMMOVE(&RARY(ary)->elements[RARY(ary)->beg + RARY(ary)->len],
+		   &RARY(other)->elements[RARY(other)->beg + beg],
+		   sizeof(VALUE) * len);
     }
     else {
 	for (size_t i = 0; i < len; i++) {
@@ -1170,16 +1169,7 @@ static VALUE
 rary_copy(VALUE rcv, VALUE klass)
 {
     VALUE dup = rary_alloc(klass, 0);
-    if (IS_RARY(rcv)) {
-	rary_reserve(dup, RARY(rcv)->len);
-	GC_MEMMOVE(rary_ptr(dup),
-		   rary_ptr(rcv),
-		   sizeof(VALUE) * RARY(rcv)->len);
-	RARY(dup)->len = RARY(rcv)->len;
-    }
-    else {
-	rary_concat(dup, rcv, 0, RARY(rcv)->len);
-    }
+    rary_concat(dup, rcv, 0, RARY(rcv)->len);
     return dup;
 }
 
