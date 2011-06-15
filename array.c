@@ -1170,7 +1170,16 @@ static VALUE
 rary_copy(VALUE rcv, VALUE klass)
 {
     VALUE dup = rary_alloc(klass, 0);
-    rary_concat(dup, rcv, 0, RARY(rcv)->len);
+    if (IS_RARY(rcv)) {
+	rary_reserve(dup, RARY(rcv)->len);
+	GC_MEMMOVE(&RARY(dup)->elements[0],
+		   &RARY(rcv)->elements[RARY(rcv)->beg],
+		   sizeof(VALUE) * RARY(rcv)->len);
+	RARY(dup)->len = RARY(rcv)->len;
+    }
+    else {
+	rary_concat(dup, rcv, 0, RARY(rcv)->len);
+    }
     return dup;
 }
 

@@ -32,6 +32,7 @@ void auto_zone_add_root(void *zone, void *address_of_root_ptr, void *value);
 void auto_zone_retain(void *zone, void *ptr);
 unsigned int auto_zone_release(void *zone, void *ptr);
 unsigned int auto_zone_retain_count(void *zone, const void *ptr);
+void *auto_zone_write_barrier_memmove(void *zone, void *dst, const void *src, size_t size);
 extern void *__auto_zone;
 #else
 extern auto_zone_t *__auto_zone;
@@ -70,6 +71,13 @@ rb_objc_retain_count(const void *addr)
     return auto_zone_retain_count(__auto_zone, addr);
 }
 #define GC_RETAIN_COUNT(obj) (rb_objc_retain_count((const void *)obj))
+
+static inline void *
+rb_objc_memmove(void *dst, const void *src, size_t size)
+{
+    return auto_zone_write_barrier_memmove(__auto_zone, dst, src, size);
+}
+#define GC_MEMMOVE(dst, src, size) (rb_objc_memmove(dst, src, size))
 
 static inline void *
 rb_objc_release(void *addr)
