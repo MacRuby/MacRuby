@@ -81,9 +81,9 @@ rary_erase(VALUE ary, size_t idx, size_t len)
 	}
     }
     else {
-	for (size_t i = idx; i < RARY(ary)->len - len; i++) {
-	    rary_elt_set(ary, i, rary_elt(ary, i + len));
-	}
+	GC_MEMMOVE(&RARY(ary)->elements[RARY(ary)->beg + idx],
+		   &RARY(ary)->elements[RARY(ary)->beg + idx + len],
+		   sizeof(VALUE) * (RARY(ary)->len - idx - len));
 	for (size_t i = 0; i < len; i++) {
 	    rary_elt_set(ary, RARY(ary)->len - i - 1, Qnil);
 	}
