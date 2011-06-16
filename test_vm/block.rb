@@ -587,7 +587,7 @@ assert ':ok', %{
     end
     p enclosing_method
   end.call
-}
+}, :known_bug => true
 
 assert ':ok', %{
   b = :foo.to_proc

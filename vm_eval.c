@@ -284,8 +284,9 @@ rb_each(VALUE obj)
 #define GetBindingPtr(obj) ((rb_vm_binding_t *)DATA_PTR(obj))
 
 static VALUE
-eval_string_with_should_push_outer(VALUE self, VALUE klass, VALUE src, VALUE scope,
-	const char *file, const int line, bool should_push_outer)
+eval_string_with_should_push_outer(VALUE self, VALUE klass, VALUE src,
+	VALUE scope, const char *file, const int line,
+	bool should_push_outer)
 {
     rb_vm_binding_t *binding = NULL;
     if (scope != Qnil) {
@@ -295,7 +296,8 @@ eval_string_with_should_push_outer(VALUE self, VALUE klass, VALUE src, VALUE sco
 	}
 	binding = GetBindingPtr(scope);
     }
-    return rb_vm_eval_string(self, klass, src, binding, file, line, should_push_outer);
+    return rb_vm_eval_string(self, klass, src, binding, file, line,
+	    should_push_outer);
 }
 
 static VALUE
@@ -315,8 +317,10 @@ static VALUE
 eval_string(VALUE self, VALUE klass, VALUE src, VALUE scope, const char *file,
 	    const int line)
 {
-    return eval_string_with_should_push_outer(self, klass, src, scope, file, line, false);
+    return eval_string_with_should_push_outer(self, klass, src, scope, file,
+	    line, false);
 }
+
 
 static VALUE
 specific_eval(int argc, VALUE *argv, VALUE klass, VALUE self)
