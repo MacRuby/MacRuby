@@ -221,9 +221,10 @@ rb_ary_new4(long n, const VALUE *elts)
 {
     VALUE ary = rb_ary_new2(n);
     if (n > 0 && elts != NULL) {
-	for (long i = 0; i < n; i++) {
-	    rary_push(ary, elts[i]);
-	}
+	GC_MEMMOVE(rary_ptr(ary),
+		   elts,
+		   sizeof(VALUE) * n);
+	RARY(ary)->len = n;
     }
     return ary;
 }
