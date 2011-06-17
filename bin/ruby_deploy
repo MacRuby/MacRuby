@@ -269,7 +269,7 @@ class Deployer
     log "Fix install path of binaries"
     patterns = [File.join(@app_bundle, 'Contents/MacOS/*'),
                 File.join(app_macruby_usr, 'lib/ruby/**/*.{bundle,rbo}'),
-                File.join(@app_bundle, 'Contents/Resources/*.rbo')]
+                File.join(@app_bundle, 'Contents/Resources/**/*.rbo')]
     patterns.each do |pat|
       Dir.glob(pat).each do |bin|
         execute("#{@install_name_tool} -change #{macruby_usr}/lib/libmacruby.dylib @executable_path/../Frameworks/MacRuby.framework/Versions/Current/usr/lib/libmacruby.dylib '#{bin}'")
