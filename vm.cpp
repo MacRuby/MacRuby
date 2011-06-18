@@ -3553,11 +3553,18 @@ __vm_raise(void)
 	char file[PATH_MAX];
 	unsigned long line = 0;
 	GET_CORE()->symbolize_backtrace_entry(2, file, sizeof file, &line,
-		NULL, 0);
+	    NULL, 0);
 	MACRUBY_RAISE(classname, file, line);
     }
+#if __LP64__
     // In 64-bit, an Objective-C exception is a C++ exception.
     objc_exception_throw((id)rb_exc);
+#else
+    // TODO how does this work? It seems that no informartion
+    // is set on the allocated exception.
+    void *exc = __cxa_allocate_exception(0);
+    __cxa_throw(exc, NULL, NULL);
+#endif
 }
 
 void
@@ -3586,6 +3593,21 @@ RoxorVM::pop_current_exception(int pos)
     GC_RELEASE(exc);
 //printf("POP (%d) %p %s\n", pos, (void *)exc, RSTRING_PTR(rb_inspect(exc)));
 }
+
+#if !__LP64__
+extern "C"
+void
+rb_rb2oc_exc_handler(void)
+{
+    VALUE exc = GET_VM()->current_exception();
+    if (exc != Qnil) {
+	objc_exception_throw(exc);
+    }
+    else {
+	__cxa_rethrow();
+    }
+}
+#endif
 
 static void
 prepare_exception_bt(VALUE exc)
