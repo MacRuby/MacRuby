@@ -7,7 +7,9 @@ describe "NameError" do
 end
 
 describe "NameError.new" do
-  it "NameError.new should take optional name argument" do
-    NameError.new("msg","name").name.should == "name"
+  not_compliant_on :macruby do
+    it "NameError.new should take optional name argument" do
+      NameError.new("msg","name").name.should == "name"
+    end
   end
 end

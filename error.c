@@ -716,7 +716,15 @@ name_err_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 static VALUE
 name_err_name(VALUE self, SEL sel)
 {
-    return rb_attr_get(self, rb_intern("name"));
+    VALUE name = rb_attr_get(self, rb_intern("name"));
+    // 1. Ensure that we always return a string, because this might be called
+    //    by Objective-C code that expects it to return the exception name.
+    // 2. When there is a name, prepend it with an explanation that this is in
+    //    fact a NameError. Otherwise Objective-C code that expects the
+    //    exception name might result in a name being printed that doesn't make
+    //    sense.
+    return name == Qnil ? rb_str_new2("NameError") :
+	rb_sprintf("NameError for name: %s", RSTRING_PTR(name));
 }
 
 /*
