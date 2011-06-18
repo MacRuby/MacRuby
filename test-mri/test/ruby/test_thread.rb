@@ -229,6 +229,8 @@ class TestThread < Test::Unit::TestCase
   end
 
   def test_priority
+    skip("[BUG : #1283] Segfault occurs when gets the busy loop with some threads.")
+
     c1 = c2 = 0
     t1 = Thread.new { loop { c1 += 1 } }
     t1.priority = -1

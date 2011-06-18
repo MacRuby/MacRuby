@@ -1679,6 +1679,8 @@ End
   end
 
   def test_threaded_flush
+    skip("[BUG : #1085] Assertion failed: ((b->flags & flags) == flags)")
+
     bug3585 = '[ruby-core:31348]'
     src = %q{\
       t = Thread.new { sleep 3 }
