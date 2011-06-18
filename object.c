@@ -577,6 +577,10 @@ rb_obj_is_kind_of(VALUE obj, VALUE c)
 	return Qtrue;
     }
 
+    if (c == rb_eException && cl == (VALUE)objc_getClass("NSException")) {
+    	return Qtrue;
+    }
+
     if (RCLASS_META(cl)) {
 	is_module = true;
     }

@@ -7,7 +7,7 @@ describe "An Objective-C exception" do
     begin
       @line = __LINE__ + 1
       NSArray.array.objectAtIndex(0)
-    rescue NSObject => e
+    rescue Exception => e
       @exception = e
     end
   end
