@@ -330,6 +330,7 @@ rary_initialize(VALUE ary, SEL sel, int argc, VALUE *argv)
 
     const long len = NUM2LONG(size);
     assert_ary_len(len);
+    rary_resize(ary, len);
     if (rb_block_given_p()) {
 	if (argc == 2) {
 	    rb_warn("block supersedes default value argument");
@@ -344,7 +345,6 @@ rary_initialize(VALUE ary, SEL sel, int argc, VALUE *argv)
 	}
     }
     else {
-	rary_resize(ary, len);
 	for (long i = 0; i < len; i++) {
 	    rary_store(ary, i, val);
 	}
