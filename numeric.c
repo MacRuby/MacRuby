@@ -171,32 +171,32 @@ do_coerce(VALUE *x, VALUE *y, int err)
 	if (err) {
 	    rb_raise(rb_eTypeError, "coerce must return [x, y]");
 	}
-	return Qfalse;
+	return FALSE;
     }
 
     *x = RARRAY_AT(ary, 0);
     *y = RARRAY_AT(ary, 1);
-    return Qtrue;
+    return TRUE;
 }
 
 VALUE
 rb_num_coerce_bin(VALUE x, VALUE y, ID func)
 {
-    do_coerce(&x, &y, Qtrue);
+    do_coerce(&x, &y, TRUE);
     return rb_funcall(x, func, 1, y);
 }
 
 VALUE
 rb_objc_num_coerce_bin(VALUE x, VALUE y, SEL sel)
 {
-    do_coerce(&x, &y, Qtrue);
+    do_coerce(&x, &y, TRUE);
     return rb_vm_call(x, sel, 1, &y);
 }
 
 VALUE
 rb_num_coerce_cmp(VALUE x, VALUE y, ID func)
 {
-    if (do_coerce(&x, &y, Qfalse)) {
+    if (do_coerce(&x, &y, FALSE)) {
 	return rb_funcall(x, func, 1, y);
     }
     return Qnil;
@@ -205,7 +205,7 @@ rb_num_coerce_cmp(VALUE x, VALUE y, ID func)
 VALUE
 rb_objc_num_coerce_cmp(VALUE x, VALUE y, SEL sel)
 {
-    if (do_coerce(&x, &y, Qfalse)) {
+    if (do_coerce(&x, &y, FALSE)) {
 	return rb_vm_call(x, sel, 1, &y);
     }
     return Qnil;
@@ -229,7 +229,7 @@ rb_objc_num_coerce_relop(VALUE x, VALUE y, SEL sel)
 {
     VALUE c, x0 = x, y0 = y;
 
-    if (!do_coerce(&x, &y, Qfalse) ||
+    if (!do_coerce(&x, &y, FALSE) ||
 	NIL_P(c = rb_vm_call(x, sel, 1, &y))) {
 	rb_cmperr(x0, y0);
 	return Qnil;		/* not reached */
@@ -304,7 +304,7 @@ num_uminus(VALUE num, SEL sel)
     VALUE zero;
 
     zero = INT2FIX(0);
-    do_coerce(&zero, &num, Qtrue);
+    do_coerce(&zero, &num, TRUE);
 
     return rb_vm_call(zero, selMINUS, 1, &num);
 }
