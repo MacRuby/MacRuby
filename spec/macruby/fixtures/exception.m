@@ -5,9 +5,14 @@
 
 @implementation TestException
 
-+ (void)raiseObjCException
++ (NSException *)catchObjCException
 {
-    [NSException raise:@"SinkingShipException" format:@"the ship is sinking!"];
+    @try {
+	[NSException raise:@"SinkingShipException" format:@"the ship is sinking!"];
+    }
+    @catch (id e) {
+	return e;
+    }
 }
 
 + (id)catchRubyException:(id)obj

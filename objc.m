@@ -499,15 +499,36 @@ rb_obj_imp_isaForAutonotifying(void *rcv, SEL sel)
 
 @implementation NSException (MacRuby)
 
-- (NSString *)message
-{
-  return [self reason];
++ (void)overrideNameAndReasonImplementations {
+  Method m1, m2;
+  m1 = class_getInstanceMethod(self, @selector(name));
+  m2 = class_getInstanceMethod(self, @selector(_name_before_macruby));
+  method_exchangeImplementations(m1, m2);
+  m1 = class_getInstanceMethod(self, @selector(reason));
+  m2 = class_getInstanceMethod(self, @selector(_reason_before_macruby));
+  method_exchangeImplementations(m1, m2);
 }
 
-- (NSArray *)backtrace
-{
-  VALUE rb_bt = rb_attr_get((VALUE)self, rb_intern("bt"));
-  return rb_bt == Qnil ? [self callStackSymbols] : (NSArray *)rb_bt;
++ (void)load {
+  [self overrideNameAndReasonImplementations];
+}
+
+- (NSString *)_name_before_macruby {
+  NSString *str = [self _name_before_macruby]; // this is the original imp
+  if (str == nil) {
+    return (NSString *)rb_class_name(CLASS_OF((VALUE)self));
+  } else {
+    return str;
+  }
+}
+
+- (NSString *)_reason_before_macruby {
+  NSString *str = [self _reason_before_macruby]; // this is the original imp
+  if (str == nil) {
+    return (NSString *)rb_vm_call((VALUE)self, @selector(message), 0, NULL);
+  } else {
+    return str;
+  }
 }
 
 @end

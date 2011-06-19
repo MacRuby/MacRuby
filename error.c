@@ -427,14 +427,27 @@ exc_exception(VALUE self, SEL sel, int argc, VALUE *argv)
  *
  * Returns exception's message (or the name of the exception if
  * no message is set).
+ *
+ * Note that on MacRuby this will return the NSException#reason before it will
+ * return the +name+.
+ *
  */
 
 static VALUE
 exc_to_s(VALUE exc, SEL sel)
 {
     VALUE mesg = rb_attr_get(exc, rb_intern("mesg"));
-
-    if (NIL_P(mesg)) return rb_class_name(CLASS_OF(exc));
+    if (NIL_P(mesg)) {
+	// first see if it's a NSException with a reason string
+	SEL reasonSel = sel_registerName("_reason_before_macruby");
+	id reason = objc_msgSend((id)exc, reasonSel);
+	if (reason != nil) {
+	    mesg = (VALUE)reason;
+	} else {
+	    // or return the class name, which is what MRI does
+	    return rb_class_name(CLASS_OF(exc));
+	}
+    }
     if (OBJ_TAINTED(exc)) OBJ_TAINT(mesg);
     return mesg;
 }
@@ -510,15 +523,27 @@ exc_inspect(VALUE exc, SEL sel)
  *     prog.rb:2:in `a'
  *     prog.rb:6:in `b'
  *     prog.rb:10
+ *
+ *  Note that on MacRuby this will return the NSException#callStackSymbols in
+ *  case there's no Ruby backtrace.
 */
 
 static VALUE
 exc_backtrace(VALUE exc, SEL sel)
 {
     static ID bt;
-
     if (!bt) bt = rb_intern("bt");
-    return rb_attr_get(exc, bt);
+
+    VALUE res = rb_attr_get(exc, bt);
+    if (res == Qnil) {
+	SEL symbolsSel = sel_registerName("callStackSymbols");
+	id symbols = objc_msgSend((id)exc, symbolsSel);
+	if (symbols != nil) {
+	    res = (VALUE)symbols;
+	}
+    }
+
+    return res;
 }
 
 VALUE
@@ -597,19 +622,6 @@ exc_equal(VALUE exc, SEL sel, VALUE obj)
         return Qfalse;
     }
     return Qtrue;
-}
-
-static VALUE
-exc_name(VALUE exc, SEL sel)
-{
-    return rb_class_name(CLASS_OF(exc));
-}
-
-static VALUE
-exc_reason(VALUE exc, SEL sel)
-{
-    SEL sel_message = sel_registerName("message");
-    return rb_vm_call(exc, sel_message, 0, NULL);
 }
 
 /*
@@ -1094,7 +1106,9 @@ errno_code(VALUE self, SEL sel)
 void
 Init_Exception(void)
 {
-    rb_eException   = rb_define_class("Exception", (VALUE)objc_getClass("NSException"));
+    rb_eException = (VALUE)objc_getClass("NSException");
+    rb_const_set(rb_cObject, rb_intern("Exception"), rb_eException);
+
     rb_objc_define_method(*(VALUE *)rb_eException, "new", rb_class_new_instance_imp, -1);
     rb_objc_define_method(*(VALUE *)rb_eException, "exception", rb_class_new_instance_imp, -1);
     rb_objc_define_method(rb_eException, "exception", exc_exception, -1);
@@ -1105,9 +1119,6 @@ Init_Exception(void)
     rb_objc_define_method(rb_eException, "inspect", exc_inspect, 0);
     rb_objc_define_method(rb_eException, "backtrace", exc_backtrace, 0);
     rb_objc_define_method(rb_eException, "set_backtrace", exc_set_backtrace, 1);
-    // MacRuby specific addition
-    rb_objc_define_method(rb_eException, "name", exc_name, 0);
-    rb_objc_define_method(rb_eException, "reason", exc_reason, 0);
 
     rb_eSystemExit  = rb_define_class("SystemExit", rb_eException);
     rb_objc_define_method(rb_eSystemExit, "initialize", exit_initialize, -1);

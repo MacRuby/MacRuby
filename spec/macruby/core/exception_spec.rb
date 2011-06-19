@@ -13,12 +13,23 @@ describe "An Objective-C exception" do
   end
 
   it "can be catched from Ruby" do
+    @exception.class.should == Exception
     @exception.class.should == NSException
   end
 
-  it "returns the `reason' from #message and `callStackSymbols' from #backtrace" do
+  it "returns the `reason' from #message" do
     @exception.message.should == "*** -[NSArray objectAtIndex:]: index (0) beyond bounds (0)"
-    @exception.backtrace.first.should == "#{__FILE__}:#{@line}:in `block'"
+  end
+
+  describe "returned from Objective-C code" do
+    it "returns the `callStackSymbols' from #backtrace" do
+      backtrace = TestException.catchObjCException.backtrace
+      backtrace.class.should == Array
+      entry = backtrace.find do |line|
+        line.include?('exception.bundle') && line.include?('+[TestException catchObjCException]')
+      end
+      entry.should_not == nil
+    end
   end
 end
 
