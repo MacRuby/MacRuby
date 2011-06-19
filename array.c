@@ -942,14 +942,36 @@ rary_splice(VALUE ary, long beg, long len, VALUE rpl)
 	}
     }
     else if (len == rlen) {
-	for (long i = 0; i < len; i++) {
-	    rary_elt_set(ary, beg + i, rb_ary_elt(rpl, i));
-	}	
+	if (rlen > 0 && IS_RARY(rpl)) {
+	    GC_MEMMOVE(&RARY(ary)->elements[RARY(ary)->beg + beg],
+		       &RARY(rpl)->elements[RARY(rpl)->beg],
+		       sizeof(VALUE) * len);
+	}
+	else {
+	    for (long i = 0; i < len; i++) {
+		rary_elt_set(ary, beg + i, rb_ary_elt(rpl, i));
+	    }
+	}
     }
     else {
-	rary_erase(ary, beg, len);
-	for (long i = 0; i < rlen; i++) {
-	    rary_insert(ary, beg + i, rb_ary_elt(rpl, i));
+	if (rlen > 0 && IS_RARY(rpl)) {
+	    long newlen = RARY(ary)->len + rlen - len;
+
+	    rary_reserve(ary, newlen);
+	    GC_MEMMOVE(&RARY(ary)->elements[RARY(ary)->beg + beg + rlen],
+		       &RARY(ary)->elements[RARY(ary)->beg + beg + len],
+		       sizeof(VALUE) * (RARY(ary)->len - (beg + len)));
+
+	    GC_MEMMOVE(&RARY(ary)->elements[RARY(ary)->beg + beg],
+		       rary_ptr(rpl),
+		       sizeof(VALUE) * rlen);
+	    RARY(ary)->len = newlen;
+	}
+	else {
+	    rary_erase(ary, beg, len);
+	    for (long i = 0; i < rlen; i++) {
+		rary_insert(ary, beg + i, rb_ary_elt(rpl, i));
+	    }
 	}
     }
 }
