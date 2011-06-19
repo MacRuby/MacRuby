@@ -390,9 +390,9 @@ rary_insert(VALUE ary, long idx, VALUE val)
     }
     else if (idx < RARY(ary)->len) {
 	rary_reserve(ary, RARY(ary)->len + 1);
-	for (size_t i = RARY(ary)->len; i > idx; i--) {
-	    rary_elt_set(ary, i, rary_elt(ary, i - 1));
-	}
+	GC_MEMMOVE(&RARY(ary)->elements[RARY(ary)->beg + idx + 1],
+		   &RARY(ary)->elements[RARY(ary)->beg + idx],
+		   sizeof(VALUE) * (RARY(ary)->len - idx));
 	rary_elt_set(ary, idx, val);
 	RARY(ary)->len++;
     }
