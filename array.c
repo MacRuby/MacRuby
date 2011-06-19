@@ -422,10 +422,11 @@ ary_shared_first(int argc, VALUE *argv, VALUE ary, bool last, bool remove)
     }
 
     VALUE result = rb_ary_new();
-    for (long i = 0; i < n; i++) {
-	VALUE item = rary_elt(ary, i + offset);
-	rary_push(result, item);
-    }
+    rary_reserve(result, n);
+    GC_MEMMOVE(rary_ptr(result),
+	       &RARY(ary)->elements[RARY(ary)->beg + offset],
+	       sizeof(VALUE) * n);
+    RARY(result)->len = n;
     if (remove) {
 	for (long i = 0; i < n; i++) {
 	    rary_erase(ary, offset, 1);
