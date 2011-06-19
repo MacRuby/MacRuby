@@ -6873,9 +6873,6 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
     }
 
 #if !__LP64__
-    // TODO so should we just use the body of rb_rb2oc_exc_handler here directly?
-    // Because we no longer need to convert the exception, just throw it.
-
     // The 32-bit Objective-C runtime doesn't use C++ exceptions, therefore
     // we must convert Ruby exceptions to Objective-C ones.
     bb = rescue_invoke_bb;

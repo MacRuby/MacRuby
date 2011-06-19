@@ -3560,8 +3560,6 @@ __vm_raise(void)
     // In 64-bit, an Objective-C exception is a C++ exception.
     objc_exception_throw((id)rb_exc);
 #else
-    // TODO how does this work? It seems that no informartion
-    // is set on the allocated exception.
     void *exc = __cxa_allocate_exception(0);
     __cxa_throw(exc, NULL, NULL);
 #endif
