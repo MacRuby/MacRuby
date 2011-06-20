@@ -165,7 +165,7 @@ module RbConfig
   CONFIG["RDOCTARGET"] = "install-doc"
   CONFIG["cppflags"] = ""
   CONFIG["cflags"] = "$(optflags) $(debugflags) $(warnflags)"
-  CONFIG["optflags"] = "-O3"
+  CONFIG["optflags"] = "-O#{OPTZ_LEVEL}"
   CONFIG["debugflags"] = "-g"
   CONFIG["warnflags"] = "-Wall"
   CONFIG["LIBRUBY_LDSHARED"] = "/usr/bin/gcc -dynamiclib -undefined suppress -flat_namespace $(ARCH_FLAG)"

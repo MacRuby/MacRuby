@@ -20,6 +20,8 @@ void rb_objc_class_sync_version(Class klass, Class super_class);
 void rb_define_object_special_methods(VALUE klass);
 VALUE rb_class_new_instance_imp(VALUE, SEL, int, VALUE *);
 VALUE rb_make_singleton_class(VALUE super);
+VALUE rb_singleton_class_attached_object(VALUE klass);
+void rb_singleton_class_promote_for_gc(VALUE klass);
 
 #define RCLASS_IS_OBJECT_SUBCLASS    (1<<1)  /* class is a true RubyObject subclass */
 #define RCLASS_IS_RUBY_CLASS         (1<<2)  /* class was created from Ruby */
@@ -61,6 +63,20 @@ rb_class_get_mask(Class k)
 	e = e->next;
     }
     return 0;
+}
+
+static inline bool
+rb_class_erase_mask(Class k)
+{
+    rb_class_flags_cache_t *e = &rb_class_flags[rb_class_flags_hash(k)];
+    while (e != NULL) {
+	if (e->klass == k) {
+	    e->klass = 0;
+	    return true;
+	}
+	e = e->next;
+    }
+    return false;
 }
 
 static inline void

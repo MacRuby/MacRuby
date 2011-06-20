@@ -561,7 +561,7 @@ rb_objc_yield_classes(VALUE of)
 
 static void 
 rb_objc_recorder(task_t task, void *context, unsigned type_mask,
-		 vm_range_t *ranges, unsigned range_count)
+	vm_range_t *ranges, unsigned range_count)
 {
     struct rb_objc_recorder_context *ctx;
     vm_range_t *r, *end;
@@ -1056,4 +1056,37 @@ void
 rb_gc_register_address(VALUE *slot)
 {
     rb_global_variable(slot);
+}
+
+static void 
+print_memory_object(task_t task, void *context, unsigned type_mask,
+	vm_range_t *ranges, unsigned range_count)
+{
+    const size_t min_size = *(size_t *)context;
+    for (vm_range_t *r = ranges, *end = ranges + range_count; r < end; r++) {
+	const size_t size = auto_zone_size(__auto_zone, (void *)r->address);
+	if (size >= min_size) {
+	    printf("address %p size %ld rc %d layout type ",
+		    (void *)r->address, size,
+		    auto_zone_retain_count(__auto_zone, (void *)r->address));
+	    switch (auto_zone_get_layout_type(__auto_zone,
+			(void *)r->address)) {
+		case AUTO_OBJECT:
+		    printf("object (class %s)\n",
+			    class_getName(object_getClass((void *)r->address)));
+		    break;
+		default:
+		    printf("memory\n");
+		    break;
+	    }
+	}
+    }
+}
+
+void
+rb_print_memory_objects(size_t min_size)
+{
+    (((malloc_zone_t *)__auto_zone)->introspect->enumerator)(mach_task_self(),
+	(void *)&min_size, MALLOC_PTR_IN_USE_RANGE_TYPE,
+	(vm_address_t)__auto_zone, NULL, print_memory_object);
 }

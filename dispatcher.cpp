@@ -1311,7 +1311,7 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
 	    old_self = _old_self;
 	}
 	~Finally() {
-	    vm->pop_outer();
+	    vm->pop_outer(true);
 	    b->self = old_self;
 	    b->klass = old_class;
 	    vm->add_current_block(b);

@@ -18,6 +18,9 @@
 
 #define GetProcPtr(obj, ptr) GetCoreDataFromValue(obj, rb_vm_block_t, ptr)
 
+#define GetBindingPtr(obj, ptr) \
+    GetCoreDataFromValue((obj), rb_vm_binding_t, (ptr))
+
 VALUE rb_cUnboundMethod;
 VALUE rb_cMethod;
 VALUE rb_cBinding;
@@ -205,12 +208,14 @@ static VALUE
 binding_dup(VALUE self, SEL sel)
 {
     VALUE bindval = binding_alloc(rb_cBinding);
-#if 0 // TODO
-    rb_binding_t *src, *dst;
+    rb_vm_binding_t *src, *dst;
     GetBindingPtr(self, src);
     GetBindingPtr(bindval, dst);
-    dst->env = src->env;
-#endif
+    GC_WB(&dst->self, src->self);
+    GC_WB(&dst->next, src->next);
+    GC_WB(&dst->locals, src->locals);
+    GC_WB(&dst->outer_stack, src->outer_stack);
+    GC_WB(&dst->block, src->block);
     return bindval;
 }
 
@@ -226,7 +231,11 @@ VALUE
 rb_binding_new(void)
 {
     rb_vm_binding_t *bind = rb_vm_current_binding();
-    assert(bind != NULL);
+    if (bind == NULL) {
+	// Should very rarely happen (when the compiler does not generate a
+        // binding).
+	rb_raise(rb_eRuntimeError, "current binding not defined");
+    }
     return Data_Wrap_Struct(rb_cBinding, NULL, NULL, bind);
 }
 
@@ -1409,6 +1418,7 @@ proc_binding(VALUE self, SEL sel)
     binding->block = NULL;
     GC_WB(&binding->self, block->self);
     GC_WB(&binding->locals, block->locals);
+    binding->outer_stack = NULL;
 
     return Data_Wrap_Struct(rb_cBinding, NULL, NULL, binding);
 }

@@ -1,0 +1,61 @@
+GET_LOG_SEGFAULT = true
+DIR_RESULT       = "result"
+
+task :default => :test
+
+
+desc 'Run the entire suite of unit tests for MRI against MacRuby'
+task :test do
+  date    = Time.now.strftime('%Y-%m-%d-%H%M%S')
+  output  = "log_#{date}.txt"
+  error   = "crash_#{date}.txt"
+  opts    = ENV['opts'] || ""
+  macruby = ENV['ruby'] || "/usr/local/bin/macruby"
+
+  unless(File.directory?(DIR_RESULT))
+    Dir.mkdir(DIR_RESULT)
+  end
+
+  test_files = Dir.glob(File.join('test', '**/test_*'))
+  test_files.each do |file|
+    # run test
+    if(GET_LOG_SEGFAULT)
+      puts file
+      system "sh -c './bin/timeout -t 180 #{macruby} -r require_relative.rb #{file} --seed 0 #{opts} >> #{DIR_RESULT}/#{output} 2>&1' >> #{DIR_RESULT}/#{error} 2>&1"
+    else
+      system "./bin/timeout -t 180 #{macruby} -r require_relative.rb #{file} --seed 0 #{opts} 2>&1 | tee -a -i #{DIR_RESULT}/#{output}"
+    end
+
+    # kill watchdog
+    ps = `ps | grep sleep`
+    ps.each_line do |line|
+      info  = line.split(/\s+/)
+      pid   = info[0]
+      pname = info[3]
+
+      if(pname == "sleep")
+        system "kill -KILL #{pid}"
+      end
+    end
+  end
+
+end
+
+
+desc 'Kill any running MacRuby processes'
+task :kill do
+  require 'pp'
+
+  COMMAND = "ps aux | grep macruby"
+  result = `#{COMMAND}`
+
+  prc = result.split("\n")
+  pp prc
+  prc.each do |line|
+    unless(line =~ /#{COMMAND}/)
+      process = line.split(/\s+/)[1]
+      sh "kill -KILL #{process}"
+    end
+  end
+
+end

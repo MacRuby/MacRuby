@@ -1,4 +1,3 @@
-fails:Kernel#caller returns the current call stack
 fails:Kernel#caller in a Proc or eval returns the definition trace of a block when evaluated in a Proc binding
 fails:Kernel#caller in a Proc or eval returns the definition trace of a Proc
 fails:Kernel#caller in a Proc or eval returns the correct caller line from a called Proc
@@ -6,3 +5,4 @@ fails:Kernel#caller in a Proc or eval returns the correct definition line for a 
 fails:Kernel#caller in a Proc or eval begins with (eval) for caller(0) in eval
 fails:Kernel#caller in a Proc or eval begins with the eval's sender's sender for caller(4) in eval
 fails:Kernel#caller in a Proc or eval shows the current line in the calling block twice when evaled
+fails:Kernel.caller returns one entry per call, even for recursive methods

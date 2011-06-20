@@ -76,7 +76,6 @@ RoxorCompiler *RoxorCompiler::shared = NULL;
     __save_state(NODE *, ensure_node);\
     __save_state(bool, block_declaration);\
     __save_state(AllocaInst *, argv_buffer);\
-    __save_state(uint64_t, outer_mask);\
     __save_state(GlobalVariable *, outer_stack);
 
 #define restore_compiler_state() \
@@ -112,7 +111,6 @@ RoxorCompiler *RoxorCompiler::shared = NULL;
     __restore_state(ensure_node);\
     __restore_state(block_declaration);\
     __restore_state(argv_buffer);\
-    __restore_state(outer_mask);\
     __restore_state(outer_stack);
 
 #define reset_compiler_state() \
@@ -147,7 +145,6 @@ RoxorCompiler *RoxorCompiler::shared = NULL;
     ensure_node = NULL;\
     block_declaration = false;\
     argv_buffer = NULL;\
-    outer_mask = 0;\
     outer_stack = NULL;
 
 RoxorCompiler::RoxorCompiler(bool _debug_mode)
@@ -164,6 +161,7 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     fname = "";
     inside_eval = false;
     current_line = 0;
+    outer_stack_uses = false;
 
     reset_compiler_state();
 
@@ -243,7 +241,8 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     cvarGetFunc = get_function("vm_cvar_get");
     currentExceptionFunc = NULL;
     popExceptionFunc = NULL;
-    getSpecialFunc = get_function("vm_get_special");
+    getBackrefNth = NULL;
+    getBackrefSpecial = NULL;
     breakFunc = NULL;
     returnFromBlockFunc = NULL;
     returnedFromBlockFunc = get_function("vm_returned_from_block");
@@ -1533,23 +1532,30 @@ Value *
 RoxorCompiler::compile_constant_declaration(NODE *node, Value *val)
 {
     int flags = 0;
+    bool lexical_lookup = false;
 
     Value *args[5];
 
     if (node->nd_vid > 0) {
-	args[0] = compile_current_class();
+	lexical_lookup = true;
+	args[0] = nilVal;
 	args[1] = compile_id(node->nd_vid);
     }
     else {
 	assert(node->nd_else != NULL);
-	args[0] = compile_class_path(node->nd_else, &flags, NULL);
+	args[0] = compile_class_path(node->nd_else, &flags);
 	assert(node->nd_else->nd_mid > 0);
 	args[1] = compile_id(node->nd_else->nd_mid);
+	lexical_lookup = flags & DEFINE_OUTER;
     }
     args[2] = val;
-    args[3] = ConstantInt::get(Int8Ty,
-	    dynamic_class && (flags & DEFINE_OUTER) ? 1 : 0);
-    args[4] = compile_outer_stack();
+    args[3] = ConstantInt::get(Int8Ty, lexical_lookup ? 1 : 0);
+    if (lexical_lookup) {
+	args[4] = compile_outer_stack();
+    }
+    else {
+	args[4] = compile_const_pointer(NULL);
+    }
 
     CallInst::Create(setConstFunc, args, args + 5, "", bb);
 
@@ -1645,13 +1651,12 @@ RoxorCompiler::compile_const(ID id, Value *outer)
 
     Value *args[] = {
 	outer,
-	ConstantInt::get(Int64Ty, outer_mask),
 	compile_ccache(id),
 	compile_id(id),
 	ConstantInt::get(Int32Ty, flags),
 	compile_outer_stack()
     };
-    Instruction *insn = compile_protected_call(getConstFunc, args, args + 6);
+    Instruction *insn = compile_protected_call(getConstFunc, args, args + 5);
     attach_current_line_metadata(insn);
     return insn;
 }
@@ -1816,12 +1821,22 @@ RoxorCompiler::compile_defined_expression(NODE *node)
     Value *val = NULL;
     if (!expression) {
 	// Call the runtime.
+	Value *outer_stack_val;
+	if (type == DEFINED_CONST || type == DEFINED_LCONST) {
+	    if (current_mid != 0) {
+		outer_stack_uses = true;
+	    }
+	    outer_stack_val = compile_outer_stack();
+	}
+	else {
+	    outer_stack_val = compile_const_pointer(NULL);
+	}
 	Value *args[] = {
 	    self,
 	    ConstantInt::get(Int32Ty, type),
 	    what1 == NULL ? nilVal : what1,
 	    what2 == NULL ? nilVal : what2,
-	    compile_outer_stack()
+	    outer_stack_val
 	};
 	val = compile_protected_call(definedFunc, args, args + 5);
     }
@@ -2132,15 +2147,12 @@ RoxorCompiler::compile_set_has_ensure(Value *val)
 }
 
 Value *
-RoxorCompiler::compile_class_path(NODE *node, int *flags, int *outer_level)
+RoxorCompiler::compile_class_path(NODE *node, int *flags)
 {
     if (nd_type(node) == NODE_COLON3) {
 	// ::Foo
 	if (flags != NULL) {
 	    *flags = 0;
-	}
-	if (outer_level != NULL) {
-	    *outer_level = 0;
 	}
 	return compile_nsobject();
     }
@@ -2149,24 +2161,11 @@ RoxorCompiler::compile_class_path(NODE *node, int *flags, int *outer_level)
 	if (flags != NULL) {
 	    *flags = DEFINE_SUB_OUTER;
 	}
-	if (outer_level != NULL) {
-	    // Count the number of outers.
-	    int level = 0;
-	    NODE *n = node;
-	    while (n != NULL && nd_type(n) == NODE_COLON2) {
-		n = n->nd_head;
-		level++;
-	    }
-	    *outer_level = level;
-	}
 	return compile_node(node->nd_head);
     }
     else {
 	if (flags != NULL) {
 	    *flags = DEFINE_OUTER;
-	}
-	if (outer_level != NULL) {
-	    *outer_level = 0;
 	}
 	return compile_current_class();
     }
@@ -2639,23 +2638,25 @@ RoxorCompiler::compile_push_outer(Value *klass)
     return val;
 }
 
-Value *
-RoxorCompiler::compile_pop_outer(void)
+void
+RoxorCompiler::compile_pop_outer(bool need_release)
 {
     if (popOuterFunc == NULL) {
-	// rb_vm_outer_t *rb_vm_pop_outer(void)
+	// void rb_vm_pop_outer(unsigned char need_release)
 	popOuterFunc = cast<Function>(
-	    module->getOrInsertFunction("rb_vm_pop_outer", PtrTy, NULL));
+	    module->getOrInsertFunction("rb_vm_pop_outer",
+		    VoidTy, Int8Ty, NULL));
     }
-
-    return CallInst::Create(popOuterFunc, "", bb);
+    
+    Value *val = ConstantInt::get(Int8Ty, need_release ? 1 : 0);
+    CallInst::Create(popOuterFunc, val, "", bb);
 }
 
 Value *
 RoxorCompiler::compile_outer_stack(void)
 {
     if (outer_stack == NULL) {
-	return compile_const_pointer(NULL);
+	return compile_const_pointer(rb_vm_get_outer_stack());
     }
     return new LoadInst(outer_stack, "", bb);
 }
@@ -3423,6 +3424,22 @@ rescan_args:
     }
     params[3] = blockVal;
 
+    // If we are calling a method that needs a reference to the current outer,
+    // compile a reference to it.
+    if (!super_call
+	    && (sel == selEval
+		    || sel == selInstanceEval
+		    || sel == selClassEval
+		    || sel == selModuleEval
+		    || sel == selNesting
+		    || sel == selConstants
+		    || sel == selBinding)) {
+	if (current_mid != 0) {
+	    outer_stack_uses = true;
+	}
+	compile_set_current_outer();
+    }
+
     // If we are calling a method that needs a top-level binding object, let's
     // create it. (Note: this won't work if the method is aliased, but we can
     // live with that for now)
@@ -3438,18 +3455,6 @@ rescan_args:
     }
     else {
 	can_interpret = true;
-    }
-
-    // If we are calling a method that needs a reference to the current outer,
-    // compile a reference to it.
-    if (!super_call
-	&& (sel == selEval
-	    || sel == selInstanceEval
-	    || sel == selClassEval
-	    || sel == selModuleEval
-	    || sel == selNesting
-	    || sel == selConstants)) {
-	compile_set_current_outer();
     }
 
     // Can we optimize the call?
@@ -4022,7 +4027,6 @@ RoxorCompiler::compile_node0(NODE *node)
 		assert(node->nd_cpath != NULL);
 
 		Value *classVal = NULL;
-		int current_outer_level = 0;
 		if (nd_type(node) == NODE_SCLASS) {
 		    classVal =
 			compile_singleton_class(compile_node(node->nd_recv));
@@ -4045,8 +4049,7 @@ RoxorCompiler::compile_node0(NODE *node)
 		    }
 
 		    int flags = 0;
-		    Value *cpath = compile_class_path(node->nd_cpath, &flags,
-			&current_outer_level);
+		    Value *cpath = compile_class_path(node->nd_cpath, &flags);
 		    if (nd_type(node) == NODE_MODULE) {
 			flags |= DEFINE_MODULE;
 		    }
@@ -4083,6 +4086,7 @@ RoxorCompiler::compile_node0(NODE *node)
 			bool old_dynamic_class = dynamic_class;
 
 			GlobalVariable *old_outer_stack = outer_stack;
+			bool old_outer_stack_uses = outer_stack_uses;
 			compile_push_outer(classVal);
 
 			current_block_chain = false;
@@ -4099,12 +4103,8 @@ RoxorCompiler::compile_node0(NODE *node)
 			    = ivars_slots_cache;
 			old_ivars_slots_cache.clear();
 
-			// Increase the outer mask.
-			int old_outer_mask = outer_mask;
-			outer_mask <<= current_outer_level + 1;
-			for (int i = 0; i < current_outer_level; i++) {
-			    outer_mask |= (1 << (i + 1));
-			} 
+			std::vector<ID> old_dvars = dvars;
+			dvars.clear();
 
 			// Compile the scope.
 			DEBUG_LEVEL_INC();
@@ -4114,7 +4114,8 @@ RoxorCompiler::compile_node0(NODE *node)
 			GET_CORE()->optimize(f);
 			DEBUG_LEVEL_DEC();
 
-			outer_mask = old_outer_mask;
+			dvars = old_dvars;
+
 			ivars_slots_cache = old_ivars_slots_cache;
 			block_declaration = old_block_declaration;
 
@@ -4133,21 +4134,22 @@ RoxorCompiler::compile_node0(NODE *node)
 			params.push_back(compile_const_pointer(NULL));
 			val = compile_protected_call(f, params);
 			BasicBlock *normal_bb = bb;
-			outer_stack = old_outer_stack;
 
 			// The rescue block - restore context before
 			// propagating the exception.
 			bb = new_rescue_invoke_bb;
 			compile_landing_pad_header();
-			compile_pop_outer();
+			compile_pop_outer(!outer_stack_uses);
 			compile_set_current_scope(classVal, defaultScope);
 			compile_rethrow_exception();
 
 			// The normal block - restore context.
 			bb = normal_bb;
-			compile_pop_outer();
+			compile_pop_outer(!outer_stack_uses);
 			compile_set_current_scope(classVal, defaultScope);
 
+			outer_stack_uses = old_outer_stack_uses;
+			outer_stack = old_outer_stack;
 			dynamic_class = old_dynamic_class;
 			current_self = old_self;
 			current_opened_class = old_class;
@@ -4181,6 +4183,9 @@ RoxorCompiler::compile_node0(NODE *node)
 
 	case NODE_CONST:
 	    assert(node->nd_vid > 0);
+	    if (current_mid != 0) {
+		outer_stack_uses = true;
+	    }
 	    return compile_const(node->nd_vid, NULL);
 
 	case NODE_CDECL:
@@ -4469,9 +4474,22 @@ RoxorCompiler::compile_node0(NODE *node)
 	    return current_self;
 
 	case NODE_NTH_REF:
+	    if (getBackrefNth == NULL) {
+		getBackrefNth = cast<Function>(
+			module->getOrInsertFunction("rb_backref_nth_get",
+			    RubyObjTy, Int32Ty, NULL));
+	    }
+	    return CallInst::Create(getBackrefNth,
+		    ConstantInt::get(Int32Ty, node->nd_nth), "", bb);
+
 	case NODE_BACK_REF:
-	    return CallInst::Create(getSpecialFunc,
-		    ConstantInt::get(Int8Ty, (char)node->nd_nth), "", bb);
+	    if (getBackrefSpecial == NULL) {
+		getBackrefSpecial = cast<Function>(
+			module->getOrInsertFunction("rb_backref_special_get",
+			    RubyObjTy, Int32Ty, NULL));
+	    }
+	    return CallInst::Create(getBackrefSpecial,
+		    ConstantInt::get(Int32Ty, node->nd_nth), "", bb);
 
 	case NODE_BEGIN:
 	    can_interpret = true;
@@ -5064,14 +5082,6 @@ RoxorCompiler::compile_main_function(NODE *node, bool *can_interpret_p)
     should_interpret = true;
     can_interpret = false;
 
-    rb_vm_outer_t *o = rb_vm_get_outer_stack();
-    if (o != NULL) {
-	outer_stack = new GlobalVariable(*RoxorCompiler::module, PtrTy, false,
-					 GlobalValue::InternalLinkage,
-					 compile_const_pointer(o), "");
-	assert(outer_stack != NULL);
-    }
-    
     Value *val = compile_node(node);
     assert(Function::classof(val));
     Function *func =  cast<Function>(val);

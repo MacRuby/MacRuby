@@ -29,6 +29,7 @@ void Init_Math(void);
 void Init_marshal(void);
 void Init_Numeric(void);
 void Init_Object(void);
+void Init_Class(void);
 void Init_pack(void);
 void Init_Precision(void);
 void Init_Symbol(void);
@@ -65,6 +66,7 @@ rb_call_inits()
     Init_id();
     Init_var_tables();
     Init_Object();
+    Init_Class();
     Init_VM();
     Init_Encoding();
     Init_Comparable();

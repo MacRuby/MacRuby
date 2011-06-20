@@ -120,13 +120,13 @@ dln_load(const char *file, bool call_init)
 		goto failed;
 	    }
 	    /* Call the init code */
-	    (*init_fct)();
+	    rb_vm_dln_load(init_fct, NULL);
 	}
 	else {
 	    if (__mrep__ == NULL) {
 		rb_raise(rb_eLoadError, "Can't load %s: entry point function not located (this can happen when you load twice the same .rbo file with a different case on a case-insensitive filesystem)", file);
 	    }
-	    ((IMP)__mrep__)((id)rb_vm_top_self(), 0);
+	    rb_vm_dln_load(NULL, (IMP)__mrep__);
 	}
 
 	return handle;

@@ -1,3 +1,2 @@
 critical:TCPSocket.new connects to a listening server
 critical:TCPSocket.new has an address once it has connected to a listening server
-fails:TCPSocket.new with a running server connects to a server when passed local_host and local_port arguments

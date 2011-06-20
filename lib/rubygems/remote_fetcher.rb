@@ -274,7 +274,7 @@ class Gem::RemoteFetcher
     url = NSURL.URLWithString(uri.to_s)
     data = NSMutableData.dataWithContentsOfURL(url)
     if data.nil?
-      raise Gem::RemoteFetcher::FetchError, "error when fetching data from #{uri}"
+      raise Gem::RemoteFetcher::FetchError.new('error when fetching data', uri)
     end
     say "OK" if Gem.configuration.really_verbose
     return String.new(data)

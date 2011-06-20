@@ -166,3 +166,10 @@ The following environment variables might help you debug easy bugs.
 
 * To symbolize a Ruby address (named as ??) in the backtrace:
   (gdb) p (void)rb_symbolicate(<address>)
+
+* To print the addresses of all memory objects of a given minimum size (useful
+  when debugging memory leaks):
+  (gdb) p (void)rb_print_memory_objects(<size>)
+
+* To print the GC references of a given memory object:
+  (gdb) info gc-references <address>

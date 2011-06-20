@@ -1,0 +1,27 @@
+* About
+
+  This is a unit test for MacRuby which based on Ruby 1.9.2.
+
+* Test
+
+  Execute the unit test following commands.
+  $ rake
+
+  Test results are stored in "result" directory.
+
+* Bootstraptest
+
+  Execute the unit test following commands.
+  $ cd bootstraptest
+  $ ./runner.rb
+
+* Attention
+
+  1. MacRuby zombie processes might be generated after running the tests.
+     To kill all MacRuby process:
+     $ rake kill
+
+  2. Your "~/.gemrc" and "~/.gem" files might be changed after running the tests.
+     Please back up beforehand.
+
+  3. Now, it takes around 1 hour to run the tests.

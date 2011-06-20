@@ -24,7 +24,7 @@ require 'rbconfig'
 # :bundle:: boolean indicating the output should be compiled, assembled, and
 #           linked as a loadable object file
 # :dont_link:: boolean indicating if the output file should be linked
-# :archs:: array of architectures to compile for; see Compiler::VALID_ARCHS
+# :archs:: array of architectures to compile for; see MacRuby::Compiler::VALID_ARCHS
 # :files:: array of files to compile
 # :internal:: used internally by the MacRuby build system to set miniruby
 #             as the compiler
@@ -34,14 +34,23 @@ require 'rbconfig'
 #
 # becomes:
 #   load File.join(RbConfig::CONFIG['bindir'], 'macrubyc')
-#   instance = Compiler.new( bundle: true, output: 'program.rbo', files: ['program.rb'] )
-#   instance.run
+#   MacRuby::Compiler.compile_file('program.rb')
 
-class Compiler
+class MacRuby::Compiler
   VALID_ARCHS = ['i386', 'x86_64']
 
   # Misc.
   TMPDIR = (ENV['TMPDIR'] or '/tmp')
+
+  def self.compile_file(file, opts={})
+    base = File.basename(file, '.rb')
+    obj  = File.join(File.dirname(file), base + '.rbo')
+    new({
+          bundle: true,
+           files: [file],
+          output: obj
+        }.merge(opts)).run
+  end
 
   def locate(progname, must_be_in_bindir=false)
     if ['.', '/'].include?(progname[0])
@@ -54,7 +63,7 @@ class Compiler
       path = File.join(RbConfig::CONFIG['bindir'], progname)
       unless File.exist?(path)
         if must_be_in_bindir
-          raise "Can't locate program `#{progname}' in #{Config::CONFIG['bindir']}"
+          raise "Can't locate program `#{progname}' in #{RbConfig::CONFIG['bindir']}"
         end
         path = `which #{progname}`.strip
         raise "Can't locate program `#{progname}'" if path.empty?

@@ -37,9 +37,9 @@ rary_reserve(VALUE ary, size_t newlen)
 	    else {
 		newlen -= rary->beg;
 	    }
-	    for (size_t i = 0; i < rary->len; i++) {
-		GC_WB(&rary->elements[i], rary->elements[rary->beg + i]);
-	    }
+	    GC_MEMMOVE(&rary->elements[0],
+		       &rary->elements[rary->beg],
+		       sizeof(VALUE) * rary->len);
 	    rary->beg = 0;
 	}
 	if (newlen > rary->cap) {
@@ -78,9 +78,9 @@ rary_erase(VALUE ary, size_t idx, size_t len)
 	}
     }
     else {
-	for (size_t i = idx; i < RARY(ary)->len - len; i++) {
-	    rary_elt_set(ary, i, rary_elt(ary, i + len));
-	}
+	GC_MEMMOVE(&RARY(ary)->elements[RARY(ary)->beg + idx],
+		   &RARY(ary)->elements[RARY(ary)->beg + idx + len],
+		   sizeof(VALUE) * (RARY(ary)->len - idx - len));
 	for (size_t i = 0; i < len; i++) {
 	    rary_elt_set(ary, RARY(ary)->len - i - 1, Qnil);
 	}
@@ -106,10 +106,9 @@ rary_concat(VALUE ary, VALUE other, size_t beg, size_t len)
 {
     rary_reserve(ary, RARY(ary)->len + len);
     if (IS_RARY(other)) {
-	for (size_t i = 0; i < len; i++) {
-	    rary_elt_set(ary, i + RARY(ary)->len,
-		    rary_elt(other, beg + i));
-	}
+	GC_MEMMOVE(&RARY(ary)->elements[RARY(ary)->beg + RARY(ary)->len],
+		   &RARY(other)->elements[RARY(other)->beg + beg],
+		   sizeof(VALUE) * len);
     }
     else {
 	for (size_t i = 0; i < len; i++) {
@@ -219,9 +218,10 @@ rb_ary_new4(long n, const VALUE *elts)
 {
     VALUE ary = rb_ary_new2(n);
     if (n > 0 && elts != NULL) {
-	for (long i = 0; i < n; i++) {
-	    rary_push(ary, elts[i]);
-	}
+	GC_MEMMOVE(rary_ptr(ary),
+		   elts,
+		   sizeof(VALUE) * n);
+	RARY(ary)->len = n;
     }
     return ary;
 }
@@ -330,6 +330,7 @@ rary_initialize(VALUE ary, SEL sel, int argc, VALUE *argv)
 
     const long len = NUM2LONG(size);
     assert_ary_len(len);
+    rary_resize(ary, len);
     if (rb_block_given_p()) {
 	if (argc == 2) {
 	    rb_warn("block supersedes default value argument");
@@ -344,7 +345,6 @@ rary_initialize(VALUE ary, SEL sel, int argc, VALUE *argv)
 	}
     }
     else {
-	rary_resize(ary, len);
 	for (long i = 0; i < len; i++) {
 	    rary_store(ary, i, val);
 	}
@@ -390,9 +390,9 @@ rary_insert(VALUE ary, long idx, VALUE val)
     }
     else if (idx < RARY(ary)->len) {
 	rary_reserve(ary, RARY(ary)->len + 1);
-	for (size_t i = RARY(ary)->len; i > idx; i--) {
-	    rary_elt_set(ary, i, rary_elt(ary, i - 1));
-	}
+	GC_MEMMOVE(&RARY(ary)->elements[RARY(ary)->beg + idx + 1],
+		   &RARY(ary)->elements[RARY(ary)->beg + idx],
+		   sizeof(VALUE) * (RARY(ary)->len - idx));
 	rary_elt_set(ary, idx, val);
 	RARY(ary)->len++;
     }
@@ -422,10 +422,11 @@ ary_shared_first(int argc, VALUE *argv, VALUE ary, bool last, bool remove)
     }
 
     VALUE result = rb_ary_new();
-    for (long i = 0; i < n; i++) {
-	VALUE item = rary_elt(ary, i + offset);
-	rary_push(result, item);
-    }
+    rary_reserve(result, n);
+    GC_MEMMOVE(rary_ptr(result),
+	       &RARY(ary)->elements[RARY(ary)->beg + offset],
+	       sizeof(VALUE) * n);
+    RARY(result)->len = n;
     if (remove) {
 	for (long i = 0; i < n; i++) {
 	    rary_erase(ary, offset, 1);
@@ -941,14 +942,36 @@ rary_splice(VALUE ary, long beg, long len, VALUE rpl)
 	}
     }
     else if (len == rlen) {
-	for (long i = 0; i < len; i++) {
-	    rary_elt_set(ary, beg + i, rb_ary_elt(rpl, i));
-	}	
+	if (rlen > 0 && IS_RARY(rpl)) {
+	    GC_MEMMOVE(&RARY(ary)->elements[RARY(ary)->beg + beg],
+		       &RARY(rpl)->elements[RARY(rpl)->beg],
+		       sizeof(VALUE) * len);
+	}
+	else {
+	    for (long i = 0; i < len; i++) {
+		rary_elt_set(ary, beg + i, rb_ary_elt(rpl, i));
+	    }
+	}
     }
     else {
-	rary_erase(ary, beg, len);
-	for (long i = 0; i < rlen; i++) {
-	    rary_insert(ary, beg + i, rb_ary_elt(rpl, i));
+	if (rlen > 0 && IS_RARY(rpl)) {
+	    long newlen = RARY(ary)->len + rlen - len;
+
+	    rary_reserve(ary, newlen);
+	    GC_MEMMOVE(&RARY(ary)->elements[RARY(ary)->beg + beg + rlen],
+		       &RARY(ary)->elements[RARY(ary)->beg + beg + len],
+		       sizeof(VALUE) * (RARY(ary)->len - (beg + len)));
+
+	    GC_MEMMOVE(&RARY(ary)->elements[RARY(ary)->beg + beg],
+		       rary_ptr(rpl),
+		       sizeof(VALUE) * rlen);
+	    RARY(ary)->len = newlen;
+	}
+	else {
+	    rary_erase(ary, beg, len);
+	    for (long i = 0; i < rlen; i++) {
+		rary_insert(ary, beg + i, rb_ary_elt(rpl, i));
+	    }
 	}
     }
 }
@@ -1189,23 +1212,6 @@ rary_dup(VALUE ary, SEL sel)
 	OBJ_UNTRUST(dup);
     }
     return dup;
-}
-
-static VALUE
-rary_clone(VALUE ary, SEL sel)
-{
-    VALUE clone = rary_copy(ary, CLASS_OF(ary));
-
-    if (OBJ_TAINTED(ary)) {
-	OBJ_TAINT(clone);
-    }
-    if (OBJ_UNTRUSTED(ary)) {
-	OBJ_UNTRUST(clone);
-    }
-    if (OBJ_FROZEN(ary)) {
-	OBJ_FREEZE(clone);
-    }
-    return clone;
 }
 
 /*
@@ -2184,8 +2190,10 @@ rary_replace(VALUE rcv, SEL sel, VALUE other)
 {
     rary_modify(rcv);
     other = to_ary(other);
-    rary_remove_all(RARY(rcv));
-    rary_concat(rcv, other, 0, RARRAY_LEN(other));
+    if (rcv != other) {
+	rary_remove_all(RARY(rcv));
+	rary_concat(rcv, other, 0, RARRAY_LEN(other));
+    }
     return rcv;
 }
 
@@ -3665,6 +3673,26 @@ imp_rary_objectAtIndex(void *rcv, SEL sel, CFIndex idx)
     return RB2OC(rary_elt((VALUE)rcv, idx));
 }
 
+/*
+ *  call-seq:
+ *     Array(arg)    => array
+ *  
+ *  Returns <i>arg</i> as an <code>Array</code>. First tries to call
+ *  <i>arg</i><code>.to_ary</code>, then <i>arg</i><code>.to_a</code>.
+ *     
+ *     Array(1..5)   #=> [1, 2, 3, 4, 5]
+ */
+
+VALUE
+rb_f_array(VALUE obj, SEL sel, VALUE arg)
+{
+    VALUE ary = rb_Array(arg);
+    if (!IS_RARY(ary)) {
+	ary = rary_copy(ary, rb_cRubyArray);	
+    }
+    return ary;
+}
+
 static void
 imp_rary_insertObjectAtIndex(void *rcv, SEL sel, void *obj, CFIndex idx)
 {
@@ -3736,7 +3764,6 @@ Init_Array(void)
     rb_objc_define_method(rb_cRubyArray, "initialize_copy", rary_replace, 1);
     rb_objc_define_method(rb_cRubyArray, "to_a", rary_to_a, 0);
     rb_objc_define_method(rb_cRubyArray, "dup", rary_dup, 0);
-    rb_objc_define_method(rb_cRubyArray, "clone", rary_clone, 0);
     rb_objc_define_method(rb_cRubyArray, "to_s", rary_inspect, 0);
     rb_objc_define_method(rb_cRubyArray, "inspect", rary_inspect, 0);
     rb_objc_define_method(rb_cRubyArray, "==", rary_equal, 1);

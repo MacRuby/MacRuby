@@ -746,3 +746,14 @@ assert ':ok', %{
   end
   foo {}
 }, :known_bug => true
+
+assert ':ok', %{
+  def foo
+    yield
+  end
+  def bar
+    foo { yield }
+    :nok
+  end
+  p bar { break :ok }
+}

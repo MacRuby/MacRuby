@@ -364,6 +364,7 @@ long rb_uchar_strtol(UniChar *chars, long chars_len, long pos,
 	long *end_offset);
 void rb_str_force_encoding(VALUE str, rb_encoding_t *encoding);
 rb_str_t *str_need_string(VALUE str);
+rb_str_t *str_new_from_cfstring(CFStringRef source);
 rb_str_t *replacement_string_for_encoding(rb_encoding_t* enc);
 void str_replace_with_string(rb_str_t *self, rb_str_t *source);
 
@@ -376,10 +377,19 @@ str_check_ascii_compatible(VALUE str)
     }
 }
 
+VALUE rb_f_string(VALUE, SEL, VALUE);
 VALUE rstr_new_path(const char *path);
 
 const char *nsstr_cstr(VALUE str);
 long nsstr_clen(VALUE str);
+
+static inline id
+rstr_only(id rcv, SEL sel)
+{
+    rb_raise(rb_eArgError, "method `%s' does not work on NSStrings",
+            sel_getName(sel));
+    return rcv; // never reached
+}
 
 #if defined(__cplusplus)
 } // extern "C"

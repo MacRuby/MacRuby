@@ -19,10 +19,8 @@ class Gem::Commands::InstallCommand < Gem::Command
 
   def initialize
     defaults = Gem::DependencyInstaller::DEFAULT_OPTIONS.merge({
-      #:generate_rdoc     => true,
-      #:generate_ri       => true,
-      # XXX MACRUBY rdoc/ri generation disabled by default
-      :generate_rdoc => false, :generate_ri => false,
+      :generate_rdoc     => true,
+      :generate_ri       => true,
       :format_executable => false,
       :version           => Gem::Requirement.default,
     })

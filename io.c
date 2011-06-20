@@ -66,6 +66,8 @@ VALUE rb_default_rs;
 static VALUE argf;
 
 static ID id_write, id_read, id_getc, id_flush, id_encode, id_readpartial;
+static SEL sel_to_open;
+static SEL sel_close;
 
 struct argf {
     VALUE filename, current_file;
@@ -382,6 +384,18 @@ io_close(rb_io_t *io_struct, bool close_read, bool close_write)
 	CLOSE_FD(io_struct->fd);
 	io_struct->fd = -1;
     }
+}
+
+static VALUE
+io_call_close(VALUE io)
+{
+    return rb_vm_call(io, sel_close, 0, 0);
+}
+
+static VALUE
+io_close2(VALUE io)
+{
+    return rb_rescue(io_call_close, io, 0, 0);
 }
 
 static VALUE
@@ -990,7 +1004,7 @@ rb_io_read_update(rb_io_t *io_struct, long len)
     lseek(io_struct->read_fd, io_struct->buf_offset, SEEK_SET);
 
     if (io_struct->buf_offset == CFDataGetLength(io_struct->buf)) {
-	CFDataSetLength(io_struct->buf, 0);
+	GC_WB(&io_struct->buf, NULL);
 	io_struct->buf_offset = 0;
     }
 }
@@ -1233,7 +1247,8 @@ rb_io_sysread(VALUE self, SEL sel, int argc, VALUE *argv)
 
     if (!NIL_P(buffer)) {
 	// TODO: throw an error if the provided string can't be modified in place
-	buffer = rb_str_bstr(rb_obj_as_string(buffer));
+	StringValue(buffer);
+	rb_str_modify(buffer);
     }
     else {
 	buffer = rb_bstr_new();
@@ -2352,7 +2367,12 @@ io_from_spawning_new_process(VALUE klass, VALUE prog, VALUE mode)
 	char **spawnedArgs =
 		malloc((len + 1) * sizeof(char *));
 	assert(spawnedArgs != NULL);
-	for (long i = 0; i < len; i++) {
+
+	struct rb_exec_arg earg;
+	VALUE cmd = rb_exec_arg_init(len, (VALUE*)RARRAY_PTR(argArray), FALSE, &earg);
+	spawnedArgs[0] = StringValuePtr(cmd);
+
+	for (long i = 1; i < len; i++) {
 	    VALUE str = RARRAY_AT(argArray, i);
 	    spawnedArgs[i] = StringValuePtr(str);
 	}
@@ -2423,7 +2443,7 @@ rb_io_s_popen(VALUE klass, SEL sel, int argc, VALUE *argv)
 
     VALUE io = io_pipe_open(klass, process_name, mode);
     if (rb_block_given_p()) {
-	return rb_ensure(rb_yield, io, rb_io_close, io);
+	return rb_ensure(rb_yield, io, io_close2, io);
     }
     return io;
 }
@@ -2448,7 +2468,7 @@ rb_io_s_open(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     VALUE io = rb_io_s_new0(klass, argc, argv);
     if (rb_block_given_p()) {
-	return rb_ensure(rb_yield, io, rb_io_close, io);
+	return rb_ensure(rb_yield, io, io_close2, io);
     }
     return io;
 }
@@ -2590,12 +2610,20 @@ rb_file_open(VALUE io, int argc, VALUE *argv)
 	}
     }
     VALUE path, modes, permissions;
+    VALUE intmode;
+    int flags;
     rb_scan_args(argc, argv, "12", &path, &modes, &permissions);
     if (NIL_P(modes)) {
-	modes = (VALUE)CFSTR("r");
+	flags = O_RDONLY;
+    }
+    else if (!NIL_P(intmode = rb_check_to_integer(modes, "to_int"))) {
+        flags = NUM2INT(intmode);
+    }
+    else {
+	SafeStringValue(modes);
+	flags = convert_mode_string_to_oflags(modes);
     }
     const char *filepath = RSTRING_PTR(path);
-    const int flags = convert_mode_string_to_oflags(modes);
     const mode_t perm = NIL_P(permissions) ? 0666 : NUM2UINT(permissions);
     int fd, retry = 0;
     while (true) {
@@ -2638,6 +2666,14 @@ VALUE
 rb_f_open(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     if (argc >= 1) {
+	if (rb_vm_respond_to(argv[0], sel_to_open, false)) {
+	    VALUE io = rb_vm_call(argv[0], sel_to_open, argc - 1, argv + 1);
+	    if (rb_block_given_p()) {
+		return rb_ensure(rb_yield, io, io_close2, io);
+	    }
+	    return io;
+	}
+	FilePathValue(argv[0]);
 	VALUE cmd = check_pipe_command(argv[0]);
 	if (cmd != Qnil) {
 	    argv[0] = cmd;
@@ -2699,6 +2735,9 @@ io_replace_streams(int fd, rb_io_t *dest, rb_io_t *origin)
 	dest->buf = NULL;
     }
     dest->buf_offset = origin->buf_offset;
+    if (origin->path) {
+	GC_WB(&dest->path, rb_str_dup(origin->path));
+    }
 }
 
 static VALUE
@@ -2733,10 +2772,6 @@ io_reopen(VALUE io, VALUE nfile)
 	rb_sys_fail("dup2() failed");
     }
     io_replace_streams(fd, io_s, other);
-
-    if (other->path) {
-	GC_WB(&io_s->path, rb_str_dup(other->path));
-    }
 
     *(VALUE *)io = *(VALUE *)nfile;
 
@@ -3368,8 +3403,7 @@ argf_initialize_copy(VALUE argf, SEL sel, VALUE orig)
     GC_WB(&(ARGF.argv), rb_obj_dup(ARGF.argv));
     if (ARGF.inplace) {
 	const char *inplace = ARGF.inplace;
-	ARGF.inplace = 0;
-	GC_WB(&ARGF.inplace, ruby_strdup(inplace));
+	ARGF.inplace = strdup(inplace);
     }
     return argf;
 }
@@ -4019,11 +4053,9 @@ static VALUE
 pipe_pair_close(VALUE rw)
 {
     VALUE *rwp = (VALUE *)rw;
-    rb_io_t *io_r = ExtractIOStruct(rwp[0]);
-    rb_io_t *io_w = ExtractIOStruct(rwp[1]);
 
-    io_close(io_r, true, true);
-    io_close(io_w, true, true);
+    io_close2(rwp[0]);
+    io_close2(rwp[1]);
     return Qnil;
 }
 
@@ -4237,6 +4269,44 @@ rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
     return rb_ensure(io_s_readlines, (VALUE)&arg, rb_io_close, arg.io);
 }
 
+/*
+ *  call-seq:
+ *     IO.binread(name, [length [, offset]] )   -> string
+ *
+ *  Opens the file, optionally seeks to the given <i>offset</i>, then returns
+ *  <i>length</i> bytes (defaulting to the rest of the file).
+ *  <code>binread</code> ensures the file is closed before returning.
+ *  The open mode would be "rb:ASCII-8BIT".
+ *
+ *     IO.binread("testfile")           #=> "This is line one\nThis is line two\nThis is line three\nAnd so on...\n"
+ *     IO.binread("testfile", 20)       #=> "This is line one\nThi"
+ *     IO.binread("testfile", 20, 10)   #=> "ne one\nThis is line "
+ */
+
+static VALUE
+rb_io_s_binread(VALUE recv, SEL sel, int argc, VALUE *argv)
+{
+    VALUE fname, offset;
+    struct foreach_arg arg;
+
+    rb_scan_args(argc, argv, "12", &fname, NULL, &offset);
+    FilePathValue(argv[0]);
+    VALUE open_arg[2];
+    open_arg[0] = fname;
+    open_arg[1] = (VALUE)CFSTR("rb");
+    // TODO
+    //open_arg[1] = (VALUE)CFSTR("rb:ASCII-8BIT");
+
+    arg.io = rb_file_open(io_alloc(recv, 0), 2, open_arg);
+    arg.argc = (argc > 1) ? 1 : 0;
+    arg.argv = argv + 1;
+
+    if (!NIL_P(offset)) {
+	rb_io_seek(arg.io, offset, SEEK_SET);
+    }
+    return rb_ensure(io_s_read, (VALUE)&arg, rb_io_close, arg.io);
+}
+
 struct copy_stream_arg {
     VALUE src;
     VALUE dst;
@@ -4338,7 +4408,6 @@ rb_io_s_copy_stream(VALUE rcv, SEL sel, int argc, VALUE *argv)
     arg.need_close_dst = false;
 
     if (TYPE(src) != T_FILE) {
-	FilePathValue(src);
 	src = rb_f_open(rcv, 0, 1, &src);
 	arg.need_close_src = true;
     }
@@ -4350,7 +4419,6 @@ rb_io_s_copy_stream(VALUE rcv, SEL sel, int argc, VALUE *argv)
     }
 
     if (TYPE(dst) != T_FILE) {
-	FilePathValue(dst);
 	VALUE args[2];
 	args[0] = dst;
 	args[1] = rb_str_new2("w");
@@ -5015,6 +5083,7 @@ Init_IO(void)
     rb_objc_define_method(*(VALUE *)rb_cIO, "foreach", rb_io_s_foreach, -1);
     rb_objc_define_method(*(VALUE *)rb_cIO, "readlines", rb_io_s_readlines, -1);
     rb_objc_define_method(*(VALUE *)rb_cIO, "read", rb_io_s_read, -1);
+    rb_objc_define_method(*(VALUE *)rb_cIO, "binread", rb_io_s_binread, -1);
     rb_objc_define_method(*(VALUE *)rb_cIO, "select", rb_f_select, -1);
     rb_objc_define_method(*(VALUE *)rb_cIO, "pipe", rb_io_s_pipe, -1);
     rb_objc_define_method(*(VALUE *)rb_cIO, "try_convert", rb_io_s_try_convert, 1);
@@ -5119,15 +5188,18 @@ Init_IO(void)
     rb_objc_define_method(rb_cIO, "set_encoding", rb_io_set_encoding, -1);
 
     rb_stdin = prep_io(fileno(stdin), FMODE_READABLE, rb_cIO, "<STDIN>");
+    GC_RETAIN(rb_stdin);
     rb_define_variable("$stdin", &rb_stdin);
     rb_define_global_const("STDIN", rb_stdin);
     
     rb_stdout = prep_io(fileno(stdout), FMODE_WRITABLE, rb_cIO, "<STDOUT>");
+    GC_RETAIN(rb_stdout);
     rb_define_hooked_variable("$stdout", &rb_stdout, 0, stdout_setter);
     rb_define_hooked_variable("$>", &rb_stdout, 0, stdout_setter);
     rb_define_global_const("STDOUT", rb_stdout);
     
     rb_stderr = prep_io(fileno(stderr), FMODE_WRITABLE|FMODE_SYNC, rb_cIO, "<STDERR>");
+    GC_RETAIN(rb_stderr);
     rb_define_hooked_variable("$stderr", &rb_stderr, 0, stdout_setter);
     rb_define_global_const("STDERR", rb_stderr);
  
@@ -5221,6 +5293,9 @@ Init_IO(void)
     rb_file_const("BINARY", INT2FIX(0));
     rb_file_const("SYNC", INT2FIX(O_SYNC));
 
+    sel_to_open = sel_registerName("to_open");
+    sel_close = sel_registerName("close");
+    
     // MacRuby extensions:
     rb_objc_define_module_function(rb_mKernel, "getpass", rb_getpass, 1);
 }

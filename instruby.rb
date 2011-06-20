@@ -440,14 +440,15 @@ def install_stuff(what, from, to, mode)
   Dir.glob(File.join(to, '**', '.svn')).each { |x| rm_rf(x) }
 end
 
+xcode_dir = `xcode-select -print-path`.chomp
 install_stuff('Xcode 4.x templates', 'misc/xcode4-templates',
-  '/Developer/Library/Xcode/Templates', 0755)
-install_stuff('Xcode 3.x templates', 'misc/xcode-templates', 
+  "#{xcode_dir}/Library/Xcode/Templates", 0755)
+install_stuff('Xcode 3.x templates', 'misc/xcode-templates',
   '/Library/Application Support/Developer/3.0/Xcode', 0755)
 install_stuff('Xcode 2.x templates', 'misc/xcode-templates', 
   '/Library/Application Support/Developer/Shared/Xcode', 0755)
-install_stuff('samples', 'sample-macruby', 
-  '/Developer/Examples/Ruby/MacRuby', 0775)
+install_stuff('samples', 'sample-macruby',
+  "#{xcode_dir}/Examples/Ruby/MacRuby", 0775)
 
 if RUBY_FRAMEWORK
   puts "installing framework"
@@ -503,7 +504,7 @@ if RUBY_FRAMEWORK
 end
 
 puts "installing IB support"
-ib_dest = '/Developer/usr/bin'
+ib_dest = "#{xcode_dir}/usr/bin"
 mkdir_p ib_dest
 ln_sfh File.join("../../..", CONFIG['bindir'], 'rb_nibtool'), ib_dest
 

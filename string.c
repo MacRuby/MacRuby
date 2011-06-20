@@ -387,7 +387,7 @@ str_dup(rb_str_t *source)
     return destination;
 }
 
-static rb_str_t *
+rb_str_t *
 str_new_from_cfstring(CFStringRef source)
 {
     rb_str_t *destination = str_alloc(rb_cRubyString);
@@ -838,6 +838,8 @@ str_splice(rb_str_t *self, long pos, long len, rb_str_t *str)
 	    str_cannot_cut_surrogate();
 	}
     }
+
+    str_reset_flags(self);
 
     const long bytes_to_splice = end.end_offset_in_bytes
 	- beg.start_offset_in_bytes;
@@ -1393,7 +1395,7 @@ rb_str_get_uchars_always(VALUE str, rb_str_uchars_buf_t *buf)
 	    }
 	    else {
 		if (len > STR_UCHARS_STATIC_BUFSIZE) {
-		    buf->chars = (UChar *)malloc(sizeof(UChar) * len);
+		    buf->chars = (UChar *)xmalloc(sizeof(UChar) * len);
 		    assert(buf->chars != NULL);
 		}
 		else {
@@ -1407,7 +1409,7 @@ rb_str_get_uchars_always(VALUE str, rb_str_uchars_buf_t *buf)
 	len = CFStringGetLength((CFStringRef)str);
 	if (len > 0) {
 	    if (len > STR_UCHARS_STATIC_BUFSIZE) {
-		buf->chars = (UChar *)malloc(sizeof(UChar) * len);
+		buf->chars = (UChar *)xmalloc(sizeof(UChar) * len);
 		assert(buf->chars != NULL);
 	    }
 	    else {
@@ -1788,8 +1790,10 @@ static VALUE
 rstr_replace(VALUE self, SEL sel, VALUE arg)
 {
     rstr_modify(self);
-    str_replace(RSTR(self), arg);
-    OBJ_INFECT(self, arg);
+    if (self != arg) {
+	str_replace(RSTR(self), arg);
+	OBJ_INFECT(self, arg);
+    }
     return self;
 }
 
@@ -1805,10 +1809,7 @@ rstr_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE orig;
     if (argc > 0 && rb_scan_args(argc, argv, "01", &orig) == 1) {
-	rstr_modify(self);
-	if (self != orig) {
-	    rstr_replace(self, 0, orig);
-	}
+	rstr_replace(self, 0, orig);
     }
     return self;
 }
@@ -1834,18 +1835,6 @@ rstr_dup(VALUE str, SEL sel)
 
     OBJ_INFECT(dup, str);
     return dup;
-}
-
-static VALUE
-rstr_clone(VALUE str, SEL sel)
-{
-    VALUE clone = rstr_copy(str, CLASS_OF(str));
-
-    OBJ_INFECT(clone, str);
-    if (OBJ_FROZEN(str)) {
-	OBJ_FREEZE(clone);
-    }
-    return clone;
 }
 
 /*
@@ -2576,8 +2565,16 @@ rstr_times(VALUE self, SEL sel, VALUE times)
 
     VALUE new = str_new_like(self);
     str_resize_bytes(RSTR(new), n * RSTR(self)->length_in_bytes);
-    for (long i = 0; i < n; ++i) {
+    if (n) {
 	str_concat_string(RSTR(new), RSTR(self));
+	long i;
+	for (i = 1; i <= n/2; i *= 2) {
+	    str_concat_string(RSTR(new), RSTR(new));
+	}
+	memcpy(RSTR(new)->bytes + RSTR(new)->length_in_bytes,
+	       RSTR(new)->bytes,
+	       (n - i) * RSTR(self)->length_in_bytes);
+	RSTR(new)->length_in_bytes = n * RSTR(self)->length_in_bytes;
     }
     OBJ_INFECT(new, self);
     return new;
@@ -2909,6 +2906,11 @@ rstr_intern(VALUE self, SEL sel)
     return rb_str_intern_fast(self);
 }
 
+VALUE
+rb_str_intern(VALUE self)
+{
+    return rstr_intern(self, 0);
+}
 /*
  * call-seq:
  *   str.inspect   => string
@@ -5972,6 +5974,29 @@ nsdata_to_str(VALUE data, SEL sel)
 	    CFDataGetLength(dataref));
 }
 
+
+/*
+ *  call-seq:
+ *     String(arg)   => string
+ *  
+ *  Converts <i>arg</i> to a <code>String</code> by calling its
+ *  <code>to_s</code> method.
+ *     
+ *     String(self)        #=> "main"
+ *     String(self.class)  #=> "Object"
+ *     String(123456)      #=> "123456"
+ */
+
+VALUE
+rb_f_string(VALUE obj, SEL sel, VALUE arg)
+{
+    VALUE str = rb_String(arg);
+    if (!IS_RSTR(str)) {
+	str = (VALUE)str_new_from_cfstring((CFStringRef)str);
+    }
+    return str;
+}
+
 void Init_NSString(void);
 
 void
@@ -5990,7 +6015,6 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "initialize", rstr_initialize, -1);
     rb_objc_define_method(rb_cRubyString, "initialize_copy", rstr_replace, 1);
     rb_objc_define_method(rb_cRubyString, "dup", rstr_dup, 0);
-    rb_objc_define_method(rb_cRubyString, "clone", rstr_clone, 0);
     rb_objc_define_method(rb_cRubyString, "replace", rstr_replace, 1);
     rb_objc_define_method(rb_cRubyString, "clear", rstr_clear, 0);
     rb_objc_define_method(rb_cRubyString, "encoding", rstr_encoding, 0);
@@ -6156,10 +6180,11 @@ rb_str_bstr(VALUE str)
 	    str = rb_str_new2(cptr);
 	}
 	else {
+	    // +1 is for the NUL terminator
 	    const long max = CFStringGetMaximumSizeForEncoding(
-		    CFStringGetLength((CFStringRef)str), kCFStringEncodingUTF8);
-	    assert(max > 0);
-	    char *buf = (char *)malloc(max + 1);
+		    CFStringGetLength((CFStringRef)str), kCFStringEncodingUTF8) + 1;
+	    assert(max > 1);
+	    char *buf = (char *)malloc(max);
 	    assert(buf != NULL);
 	    if (!CFStringGetCString((CFStringRef)str, buf, max,
 			kCFStringEncodingUTF8)) {

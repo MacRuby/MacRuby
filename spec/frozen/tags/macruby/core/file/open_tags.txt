@@ -1,4 +1,1 @@
 fails:File.open with a block invokes close on opened file when exiting the block
-fails:File.open with a block propagates non-StandardErrors produced by close
-fails:File.open with a block invokes close on an opened file when exiting the block
-fails:File.open with a block does not propagate StandardErrors produced by close

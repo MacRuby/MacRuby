@@ -52,14 +52,14 @@ class Deployer
       end
     end
 
-    ensure_path @app_bundle
+    ensure_path @app_bundle, 'The application bundle was not found; make sure you build the app before running macruby_deploy'
     ensure_path File.join(@app_bundle, 'Contents'), "Path `%s' doesn't seem to be a valid application bundle"
 
     # Locate necessary programs.
     @install_name_tool = locate('install_name_tool')
 
     # Locate the MacRuby framework.
-    @macruby_framework_path = Config::CONFIG['libdir'].scan(/^.+MacRuby\.framework/)[0]
+    @macruby_framework_path = RbConfig::CONFIG['libdir'].scan(/^.+MacRuby\.framework/)[0]
     ensure_path @macruby_framework_path, "Cannot locate MacRuby.framework from rbconfig.rb"
     @macruby_install_version = RbConfig::CONFIG["INSTALL_VERSION"]
   end
@@ -81,11 +81,10 @@ class Deployer
   # out failures anyways, just the command. Use the command-line tools directly
   # to circumvent this.
   { :cp => 'cp', :cp_r => 'cp -R', :mkdir_p => 'mkdir -p', :rm_rf => 'rm -rf', :rsync => 'rsync', :mv => 'mv' }.each do |name, cmd|
-    module_eval <<-END, __FILE__, __LINE__ + 1
-      def #{name}(*args)
-        execute "#{cmd} \#{args.map { |a| "'\#{a}'" }.join(' ')}"
-      end
-    END
+    define_method(name) do |*args|
+      arg_string = args.map { |a| "'#{a}'" }.join(' ')
+      execute "#{cmd} #{arg_string}"
+    end
   end
 
   def app_frameworks
@@ -153,9 +152,8 @@ class Deployer
       next if base == 'rb_main'
       obj = File.join(File.dirname(source), base + '.rbo')
       if !File.exist?(obj) or File.mtime(source) > File.mtime(obj)
-        instance = Compiler.new(bundle: true, output: obj, files: [source], archs: app_archs)
         begin
-          instance.run
+          MacRuby::Compiler.compile_file(source, archs: app_archs)
         rescue
           die "Can't compile \"#{source}\""
         end
@@ -243,6 +241,13 @@ class Deployer
       mkdir_p(gems_libdirs_dest)
       gems_libdirs_to_embed.each do |libdir|
         execute("/usr/bin/ditto \"#{libdir}\" \"#{gems_libdirs_dest}\"")
+        Dir.glob(File.join(libdir, '**', '*.bundle')).each do |file|
+          linked_libs = execute("/usr/bin/otool -L #{file}")
+          if linked_libs.include?('/opt') || linked_libs.include?('/usr/local')
+            warn "'#{File.basename(file)}' is linked against libraries that are not standard to Mac OS X"
+            warn linked_libs
+          end
+        end
       end
     end
 
@@ -264,7 +269,7 @@ class Deployer
     log "Fix install path of binaries"
     patterns = [File.join(@app_bundle, 'Contents/MacOS/*'),
                 File.join(app_macruby_usr, 'lib/ruby/**/*.{bundle,rbo}'),
-                File.join(@app_bundle, 'Contents/Resources/*.rbo')]
+                File.join(@app_bundle, 'Contents/Resources/**/*.rbo')]
     patterns.each do |pat|
       Dir.glob(pat).each do |bin|
         execute("#{@install_name_tool} -change #{macruby_usr}/lib/libmacruby.dylib @executable_path/../Frameworks/MacRuby.framework/Versions/Current/usr/lib/libmacruby.dylib '#{bin}'")

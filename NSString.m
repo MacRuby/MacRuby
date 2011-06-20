@@ -54,21 +54,11 @@ to_str(VALUE str)
 static id
 nsstr_dup(id rcv, SEL sel)
 {
-    id dup = [rcv mutableCopy];
+    id dup = (id)str_new_from_cfstring((CFStringRef)rcv);
     if (OBJ_TAINTED(rcv)) {
 	OBJ_TAINT(dup);
     }
     return dup;
-}
-
-static id
-nsstr_clone(id rcv, SEL sel)
-{
-    id clone = nsstr_dup(rcv, 0);
-    if (OBJ_FROZEN(rcv)) {
-	OBJ_FREEZE(clone);
-    }
-    return clone;
 }
 
 static id
@@ -180,14 +170,6 @@ nsstr_include(id rcv, SEL sel, VALUE other)
     return range.location == NSNotFound ? Qfalse : Qtrue;
 }
 
-static id
-rstr_only(id rcv, SEL sel)
-{
-    rb_raise(rb_eArgError, "method `%s' does not work on NSStrings",
-	    sel_getName(sel));
-    return rcv; // never reached
-}
-
 static VALUE
 nsstr_to_rstr(id nsstr)
 {
@@ -294,7 +276,6 @@ Init_NSString(void)
     assert(rb_cNSMutableString != 0);
 
     rb_objc_define_method(rb_cString, "dup", nsstr_dup, 0);
-    rb_objc_define_method(rb_cString, "clone", nsstr_clone, 0);
     rb_objc_define_method(rb_cString, "to_s", nsstr_to_s, 0);
     rb_objc_define_method(rb_cString, "to_str", nsstr_to_s, 0);
     rb_objc_define_method(rb_cString, "replace", nsstr_replace, 1);

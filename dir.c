@@ -12,6 +12,7 @@
 #include "ruby/util.h"
 #include "vm.h"
 #include "encoding.h"
+#include "objc.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -304,14 +305,31 @@ struct dir_data {
 static void
 free_dir(struct dir_data *dir)
 {
-    if (dir) {
-	if (dir->dir) closedir(dir->dir);
-	if (dir->path) xfree(dir->path);
+    if (dir != NULL) {
+	if (dir->dir != NULL) {
+	    closedir(dir->dir);
+	    dir->dir = NULL;
+	}
     }
     xfree(dir);
 }
 
 static VALUE dir_close(VALUE, SEL);
+
+static IMP dir_finalize_imp_super = NULL;
+
+static void
+dir_finalize_imp(void *rcv, SEL sel)
+{
+    struct dir_data *dp = NULL;
+    Data_Get_Struct(rcv, struct dir_data, dp);
+    if (dp != NULL) {
+	free_dir(dp);
+    }
+    if (dir_finalize_imp_super != NULL) {
+	((void(*)(void *, SEL))dir_finalize_imp_super)(rcv, sel);
+    }
+}
 
 static VALUE
 dir_s_alloc(VALUE klass, SEL sel)
@@ -339,8 +357,9 @@ dir_initialize(VALUE dir, SEL sel, VALUE dirname)
 
     FilePathValue(dirname);
     Data_Get_Struct(dir, struct dir_data, dp);
-    if (dp->dir) closedir(dp->dir);
-    if (dp->path) free(dp->path);
+    if (dp->dir != NULL) {
+	closedir(dp->dir);
+    }
     dp->dir = NULL;
     dp->path = NULL;
     dirname_cstr = RSTRING_PTR(dirname);
@@ -354,7 +373,7 @@ dir_initialize(VALUE dir, SEL sel, VALUE dirname)
 	    rb_sys_fail(dirname_cstr);
 	}
     }
-    dp->path = strdup(dirname_cstr);
+    GC_WB(&dp->path, ruby_strdup(dirname_cstr));
 
     return dir;
 }
@@ -1867,10 +1886,14 @@ dir_s_home(VALUE obj, SEL sel, int argc, VALUE *argv)
  *  directory (<code>..</code>), and the directory itself
  *  (<code>.</code>).
  */
+
 void
 Init_Dir(void)
 {
     rb_cDir = rb_define_class("Dir", rb_cObject);
+
+    dir_finalize_imp_super = rb_objc_install_method2((Class)rb_cDir,
+	    "finalize", (IMP)dir_finalize_imp);
 
     rb_include_module(rb_cDir, rb_mEnumerable);
 

@@ -103,7 +103,14 @@ bool
 rb_objc_supports_forwarding(VALUE recv, SEL sel)
 {
     if (!SPECIAL_CONST_P(recv)) {
-	return [(id)recv methodSignatureForSelector:sel] != nil;
+	@try {
+	    // Protect the call since it may throw an exception when called on
+	    // NSProxy class or instance.
+	    return [(id)recv methodSignatureForSelector:sel] != nil;
+	}
+	@catch (id exc) {
+	    return false;
+	}
     }
     return false;
 }
