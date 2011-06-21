@@ -42,6 +42,10 @@
 			<string>/usr/local/bin/macruby_deploy</string>
 			<key>BuildToolArgsString</key>
 			<string>--compile --embed</string>
+			<key>Dependencies</key>
+			<array>
+				<string>0</string>
+			</array>
 		</dict>
 	</array>
 	<key>Definitions</key>
