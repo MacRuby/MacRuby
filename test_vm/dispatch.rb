@@ -232,7 +232,7 @@ assert ':ok', %{
     end
     foo { p :ok }
   end
-}, :known_bug => true
+}
 
 assert '42', %{
   class Foo
@@ -284,7 +284,7 @@ assert '42', %{
   def foo(n); return if n == 0; foo(n-1); end
   foo(30000000)
   p 42
-}, :known_bug => true
+}
 
 assert 'true', 'p Object.new.methods.include?(:object_id)'
 assert "false\ntrue", %{
