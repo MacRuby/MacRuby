@@ -241,13 +241,6 @@ class Deployer
       mkdir_p(gems_libdirs_dest)
       gems_libdirs_to_embed.each do |libdir|
         execute("/usr/bin/ditto \"#{libdir}\" \"#{gems_libdirs_dest}\"")
-        Dir.glob(File.join(libdir, '**', '*.bundle')).each do |file|
-          linked_libs = execute("/usr/bin/otool -L #{file}")
-          if linked_libs.include?('/opt') || linked_libs.include?('/usr/local')
-            warn "'#{File.basename(file)}' is linked against libraries that are not standard to Mac OS X"
-            warn linked_libs
-          end
-        end
       end
     end
 
@@ -262,6 +255,7 @@ class Deployer
 
     # Wait with fixing install name until all binaries are available.
     fix_install_name
+    check_linked_bundles
   end
 
   # Hack the application binaries to link against the MacRuby.framework copy.
@@ -280,6 +274,23 @@ class Deployer
     patterns.each do |pat|
       Dir.glob(pat).each do |bin|
         execute("#{@install_name_tool} -id @executable_path/../Frameworks/MacRuby.framework/Versions/Current/usr/lib/libmacruby.dylib '#{bin}'")
+      end
+    end
+  end
+
+  def check_linked_bundles
+    dirs = [%r{^/opt}, %r{^/usr/local/lib}, %r{^/Users}, %r{^/Library}]
+    Dir.glob(File.join(app_macruby, '**', '*.bundle')).each do |bundle|
+      libs = execute("/usr/bin/otool -L #{bundle}").split("\n").map(&:strip)
+      libs[1..-1].each do |lib|
+        bad_libs = dirs.map { |dir| lib.match(dir) ? lib : nil }.compact
+        next if bad_libs.empty?
+        name = File.basename(bundle)
+        warn '******WARNING******'
+        warn "'#{name}' is linked against libraries that are not standard to Mac OS X"
+        warn "#{bundle}\n  links against:"
+        bad_libs.each { |lib| warn "\t#{lib}" }
+        warn '******WARNING******'
       end
     end
   end
