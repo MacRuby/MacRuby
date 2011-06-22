@@ -70,7 +70,7 @@ rb_match_result_t *rb_reg_match_results(VALUE match, int *count);
 static inline int
 rb_reg_adjust_startpos(VALUE re, VALUE str, int pos, bool reverse)
 {
-    return reverse ? -pos : rb_str_chars_len(str) - pos;
+    return reverse ? -pos : pos;
 }
 
 #if defined(__cplusplus)
