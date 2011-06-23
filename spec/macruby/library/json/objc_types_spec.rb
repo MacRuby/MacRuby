@@ -37,7 +37,7 @@ describe 'JSON serialization using the C extension' do
   end
 
   it 'works with other Objective-C objects' do
-    serialize('NSDate.distantPast','"0000-12-28 19:00:00 -0500"')
+    serialize('NSDate.distantPast', "\"#{NSDate.distantPast.to_s}\"")
   end
 
   # ticket #1313
