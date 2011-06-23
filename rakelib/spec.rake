@@ -54,6 +54,11 @@ namespace :spec do
     mspec :ci, ":bin"
   end
 
+  desc "Run specs for the ext libs"
+  task :ext do
+    mspec :ci, ":ext"
+  end
+
   desc "Run the DietRB specs"
   task :irb do
     mspec :ci, ":irb"
