@@ -192,6 +192,13 @@ rb_obj_class(VALUE obj)
 static void
 init_copy(VALUE dest, VALUE obj)
 {
+    if (NATIVE(obj)) {
+	if (OBJ_TAINTED(obj)) {
+	    OBJ_TAINT(dest);
+	} 
+	goto call_init_copy;
+    }
+
     if (OBJ_FROZEN(dest)) {
         rb_raise(rb_eTypeError, "[bug] frozen object (%s) allocated",
 		rb_obj_classname(dest));
@@ -239,7 +246,7 @@ init_copy(VALUE dest, VALUE obj)
 	}
         break;
     }
-
+call_init_copy:
     rb_vm_call(dest, selInitializeCopy, 1, &obj);
 }
 
