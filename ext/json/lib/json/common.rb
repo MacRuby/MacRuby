@@ -52,7 +52,15 @@ module JSON
       @generator = generator
       generator_methods = generator::GeneratorMethods
       for const in generator_methods.constants
-        klass = deep_const_get(const)
+        # XXX MACRUBY Hijack const to mix into Cocoa classes instead
+        real_const = case const
+                     when :Array      then :NSArray
+                     when :Hash       then :NSDictionary
+                     when :String     then :NSString
+                     when :JSONObject then :Object
+                     else const
+                     end
+        klass = deep_const_get(real_const)
         modul = generator_methods.const_get(const)
         klass.class_eval do
           instance_methods(false).each do |m|
