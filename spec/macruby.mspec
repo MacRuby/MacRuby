@@ -71,6 +71,7 @@ class MSpecScript
     load_paths = %w{ -I. -I./lib -I./ext }
     load_paths << '-I./ext/ripper/lib' # ripper specific load path fix
     load_paths << '-I./ext/bigdecimal/lib' # bigdecimal specific load path fix
+    load_paths << '-I./ext/json/lib' # json specific load path fix
     load_paths.concat Dir.glob('./ext/**/*.bundle').map { |filename| "-I#{File.dirname(filename)}" }.uniq
     load_paths.concat(get(:flags)) if get(:flags)
     set :flags, load_paths
