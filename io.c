@@ -3058,12 +3058,17 @@ rb_io_puts(VALUE out, SEL sel, int argc, VALUE *argv)
         return Qnil;
     }
     for (i = 0; i < argc; i++) {
+	if (TYPE(argv[i]) == T_STRING) {
+	    line = argv[i];
+	    goto string;
+	}
         line = rb_check_array_type(argv[i]);
         if (!NIL_P(line)) {
             rb_exec_recursive(io_puts_ary, line, out);
             continue;
         }
         line = rb_obj_as_string(argv[i]);
+      string:
         rb_io_write(out, line);
         if (RSTRING_LEN(line) == 0
 		|| RSTRING_PTR(line)[RSTRING_LEN(line)-1] != '\n') {
@@ -3100,7 +3105,7 @@ rb_p(VALUE obj) /* for debug print within C code */
 VALUE
 rb_io_write(VALUE v, VALUE i)
 {
-    return rb_funcall(v, id_write, 1, i);
+    return rb_vm_call(v, selWrite, 1, &i);
 }
 
 /*
