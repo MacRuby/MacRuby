@@ -46,16 +46,18 @@ is_identchar(UChar c)
     return isalnum(c) || c == '_' || !isascii(c);
 }
 
-ID
-rb_intern_str(VALUE str)
+static ID
+rb_intern_uchars(const UChar *chars, const size_t chars_len, VALUE str)
 {
-    RB_STR_GET_UCHARS(str, chars, chars_len);
-
     const unsigned long name_hash = rb_str_hash_uchars(chars, chars_len);
     ID id = (ID)CFDictionaryGetValue(sym_id, (const void *)name_hash); 
     if (id != 0) {
 	goto return_id;
-    } 
+    }
+ 
+    if (str == Qnil) {
+	str = rb_unicode_str_new(chars, chars_len);
+    }
 
     rb_sym_t *sym = NULL;
     long pos = 0;
@@ -121,6 +123,13 @@ return_id:
     return id;
 }
 
+ID
+rb_intern_str(VALUE str)
+{
+    RB_STR_GET_UCHARS(str, chars, chars_len);
+    return rb_intern_uchars(chars, chars_len, str);
+}
+
 VALUE
 rb_id2str(ID id)
 {
@@ -167,13 +176,20 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
 ID
 rb_intern2(const char *name, long len)
 {
-    return rb_intern_str(rb_str_new(name, len));
+    UChar buf[64];
+    UChar *chars = len < 64
+	? buf
+	: (UChar *)xmalloc(sizeof(UChar) * len);
+    for (long i = 0; i < len; i++) {
+	chars[i] = name[i];
+    }
+    return rb_intern_uchars(chars, len, Qnil);
 }
 
 ID
 rb_intern(const char *name)
 {
-    return rb_intern_str(rb_str_new2(name));
+    return rb_intern2(name, strlen(name));
 }
 
 ID
