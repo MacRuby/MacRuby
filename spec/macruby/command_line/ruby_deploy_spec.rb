@@ -12,6 +12,20 @@ module DeploySpecHelper
     ruby_exe(File.join(SOURCE_ROOT, 'bin/ruby_deploy'), :args => "'#{@app_bundle}' #{args} 2>&1")
   end
 
+  def cached_deploy(args)
+    if cache = CACHED_APPS[args]
+      @app_bundle = cache[:dir]
+      cache[:output]
+    else
+      output = deploy(args)
+      cache_dir = tmp('ruby_deploy_cache')
+      mv @app_bundle, cache_dir
+      @app_bundle = cache_dir
+      CACHED_APPS[args] = { dir: cache_dir, output: output }
+      output
+    end
+  end
+
   def file(path)
     `/usr/bin/file '#{path}'`
   end
@@ -78,6 +92,10 @@ end
 describe "ruby_deploy command line options:" do
   extend DeploySpecHelper
 
+  before(:all) do
+    CACHED_APPS = {}
+  end
+
   before do
     @dir = tmp('ruby_deploy')
     mkdir_p @dir
@@ -92,9 +110,13 @@ describe "ruby_deploy command line options:" do
     rm_rf @dir
   end
 
+  after(:all) do
+    CACHED_APPS.each_pair { |_,cache| rm_rf cache[:dir] }
+  end
+
   describe "--compile" do
     it "compiles the ruby source files in the app's Resources directory" do
-      deploy('--compile')
+      cached_deploy('--compile')
       rbos.should_not be_empty
       rbos.each do |rbo|
         file(rbo).should include('Mach-O')
@@ -106,18 +128,18 @@ describe "ruby_deploy command line options:" do
     end
 
     it "does not compile the rb_main.rb file, because this name is hardcoded in the function that starts MacRuby" do
-      deploy('--compile')
+      cached_deploy('--compile')
       rbos.map { |f| File.basename(f) }.should_not include('rb_main.rbo')
       rbs.map { |f| File.basename(f) }.should include('rb_main.rb')
     end
 
     it "removes the original source files after compilation" do
-      deploy('--compile')
+      cached_deploy('--compile')
       rbs.map { |f| File.basename(f) }.should == %w{ rb_main.rb }
     end
 
     it "does not change the install_name of binaries if the MacRuby framework is not embedded" do
-      deploy('--compile')
+      cached_deploy('--compile')
       binaries.each do |bin|
         install_name(bin).should_not include(DeploySpecHelper::EMBEDDED_FRAMEWORK)
       end
@@ -155,14 +177,14 @@ describe "ruby_deploy command line options:" do
 
   describe '--embed' do
     it 'copies the framework to Contents/Frameworks' do
-      deploy('--embed')
+      cached_deploy('--embed')
       Dir.exists?(framework).should == true
       Dir.exists?(framework_stdlib).should == true
       File.exists?(File.join(framework, 'Current/usr/lib/libmacruby.1.9.2.dylib'))
     end
 
     it 'only copies the Current version which is not a symlink' do
-      deploy('--embed')
+      cached_deploy('--embed')
 
       dirs = Dir.entries(framework) - ['.','..']
       dirs.count.should == 1
@@ -175,14 +197,14 @@ describe "ruby_deploy command line options:" do
     end
 
     it 'changes the install_name of .rbo files in the embedded framework' do
-      deploy('--embed')
+      cached_deploy('--embed')
       glob_join(framework_stdlib,'**','*.rbo').each do |rbo|
         install_name(rbo).should include(DeploySpecHelper::EMBEDDED_FRAMEWORK)
       end
     end
 
     it 'does not copy headers, binaries, or documentation into the app bundle' do
-      deploy('--embed')
+      cached_deploy('--embed')
       dirs = Dir.entries(File.join(framework, 'Current', 'usr'))
       ['bin','include','share'].each do |dir|
         dirs.should_not include(dir)
@@ -192,21 +214,21 @@ describe "ruby_deploy command line options:" do
 
     # TODO this test is too naive
     it 'embeds bridge support files when combined with --bs' do
-      deploy('--embed --bs')
+      cached_deploy('--embed --bs')
       bs_dir = File.join(resources, 'BridgeSupport')
       Dir.exists?(bs_dir)
       (Dir.entries(bs_dir) - ['.', '..']).should_not be_empty
     end
 
     it 'removes the stdlib when combined with --no-stdlib' do
-      deploy('--embed --no-stdlib')
+      cached_deploy('--embed --no-stdlib')
       Dir.exists?(framework_stdlib).should == false
     end
 
     it 'removes .rb files from the stdlib if an .rbo equivalent exists' do
-      deploy('--embed')
+      cached_deploy('--embed')
       files = glob_join(framework_stdlib,'**','*.rbo')
-      files.each { |rbo| File.exists?("#{rbo.chomp!('o')}").should be_false }
+      files.any? { |rbo| File.exists?("#{rbo.chomp!('o')}") }.should be_false
     end
 
 
@@ -214,7 +236,7 @@ describe "ruby_deploy command line options:" do
 
     describe 'when combined with --stdlib' do
       it 'a specific lib to be embedded' do
-        deploy('--embed --stdlib ubygems')
+        cached_deploy('--embed --stdlib ubygems')
         files = glob_join(framework_stdlib,'**','*.rb*').map do |f|
           File.basename(f).chomp(File.extname(f))
         end.uniq
@@ -222,7 +244,7 @@ describe "ruby_deploy command line options:" do
       end
 
       it 'any number of times, all listed libs will be embedded' do
-        deploy('--embed --stdlib base64 --stdlib minitest')
+        cached_deploy('--embed --stdlib base64 --stdlib minitest')
 
         expected = ['base64'] +
           glob_join(SOURCE_ROOT,'lib','minitest','*').map do |lib|
@@ -238,10 +260,10 @@ describe "ruby_deploy command line options:" do
     end
 
     it 'removes previous embedded frameworks before a new embedding' do
-      deploy('--embed')
+      mkdir_p framework_resources
       file = File.join(framework_resources, 'fake')
-      File.open(file,'w') { |f| f.write 'This file does not exist' }
-      deploy('--embed')
+      File.open(file, 'w') { |f| f.write 'This file does not exist' }
+      deploy('--embed --no-stdlib')
       File.exists?(file).should be_false
     end
   end
