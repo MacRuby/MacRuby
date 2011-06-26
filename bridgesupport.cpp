@@ -995,6 +995,16 @@ rb_pointer_cast(VALUE rcv, SEL sel, VALUE type)
 }
 
 static VALUE
+rb_pointer_to_obj(VALUE rcv, SEL sel)
+{
+    rb_vm_pointer_t *ptr;
+    Data_Get_Struct(rcv, rb_vm_pointer_t, ptr);
+
+    check_no_magic_cookie(ptr);
+    return (VALUE)ptr->val;
+}
+
+static VALUE
 rb_pointer_offset(VALUE rcv, long off)
 {
     rb_vm_pointer_t *ptr;
@@ -1549,6 +1559,7 @@ Init_BridgeSupport(void)
     rb_objc_define_method(rb_cPointer, "assign", (void *)rb_pointer_assign, 1);
     rb_objc_define_method(rb_cPointer, "type", (void *)rb_pointer_type, 0);
     rb_objc_define_method(rb_cPointer, "cast!", (void *)rb_pointer_cast, 1);
+    rb_objc_define_method(rb_cPointer, "to_object", (void *)rb_pointer_to_obj, 0);
     rb_objc_define_method(rb_cPointer, "+", (void *)rb_pointer_plus, 1);
     rb_objc_define_method(rb_cPointer, "-", (void *)rb_pointer_minus, 1);
 #endif
