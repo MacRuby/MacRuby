@@ -97,7 +97,7 @@ describe "Pointer, through #[] and #[]=" do
       end
     end
   end
-  
+
   float_types.each do |type|
     it "can assign and retrieve Float compatible objects for type `#{type}'" do
       pointer = Pointer.new(type)
@@ -220,6 +220,14 @@ describe "A Pointer object" do
     ptr3 = ptr2 - 5
     ptr3.class.should == Pointer
     10.times { |i| ptr3[i].should == i }
+  end
+
+  it "responds to #to_object which returns a copy of self casted to an objective-c object" do
+    keyboard = TISCopyCurrentKeyboardInputSource()
+    name = TISGetInputSourceProperty(keyboard, KTISPropertyLocalizedName)
+    name.to_object.should be_an_instance_of String
+    name.should be_an_instance_of Pointer
+    # invalid use of #to_object will crash MacRuby, so we can't really test that
   end
 end
 
