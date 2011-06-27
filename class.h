@@ -116,7 +116,7 @@ rb_class_get_flags(Class k)
 static inline void
 rb_class_set_flags(Class k, unsigned long flags)
 {
-    rb_class_set_mask(k, flags << RCLASS_MASK_TYPE_SHIFT);
+    rb_class_set_mask(k, (flags << RCLASS_MASK_TYPE_SHIFT) | 0);
 }
 
 #define RCLASS_VERSION(m) (rb_class_get_flags((Class)m))

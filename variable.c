@@ -18,7 +18,7 @@
 
 st_table *rb_global_tbl;
 st_table *rb_class_tbl;
-static ID autoload, classpath, tmp_classpath;
+ID id_autoload = 0, id_classpath = 0, id_classid = 0, id_tmp_classpath = 0;
 
 static const void *
 retain_cb(CFAllocatorRef allocator, const void *v)
@@ -71,9 +71,10 @@ Init_var_tables(void)
     GC_RETAIN(rb_global_tbl);
     rb_class_tbl = st_init_numtable();
     GC_RETAIN(rb_class_tbl);
-    autoload = rb_intern("__autoload__");
-    classpath = rb_intern("__classpath__");
-    tmp_classpath = rb_intern("__tmp_classpath__");
+    id_autoload = rb_intern("__autoload__");
+    id_classpath = rb_intern("__classpath__");
+    id_classid = rb_intern("__classid__");
+    id_tmp_classpath = rb_intern("__tmp_classpath__");
     selRequire = sel_registerName("require:");
 }
 
@@ -93,7 +94,7 @@ fc_path(struct fc_result *fc, ID name)
     path = rb_str_dup(rb_id2str(name));
     while (fc) {
 	if (fc->track == rb_cObject) break;
-	if ((tmp = rb_attr_get(fc->track, classpath)) != Qnil) {
+	if ((tmp = rb_attr_get(fc->track, id_classpath)) != Qnil) {
 	    tmp = rb_str_dup(tmp);
 	    rb_str_cat2(tmp, "::");
 	    rb_str_append(tmp, path);
@@ -175,15 +176,17 @@ find_class_path(VALUE klass)
     }
     if (arg.path) {
 	iv_dict = rb_class_ivar_dict_or_create(klass);
-	CFDictionarySetValue(iv_dict, (const void *)classpath, (const void *)arg.path);
-	CFDictionaryRemoveValue(iv_dict, (const void *)tmp_classpath);
+	CFDictionarySetValue(iv_dict, (const void *)id_classpath,
+		(const void *)arg.path);
+	CFDictionaryRemoveValue(iv_dict, (const void *)id_tmp_classpath);
 	return arg.path;
     }
     if (!RCLASS_RUBY(klass)) {
 	VALUE name = rb_str_new2(class_getName((Class)klass));
 	iv_dict = rb_class_ivar_dict_or_create(klass);
-	CFDictionarySetValue(iv_dict, (const void *)classpath, (const void *)name);
-	CFDictionaryRemoveValue(iv_dict, (const void *)tmp_classpath);
+	CFDictionarySetValue(iv_dict, (const void *)id_classpath,
+		(const void *)name);
+	CFDictionaryRemoveValue(iv_dict, (const void *)id_tmp_classpath);
 	return name;
     }
     return Qnil;
@@ -194,24 +197,22 @@ classname(VALUE klass)
 {
     VALUE path = Qnil;
 
-    if (!klass) klass = rb_cObject;
+    if (klass == 0) {
+	klass = rb_cObject;
+    }
     CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(klass);
     if (iv_dict != NULL) {
 	if (!CFDictionaryGetValueIfPresent((CFDictionaryRef)iv_dict, 
-	    (const void *)classpath, (const void **)&path)) {
-
-	    static ID classid = 0;
-	    if (classid == 0)
-		classid = rb_intern("__classid__");
-
+		    (const void *)id_classpath, (const void **)&path)) {
 	    if (!CFDictionaryGetValueIfPresent((CFDictionaryRef)iv_dict, 
-		(const void *)classid, (const void **)&path))
+			(const void *)id_classid, (const void **)&path)) {
 		return find_class_path(klass);
-
+	    }
 	    path = rb_str_dup(path);
 	    OBJ_FREEZE(path);
-	    CFDictionarySetValue(iv_dict, (const void *)classpath, (const void *)path);
-	    CFDictionaryRemoveValue(iv_dict, (const void *)classid);
+	    CFDictionarySetValue(iv_dict, (const void *)id_classpath,
+		    (const void *)path);
+	    CFDictionaryRemoveValue(iv_dict, (const void *)id_classid);
 	}
 	if (TYPE(path) != T_STRING) {
 	    rb_bug("class path is not set properly");
@@ -244,8 +245,10 @@ rb_class_path(VALUE klass)
 {
     VALUE path = classname(klass);
 
-    if (!NIL_P(path)) return path;
-    if ((path = rb_attr_get(klass, tmp_classpath)) != Qnil) {
+    if (!NIL_P(path)) {
+	return path;
+    }
+    if ((path = rb_attr_get(klass, id_tmp_classpath)) != Qnil) {
 	return path;
     }
     else {
@@ -261,7 +264,7 @@ rb_class_path(VALUE klass)
 	}
 	path = rb_sprintf("#<%s:%p>", s, (void*)klass);
 	OBJ_FREEZE(path);
-	rb_ivar_set(klass, tmp_classpath, path);
+	rb_ivar_set(klass, id_tmp_classpath, path);
 
 	return path;
     }
@@ -281,7 +284,7 @@ rb_set_class_path2(VALUE klass, VALUE under, const char *name, VALUE outer)
 	rb_str_cat2(str, name);
     }
     OBJ_FREEZE(str);
-    rb_ivar_set(klass, classpath, str);
+    rb_ivar_set(klass, id_classpath, str);
 }
 
 void
@@ -329,7 +332,7 @@ rb_path2class(const char *path)
 void
 rb_name_class(VALUE klass, ID id)
 {
-    rb_iv_set(klass, "__classid__", ID2SYM(id));
+    rb_ivar_set(klass, id_classid, ID2SYM(id));
 }
 
 VALUE
@@ -1294,31 +1297,33 @@ check_autoload_table(VALUE av)
 void
 rb_autoload(VALUE mod, ID id, const char *file)
 {
-    VALUE av, fn;
-    struct st_table *tbl;
-
     if (!rb_is_const_id(id)) {
-	rb_raise(rb_eNameError, "autoload must be constant name: %s", rb_id2name(id));
+	rb_raise(rb_eNameError, "autoload must be constant name: %s",
+		rb_id2name(id));
     }
     if (!file || !*file) {
 	rb_raise(rb_eArgError, "empty file name");
     }
 
+    VALUE av;
     if ((av = rb_attr_get(mod, id)) != Qnil && av != Qundef) {
 	return;
     }
 
     rb_const_set(mod, id, Qundef);
-    if ((av = rb_attr_get(mod, autoload)) != Qnil) {
+
+    struct st_table *tbl;
+    if ((av = rb_attr_get(mod, id_autoload)) != Qnil) {
 	tbl = check_autoload_table(av);
     }
     else {
 	av = Data_Wrap_Struct(rb_cData, NULL, NULL, 0);
-	rb_ivar_set(mod, autoload, av);
+	rb_ivar_set(mod, id_autoload, av);
 	tbl = st_init_numtable();
 	GC_WB(&DATA_PTR(av), tbl);
     }
-    fn = rb_str_new2(file);
+
+    VALUE fn = rb_str_new2(file);
     rb_obj_untaint(fn);
     OBJ_FREEZE(fn);
     NODE *n = rb_node_newnode(NODE_MEMO, fn, rb_safe_level(), 0);
@@ -1326,7 +1331,7 @@ rb_autoload(VALUE mod, ID id, const char *file)
     st_insert(tbl, id, (st_data_t)n);
 }
 
-static NODE*
+static NODE *
 autoload_delete(VALUE mod, ID id)
 {
     VALUE val;
@@ -1336,19 +1341,15 @@ autoload_delete(VALUE mod, ID id)
     assert(iv_dict != NULL);
     CFDictionaryRemoveValue(iv_dict, (const void *)id);
     if (CFDictionaryGetValueIfPresent((CFDictionaryRef)iv_dict, 
-	(const void *)autoload, (const void **)&val)) {
+		(const void *)id_autoload, (const void **)&val)) {
 	struct st_table *tbl = check_autoload_table(val);
-
 	st_delete(tbl, (st_data_t*)&id, &load);
-
 	if (tbl->num_entries == 0) {
-	    DATA_PTR(val) = 0;
+	    DATA_PTR(val) = NULL;
 	    st_free_table(tbl);
-	    id = autoload;
-	    CFDictionaryRemoveValue(iv_dict, (const void *)id);
+	    CFDictionaryRemoveValue(iv_dict, (const void *)id_autoload);
 	}
     }
-
     return (NODE *)load;
 }
 
@@ -1367,18 +1368,20 @@ rb_autoload_load(VALUE klass, ID id)
 static VALUE
 autoload_file(VALUE mod, ID id)
 {
-    VALUE val, file;
+    VALUE val;
     struct st_table *tbl;
     st_data_t load;
 
     CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(mod);
     assert(iv_dict != NULL);
     if (!CFDictionaryGetValueIfPresent((CFDictionaryRef)iv_dict, 
-	   (const void *)autoload, (const void **)&val)
-	|| (tbl = check_autoload_table(val)) == NULL
-	|| !st_lookup(tbl, id, &load))
+		(const void *)id_autoload, (const void **)&val)
+	    || (tbl = check_autoload_table(val)) == NULL
+	    || !st_lookup(tbl, id, &load)) {
 	return Qnil;
-    file = ((NODE *)load)->nd_lit;
+    }
+
+    VALUE file = ((NODE *)load)->nd_lit;
     Check_Type(file, T_STRING);
     if (RSTRING_LEN(file) == 0) {
 	rb_raise(rb_eArgError, "empty file name");
@@ -1387,13 +1390,12 @@ autoload_file(VALUE mod, ID id)
 	return file;
     }
 
-    /* already loaded but not defined */
-    st_delete(tbl, (st_data_t*)&id, 0);
-    if (!tbl->num_entries) {
+    // Already loaded but not defined.
+    st_delete(tbl, (st_data_t *)&id, 0);
+    if (tbl->num_entries == 0) {
 	DATA_PTR(val) = 0;
 	st_free_table(tbl);
-	id = autoload;
-	CFDictionaryRemoveValue(iv_dict, (const void *)id);
+	CFDictionaryRemoveValue(iv_dict, (const void *)id_autoload);
     }
     return Qnil;
 }

@@ -216,28 +216,6 @@ init_copy(VALUE dest, VALUE obj)
 	    }
 	    ROBJECT(dest)->num_slots = ROBJECT(obj)->num_slots;
 	    break;
-
-      case T_CLASS:
-      case T_MODULE:
-	{
-	    CFMutableDictionaryRef dest_dict = rb_class_ivar_dict(dest);
-	    if (dest_dict != NULL) {
-		CFDictionaryRemoveAllValues(dest_dict);
-	    }
-	    CFMutableDictionaryRef obj_dict = rb_class_ivar_dict(obj);
-	    if (obj_dict != NULL) {
-		dest_dict = CFDictionaryCreateMutableCopy(NULL, 0,
-			(CFDictionaryRef)obj_dict);
-		CFMakeCollectable(dest_dict);
-		rb_class_ivar_set_dict(dest, dest_dict);
-	    }
-	    else {
-		if (dest_dict) {
-		    rb_class_ivar_set_dict(dest, NULL);
-		}
-	    }
-	}
-        break;
     }
 
     rb_vm_call(dest, selInitializeCopy, 1, &obj);
@@ -379,14 +357,7 @@ rb_obj_init_copy(VALUE obj, SEL sel, VALUE orig)
 static VALUE
 rb_nsobj_dup(VALUE obj, VALUE sel)
 {
-    VALUE klass = rb_class_real(CLASS_OF(obj), true);
-    if (class_respondsToSelector((Class)klass, selCopyWithZone)) {
-	return (VALUE)objc_msgSend((id)obj, selCopy); 
-    }
-
-    VALUE copy = rb_vm_new_rb_object(klass);
-    rb_obj_init_copy(copy, 0, (VALUE)obj);
-    return copy;
+    return rb_obj_dup(obj);
 }
 
 /*
@@ -1989,7 +1960,8 @@ rb_obj_alloc0(VALUE klass)
 	rb_raise(rb_eTypeError, "can't create instance of singleton class");
     }
 
-    if ((RCLASS_VERSION(*(void **)klass) & RCLASS_HAS_ROBJECT_ALLOC) == RCLASS_HAS_ROBJECT_ALLOC) {
+    if ((RCLASS_VERSION(*(void **)klass) & RCLASS_HAS_ROBJECT_ALLOC)
+	    == RCLASS_HAS_ROBJECT_ALLOC) {
 	// Fast path!
 	return rb_vm_new_rb_object(klass);
     }

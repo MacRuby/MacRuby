@@ -265,56 +265,62 @@ rb_class_new(VALUE super)
 }
 
 /* :nodoc: */
+
+extern ID id_classid, id_classpath;
+
 VALUE
 rb_mod_init_copy(VALUE clone, SEL sel, VALUE orig)
 {
-    static ID classpath = 0;
-    static ID classid = 0;
-
     rb_obj_init_copy(clone, 0, orig);
-    {
-	VALUE super;
-	unsigned long version_flag;
 
-	if (!RCLASS_RUBY(orig)) {
-	    super = orig;
-	    rb_warn("cloning class `%s' is not supported, creating a " \
-		    "subclass instead", rb_class2name(orig));
-	}
-	else {
-	    super = RCLASS_SUPER(orig);
-	}
-	RCLASS_SET_SUPER(clone, super);
+    VALUE super;
+    if (!RCLASS_RUBY(orig)) {
+	super = orig;
+	rb_warn("cloning class `%s' is not supported, creating a " \
+		"subclass instead", rb_class2name(orig));
+    }
+    else {
+	super = RCLASS_SUPER(orig);
+    }
+    RCLASS_SET_SUPER(clone, super);
 
-	version_flag = RCLASS_IS_RUBY_CLASS;
-	if ((RCLASS_VERSION(super) & RCLASS_IS_OBJECT_SUBCLASS) == RCLASS_IS_OBJECT_SUBCLASS) {
-	    version_flag |= RCLASS_IS_OBJECT_SUBCLASS;
-	}
-
-	RCLASS_SET_VERSION(clone, version_flag);
-
-	rb_vm_copy_methods((Class)orig, (Class)clone);
-	CFMutableDictionaryRef ivar_dict = rb_class_ivar_dict(orig);
-	if (ivar_dict != NULL) {
-	    CFMutableDictionaryRef cloned_ivar_dict;
-
-	    if (classpath == 0) {
-		classpath = rb_intern("__classpath__");
-	    }
-	    if (classid == 0) {
-		classid = rb_intern("__classid__");
-	    }
-	    cloned_ivar_dict = CFDictionaryCreateMutableCopy(NULL, 0,
-		(CFDictionaryRef)ivar_dict);
-	    // Remove the classpath & classid (name) so that they are not
-	    // copied over the new module / class
-	    CFDictionaryRemoveValue(cloned_ivar_dict, (const void *)classpath);
-	    CFDictionaryRemoveValue(cloned_ivar_dict, (const void *)classid);
-	    CFMakeCollectable(cloned_ivar_dict);
-	    rb_class_ivar_set_dict(clone, cloned_ivar_dict);
-	}
+    // Copy flags.
+    unsigned long version_flag = RCLASS_IS_RUBY_CLASS;
+    if ((RCLASS_VERSION(super) & RCLASS_IS_OBJECT_SUBCLASS)
+	    == RCLASS_IS_OBJECT_SUBCLASS) {
+	version_flag |= RCLASS_IS_OBJECT_SUBCLASS;
+    }
+    if (RCLASS_MODULE(orig)) {
+	version_flag |= RCLASS_IS_MODULE;
+    }
+    RCLASS_SET_VERSION(clone, version_flag);
+    if (!class_isMetaClass((Class)clone)) {
+	// Clear type info.
+	RCLASS_SET_VERSION(*(Class *)clone, RCLASS_VERSION(*(Class *)clone));
     }
 
+    // Copy methods.
+    rb_vm_copy_methods((Class)orig, (Class)clone);
+    if (!class_isMetaClass((Class)orig)) {
+	rb_vm_copy_methods(*(Class *)orig, *(Class *)clone);
+    }
+
+    // Copy ivars.
+    CFMutableDictionaryRef orig_dict = rb_class_ivar_dict(orig);
+    CFMutableDictionaryRef clone_dict;
+    if (orig_dict != NULL) {
+	clone_dict = CFDictionaryCreateMutableCopy(NULL, 0, orig_dict);
+	rb_class_ivar_set_dict(clone, clone_dict);
+	CFMakeCollectable(clone_dict);
+    }
+    else {
+	clone_dict = rb_class_ivar_dict_or_create(clone);
+    }
+
+    // Remove the classpath & classid (name) so that they are not
+    // copied over the new module / class.
+    CFDictionaryRemoveValue(clone_dict, (const void *)id_classpath);
+    CFDictionaryRemoveValue(clone_dict, (const void *)id_classid);
     return clone;
 }
 
@@ -595,21 +601,18 @@ rb_define_module(const char *name)
 VALUE
 rb_define_module_under(VALUE outer, const char *name)
 {
-    VALUE module;
-    ID id;
-
-    id = rb_intern(name);
+    ID id = rb_intern(name);
     if (rb_const_defined_at(outer, id)) {
-	module = rb_const_get_at(outer, id);
-	if (TYPE(module) == T_MODULE)
+	VALUE module = rb_const_get_at(outer, id);
+	if (TYPE(module) == T_MODULE) {
 	    return module;
+	}
 	rb_raise(rb_eTypeError, "%s::%s:%s is not a module",
 		 rb_class2name(outer), name, rb_obj_classname(module));
     }
-    module = rb_define_module_id(id);
+    VALUE module = rb_define_module_id(id);
     rb_const_set(outer, id, module);
     rb_set_class_path(module, outer, name);
-
     return module;
 }
 
