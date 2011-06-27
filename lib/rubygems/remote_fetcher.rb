@@ -277,7 +277,9 @@ class Gem::RemoteFetcher
       raise Gem::RemoteFetcher::FetchError.new('error when fetching data', uri)
     end
     say "OK" if Gem.configuration.really_verbose
-    return String.new(data)
+    data = String.new(data)
+    data.force_encoding(Encoding::BINARY)
+    return data
 
     raise "block is dead" if block_given?
 
