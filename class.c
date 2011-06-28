@@ -27,7 +27,8 @@ extern VALUE rb_cModuleObject;
 static bool
 rb_class_hidden(VALUE klass)
 {
-    return klass == rb_cModuleObject || klass == rb_cRubyObject || RCLASS_SINGLETON(klass);
+    return klass == rb_cModuleObject || klass == rb_cRubyObject
+	|| RCLASS_SINGLETON(klass);
 }
 
 VALUE
@@ -494,6 +495,20 @@ rb_class_inherited(VALUE super, VALUE klass)
     return Qnil;
 }
 
+static void
+check_class_super(ID id, VALUE klass, VALUE super)
+{
+    VALUE k = klass;
+    do {
+	k = RCLASS_SUPER(k);
+    }
+    while (k != 0 && rb_class_hidden(k));
+
+    if (rb_class_real(k, true) != super) {
+	rb_name_error(id, "%s is already defined", rb_id2name(id));
+    }
+}
+
 VALUE
 rb_define_class(const char *name, VALUE super)
 {
@@ -506,9 +521,7 @@ rb_define_class(const char *name, VALUE super)
 	if (TYPE(klass) != T_CLASS) {
 	    rb_raise(rb_eTypeError, "%s is not a class", name);
 	}
-	if (rb_class_real(RCLASS_SUPER(klass), true) != super) {
-	    rb_name_error(id, "%s is already defined", name);
-	}
+	check_class_super(id, klass, super);
 	return klass;
     }
     if (!super) {
@@ -538,9 +551,7 @@ rb_define_class_under(VALUE outer, const char *name, VALUE super)
 	if (RCLASS_RUBY(klass)) {
 	    // Only for pure Ruby classes, as Objective-C classes
 	    // might be returned from the dynamic resolver.
-	    if (rb_class_real(RCLASS_SUPER(klass), true) != super) {
-		rb_name_error(id, "%s is already defined", name);
-	    }
+	    check_class_super(id, klass, super);
 	    return klass;
 	}
     }
