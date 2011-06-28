@@ -17,5 +17,4 @@ else
   have_header("ruby/re.h")
   have_header("ruby/encoding.h")
 end
-$INCFLAGS << ' -I../../..'
 create_makefile 'json/ext/generator'

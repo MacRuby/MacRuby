@@ -778,23 +778,6 @@ static VALUE cParser_source(VALUE self)
     return rb_str_dup(json->Vsource);
 }
 
-#ifdef __MACRUBY__
-#include "macruby_internal.h"
-#include "objc.h"
-static IMP json_parser_finalize_imp_super = NULL;
-static void
-json_parser_finalize_imp(void *self, SEL sel)
-{
-    GET_PARSER;
-    if (json != NULL) {
-	JSON_free(json);
-    }
-    if (json_parser_finalize_imp_super != NULL) {
-	((void(*)(void *, SEL))json_parser_finalize_imp_super)(self, sel);
-    }
-}
-#endif
-
 void Init_parser()
 {
     rb_require("json/common");
@@ -839,10 +822,5 @@ void Init_parser()
     i_force_encoding = rb_intern("force_encoding");
 #else
     i_iconv = rb_intern("iconv");
-#endif
-
-#ifdef __MACRUBY__
-    json_parser_finalize_imp_super = rb_objc_install_method2((Class)cParser,
-	    "finalize", (IMP)json_parser_finalize_imp);
 #endif
 }

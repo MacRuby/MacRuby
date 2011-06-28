@@ -1315,24 +1315,6 @@ static VALUE cState_depth_set(VALUE self, VALUE depth)
     return state->depth = FIX2LONG(depth);
 }
 
-#ifdef __MACRUBY__
-#include "macruby_internal.h"
-#include "objc.h"
-static IMP json_generator_state_finalize_imp_super = NULL;
-static void
-json_generator_state_finalize_imp(void *self, SEL sel)
-{
-    JSON_Generator_State *objState;
-    Data_Get_Struct(self, JSON_Generator_State, objState);
-    if (objState != NULL) {
-	State_free(objState);
-    }
-    if (json_generator_state_finalize_imp_super != NULL) {
-	((void(*)(void *, SEL))json_generator_state_finalize_imp_super)(self, sel);
-    }
-}
-#endif
-
 /*
  *
  */
@@ -1433,9 +1415,4 @@ void Init_generator()
 #endif
     i_SAFE_STATE_PROTOTYPE = rb_intern("SAFE_STATE_PROTOTYPE");
     CJSON_SAFE_STATE_PROTOTYPE = Qnil;
-
-#ifdef __MACRUBY__
-    json_generator_state_finalize_imp_super = rb_objc_install_method2((Class)cState,
-	    "finalize", (IMP)json_generator_state_finalize_imp);
-#endif
 }
