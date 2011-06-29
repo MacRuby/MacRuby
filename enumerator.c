@@ -195,7 +195,7 @@ enumerator_allocate(VALUE klass, SEL sel)
 {
     struct enumerator *ptr;
     return Data_Make_Struct(klass, struct enumerator,
-			    NULL, -1, ptr);
+	    NULL, NULL, ptr);
 }
 
 static VALUE

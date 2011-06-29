@@ -170,7 +170,7 @@ stat_new_0(VALUE klass, struct stat *st)
 	nst = ALLOC(struct stat);
 	*nst = *st;
     }
-    return Data_Wrap_Struct(klass, NULL, xfree, nst);
+    return Data_Wrap_Struct(klass, NULL, NULL, nst);
 }
 
 static VALUE

@@ -424,15 +424,32 @@ rb_node_release(NODE *node)
     }
 }
 
-VALUE
-rb_data_object_alloc(VALUE klass, void *datap, RUBY_DATA_FUNC dmark, RUBY_DATA_FUNC dfree)
+static void
+rdata_finalize(void *rcv, SEL sel)
 {
+    if (RDATA(rcv)->dfree != NULL && RDATA(rcv)->data != NULL) {
+	RDATA(rcv)->dfree(RDATA(rcv)->data);
+	RDATA(rcv)->data = NULL;
+    }
+}
+
+VALUE
+rb_data_object_alloc(VALUE klass, void *datap, RUBY_DATA_FUNC dmark,
+	RUBY_DATA_FUNC dfree)
+{
+    if (klass) {
+	Check_Type(klass, T_CLASS);
+    }
+
     NEWOBJ(data, struct RData);
-    if (klass) Check_Type(klass, T_CLASS);
     OBJSETUP(data, klass, T_DATA);
     GC_WB(&data->data, datap);
     data->dfree = dfree;
     data->dmark = dmark;
+
+    if (dfree != NULL) {
+	rb_objc_install_method2((Class)klass, "finalize", (IMP)rdata_finalize);
+    }
 
     return (VALUE)data;
 }
