@@ -5,7 +5,9 @@
 #
 # Copyright (C) 2009-2011, Apple Inc
 
+require 'digest/sha1'
 require 'optparse'
+require 'pathname'
 require 'rbconfig'
 begin
   load File.join(File.dirname(__FILE__), 'macrubyc')
@@ -24,6 +26,7 @@ class Deployer
       opts.banner = "Usage: #{NAME} [options] application-bundle"
       opts.on('--compile',       'Compile the bundle source code') { @compile = true }
       opts.on('--embed',         'Embed MacRuby inside the bundle') { @embed = true }
+      opts.on('--cache [DIR]',   "Cache .rbo files in DIR to speed up compilation (default .rbo-cache)") { |dir| @cache_dir = dir || '.rbo-cache' }
       opts.on('--no-stdlib',     'Do not embed the standard library') { @no_stdlib = true }
       opts.on('--stdlib [LIB]',  'Embed only LIB from the standard library') { |lib| @stdlib << lib }
       opts.on('--gem [GEM]',     'Embed GEM and its dependencies') { |gem| @gems << gem }
@@ -80,7 +83,7 @@ class Deployer
   # FileUtils::Verbose doesn't work with MacRuby yet. However, it doesn't print
   # out failures anyways, just the command. Use the command-line tools directly
   # to circumvent this.
-  { :cp => 'cp', :cp_r => 'cp -R', :mkdir_p => 'mkdir -p', :rm_rf => 'rm -rf', :rsync => 'rsync', :mv => 'mv' }.each do |name, cmd|
+  { :cp => 'cp', :cp_r => 'cp -R', :cp_p => 'cp -p', :mkdir_p => 'mkdir -p', :rm_rf => 'rm -rf', :rsync => 'rsync', :mv => 'mv' }.each do |name, cmd|
     define_method(name) do |*args|
       arg_string = args.map { |a| "'#{a}'" }.join(' ')
       execute "#{cmd} #{arg_string}"
@@ -141,6 +144,14 @@ class Deployer
     @macruby_usr ||= ensure_path(File.join(@macruby_framework_path, 'Versions', @macruby_install_version, 'usr'))
   end
 
+  def use_cache?
+    !@cache_dir.nil?
+  end
+
+  def cache_dir
+    @cache_dir
+  end
+
   def compile_files
     Dir.glob(File.join(app_resources, '**', '*.rb'))
   end
@@ -151,9 +162,45 @@ class Deployer
       base = File.basename(source, '.rb')
       next if base == 'rb_main'
       obj = File.join(File.dirname(source), base + '.rbo')
-      if !File.exist?(obj) or File.mtime(source) > File.mtime(obj)
+
+      if use_cache?
+        # Get path relative to Content/Resources for the file we are compiling
+        # This path is mirrored in the cache directory
+        relative_path = Pathname.new(File.dirname(source)).relative_path_from(Pathname.new(app_resources))
+        # Prepend app_archs to path of cached file
+        cache_file = File.join(cache_dir, app_archs.join('+'), relative_path, base + '.rbo')
+        cache_digest_file = File.join(File.dirname(cache_file), base + '.sha1')
+        source_digest = Digest::SHA1.file(source).hexdigest
+
+        if File.exists?(cache_file) && File.exists?(cache_digest_file)
+          cache_digest = File.read(cache_digest_file)
+          if source_digest == cache_digest
+            # Source file hasn't changed since last time, use it
+            mkdir_p(File.dirname(obj)) unless File.exists?(File.dirname(obj))
+            cp_p(cache_file, obj)
+            used_cache = true
+          else
+            # Source file has changed, delete our cached file
+            rm_rf(cache_file)
+            rm_rf(cache_digest_file)
+            used_cache = false
+          end
+        else
+          mkdir_p(File.dirname(cache_file))
+        end
+      else
+        # Caching disabled
+        used_cache = false
+      end
+
+      if !used_cache and (!File.exist?(obj) or File.mtime(source) > File.mtime(obj))
         begin
           MacRuby::Compiler.compile_file(source, archs: app_archs)
+          if use_cache?
+            # Cache the compiled file
+            cp_p(obj, cache_file)
+            File.open(cache_digest_file, 'w') { |f| f.write(source_digest) }
+          end
         rescue
           die "Can't compile \"#{source}\""
         end
