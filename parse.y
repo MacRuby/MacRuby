@@ -5085,7 +5085,8 @@ rb_compile_string(const char *f, VALUE s, int line)
 }
 
 NODE *
-rb_parser_compile_string(VALUE vparser, const char *f, VALUE s, int line)
+rb_parser_compile_string(volatile VALUE vparser, const char *f, VALUE s,
+	int line)
 {
     struct parser_params *parser;
     Data_Get_Struct(vparser, struct parser_params, parser);
@@ -5133,7 +5134,7 @@ rb_compile_file(const char *f, VALUE file, int start)
 }
 
 NODE *
-rb_parser_compile_file(VALUE vparser, const char *f, VALUE file,
+rb_parser_compile_file(volatile VALUE vparser, const char *f, VALUE file,
 	int start)
 {
     struct parser_params *parser;
