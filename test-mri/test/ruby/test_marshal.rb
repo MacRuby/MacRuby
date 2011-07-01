@@ -44,7 +44,7 @@ class TestMarshal < Test::Unit::TestCase
 
   StrClone = String.clone
   def test_marshal_cloned_class
-    skip("[BUG : #???] Abort")
+    skip("[BUG : #1065] Abort occurs when calls Marshal.dump with object of cloned class.")
 
     assert_instance_of(StrClone, Marshal.load(Marshal.dump(StrClone.new("abc"))))
   end

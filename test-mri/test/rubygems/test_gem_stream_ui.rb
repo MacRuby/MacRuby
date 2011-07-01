@@ -67,8 +67,6 @@ class TestGemStreamUI < RubyGemTestCase
   end
 
   def test_ask_yes_no_no_tty_with_default
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     @in.tty = false
 
     timeout(0.1) do
@@ -81,8 +79,6 @@ class TestGemStreamUI < RubyGemTestCase
   end
 
   def test_ask_yes_no_no_tty_without_default
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     @in.tty = false
 
     timeout(0.1) do

@@ -759,6 +759,8 @@ class TestModule < Test::Unit::TestCase
   end
 
   def test_include_under_safe4
+    skip("[BUG : #842] SecurityError Level 4")
+
     m = Module.new
     c1 = Class.new
     assert_raise(SecurityError) do

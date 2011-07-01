@@ -90,7 +90,7 @@ class PPInspectTest < Test::Unit::TestCase
   end
 
   def test_pretty_print_inspect
-    skip("[BUG : #1082] Segfault")
+    skip("[BUG : #1082] Segfault occurs when use a alias of pretty_print_inspect without implementing pretty_print.")
 
     a = PrettyPrintInspect.new(1)
     assert_equal("<pretty_print:1>", a.inspect)

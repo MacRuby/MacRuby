@@ -492,7 +492,7 @@ class TestThread < Test::Unit::TestCase
   end
 
   def test_select_wait
-    skip("[BUG : #???] Abort")
+    skip("[BUG : #1233] Abort occurs when kill a thread waiting with IO.select")
 
     assert_nil(IO.select(nil, nil, nil, 1))
     t = Thread.new do

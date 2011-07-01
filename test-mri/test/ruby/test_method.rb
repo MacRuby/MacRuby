@@ -148,8 +148,6 @@ class TestMethod < Test::Unit::TestCase
   end
 
   def test_define_method
-    skip("[BUG : #1084] Abort")
-
     c = Class.new
     c.class_eval { def foo; :foo; end }
     o = c.new
