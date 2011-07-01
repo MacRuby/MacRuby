@@ -93,11 +93,16 @@ static int   VpLimitRound(Real *c, size_t ixDigit);
  *  **** BigDecimal part ****
  */
 
+#if 0
+// XXX MACRUBY manually deleting the Real structure seems to cause a resurrection error
+// because both the Free structure and the Ruby object have a cyclic reference.
 static void
 BigDecimal_delete(void *pv)
 {
     VpFree(pv);
 }
+#endif
+#define BigDecimal_delete NULL
 
 static VALUE
 ToValue(Real *p)
