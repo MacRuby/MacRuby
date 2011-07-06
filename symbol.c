@@ -18,7 +18,7 @@
 
 VALUE rb_cSymbol;
 
-static pthread_mutex_t local_lock;
+static pthread_mutex_t local_lock = PTHREAD_MUTEX_INITIALIZER;
 #define LOCK() (assert(pthread_mutex_lock(&local_lock) == 0))
 #define UNLOCK() (assert(pthread_mutex_unlock(&local_lock) == 0))
 
@@ -301,7 +301,6 @@ struct rb_op_tbl_entry rb_op_tbl[] = {
 void
 Init_PreSymbol(void)
 {
-    assert(pthread_mutex_init(&local_lock, 0) == 0);
     sym_id = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
     assert(sym_id != NULL);
     id_str = CFDictionaryCreateMutable(NULL, 0, NULL,
