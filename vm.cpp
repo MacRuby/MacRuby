@@ -2672,8 +2672,10 @@ define_method:
     char types[100];
     resolve_method_type(types, sizeof types, klass, method, sel, types_count);
 
+    GET_CORE()->lock();
     node = GET_CORE()->add_method(klass, sel, objc_imp, ruby_imp, arity,
 	    flags, types);
+    GET_CORE()->unlock();
 
     if (!redefined) {
 	if (!genuine_selector && arity.max != arity.min) {
