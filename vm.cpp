@@ -2630,14 +2630,18 @@ rb_vm_define_attr(Class klass, const char *name, bool read, bool write)
     ID iname = rb_intern(buf);
 
     if (read) {
+	GET_CORE()->lock();
 	Function *f = RoxorCompiler::shared->compile_read_attr(iname);
+	GET_CORE()->unlock();
 	SEL sel = sel_registerName(name);
 	rb_vm_prepare_method(klass, false, sel, f, rb_vm_arity(0),
 		VM_METHOD_FBODY);
     }
 
     if (write) {
+	GET_CORE()->lock();
 	Function *f = RoxorCompiler::shared->compile_write_attr(iname);
+	GET_CORE()->unlock();
 	snprintf(buf, sizeof buf, "%s=:", name);
 	SEL sel = sel_registerName(buf);
 	rb_vm_prepare_method(klass, false, sel, f, rb_vm_arity(1),
@@ -2734,8 +2738,10 @@ rb_vm_define_method3(Class klass, ID mid, rb_vm_block_t *block)
     const int arity = rb_vm_arity_n(block->arity);
     SEL sel = rb_vm_id_to_sel(mid, arity);
 
+    GET_CORE()->lock();
     Function *func = RoxorCompiler::shared->compile_block_caller(block);
     IMP imp = GET_CORE()->compile(func);
+    GET_CORE()->unlock();
     NODE *body = rb_vm_cfunc_node_from_imp(klass, arity < -1 ? -2 : arity, imp, 0);
     GC_RETAIN(body);
     GC_RETAIN(block);
