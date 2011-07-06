@@ -18,6 +18,10 @@
 
 VALUE rb_cSymbol;
 
+static pthread_mutex_t local_lock;
+#define LOCK() (assert(pthread_mutex_lock(&local_lock) == 0))
+#define UNLOCK() (assert(pthread_mutex_unlock(&local_lock) == 0))
+
 static CFMutableDictionaryRef sym_id = NULL, id_str = NULL;
 static long last_id = 0;
 
@@ -50,7 +54,9 @@ static ID
 rb_intern_uchars(const UChar *chars, const size_t chars_len, VALUE str)
 {
     const unsigned long name_hash = rb_str_hash_uchars(chars, chars_len);
+    LOCK();
     ID id = (ID)CFDictionaryGetValue(sym_id, (const void *)name_hash); 
+    UNLOCK();
     if (id != 0) {
 	goto return_id;
     }
@@ -116,8 +122,10 @@ new_id:
 id_register:
 //printf("register %s hash %ld id %ld\n", RSTRING_PTR(str), name_hash, id);
     sym = sym_alloc(str, id);
+    LOCK();
     CFDictionarySetValue(sym_id, (const void *)name_hash, (const void *)id);
     CFDictionarySetValue(id_str, (const void *)id, (const void *)sym);
+    UNLOCK();
 
 return_id:
     return id;
@@ -133,7 +141,9 @@ rb_intern_str(VALUE str)
 VALUE
 rb_id2str(ID id)
 {
+    LOCK();
     VALUE sym = (VALUE)CFDictionaryGetValue(id_str, (const void *)id);
+    UNLOCK();
     if (sym != 0) {
 //printf("lookup %ld -> %s\n", id, rb_sym2name(sym));
 	return sym;
@@ -156,7 +166,9 @@ rb_id2str(ID id)
 	rb_intern_str(str);
 
 	// Retry one more time.
+	LOCK();
 	sym = (VALUE)CFDictionaryGetValue(id_str, (const void *)id);
+	UNLOCK();
 	if (sym != 0) {
 //printf("lookup %ld -> %s\n", id, rb_sym2name(sym));
 	    return sym;
@@ -289,9 +301,12 @@ struct rb_op_tbl_entry rb_op_tbl[] = {
 void
 Init_PreSymbol(void)
 {
+    assert(pthread_mutex_init(&local_lock, 0) == 0);
     sym_id = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
+    assert(sym_id != NULL);
     id_str = CFDictionaryCreateMutable(NULL, 0, NULL,
 	    &kCFTypeDictionaryValueCallBacks);
+    assert(id_str != NULL);
     last_id = 1000;
 
     // Pre-register parser symbols.
