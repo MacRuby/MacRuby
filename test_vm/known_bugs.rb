@@ -4,7 +4,7 @@
 assert 'true', %{
   class X; end
   p X.object_id != X.dup.object_id
-}, :known_bug => true
+}
 
 assert '123456789012345678901234567890', %{
   puts '%d' % 123456789012345678901234567890

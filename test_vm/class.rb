@@ -159,7 +159,7 @@ assert "B, [:CONST_M], [:ok]", %{
   end
   B = M.dup
   puts B.to_s + ", " + B.constants.to_s + ", " + B.instance_methods(false).to_s
-}, :known_bug => true
+}
 
 assert "B, [:CONST_A], [:ok]", %{
   class A
@@ -168,7 +168,7 @@ assert "B, [:CONST_A], [:ok]", %{
   end
   B = A.dup
   puts B.to_s + ", " + B.constants.to_s + ", " + B.instance_methods(false).to_s
-}, :known_bug => true
+}
 
 assert "B, [:CONST_C, :CONST_A], []", %{
   class A
@@ -180,7 +180,7 @@ assert "B, [:CONST_C, :CONST_A], []", %{
   end
   B = C.dup
   puts B.to_s + ", " + B.constants.to_s + ", " + B.instance_methods(false).to_s
-}, :known_bug => true
+}
 
 # should obviously be a real file path when run from a file...
 assert %{["-:7:in `<main>'"]}, %{
