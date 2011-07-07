@@ -3,62 +3,71 @@
 require 'rake'
 require 'rake/tasklib'
 require 'rbconfig'
-load File.join(RbConfig::CONFIG['bindir'], 'macrubyc')
+
+# it could already be loaded by rubygems or others
+unless MacRuby.const_defined?(:Compiler)
+  load File.join(RbConfig::CONFIG['bindir'], 'macrubyc')
+end
 
 module Rake
 
-  # Create a task that runs a set of tests.
+  # Create a task that compiles your ruby source files for MacRuby.
   #
-  # Example:
+  # Example: What To Add To Your Rakefile
   #
-  #   Rake::CompileTask.new do |t|
-  #     t.files = FileList['lib/**/*.rb']
-  #     t.verbose = true
-  #   end
+  #   require 'rake/compiletask'
+  #   Rake::CompileTask.new(:rbo)
   #
-  # Example:
+  # Example: Compiling On Demand
   #
-  #   rake compile                  # regular compilation
+  #   rake rbo
   #
   class CompileTask < TaskLib
 
     # Name of test task. (default is :compile)
-    attr_accessor :name
+    attr_reader :name
 
-    # Whether to list each file that is compiled or not (defaults is false)
+    # Whether to list each file that is being compiled or not
+    # (defaults is true)
     attr_accessor :verbose
 
-    # Explicitly define the list of test files to be compiled.
-    # +list+ is expected to be an array of file names (a
-    # FileList is acceptable).
-    def files=(list)
-      @files = list
-    end
+    # List of directories where to look for .rb files that should be compiled
+    # (default is 'lib')
+    attr_accessor :libs
 
-    # Create a testing task.
+    # Explicitly define extra files that should be compiled.
+    # You must set this attribute to be an array of file names (a FileList
+    # is acceptable).
+    #
+    # Note that this list is in addition to files found in directories
+    # listed in +libs+
+    attr_accessor :files
+
+    # Create a MacRuby compilation task.
     def initialize(name=:compile)
       @name = name
+      @libs = ['lib']
       @files = []
-      @verbose = false
+      @verbose = true
       yield self if block_given?
       define
     end
 
     # Create the tasks defined by this task lib.
     def define
-      desc "Compile files" + (@name==:compile ? "" : " for #{@name}")
-      task @name do
+      desc 'Compile ruby files' + (name == :compile ? '' : " for #{name}")
+      task name do
         start_time = Time.now
         number_of_files = 0
 
-        @files.each do |source|
+        full_file_list.each do |source|
           compiled_name = "#{source}o"
 
           if File.exists?(compiled_name) && (File.mtime(compiled_name) > File.mtime(source))
             next
           end
 
-          if @verbose
+          if verbose
             $stdout.puts compiled_name
             number_of_files += 1
           end
@@ -66,13 +75,31 @@ module Rake
           MacRuby::Compiler.compile_file(source)
         end
 
-        if @verbose
+        if verbose
           compile_time = Time.now - start_time
           $stdout.puts "Finished compile in %.6fs, %.6s files/s" %
             [compile_time, number_of_files / compile_time]
         end
       end
+
+      desc "Remove files compiled with :#{name}"
+      task "clobber_#{name}" do
+        full_file_list.each do |file|
+          path = "#{file}o"
+          next unless File.exists?(path)
+          $stdout.puts "rm #{path}" if verbose
+          rm path
+        end
+      end
+      task :clobber => ["clobber_#{name}"]
+
       self
+    end
+
+    def full_file_list
+      (libs.inject([]) do |files, dir|
+        files << Dir.glob(File.join("#{dir}", '**', '*.rb'))
+      end + files).flatten.uniq
     end
 
   end
