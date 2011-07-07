@@ -4,8 +4,8 @@ module JSONSpecHelper
   # run once with json and then again with json/pure
   def serialize input, expected
     ['json','json/pure'].each do |lib|
-      ret = ruby_exe("p (#{input}).to_json == '#{expected}'", options: "-r #{lib}")
-      ret.chomp.should == 'true'
+      ret = ruby_exe("puts (#{input}).to_json", options: "-r #{lib}")
+      ret.chomp.should == expected
     end
   end
 end
@@ -17,7 +17,6 @@ describe 'JSON serialization using the C extension' do
   it 'works with NSString and NSMutableString' do
     serialize('NSString.stringWithString("test")','"test"')
     serialize('NSMutableString.stringWithString("test")','"test"')
-    # TODO test a string with a different encoding
   end
 
   it 'works with NSDictionary and NSMutableDictionary' do
