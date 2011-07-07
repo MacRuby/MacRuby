@@ -756,4 +756,4 @@ assert ':ok', %{
     :nok
   end
   p bar { break :ok }
-}
+}, :known_bug => true
