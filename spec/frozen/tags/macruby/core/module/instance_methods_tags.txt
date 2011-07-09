@@ -1,1 +1,2 @@
 fails:Module#instance_methods does not return methods undefined in a subclass
+fails:Module#instance_methods makes a private Object instance method public in Kernel

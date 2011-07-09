@@ -12,7 +12,6 @@ fails:Kernel#singleton_methods when not passed an argument returns the names of 
 fails:Kernel#singleton_methods when not passed an argument returns the names of inherited singleton methods for a class extended with a module
 fails:Kernel#singleton_methods when not passed an argument does not return any included methods for a module including a module
 fails:Kernel#singleton_methods when not passed an argument does not return any included methods for a class including a module
-fails:Kernel#singleton_methods when passed true returns an empty Array for an object with no singleton methods
 fails:Kernel#singleton_methods when passed true returns the names of module methods for a module
 fails:Kernel#singleton_methods when passed true returns the names of class methods for a class
 fails:Kernel#singleton_methods when passed true returns the names of inherited singleton methods for a subclass

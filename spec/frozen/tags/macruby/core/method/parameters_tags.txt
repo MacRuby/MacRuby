@@ -26,3 +26,4 @@ fails:Method#parameters returns [[:rest,:a],[:req,:b]] for a method expecting a 
 fails:Method#parameters returns [[:rest,:a],[:req,:b],[:req,:c]] for a method expecting a splat argument ('a') and two required arguments ('b','c')
 fails:Method#parameters returns [[:rest,:a],[:req,:b],[:block,:c]] for a method expecting a splat argument ('a'), a required argument ('b'), and a block ('c')
 fails:Method#parameters works with ->(){} as the value of an optional argument
+fails:Method#parameters returns [[:block,:blk]] for a method expecting one block argument called 'a'
