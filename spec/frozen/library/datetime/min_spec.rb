@@ -1,6 +1,6 @@
 require File.expand_path('../../../spec_helper', __FILE__)
-require 'date'
+require File.expand_path('../shared/min', __FILE__)
 
-describe "DateTime#min" do
-  it "needs to be reviewed for spec completeness"
+describe "DateTime.min" do
+  it_behaves_like :datetime_min, :min
 end

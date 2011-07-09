@@ -14,7 +14,7 @@ describe "IO.select" do
     timeout = 0.5
     start = Time.now
     IO.select [@rd], nil, nil, timeout
-    (Time.now - start).should be_close(timeout, 0.5)
+    (Time.now - start).should be_close(timeout, 2.0)
   end
 
   it "returns immediately all objects that are ready for I/O when timeout is 0" do
@@ -29,7 +29,8 @@ describe "IO.select" do
   end
 
   it "returns supplied objects when they are ready for I/O" do
-    Thread.new { sleep 0.5; @wr.write "be ready" }
+    t = Thread.new { sleep 0.5; @wr.write "be ready" }
+    t.abort_on_exception = true
     result = IO.select [@rd], nil, nil, nil
     result.should == [[@rd], [], []]
   end
