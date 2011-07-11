@@ -16,6 +16,8 @@ extern "C" {
 
 typedef struct rb_encoding rb_encoding;
 
+#define ENCODING_INLINE_MAX 1023
+
 #define ENCODING_GET(obj) (rb_enc_get_index((VALUE)obj))
 #define ENCODING_SET(obj, idx) (rb_enc_set_index((VALUE)obj, idx))
 
