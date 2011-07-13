@@ -6387,6 +6387,12 @@ rb_usascii_str_new2(const char *cstr)
     return rb_usascii_str_new(cstr, strlen(cstr));
 }
 
+VALUE
+rb_usascii_str_new_cstr(const char *cstr)
+{
+    return rb_usascii_str_new(cstr, strlen(cstr));
+}
+
 const char *
 rb_str_cstr(VALUE str)
 {
