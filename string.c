@@ -6374,6 +6374,12 @@ rb_tainted_str_new2(const char *cstr)
 }
 
 VALUE
+rb_tainted_str_new_cstr(const char *cstr)
+{
+    return rb_tainted_str_new(cstr, strlen(cstr));
+}
+
+VALUE
 rb_usascii_str_new(const char *cstr, long len)
 {
     VALUE str = rb_str_new(cstr, len);

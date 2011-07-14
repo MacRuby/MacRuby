@@ -481,6 +481,7 @@ VALUE rb_str_new4(VALUE);
 VALUE rb_str_new5(VALUE, const char*, long);
 VALUE rb_tainted_str_new(const char*, long);
 VALUE rb_tainted_str_new2(const char*);
+VALUE rb_tainted_str_new_cstr(const char*);
 VALUE rb_str_buf_new(long);
 VALUE rb_str_buf_new2(const char*);
 VALUE rb_str_tmp_new(long);
