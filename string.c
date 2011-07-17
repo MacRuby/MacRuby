@@ -1188,7 +1188,12 @@ str_index_for_string_with_cache(rb_str_t *self, rb_str_t *searched,
 		*stop = true;
 		return;
 	    }
-	    ++current_index;
+	    if (U_IS_BMP(c)) {
+		++current_index;
+	    }
+	    else {
+		current_index += 2;
+	    }
 	});
 	return returned_index;
     }
@@ -3358,15 +3363,23 @@ fs_set:
     }
     else if (spat_string) {
 	if (spat_len == 0) {
-	    do {
-		VALUE substr = rstr_substr_with_cache(str, beg, 1, &local_cache);
+	    __block int block_lim = lim;
+	    __block long block_beg = 0;
+	    str_each_uchar32(RSTR(str), ^(UChar32 c, long start_index, long char_len, bool *stop) {
+		VALUE substr = (VALUE)str_new_copy_of_part(RSTR(str), start_index, char_len);
 		rb_ary_push(result, substr);
-		beg++;
-		if (beg >= len) {
-		    break;
+		if (U_IS_BMP(c)) {
+		    ++block_beg;
 		}
-	    }
-	    while (limit == Qnil || --lim > 1);
+		else {
+		    block_beg += 2;
+		}
+		if (limit != Qnil && --block_lim <= 1) {
+		    *stop = true;
+		}
+	    });
+	    lim = block_lim;
+	    beg = block_beg;
 	}
 	else {
 	    rb_str_t *spat_str = str_need_string(spat);
