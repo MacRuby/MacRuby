@@ -61,7 +61,8 @@ rb_obj_is_proc(VALUE obj)
 static inline bool
 rb_obj_is_method(VALUE obj)
 {
-    return CLASS_OF(obj) == rb_cMethod;
+    VALUE klass = CLASS_OF(obj);
+    return (klass == rb_cMethod) || (klass == rb_cUnboundMethod);
 }
 
 static VALUE
@@ -1015,6 +1016,12 @@ rb_mod_define_method(VALUE mod, SEL sel, int argc, VALUE *argv)
 	Data_Get_Struct(body, rb_vm_method_t, data);
 	if (data->node == NULL) {
 	    rb_raise(rb_eArgError, "cannot use Method object of pure Objective-C method");
+	}
+	VALUE klass = data->rclass;
+	if (RBASIC(mod)->klass != klass && !RTEST(rb_class_inherited_p(mod, klass))) {
+	    rb_raise(rb_eTypeError,
+		     "bind argument must be a subclass of %s",
+		     rb_class2name(klass));
 	}
 	SEL msel = rb_vm_id_to_sel(id, data->arity);
 	rb_vm_define_method2((Class)mod, msel, data->node, data->node->flags, false);
