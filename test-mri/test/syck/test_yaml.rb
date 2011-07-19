@@ -1,6 +1,6 @@
 # -*- mode: ruby; ruby-indent-level: 4; tab-width: 4; indent-tabs-mode: t -*-
 #												vim:sw=4:ts=4
-# $Id: test_yaml.rb 27591 2010-05-02 23:15:08Z nobu $
+# $Id: test_yaml.rb 31203 2011-03-28 13:40:59Z yugui $
 #
 require 'test/unit'
 require 'yaml'
@@ -20,6 +20,11 @@ class YAML_Unit_Tests < Test::Unit::TestCase
 
     def teardown
         YAML::ENGINE.yamler = @current_engine
+    end
+
+    # [ruby-core:34969]
+    def test_regexp_with_n
+        assert_cycle(Regexp.new('',0,'n'))
     end
 
 	#

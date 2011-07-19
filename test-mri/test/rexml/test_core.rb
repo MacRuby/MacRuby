@@ -371,6 +371,9 @@ class Tester < Test::Unit::TestCase
     assert_equal(string, text.to_s)
     text2 = Text.new(text)
     assert_equal(text, text2)
+    string = "Frozen".freeze
+    text3 = Text.new(string)
+    assert_equal(string, text3.to_s)
     #testing substitution
     string = "0 < ( 1 & 1 )"
     correct = "0 &lt; ( 1 &amp; 1 )"
@@ -1147,6 +1150,67 @@ EOL
     assert_not_equal( c, d )
   end
 
+
+  def test_pretty_format_deep_indent
+    n = 6
+    elements = ""
+    n.times do |i|
+      elements << "<element#{i}>"
+      elements << "element#{i} " * 5
+    end
+    (n - 1).downto(0) do |i|
+      elements << "</element#{i}>"
+    end
+    xml = "<doc>#{elements}</doc>"
+    document = REXML::Document.new(xml)
+    formatter = REXML::Formatters::Pretty.new
+    formatter.width = 20
+    output = ""
+    formatter.write(document, output)
+    assert_equal(<<-XML.strip, output)
+<doc>
+  <element0>
+    element0
+    element0
+    element0
+    element0
+    element0 
+    <element1>
+      element1
+      element1
+      element1
+      element1
+      element1 
+      <element2>
+        element2
+        element2
+        element2
+        element2
+        element2 
+        <element3>
+          element3
+          element3
+          element3
+          element3
+          element3 
+          <element4>
+            element4
+            element4
+            element4
+            element4
+            element4
+            
+            <element5>
+              element5 element5 element5 element5 element5 
+            </element5>
+          </element4>
+        </element3>
+      </element2>
+    </element1>
+  </element0>
+</doc>
+    XML
+  end
 
   def test_ticket_58
     doc = REXML::Document.new

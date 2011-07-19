@@ -1,11 +1,13 @@
-# $Id: test_dryrun.rb 26417 2010-01-25 22:08:29Z akr $
+# $Id: test_dryrun.rb 31404 2011-05-01 09:37:17Z yugui $
 
-require 'test/unit'
 require 'fileutils'
+require 'test/unit'
+require_relative 'clobber'
 
 class TestFileUtilsDryRun < Test::Unit::TestCase
 
   include FileUtils::DryRun
+  include TestFileUtils::Clobber
 
   def test_visibility
     FileUtils::METHODS.each do |m|
