@@ -393,7 +393,7 @@ get_prepared_block()
  *  Yields the passed block asynchronously via dispatch_async(3)[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch_async.3.html]:
  *  
  *     gcdq = Dispatch::Queue.new('doc')
- *     @i = 42
+ *     @i = 0
  *     gcdq.async { @i = 42 }
  *     while @i == 0 do; end
  *     p @i #=> 42
@@ -403,7 +403,7 @@ get_prepared_block()
  *
  *     gcdq = Dispatch::Queue.new('doc')
  *     gcdg = Dispatch::Group.new
- *     @i = 42
+ *     @i = 3.1415
  *     gcdq.async(gcdg) { @i = 42 }
  *     gcdg.wait
  *     p @i #=> 42
