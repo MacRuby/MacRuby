@@ -87,6 +87,17 @@ describe "ruby_deploy, in general," do
     mkdir_p @app_bundle
     deploy('--compile').should include("doesn't seem to be a valid application bundle")
   end
+
+  it 'does not fail if the app name contains spaces' do
+    mkdir_p @dir
+    @app_bundle = File.join(@dir, 'Dummy App.app')
+    cp_r File.join(FIXTURES, 'dummy_app'), @app_bundle
+    mkdir File.join(@app_bundle, 'Contents/MacOS')
+    cp File.join(SOURCE_ROOT, 'lib/irb.rbo'), File.join(@app_bundle, 'Contents/MacOS/Dummy App')
+    deploy('--embed --stdlib bigdecimal')
+    $?.success?.should == true
+  end
+
 end
 
 describe "ruby_deploy command line options:" do

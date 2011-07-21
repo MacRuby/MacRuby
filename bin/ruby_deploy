@@ -281,7 +281,7 @@ class Deployer
   def check_linked_bundles
     dirs = [%r{^/opt}, %r{^/usr/local/lib}, %r{^/Users}, %r{^/Library}]
     Dir.glob(File.join(app_macruby, '**', '*.bundle')).each do |bundle|
-      libs = execute("/usr/bin/otool -L #{bundle}").split("\n").map(&:strip)
+      libs = execute("/usr/bin/otool -L \"#{bundle}\"").split("\n").map(&:strip)
       libs[1..-1].each do |lib|
         bad_libs = dirs.map { |dir| lib.match(dir) ? lib : nil }.compact
         next if bad_libs.empty?
