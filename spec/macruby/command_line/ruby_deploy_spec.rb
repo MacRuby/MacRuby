@@ -88,16 +88,27 @@ describe "ruby_deploy, in general," do
     deploy('--compile').should include("doesn't seem to be a valid application bundle")
   end
 
-  it 'does not fail if the app name contains spaces' do
-    mkdir_p @dir
-    @app_bundle = File.join(@dir, 'Dummy App.app')
-    cp_r File.join(FIXTURES, 'dummy_app'), @app_bundle
-    mkdir File.join(@app_bundle, 'Contents/MacOS')
-    cp File.join(SOURCE_ROOT, 'lib/irb.rbo'), File.join(@app_bundle, 'Contents/MacOS/Dummy App')
-    deploy('--embed --stdlib bigdecimal')
-    $?.success?.should == true
-  end
+  describe 'during deployment of apps with spaces in the name,' do
+    before do
+      mkdir_p @dir
+      @app_bundle = File.join(@dir, 'Dummy App.app')
+      cp_r File.join(FIXTURES, 'dummy_app'), @app_bundle
+      mkdir File.join(@app_bundle, 'Contents/MacOS')
+      cp File.join(SOURCE_ROOT, 'lib/irb.rbo'), File.join(@app_bundle, 'Contents/MacOS/Dummy App')
+    end
 
+    it 'does not fail to check architectures' do
+      before, ENV['ARCHS'] = ENV['ARCHS'], nil
+      deploy('--compile')
+      ENV['ARCHS'] = before
+      $?.success?.should == true
+    end
+
+    it 'does not fail to check dynamic linking' do
+      deploy('--embed --stdlib bigdecimal')
+      $?.success?.should == true
+    end
+  end
 end
 
 describe "ruby_deploy command line options:" do

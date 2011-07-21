@@ -117,10 +117,10 @@ class Deployer
         # Use Xcode ARCHS env var to determine which archs to compile for
         ENV['ARCHS'].strip.split
       else
-        # Try to inflect the archs the app was built for from output like:
+        # Try to infer the archs the app was built for from output like:
         #  * Architectures in the fat file: /usr/bin/ruby are: x86_64 i386 ppc7400
         #  * Non-fat file: Progress.app/Contents/MacOS/Progress is architecture: x86_64
-        `/usr/bin/lipo -info #{app_binary}`.split(':').last.split
+        `/usr/bin/lipo -info "#{app_binary}"`.split(':').last.split
       end
       # Check that `archs' contains valid values
       supported_archs = RbConfig::CONFIG['ARCH_FLAG'].gsub('-arch', '').strip.split
