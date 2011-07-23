@@ -126,11 +126,14 @@ void *
 ruby_xmalloc_ptrs(size_t size)
 {
     int type;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
-    type = AUTO_MEMORY_ALL_POINTERS;
-#else
+//#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
+//#define AUTO_POINTERS_ONLY (1 << 2)
+//#define AUTO_MEMORY_ALL_POINTERS AUTO_POINTERS_ONLY
+//
+//    type = AUTO_MEMORY_ALL_POINTERS;
+//#else
     type = AUTO_MEMORY_SCANNED;
-#endif
+//#endif
     return ruby_xmalloc_memory(size, type);
 }
 

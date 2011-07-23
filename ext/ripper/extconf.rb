@@ -16,7 +16,7 @@ def main
   $defs << '-DRIPPER_DEBUG' if $debug
   $VPATH << '$(topdir)' << '$(top_srcdir)'
   $INCFLAGS << ' -I$(topdir) -I$(top_srcdir) -I$(top_srcdir)/onig'
-  $INCFLAGS << ' -I../../icu-1060' if `sw_vers -productVersion`.to_f <= 10.6
+  $INCFLAGS << ' -I../../icu-1060' if `sw_vers -productVersion`.to_f <= 10.7
   $CFLAGS << ' -std=c99'
   create_makefile 'ripper'
 end
