@@ -353,11 +353,7 @@ install?(:local, :arch, :lib) do
 
   Dir.chdir(srcdir)
   makedirs [rubyhdrdir]
-  noinst = []
-  unless RUBY_PLATFORM =~ /mswin32|mingw|bccwin32/
-    noinst << "win32.h"
-  end
-  noinst = nil if noinst.empty?
+  noinst = nil
   install_recursive("include", rubyhdrdir, :no_install => noinst, :glob => "*.h", :mode => $data_mode)
 end
 
