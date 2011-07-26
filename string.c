@@ -3352,10 +3352,11 @@ fs_set:
 		str_strip(substr, 0);
 		if (rb_str_chars_len(substr) > 0) {
 		    rb_ary_push(result, substr);
+		    lim--;
 		}
 		beg = i + 1;
 
-		if (limit != Qnil && --lim <= 1) {
+		if (limit != Qnil && lim <= 1) {
 		    break;
 		}
 	    }
