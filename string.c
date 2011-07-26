@@ -3288,6 +3288,7 @@ rstr_scan(VALUE self, SEL sel, VALUE pat)
  */
 
 static VALUE str_strip(VALUE str, int direction);
+#define IS_SPLIT_AWK_SPACE(c) (c == ' ' || c == '\t' || c == '\n' || c == '\v')
 
 static VALUE
 rstr_split(VALUE str, SEL sel, int argc, VALUE *argv)
@@ -3346,7 +3347,10 @@ fs_set:
 
 	for (long i = 0; i < chars_len; i++) {
 	    UChar c = chars[i];
-	    if (c == ' ' || c == '\t' || c == '\n' || c == '\v') {
+	    if (IS_SPLIT_AWK_SPACE(c)) {
+		if ((i + 1 < chars_len) && IS_SPLIT_AWK_SPACE(chars[i+1])) {
+		    continue;
+		}
 		VALUE substr = rstr_substr_with_cache(str, beg, i - beg,
 			&local_cache);
 		str_strip(substr, 0);
