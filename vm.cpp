@@ -3035,6 +3035,8 @@ RoxorCore::gen_to_rval_convertor(std::string type)
 void *
 RoxorCore::gen_to_ocval_convertor(std::string type)
 {
+    RoxorCoreLock lock;
+
     std::map<std::string, void *>::iterator iter =
 	to_ocval_convertors.find(type);
     if (iter != to_ocval_convertors.end()) {
