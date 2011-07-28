@@ -188,12 +188,12 @@ describe "ruby_deploy command line options:" do
 
     # TODO is it safe to use `ppc' here?
     it "retrieves the arch that the ruby files should be compiled for from the app binary and skips those that can't be used" do
-      # copy the system ruby binary which, amongst others, contains `ppc'
       rm File.join(@app_bundle, 'Contents/MacOS/Dummy')
-      cp '/usr/bin/ruby', File.join(@app_bundle, 'Contents/MacOS/Dummy')
+      # use a hacked file with a ppc Mach-O header and load commands
+      cp File.join(FIXTURES, 'ppc_binary'), File.join(@app_bundle, 'Contents/MacOS/Dummy')
 
       deploy('--compile').should =~ /Can't build for.+?ppc7400/
-      $?.success?.should == true
+      $?.success?.should == false # TODO split this into a pair of separate specs
     end
   end
 
