@@ -175,18 +175,16 @@ describe "ruby_deploy command line options:" do
       end
     end
 
-    # TODO is it safe to use `ppc7400' here?
     it "retrieves the archs that the ruby files should be compiled for from ENV['ARCHS'] and aborts if that leaves no options" do
-      before, ENV['ARCHS'] = ENV['ARCHS'], 'ppc7400'
+      before, ENV['ARCHS'] = ENV['ARCHS'], 'klingon'
       begin
-        deploy('--compile').should =~ /Can't build for.+?ppc7400/
+        deploy('--compile').should =~ /Can't build for.+?klingon/
         $?.success?.should == false
       ensure
         ENV['ARCHS'] = before
       end
     end
 
-    # TODO is it safe to use `ppc' here?
     it "retrieves the arch that the ruby files should be compiled for from the app binary and skips those that can't be used" do
       rm File.join(@app_bundle, 'Contents/MacOS/Dummy')
       # use a hacked file with a ppc Mach-O header and load commands
