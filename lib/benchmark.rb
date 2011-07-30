@@ -280,8 +280,9 @@ module Benchmark
       list.push [label, res]
     }
 
-    STDOUT.sync = sync
     ary
+  ensure
+    STDOUT.sync = sync unless sync.nil?
   end
 
   #
