@@ -1507,8 +1507,8 @@ rb_mutex_unlock0(VALUE self, bool assert_unlockable,
 	    assert(m->thread->mutexes != Qnil);
 	    rb_ary_delete(m->thread->mutexes, self);
 	}
-	pthread_assert(pthread_mutex_unlock(&m->mutex));
 	m->thread = NULL;
+	pthread_assert(pthread_mutex_unlock(&m->mutex));
     }
 }
 
