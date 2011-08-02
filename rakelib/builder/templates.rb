@@ -8,7 +8,7 @@ class Builder
         <key>CFBundleDevelopmentRegion</key>
         <string>English</string>
         <key>CFBundleExecutable</key>
-        <string>Ruby</string>
+        <string>MacRuby</string>
         <key>CFBundleName</key>
         <string>Ruby</string>
         <key>CFBundleGetInfoString</key>
