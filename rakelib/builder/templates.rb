@@ -10,7 +10,7 @@ class Builder
         <key>CFBundleExecutable</key>
         <string>MacRuby</string>
         <key>CFBundleName</key>
-        <string>Ruby</string>
+        <string>MacRuby</string>
         <key>CFBundleGetInfoString</key>
         <string>MacRuby Runtime and Library</string>
         <key>CFBundleIconFile</key>
