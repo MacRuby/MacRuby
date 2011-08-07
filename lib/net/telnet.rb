@@ -755,6 +755,10 @@ module Net
       line
     end
 
+    def close
+      @sock.close
+    end
+
   end  # class Telnet
 end  # module Net
 
