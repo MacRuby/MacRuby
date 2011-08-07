@@ -1559,8 +1559,11 @@ mutex_sleep(VALUE self, SEL sel, int argc, VALUE *argv)
 	rb_thread_wait_for(t);
     }
 
+    rb_mutex_lock(self, 0);
+
     end = time(0) - beg;
-    return INT2FIX(end);        
+
+    return INT2FIX(end);
 }
 
 /*
