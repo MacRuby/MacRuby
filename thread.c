@@ -746,7 +746,10 @@ rb_thread_inspect(VALUE thread, SEL sel)
     snprintf(buf, sizeof buf, "#<%s:%p %s>", rb_obj_classname(thread),
 	    (void *)thread, status);
 
-    return rb_str_new2(buf);
+    VALUE str = rb_str_new2(buf);
+    OBJ_INFECT(str, thread);
+
+    return str;
 }
 
 /*
@@ -1560,6 +1563,7 @@ mutex_lock(VALUE self)
  * non-nil or forever.  Raises +ThreadError+ if +mutex+ wasn't locked by
  * the current thread.
  */
+
 static VALUE
 mutex_sleep(VALUE self, SEL sel, int argc, VALUE *argv)
 {
