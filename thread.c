@@ -1531,6 +1531,27 @@ rb_thread_unlock_all_mutexes(rb_vm_thread_t *thread)
     }
 }
 
+static VALUE
+thread_sleep_forever(VALUE time)
+{
+    rb_thread_sleep_forever();
+    return Qnil;
+}
+
+static VALUE
+thread_wait_for(VALUE time)
+{
+    const struct timeval *t = (struct timeval *)time;
+    rb_thread_wait_for(*t);
+    return Qnil;
+}
+
+static VALUE
+mutex_lock(VALUE self)
+{
+    return rb_mutex_lock(self, 0);
+}
+
 /*
  * call-seq:
  *    mutex.sleep(timeout = nil)    => number
@@ -1539,7 +1560,6 @@ rb_thread_unlock_all_mutexes(rb_vm_thread_t *thread)
  * non-nil or forever.  Raises +ThreadError+ if +mutex+ wasn't locked by
  * the current thread.
  */
-
 static VALUE
 mutex_sleep(VALUE self, SEL sel, int argc, VALUE *argv)
 {
@@ -1547,22 +1567,19 @@ mutex_sleep(VALUE self, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "01", &timeout);
 
     rb_mutex_unlock(self, 0);
-    
+
     time_t beg, end;
     beg = time(0);
 
     if (timeout == Qnil) {
-	rb_thread_sleep_forever();	
+	rb_ensure(thread_sleep_forever, Qnil, mutex_lock, self);
     }
     else {
 	struct timeval t = rb_time_interval(timeout);
-	rb_thread_wait_for(t);
+	rb_ensure(thread_wait_for, (VALUE)&t, mutex_lock, self);
     }
 
-    rb_mutex_lock(self, 0);
-
     end = time(0) - beg;
-
     return INT2FIX(end);
 }
 
