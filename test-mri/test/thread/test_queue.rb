@@ -3,14 +3,10 @@ require 'thread'
 
 class TestQueue < Test::Unit::TestCase
   def test_queue
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     grind(5, 1000, 15, Queue)
   end
 
   def test_sized_queue
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     grind(5, 1000, 15, SizedQueue, 1000)
   end
 

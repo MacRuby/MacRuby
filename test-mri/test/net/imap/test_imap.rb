@@ -194,8 +194,6 @@ class IMAPTest < Test::Unit::TestCase
   end
 
   def test_exception_during_idle
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     server = create_tcp_server
     port = server.addr[1]
     requests = []

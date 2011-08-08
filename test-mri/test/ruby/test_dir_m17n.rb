@@ -14,8 +14,6 @@ class TestDir_M17N < Test::Unit::TestCase
   ## UTF-8 default_external, no default_internal
 
   def test_filename_extutf8
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     with_tmpdir {|d|
       assert_ruby_status(%w[-EUTF-8], <<-'EOS', nil, :chdir=>d)
         filename = "\u3042"
@@ -28,8 +26,6 @@ class TestDir_M17N < Test::Unit::TestCase
   end
 
   def test_filename_extutf8_invalid
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     skip "ruby on windows doesn't support invalid utf-8 path" if /mswin|mingw/ =~ RUBY_PLATFORM
     with_tmpdir {|d|
       assert_ruby_status(%w[-EASCII-8BIT], <<-'EOS', nil, :chdir=>d)
@@ -50,8 +46,6 @@ class TestDir_M17N < Test::Unit::TestCase
   end
 
   def test_filename_as_bytes_extutf8
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     with_tmpdir {|d|
       assert_ruby_status(%w[-EUTF-8], <<-'EOS', nil, :chdir=>d)
         filename = "\xc2\xa1".force_encoding("utf-8")
@@ -91,8 +85,6 @@ class TestDir_M17N < Test::Unit::TestCase
   ## UTF-8 default_external, EUC-JP default_internal
 
   def test_filename_extutf8_inteucjp_representable
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     with_tmpdir {|d|
       assert_ruby_status(%w[-EUTF-8], <<-'EOS', nil, :chdir=>d)
         filename = "\u3042"
@@ -120,8 +112,6 @@ class TestDir_M17N < Test::Unit::TestCase
   end
 
   def test_filename_extutf8_inteucjp_unrepresentable
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     with_tmpdir {|d|
       assert_ruby_status(%w[-EUTF-8], <<-'EOS', nil, :chdir=>d)
         filename1 = "\u2661" # WHITE HEART SUIT which is not representable in EUC-JP
@@ -154,8 +144,6 @@ class TestDir_M17N < Test::Unit::TestCase
   ## others
 
   def test_filename_bytes_euc_jp
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     with_tmpdir {|d|
       assert_ruby_status(%w[-EEUC-JP], <<-'EOS', nil, :chdir=>d)
         filename = "\xA4\xA2".force_encoding("euc-jp")
@@ -170,8 +158,6 @@ class TestDir_M17N < Test::Unit::TestCase
   end
 
   def test_filename_euc_jp
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     with_tmpdir {|d|
       assert_ruby_status(%w[-EEUC-JP], <<-'EOS', nil, :chdir=>d)
         filename = "\xA4\xA2".force_encoding("euc-jp")
@@ -192,8 +178,6 @@ class TestDir_M17N < Test::Unit::TestCase
   end
 
   def test_filename_utf8_raw_name
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     with_tmpdir {|d|
       assert_ruby_status(%w[-EUTF-8], <<-'EOS', nil, :chdir=>d)
         filename = "\u3042".force_encoding("utf-8")
@@ -212,8 +196,6 @@ class TestDir_M17N < Test::Unit::TestCase
   end
 
   def test_filename_ext_euc_jp_and_int_utf_8
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     with_tmpdir {|d|
       assert_ruby_status(%w[-EEUC-JP], <<-'EOS', nil, :chdir=>d)
         filename = "\xA4\xA2".force_encoding("euc-jp")
