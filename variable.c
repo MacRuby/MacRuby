@@ -1120,9 +1120,7 @@ rb_ivar_foreach(VALUE obj, int (*func)(ANYARGS), st_data_t arg)
 static int
 ivar_i(ID key, VALUE val, VALUE ary)
 {
-    if (rb_is_instance_id(key)) {
-	rb_ary_push(ary, ID2SYM(key));
-    }
+    rb_ary_push(ary, ID2SYM(key));
     return ST_CONTINUE;
 }
 
