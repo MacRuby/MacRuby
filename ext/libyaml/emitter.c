@@ -2266,9 +2266,6 @@ yaml_emitter_write_literal_scalar(yaml_emitter_t *emitter,
         }
         else
         {
-            if (breaks) {
-                if (!yaml_emitter_write_indent(emitter)) return 0;
-            }
             if (!WRITE(emitter, string)) return 0;
             emitter->indention = 0;
             breaks = 0;
@@ -2316,7 +2313,6 @@ yaml_emitter_write_folded_scalar(yaml_emitter_t *emitter,
         else
         {
             if (breaks) {
-                if (!yaml_emitter_write_indent(emitter)) return 0;
                 leading_spaces = IS_BLANK(string);
             }
             if (!breaks && IS_SPACE(string) && !IS_SPACE_AT(string, 1)
