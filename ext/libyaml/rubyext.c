@@ -54,8 +54,11 @@ static VALUE rb_cResolver;
 static VALUE rb_cYamlNode;
 
 static ID id_plain;
+static ID id_quote1;
 static ID id_quote2;
 static ID id_inline;
+static ID id_fold;
+static ID id_literal;
 
 static SEL sel_to_yaml;
 static SEL sel_call;
@@ -721,8 +724,17 @@ rb_symbol_to_scalar_style(VALUE sym)
     else if (rb_to_id(sym) == id_plain) {
 	style = YAML_PLAIN_SCALAR_STYLE;
     }
+    else if (rb_to_id(sym) == id_quote1) {
+	style =  YAML_SINGLE_QUOTED_SCALAR_STYLE;
+    }
     else if (rb_to_id(sym) == id_quote2) {
 	style = YAML_DOUBLE_QUOTED_SCALAR_STYLE;
+    }
+    else if (rb_to_id(sym) == id_fold) {
+	style = YAML_FOLDED_SCALAR_STYLE;
+    }
+    else if (rb_to_id(sym) == id_literal) {
+	style = YAML_LITERAL_SCALAR_STYLE;
     }
     return style;
 }
@@ -1014,8 +1026,11 @@ void
 Init_libyaml()
 {
     id_plain = rb_intern("plain");
+    id_quote1 = rb_intern("quote1");
     id_quote2 = rb_intern("quote2");
     id_inline = rb_intern("inline");
+    id_fold = rb_intern("fold");
+    id_literal = rb_intern("literal");
 
     sel_to_yaml = sel_registerName("to_yaml:");
     sel_call = sel_registerName("call:");
