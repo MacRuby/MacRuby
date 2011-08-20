@@ -810,7 +810,8 @@ rb_vm_get_struct_fields(VALUE rval, VALUE *buf, rb_vm_bs_boxed_t *bs_boxed)
 	    // can't count backwards.
 	    rb_raise(rb_eArgError,
 		    "negative values are not allowed in ranges " \
-		    "that are converted to %s structures `%s'",
+		    "that are converted to %s structures: `%s'. " \
+        "Use `Range#relative_to(max)' to expand them.",
 		    bs_boxed->as.s->name,
 		    RSTRING_PTR(rb_inspect(rval)));
 	}

@@ -930,6 +930,26 @@ range_cover(VALUE range, SEL sel, VALUE val)
     return Qfalse;
 }
 
+
+/*
+ *  call-seq:
+ *     rng.relative_to(max) => Range
+ *
+ *  Returns a new Range instance which has negative values in
+ *  <code>rng</code> expanded relative to <code>max</code>.
+ *
+ *     (1..10).relative_to(10)   # => (1..10)
+ *     (-3..-1).relative_to(10)  # => (7..9)
+ */
+
+static VALUE
+range_relative_to(VALUE range, SEL sel, VALUE max)
+{
+    long beg, len, m = NUM2LONG(max);
+    rb_range_beg_len(range, &beg, &len, m, 0);
+    return rb_range_new(LONG2NUM(beg), LONG2NUM(beg + len - 1), 0);
+}
+
 #if 0
 static VALUE
 range_dumper(VALUE range)
@@ -1050,6 +1070,7 @@ Init_Range(void)
     rb_objc_define_method(rb_cRange, "member?", range_include, 1);
     rb_objc_define_method(rb_cRange, "include?", range_include, 1);
     rb_objc_define_method(rb_cRange, "cover?", range_cover, 1);
+    rb_objc_define_method(rb_cRange, "relative_to", range_relative_to, 1);
 
     selUpto = sel_registerName("upto:");
     selBeg = sel_registerName("begin");
