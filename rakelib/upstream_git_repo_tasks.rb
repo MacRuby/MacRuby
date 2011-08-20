@@ -1,6 +1,8 @@
 require File.expand_path('../git', __FILE__)
 
 class Rake::UpstreamGitRepoTasks
+  include Rake::DSL if defined?(Rake::DSL)
+
   attr_accessor :name, :local_dir, :upstream_dir, :anon_url, :commit_url, :upstream_options
   
   def initialize(name)

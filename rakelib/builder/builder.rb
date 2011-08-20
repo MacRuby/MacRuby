@@ -9,6 +9,11 @@ EXTENSIONS = %w{
 }.sort
 
 class Builder
+  if defined?(Rake::DSL)
+    extend Rake::DSL
+    include Rake::DSL
+  end
+
   # Runs the given array of +commands+ in parallel. The amount of spawned
   # simultaneous jobs is determined by the `jobs' env variable. The default
   # value is 1.
@@ -185,6 +190,7 @@ class Builder
       end
     end
     
+    extend Rake::DSL if defined?(Rake::DSL)
     def self.clean
       extension_dirs.each do |dir|
         new(dir).clean_commands.each { |cmd| sh(cmd) }
