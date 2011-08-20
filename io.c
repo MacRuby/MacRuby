@@ -936,11 +936,14 @@ rb_io_to_io(VALUE io, SEL sel)
 static bool
 __rb_io_wait_readable(int fd)
 {
-    if (errno == EINTR) {
-	fd_set readset;
-	FD_ZERO(&readset);
-	FD_SET(fd, &readset);
-	return select(fd + 1, &readset, NULL, NULL, NULL) >= 0;
+    fd_set readset;
+
+    switch (errno) {
+	case EINTR:
+	case EAGAIN:
+	    FD_ZERO(&readset);
+	    FD_SET(fd, &readset);
+	    return select(fd + 1, &readset, NULL, NULL, NULL) >= 0;
     }
     return false;
 }
