@@ -691,10 +691,10 @@ rb_range_values(VALUE range, VALUE *begp, VALUE *endp, int *exclp)
     }
     else {
 	if (!rb_vm_respond_to(range, selBeg, false)) {
-	    return Qfalse;
+	    return 0;
 	}
 	if (!rb_vm_respond_to(range, selEnd, false)) {
-	    return Qfalse;
+	    return 0;
 	}
 	b = rb_vm_call(range, selBeg, 0, NULL);
 	e = rb_vm_call(range, selEnd, 0, NULL);

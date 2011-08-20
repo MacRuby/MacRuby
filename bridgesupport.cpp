@@ -797,6 +797,27 @@ rb_vm_get_struct_fields(VALUE rval, VALUE *buf, rb_vm_bs_boxed_t *bs_boxed)
 	    buf[i] = RARRAY_AT(rval, i);
 	}
     }
+    else if (CLASS_OF(rval) == rb_cRange &&
+		(strcmp(bs_boxed->as.s->name, "NSRange") == 0 ||
+		    strcmp(bs_boxed->as.s->name, "CFRange") == 0)) {
+	VALUE b, e;
+	int exclusive;
+	rb_range_values(rval, &b, &e, &exclusive);
+	int begin = NUM2INT(b);
+	int end = NUM2INT(e);
+	if (begin < 0 || end < 0) {
+	    // We don't know what the max length of the range will be, so we
+	    // can't count backwards.
+	    rb_raise(rb_eArgError,
+		    "negative values are not allowed in ranges " \
+		    "that are converted to %s structures `%s'",
+		    bs_boxed->as.s->name,
+		    RSTRING_PTR(rb_inspect(rval)));
+	}
+	int length = exclusive ? end-1-begin : end-begin;
+	buf[0] = INT2NUM(begin);
+	buf[1] = INT2NUM(length);
+    }
     else {
 	if (!rb_obj_is_kind_of(rval, bs_boxed->klass)) {
 	    rb_raise(rb_eTypeError, 
