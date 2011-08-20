@@ -940,6 +940,8 @@ range_cover(VALUE range, SEL sel, VALUE val)
  *
  *     (1..10).relative_to(10)   # => (1..10)
  *     (-3..-1).relative_to(10)  # => (7..9)
+ *
+ *  Note that this is a MacRuby specific extension.
  */
 
 static VALUE
@@ -1070,6 +1072,8 @@ Init_Range(void)
     rb_objc_define_method(rb_cRange, "member?", range_include, 1);
     rb_objc_define_method(rb_cRange, "include?", range_include, 1);
     rb_objc_define_method(rb_cRange, "cover?", range_cover, 1);
+
+    // NOTE: This is a MacRuby specific extension.
     rb_objc_define_method(rb_cRange, "relative_to", range_relative_to, 1);
 
     selUpto = sel_registerName("upto:");
