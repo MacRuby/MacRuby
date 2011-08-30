@@ -247,6 +247,9 @@ str_new_like(VALUE obj)
     return (VALUE)str_alloc(rb_obj_class(obj));
 }
 
+static void str_resize_bytes(rb_str_t *self, long new_capacity);
+static void str_concat_bytes(rb_str_t *self, const char *bytes, long len);
+
 static void
 str_replace_with_bytes(rb_str_t *self, const char *bytes, long len,
 	rb_encoding_t *enc)
@@ -256,9 +259,8 @@ str_replace_with_bytes(rb_str_t *self, const char *bytes, long len,
 
     str_reset_flags(self);
     self->encoding = enc;
-    self->capacity_in_bytes = len;
     if (len > 0) {
-	GC_WB(&self->bytes, xmalloc(len));
+	str_resize_bytes(self, len);
 	if (bytes != NULL) {
 	    memcpy(self->bytes, bytes, len);
 	    self->length_in_bytes = len;
@@ -268,7 +270,6 @@ str_replace_with_bytes(rb_str_t *self, const char *bytes, long len,
 	}
     }
     else {
-	self->bytes = NULL;
 	self->length_in_bytes = 0;
     }
 }
@@ -283,9 +284,6 @@ str_replace_with_string(rb_str_t *self, rb_str_t *source)
 	    source->encoding);
     self->flags = source->flags;
 }
-
-static void str_resize_bytes(rb_str_t *self, long new_capacity);
-static void str_concat_bytes(rb_str_t *self, const char *bytes, long len);
 
 static void
 str_append_uchar32(rb_str_t *self, UChar32 c)
