@@ -946,6 +946,24 @@ rb_class_ivar_set_dict(VALUE mod, CFMutableDictionaryRef dict)
     generic_ivar_dict_set(mod, dict);
 }
 
+void
+merge_ivars(const void *key, const void *val, void *ctx)
+{
+    CFMutableDictionaryRef dest_dict = (CFMutableDictionaryRef)ctx;
+    CFDictionarySetValue(dest_dict, key, val);
+}
+
+void
+rb_class_merge_ivar_dicts(VALUE orig_class, VALUE dest_class)
+{
+    CFMutableDictionaryRef orig_dict = rb_class_ivar_dict(orig_class);
+    if (orig_dict != NULL) {
+	CFMutableDictionaryRef dest_dict =
+	    rb_class_ivar_dict_or_create(dest_class);
+	CFDictionaryApplyFunction(orig_dict, merge_ivars, dest_dict);
+    }
+}
+
 CFMutableDictionaryRef
 rb_class_ivar_dict_or_create(VALUE mod)
 {

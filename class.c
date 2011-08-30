@@ -687,12 +687,15 @@ rb_include_module2(VALUE klass, VALUE orig_klass, VALUE module, bool check,
 		    selInitialize);
 	    Method m2 = class_getInstanceMethod((Class)klass, selInitialize);
 	    if (m != NULL && m2 != NULL
-		&& method_getImplementation(m) == (IMP)rb_objc_init
-		&& method_getImplementation(m2) != (IMP)rb_objc_init) {
+		    && method_getImplementation(m) == (IMP)rb_objc_init
+		    && method_getImplementation(m2) != (IMP)rb_objc_init) {
 		rb_vm_copy_method((Class)orig_klass, m2);
 	    }
 	}
     }
+
+    // Copy the module's class variables.
+    rb_class_merge_ivar_dicts(module, klass);
 }
 
 void

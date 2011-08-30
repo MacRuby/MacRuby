@@ -130,6 +130,7 @@ rb_class_set_flags(Class k, unsigned long flags)
 CFMutableDictionaryRef rb_class_ivar_dict(VALUE);
 CFMutableDictionaryRef rb_class_ivar_dict_or_create(VALUE);
 void rb_class_ivar_set_dict(VALUE, CFMutableDictionaryRef);
+void rb_class_merge_ivar_dicts(VALUE orig_class, VALUE dest_class);
 
 typedef enum {
     SCOPE_DEFAULT = 0,  // public for everything but Object
