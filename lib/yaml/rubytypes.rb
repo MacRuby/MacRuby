@@ -87,9 +87,7 @@ class NSString
 
   def to_yaml(output = nil)
     YAML::quick_emit(output) do |out|
-      style = to_yaml_style
-      style = :literal if style.nil? && self.count("\n") > 0
-      out.scalar(taguri, self, style)
+      out.scalar(taguri, self, to_yaml_style)
     end
   end
 
