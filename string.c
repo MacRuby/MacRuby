@@ -534,8 +534,13 @@ str_get_uchar(rb_str_t *self, long pos)
 {
     assert(pos >= 0 && pos < str_length(self));
 
+    UChar c = self->bytes[pos];
+    if ((c <= 127) && str_is_ruby_ascii_only(self)) {
+	return c;
+    }
+
     if (IS_NATIVE_UTF16_ENC(self->encoding)) {
-	return ((UChar *)self->bytes)[pos];
+	return c;
     }
 
     __block UChar return_value = 0;
