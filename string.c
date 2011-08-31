@@ -882,6 +882,11 @@ str_splice(rb_str_t *self, long pos, long len, rb_str_t *str)
 static void
 str_delete(rb_str_t *self, long pos, long len)
 {
+    if (str_is_ruby_ascii_only(self) &&
+	self->length_in_bytes <= pos + len) {
+	self->length_in_bytes = pos;
+	return;
+    }
     str_splice(self, pos, len, NULL);
 }
 
@@ -3768,12 +3773,7 @@ rstr_chop_bang(VALUE str, SEL sel)
 	}
     }
 
-    if (str_is_ruby_ascii_only(RSTR(str))) {
-	RSTR(str)->length_in_bytes = len - to_del;
-    }
-    else {
-	str_delete(RSTR(str), len - to_del, to_del);
-    }
+    str_delete(RSTR(str), len - to_del, to_del);
     return str;
 }
 
