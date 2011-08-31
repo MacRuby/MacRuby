@@ -3768,7 +3768,12 @@ rstr_chop_bang(VALUE str, SEL sel)
 	}
     }
 
-    str_delete(RSTR(str), len - to_del, to_del);
+    if (str_is_ruby_ascii_only(RSTR(str))) {
+	RSTR(str)->length_in_bytes = len - to_del;
+    }
+    else {
+	str_delete(RSTR(str), len - to_del, to_del);
+    }
     return str;
 }
 
