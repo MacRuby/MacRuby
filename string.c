@@ -282,6 +282,9 @@ str_replace_with_string(rb_str_t *self, rb_str_t *source)
     }
     str_replace_with_bytes(self, source->bytes, source->length_in_bytes,
 	    source->encoding);
+    if (!source->flags) {
+	str_update_flags(source);
+    }
     self->flags = source->flags;
 }
 
