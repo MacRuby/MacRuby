@@ -949,6 +949,11 @@ rb_class_ivar_set_dict(VALUE mod, CFMutableDictionaryRef dict)
 void
 merge_ivars(const void *key, const void *val, void *ctx)
 {
+    ID id = (ID)key;
+    if (id == id_classpath || id == id_classid
+	    || id == idIncludedModules || id == idIncludedInClasses) {
+	return;
+    }
     CFMutableDictionaryRef dest_dict = (CFMutableDictionaryRef)ctx;
     CFDictionarySetValue(dest_dict, key, val);
 }
