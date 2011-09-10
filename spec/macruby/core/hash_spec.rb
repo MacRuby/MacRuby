@@ -45,6 +45,17 @@ describe "An Hash object" do
     a.foo.should == 42
   end
 
+  it "clones instance variables to new copy on #dup" do
+    class CustomHash < Hash
+      attr_accessor :foo
+    end
+    my_hash = CustomHash.new
+    my_hash.foo = :bar
+
+    new_hash = my_hash.dup
+    new_hash.foo.should == :bar
+  end
+
   it "properly hashes pure Cocoa objects" do
     a = NSCalendarDate.dateWithYear(2010, month:5, day:2, hour:0,  minute:0, second:0, timeZone:nil)
     b = NSCalendarDate.dateWithYear(2010, month:5, day:2, hour:0,  minute:0, second:0, timeZone:nil)
