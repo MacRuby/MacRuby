@@ -35,7 +35,6 @@ class PackModel
   end
 
   def initWithCoder(c)
-    super
     @pageInfos = c.decodeObjectForKey('pageInfos')
     self
   end
@@ -88,11 +87,13 @@ class PackModel
   end
 
   def putPDF(pdf, startingOnPage:i)
+    endPage = 0
     pdf.pageCount.times do |j|
+      endPage = j
       break if j + i >= BLOCK_COUNT
       setImageRep pdf, pageOfRep:j, forPage:j+i
     end
-    i + j
+    i + endPage
   end
 
   def putFile(currentPath, startingOnPage:i)

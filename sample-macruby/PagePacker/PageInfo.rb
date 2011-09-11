@@ -5,14 +5,13 @@ class PageInfo
   end
 
   def initWithCoder(c)
-    super
     @imageRep = c.decodeObjectForKey 'imageRep'
     @pageOfRep = c.decodeObjectForKey 'pageOfRep'
     self
   end
 
   def preparedImageRep
-    if @pageOfRep >= 0
+    unless @pageOfRep.nil?
       @imageRep.currentPage = @pageOfRep
     end
     @imageRep
