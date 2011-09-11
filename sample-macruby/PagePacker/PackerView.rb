@@ -39,7 +39,7 @@ class PackerView < NSView
   def initWithFrame(frameRect)
     if super
       @imageablePageRect = NSInsetRect(bounds, 15.0, 15.0)
-      registerForDraggedTypes [NSPDFPboardType, NSFilenamesPboardType, nil]
+      registerForDraggedTypes [NSPDFPboardType, NSFilenamesPboardType]
       @dropPage = -1
       @dragStart = -1
       
