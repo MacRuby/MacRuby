@@ -35,7 +35,6 @@ class PackModel
   end
 
   def initWithCoder(c)
-    super
     @pageInfos = c.decodeObjectForKey('pageInfos')
     self
   end
