@@ -91,6 +91,9 @@ rb_objc_release(void *addr)
 
 // MacRubyIntern.h
 
+/* object.c */
+void rb_obj_invoke_initialize_copy(VALUE dest, VALUE obj);
+
 /* enumerator.c */
 VALUE rb_enumeratorize(VALUE, SEL, int, VALUE *);
 #define RETURN_ENUMERATOR(obj, argc, argv) \

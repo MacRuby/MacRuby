@@ -1831,14 +1831,6 @@ rstr_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 }
 
 static VALUE
-rstr_copy(VALUE rcv, VALUE klass)
-{
-    VALUE dup = rstr_alloc(klass, 0);
-    rstr_replace(dup, 0, rcv);
-    return dup;
-}
-
-static VALUE
 rstr_dup(VALUE str, SEL sel)
 {
     VALUE klass = CLASS_OF(str);
@@ -1847,7 +1839,8 @@ rstr_dup(VALUE str, SEL sel)
     }
     assert(rb_klass_is_rstr(klass));
 
-    VALUE dup = rstr_copy(str, klass);
+    VALUE dup = rstr_alloc(klass, 0);
+    rb_obj_invoke_initialize_copy(dup, str);
 
     OBJ_INFECT(dup, str);
     return dup;

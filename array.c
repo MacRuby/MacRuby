@@ -1203,14 +1203,10 @@ rary_dup(VALUE ary, SEL sel)
     }
     assert(rb_klass_is_rary(klass));
 
-    VALUE dup = rary_copy(ary, klass);
+    VALUE dup = rary_alloc(klass, 0);
+    rb_obj_invoke_initialize_copy(dup, ary);
 
-    if (OBJ_TAINTED(ary)) {
-	OBJ_TAINT(dup);
-    }
-    if (OBJ_UNTRUSTED(ary)) {
-	OBJ_UNTRUST(dup);
-    }
+    OBJ_INFECT(dup, ary);
     return dup;
 }
 

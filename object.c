@@ -221,6 +221,12 @@ init_copy(VALUE dest, VALUE obj)
     rb_vm_call(dest, selInitializeCopy, 1, &obj);
 }
 
+void
+rb_obj_invoke_initialize_copy(VALUE dest, VALUE obj)
+{
+    init_copy(dest, obj);
+}
+
 /*
  *  call-seq:
  *     obj.clone -> an_object

@@ -145,18 +145,6 @@ rhash_alloc(VALUE klass, SEL sel)
     return (VALUE)hash;
 }
 
-static VALUE
-rhash_copy(VALUE rcv, VALUE klass)
-{
-    NEWOBJ(dup, rb_hash_t);
-    dup->basic.flags = 0;
-    dup->basic.klass = klass;
-    GC_WB(&dup->tbl, st_copy(RHASH(rcv)->tbl));
-    GC_WB(&dup->ifnone, RHASH(rcv)->ifnone);
-    dup->has_proc_default = RHASH(rcv)->has_proc_default;
-    return (VALUE)dup;
-}
-
 VALUE
 rhash_dup(VALUE rcv, SEL sel)
 {
@@ -166,7 +154,8 @@ rhash_dup(VALUE rcv, SEL sel)
     }
     assert(rb_klass_is_rhash(klass));
 
-    VALUE dup = rhash_copy(rcv, klass);
+    VALUE dup = rhash_alloc(klass, 0);
+    rb_obj_invoke_initialize_copy(dup, rcv);
 
     OBJ_INFECT(dup, rcv);
     return dup;
