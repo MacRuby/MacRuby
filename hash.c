@@ -154,6 +154,7 @@ rhash_copy(VALUE rcv, VALUE klass)
     GC_WB(&dup->tbl, st_copy(RHASH(rcv)->tbl));
     GC_WB(&dup->ifnone, RHASH(rcv)->ifnone);
     dup->has_proc_default = RHASH(rcv)->has_proc_default;
+    rb_copy_generic_ivar((VALUE)dup, rcv);
     return (VALUE)dup;
 }
 
