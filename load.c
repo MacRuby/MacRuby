@@ -186,6 +186,21 @@ check_path(const char *path, VALUE *out, int *type)
 	else if (strcmp(p + 1, "bundle") == 0) {
 	    t = TYPE_BUNDLE;
 	}
+	else if (strcmp(p + 1, "so") == 0) {
+	    const char *ext = "bundle";
+	    const long ext_len = strlen(ext);
+	    const long len = p - path;
+	    if (len + ext_len + 1 < PATH_MAX) {
+		char buf[PATH_MAX];
+		strncpy(buf, path, PATH_MAX);
+		strcpy(buf + len + 1, ext);
+		buf[PATH_MAX - 1] = '\0';
+		if (path_ok(buf, out)) {
+		    *type = TYPE_BUNDLE;
+		    return true;
+		}
+	    }
+	}
 	if (t != 0 && path_ok(path, out)) {
 	    *type = t;
 	    return true;
