@@ -25,6 +25,13 @@ class AppDelegate
     return true
   end
 
+  def application(theApplication,
+                  openFile:path)
+    @file_path = path
+    self.convert(nil)
+    return true
+  end
+
   def performDragOperation(sender)
     pbd = sender.draggingPasteboard
     files = pbd.propertyListForType(NSFilenamesPboardType)
