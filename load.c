@@ -137,8 +137,6 @@ rb_feature_p(const char *feature, const char *ext, int type, int expanded, const
 	  case TYPE_SO:
 	    if (IS_BUNDLEEXT(e)) return TYPE_SO;
 	    break;
-	  default:
-	    return p;
 	}
     }
     return 0;
