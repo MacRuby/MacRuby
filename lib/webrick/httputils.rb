@@ -354,9 +354,9 @@ module WEBrick
     def _escape(str, regex) str.gsub(regex){ "%%%02X" % $1.ord } end
     def _unescape(str, regex) str.gsub(regex){ $1.hex.chr } end
 
-    UNESCAPED = _make_regex(control+space+delims+unwise+nonascii)
-    UNESCAPED_FORM = _make_regex(reserved+control+delims+unwise+nonascii)
-    NONASCII  = _make_regex(nonascii)
+    UNESCAPED = /([\x00-\x20\x7F\<\>\#%"'{}|\\^\[\]`\x80-\xFF])/
+    UNESCAPED_FORM = /([\x00-\x1F;\/?:@&=+\$,\<\>\#%"'{}|\\^\[\]`\x7F\x80-\xFF])/
+    NONASCII  = /([\x80-\xFF])/
     ESCAPED   = /%([0-9a-fA-F]{2})/
     UNESCAPED_PCHAR = _make_regex!(unreserved+":@&=+$,")
 
