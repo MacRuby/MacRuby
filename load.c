@@ -91,6 +91,27 @@ loaded_feature_path(const char *name, long vlen, const char *feature, long len,
 }
 
 static int
+guess_ext_type(const char *ext)
+{
+    if (!ext) {
+	return TYPE_GUESS;
+    }
+    if (IS_RBEXT(ext)) {
+	return TYPE_RB;
+    }
+    if (IS_RBOEXT(ext)) {
+	return TYPE_RBO;
+    }
+    if (IS_BUNDLEEXT(ext)) {
+	return TYPE_BUNDLE;
+    }
+    if (IS_SOEXT(ext)) {
+	return TYPE_SO;
+    }
+    return 0;
+}
+
+static int
 rb_feature_p(const char *feature, const char *ext, int type, int expanded, const char **fn)
 {
     VALUE v, features, p, load_path = 0;
@@ -137,6 +158,8 @@ rb_feature_p(const char *feature, const char *ext, int type, int expanded, const
 	  case TYPE_SO:
 	    if (IS_BUNDLEEXT(e)) return TYPE_SO;
 	    break;
+	  case TYPE_GUESS:
+	    return guess_ext_type(e);
 	}
     }
     return 0;
@@ -146,27 +169,6 @@ int
 rb_provided(const char *feature)
 {
     return rb_feature_provided(feature, 0);
-}
-
-static int
-guess_ext_type(const char *ext)
-{
-    if (!ext) {
-	return TYPE_GUESS;
-    }
-    if (IS_RBEXT(ext)) {
-	return TYPE_RB;
-    }
-    if (IS_RBOEXT(ext)) {
-	return TYPE_RBO;
-    }
-    if (IS_BUNDLEEXT(ext)) {
-	return TYPE_BUNDLE;
-    }
-    if (IS_SOEXT(ext)) {
-	return TYPE_SO;
-    }
-    return 0;
 }
 
 int
