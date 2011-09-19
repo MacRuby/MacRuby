@@ -15,6 +15,18 @@
 extern bool ruby_is_miniruby;
 static bool rbo_enabled = true;
 
+#define IS_RBEXT(e) (strcmp((e), ".rb") == 0)
+#define IS_RBOEXT(e) (strcmp((e), ".rbo") == 0)
+#define IS_SOEXT(e) (strcmp((e), ".so") == 0 || strcmp((e), ".o") == 0)
+#define BUNDLEEXT ".bundle"
+#define IS_BUNDLEEXT(e) (strcmp((e), BUNDLEEXT) == 0)
+
+#define TYPE_RB		0x1
+#define TYPE_RBO	0x2
+#define TYPE_BUNDLE	0x3
+#define TYPE_SO		0x4
+#define TYPE_GUESS	0x5
+
 VALUE
 rb_get_load_path(void)
 {
@@ -26,23 +38,159 @@ rb_get_load_path(void)
     return ary;
 }
 
+#define rb_get_expanded_load_path rb_get_load_path
+
 static VALUE
 get_loaded_features(void)
 {
     return rb_vm_loaded_features();
 }
 
+static VALUE
+loaded_feature_path(const char *name, long vlen, const char *feature, long len,
+		    int type, VALUE load_path)
+{
+    long i;
+    long plen;
+    const char *e;
+
+    if(vlen < len) return 0;
+    if (!strncmp(name+(vlen-len),feature,len)){
+	plen = vlen - len - 1;
+    } else {
+	for (e = name + vlen; name != e && *e != '.' && *e != '/'; --e);
+	if (*e!='.' ||
+	    e-name < len ||
+	    strncmp(e-len,feature,len) )
+	    return 0;
+	plen = e - name - len - 1;
+    }
+    for (i = 0; i < RARRAY_LEN(load_path); ++i) {
+	VALUE p = RARRAY_PTR(load_path)[i];
+	const char *s = StringValuePtr(p);
+	long n = RSTRING_LEN(p);
+
+	if (n != plen ) continue;
+	if (n && (strncmp(name, s, n) || name[n] != '/')) continue;
+	switch (type) {
+	  case TYPE_RB:
+	    if (IS_RBEXT(&name[n+len+1])) return p;
+	    break;
+	  case TYPE_RBO:
+	    if (IS_RBOEXT(&name[n+len+1])) return p;
+	    break;
+	  case TYPE_BUNDLE:
+	  case TYPE_SO:
+	    if (IS_BUNDLEEXT(&name[n+len+1])) return p;
+	    break;
+	  default:
+	    return p;
+	}
+    }
+    return 0;
+}
+
+static int
+rb_feature_p(const char *feature, const char *ext, int type, int expanded, const char **fn)
+{
+    VALUE v, features, p, load_path = 0;
+    const char *f, *e;
+    long i, len, elen, n;
+
+    if (fn) *fn = 0;
+    if (ext) {
+	elen = strlen(ext);
+	len = strlen(feature) - elen;
+    }
+    else {
+	len = strlen(feature);
+	elen = 0;
+    }
+    features = get_loaded_features();
+    for (i = 0; i < RARRAY_LEN(features); ++i) {
+	v = RARRAY_PTR(features)[i];
+	f = StringValuePtr(v);
+	if ((n = RSTRING_LEN(v)) < len) continue;
+	if (strncmp(f, feature, len) != 0) {
+	    if (expanded) continue;
+	    if (!load_path) load_path = rb_get_expanded_load_path();
+	    if (!(p = loaded_feature_path(f, n, feature, len, type, load_path)))
+		continue;
+	    expanded = 1;
+	    f += RSTRING_LEN(p) + 1;
+	}
+	if (!*(e = f + len)) {
+	    if (ext) continue;
+	    return TYPE_GUESS;
+	}
+	if (*e != '.') continue;
+	switch (type) {
+	  case TYPE_RB:
+	    if (IS_RBEXT(e)) return TYPE_RB;
+	    break;
+	  case TYPE_RBO:
+	    if (IS_RBOEXT(e)) return TYPE_RBO;
+	    break;
+	  case TYPE_BUNDLE:
+	    if (IS_BUNDLEEXT(e)) return TYPE_BUNDLE;
+	    break;
+	  case TYPE_SO:
+	    if (IS_BUNDLEEXT(e)) return TYPE_SO;
+	    break;
+	  default:
+	    return p;
+	}
+    }
+    return 0;
+}
+
 int
 rb_provided(const char *feature)
 {
-    VALUE ary = get_loaded_features();
-    for (int i = 0, count = RARRAY_LEN(ary); i < count; i++) {
-	VALUE path = RARRAY_AT(ary, i);
-	// TODO: this is very naive
-	if (strstr(RSTRING_PTR(path), feature) != NULL) {
-	    return true;
+    return rb_feature_provided(feature, 0);
+}
+
+static int
+guess_ext_type(const char *ext)
+{
+    if (!ext) {
+	return TYPE_GUESS;
+    }
+    if (IS_RBEXT(ext)) {
+	return TYPE_RB;
+    }
+    if (IS_RBOEXT(ext)) {
+	return TYPE_RBO;
+    }
+    if (IS_BUNDLEEXT(ext)) {
+	return TYPE_BUNDLE;
+    }
+    if (IS_SOEXT(ext)) {
+	return TYPE_SO;
+    }
+    return 0;
+}
+
+int
+rb_feature_provided(const char *feature, const char **loading)
+{
+    const char *ext = strrchr(feature, '.');
+    volatile VALUE fullpath = 0;
+
+    if (*feature == '.' &&
+	(feature[1] == '/' || strncmp(feature+1, "./", 2) == 0)) {
+	fullpath = rb_file_expand_path(rb_str_new2(feature), Qnil);
+	feature = RSTRING_PTR(fullpath);
+    }
+    if (ext && !strchr(ext, '/')) {
+	int type = guess_ext_type(ext);
+	if (type) {
+	    if (rb_feature_p(feature, ext, type, false, loading)) return true;
+	    return false;
 	}
     }
+    if (rb_feature_p(feature, 0, TYPE_GUESS, false, loading))
+	return true;
     return false;
 }
 
@@ -151,9 +299,6 @@ rb_f_require_imp(VALUE obj, SEL sel, VALUE fname)
 }
 
 #if !defined(MACRUBY_STATIC)
-#define TYPE_RB		0x1
-#define TYPE_RBO	0x2
-#define TYPE_BUNDLE	0x3
 
 static bool
 path_ok(const char *path, VALUE *out)
