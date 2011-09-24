@@ -103,6 +103,11 @@ static ID high_priority_id;
 static ID low_priority_id;
 static ID default_priority_id;
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
+static VALUE qBackgroundPriority;
+static ID background_priority_id;
+#endif
+
 static VALUE cGroup;
 static VALUE cSource;
 static VALUE cSemaphore;
@@ -213,6 +218,15 @@ rb_queue_from_dispatch(dispatch_queue_t dq, bool should_retain)
  *  will perform actions submitted to the high priority queue before any actions 
  *  submitted to the default or low queues, and will only perform actions on the 
  *  low queues if there are no actions queued on the high or default queues.
+ *  When installed on Mac OS 10.7 or later, the +:background+ priority level is 
+ *  available. Actions submitted to this queue will execute on a thread set to 
+ *  background state (via setpriority(2)), which throttles disk I/O and sets the 
+ *  thread's scheduling priority to the lowest value possible.
+ * 
+ *  On Mac OS 10.7 and later, passing a string to +concurrent+ creates a new 
+ *  concurrent queue with the specified string as its label. Private concurrent queues 
+ *  created this way are identical to private FIFO queues created with +new+, except 
+ *  for the fact that they execute their blocks in parallel.
  *
  *     gcdq = Dispatch::Queue.concurrent(:high)
  *     5.times { gcdq.async { print 'foo' } }
@@ -226,6 +240,16 @@ rb_queue_get_concurrent(VALUE klass, SEL sel, int argc, VALUE *argv)
     VALUE priority;
     rb_scan_args(argc, argv, "01", &priority);
     if (!NIL_P(priority)) {
+	
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
+	if (TYPE(priority) == T_STRING) {
+	    return rb_queue_from_dispatch(
+		dispatch_queue_create(RSTRING_PTR(priority), DISPATCH_QUEUE_CONCURRENT), 1);
+	} else if (TYPE(priority) != T_SYMBOL) {
+		rb_raise(rb_eTypeError, "must pass a symbol or string to `concurrent`");
+	}
+#endif
+	
 	ID id = rb_to_id(priority);
 	if (id == high_priority_id) {
 	    return qHighPriority;
@@ -233,6 +257,11 @@ rb_queue_get_concurrent(VALUE klass, SEL sel, int argc, VALUE *argv)
 	else if (id == low_priority_id) {
 	    return qLowPriority;
 	}
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
+	else if (id == background_priority_id) {
+	    return qBackgroundPriority;
+	}
+#endif
 	else if (id != default_priority_id) {
 	    rb_raise(rb_eArgError,
 		    "invalid priority `%s' (expected either :low, :default or :high)",
@@ -453,6 +482,76 @@ rb_queue_dispatch_sync(VALUE self, SEL sel)
 
     return Qnil;
 }
+
+/* 
+ *  call-seq:
+ *    gcdq.barrier_async { @i = 42 }
+ *
+ *  This function is a specialized version of the #async dispatch function. 
+ *  When a block enqueued with barrier_async reaches the front of a private 
+ *  concurrent queue, it waits until all other enqueued blocks to finish executing,
+ *  at which point the block is executed. No blocks submitted after a call to 
+ *  barrier_async will be executed until the enqueued block finishes. It returns 
+ *  immediately.
+ * 
+ *  If the provided queue is not a concurrent private queue, this function behaves 
+ *  identically to the #async function. 
+ * 
+ *  This function is only available on OS X 10.7 and later.
+ *  
+ *     gcdq = Dispatch::Queue.concurrent('org.macruby.documentation')
+ *     @i = ""
+ *     gcdq.async { @i += 'a' }
+ *     gcdq.async { @i += 'b' }
+ *     gcdq.barrier_async { @i += 'c' }
+ *     p @i #=> either prints out 'abc' or 'bac'
+ *
+ */
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
+
+static VALUE
+rb_queue_dispatch_barrier_async(VALUE self, SEL sel)
+{
+    rb_vm_block_t *block = get_prepared_block();
+    dispatch_barrier_async_f(RQueue(self)->queue, (void *)block, rb_block_dispatcher);
+    return Qnil;
+}
+
+#endif
+
+/* 
+ *  call-seq:
+ *    gcdq.barrier_async { @i = 42 }
+ *
+ *  This function is identical to the #barrier_async function; however, it blocks 
+ *  until the provided block is executed.
+ * 
+ *  If the provided queue is not a concurrent private queue, this function behaves 
+ *  identically to the #sync function. 
+ * 
+ *  This function is only available on OS X 10.7 and later.
+ *  
+ *     gcdq = Dispatch::Queue.concurrent('org.macruby.documentation')
+ *     @i = ""
+ *     gcdq.async { @i += 'a' }
+ *     gcdq.async { @i += 'b' }
+ *     gcdq.barrier_sync { @i += 'c' } # blocks
+ *     p @i #=> either prints out 'abc' or 'bac'
+ *
+ */
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
+
+static VALUE
+rb_queue_dispatch_barrier_sync(VALUE self, SEL sel)
+{
+    rb_vm_block_t *block = get_prepared_block();
+    dispatch_barrier_sync_f(RQueue(self)->queue, (void *)block, rb_block_dispatcher);
+    return Qnil;
+}
+
+#endif
 
 /* 
  *  call-seq:
@@ -1180,6 +1279,9 @@ Init_Dispatch(void)
     high_priority_id = rb_intern("high");
     low_priority_id = rb_intern("low");
     default_priority_id = rb_intern("default");
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
+    background_priority_id = rb_intern("background");
+#endif
 
 /*
  *  Grand Central Dispatch (GCD) is a novel approach to multicore computing
@@ -1253,6 +1355,12 @@ Init_Dispatch(void)
     rb_objc_define_method(cQueue, "after", rb_queue_dispatch_after, 1);
     rb_objc_define_method(cQueue, "label", rb_queue_label, 0); // deprecated
     rb_objc_define_method(cQueue, "to_s", rb_queue_label, 0);
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
+    rb_objc_define_method(cQueue, "barrier_async", rb_queue_dispatch_barrier_async, 0);
+    rb_objc_define_method(cQueue, "barrier_sync", rb_queue_dispatch_barrier_sync, 0);
+#endif
+    
     
     rb_queue_finalize_super = rb_objc_install_method2((Class)cQueue,
 	    "finalize", (IMP)rb_queue_finalize);
@@ -1263,6 +1371,10 @@ Init_Dispatch(void)
 		DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), true);
     qLowPriority = rb_queue_from_dispatch(dispatch_get_global_queue(
 		DISPATCH_QUEUE_PRIORITY_LOW, 0), true);
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
+    qBackgroundPriority = rb_queue_from_dispatch(dispatch_get_global_queue(
+		DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), true);
+#endif
     
     qMain = rb_queue_from_dispatch(dispatch_get_main_queue(), true);
     rb_objc_define_method(rb_singleton_class(qMain), "run", rb_main_queue_run,

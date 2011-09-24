@@ -23,6 +23,18 @@ if MACOSX_VERSION >= 10.6
 
         q3 = Dispatch::Queue.concurrent(:high)
         q3.should be_kind_of(Dispatch::Queue)
+        
+        if MACOSX_VERSION >= 10.7
+          q4 = Dispatch::Queue.concurrent(:background)
+          q4.should be_kind_of(Dispatch::Queue)
+        end
+      end
+      
+      if MACOSX_VERSION >= 10.7
+        it "can accept a string to create a concurrent queue" do
+          q = Dispatch::Queue.concurrent("org.macruby.concurrent.testing")
+          q.should be_kind_of(Dispatch::Queue)
+        end
       end
 
       it "raises an ArgumentError if the argument is not a valid priority" do
@@ -35,7 +47,7 @@ if MACOSX_VERSION >= 10.6
         qa.should eql(qb)
       end
 
-      it "raises a TypeError if the provided priority is not a symbol" do
+      it "raises a TypeError if the provided priority is not a symbol or string" do
         lambda { Dispatch::Queue.concurrent(42) }.should raise_error(TypeError)
       end
     end
@@ -108,6 +120,34 @@ if MACOSX_VERSION >= 10.6
       it "raises an ArgumentError if no block is given" do
         lambda { @q.sync }.should raise_error(ArgumentError) 
       end
+    end
+    
+    if MACOSX_VERSION >= 10.7
+      describe :barrier_async do
+        it "provides a barrier block asynchronously" do
+          @i = ""
+          cq = Dispatch::Queue.concurrent("org.macruby.testing")
+          cq.async { @i += "a" }
+          cq.async { @i += "b" }
+          cq.barrier_async { @i += "c" }
+          sleep 0.1
+          @i.length.should == 3
+          @i[2].should == "c"
+        end
+      end
+      
+      describe :barrier_sync do
+        it "provides a synchronous barrier block" do
+          @i = ""
+          cq = Dispatch::Queue.concurrent("org.macruby.testing")
+          cq.async { @i += "a" }
+          cq.async { @i += "b" }
+          cq.barrier_sync { @i += "c"}
+          @i.length.should == 3
+          @i[2].should == "c"
+        end
+      end
+      
     end
 
     describe :apply do
