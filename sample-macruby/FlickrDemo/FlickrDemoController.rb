@@ -147,5 +147,6 @@ class Source
   def tag=(tag)
     @tag = tag
     @url = "http://api.flickr.com/services/feeds/photos_public.gne?tags=#{tag}&lang=en-us&format=rss_200"
+             .stringByAddingPercentEscapesUsingEncoding NSUTF8StringEncoding
   end
 end
