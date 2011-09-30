@@ -1536,8 +1536,8 @@ update_block_i(VALUE key, VALUE value, VALUE hash)
 static VALUE
 rhash_update(VALUE hash1, SEL sel, VALUE hash2)
 {
-    hash2 = to_hash(hash2);
     rhash_modify(hash1);
+    hash2 = to_hash(hash2);
     if (rb_block_given_p()) {
 	rb_hash_foreach(hash2, update_block_i, hash1);
 	RETURN_IF_BROKEN();
