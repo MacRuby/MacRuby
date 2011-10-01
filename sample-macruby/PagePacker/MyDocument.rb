@@ -22,11 +22,11 @@ class MyDocument < NSDocument
     updateUI
   end
 
-  def dataRepresentationOfType(type)
+  def dataOfType(type, error:outError)
     NSKeyedArchiver.archivedDataWithRootObject @packModel
   end
 
-  def loadDataRepresentation(data, ofType:type)
+  def readFromData(data, ofType:type, error:outError)
     @packModel = NSKeyedUnarchiver.unarchiveObjectWithData data
     @packModel.setUndoManager undoManager
     updateUI if @packerView
