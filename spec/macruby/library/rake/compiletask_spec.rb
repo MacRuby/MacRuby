@@ -1,3 +1,5 @@
+if ENV['BROKEN_TEST'] == 'YES'
+
 require File.expand_path('../../../spec_helper', __FILE__)
 require 'rake/compiletask'
 require 'stringio'
@@ -75,6 +77,9 @@ describe "MacRuby's CompileTask extension for rake" do
   end
 
 
+  # temporary hack while the integration specs depend on an installed macrubyc
+  # this is the same problem that we have with testing macruby_deploy
+  unless `which macruby`.empty? || `macruby --version`.chomp != RUBY_DESCRIPTION
   describe ', in action,' do
     extend CompileTaskSpecHelper
 
@@ -141,8 +146,9 @@ describe "MacRuby's CompileTask extension for rake" do
       File.exists?(File.join(@dir, 'test/helper.rbo')).should be_false
     end
 
-  # temporary hack while the integration specs depend on an installed macrubyc
-  # this is the same problem that we have with testing macruby_deploy
-  end unless `which macruby`.empty? || `macruby --version`.chomp != RUBY_DESCRIPTION
+  end
+  end
+
+end
 
 end
