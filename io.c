@@ -2419,6 +2419,9 @@ io_from_spawning_new_process(VALUE klass, VALUE prog, VALUE mode)
     }
     if (fmode & FMODE_WRITABLE) {
 	io_struct->write_fd = fd_w[1];
+	if (!(fmode & FMODE_READABLE)) {
+	    io_struct->fd = fd_w[1];
+	}
     }
     else {
 	close(fd_w[1]);
