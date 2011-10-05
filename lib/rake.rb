@@ -2067,7 +2067,7 @@ module Rake
         # Exit with error message
         $stderr.puts "#{name} aborted!"
         $stderr.puts ex.message
-        if options.trace or true
+        if options.trace
           $stderr.puts ex.backtrace.join("\n")
         else
           $stderr.puts ex.backtrace.find {|str| str =~ /#{@rakefile}/ } || ""
