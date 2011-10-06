@@ -1,1 +1,0 @@
-fails:Module#class_variable_get returns the value of a class variable with the given name defined in an included module
