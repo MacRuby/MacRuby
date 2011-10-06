@@ -45,7 +45,7 @@ class MSpecMain < MSpecScript
       config[:flags] << '--valgrind'
     end
 
-    options.on("--warnings", "Don't supress warnings") do
+    options.on("--warnings", "Don't suppress warnings") do
       config[:flags] << '-w'
       ENV['OUTPUT_WARNINGS'] = '1'
     end
@@ -163,7 +163,9 @@ class MSpecMain < MSpecScript
         more = ["--args", config[:target]] + argv
         exec "gdb", *more
       else
-        exec config[:target], *argv
+        cmd, *rest = config[:target].split(/\s+/)
+        argv = rest + argv unless rest.empty?
+        exec cmd, *argv
       end
     end
   end
