@@ -162,6 +162,13 @@ describe "Marshal::load" do
     Marshal.load(arr_dump).class.should == ArraySub
   end
 
+  it "loads subclasses of Array with overridden << and push correctly" do
+    arr = ArraySubPush.new
+    arr[0] = '1'
+    arr_dump = Marshal.dump(arr)
+    Marshal.load(arr_dump).should == arr
+  end
+
   it "raises a TypeError with bad Marshal version" do
     marshal_data = '\xff\xff'
     marshal_data[0] = (Marshal::MAJOR_VERSION).chr
@@ -501,6 +508,40 @@ describe "Marshal::load" do
       it "roundtrips 4611686018427387903 from dump/load correctly" do
         Marshal.load(Marshal.dump(4611686018427387903)).should == 4611686018427387903
       end
+    end
+  end
+
+  describe "for a Module" do
+    it "loads a module" do
+      Marshal.load("\x04\bm\vKernel").should == Kernel
+    end
+
+    it "loads an old module" do
+      Marshal.load("\x04\bM\vKernel").should == Kernel
+    end
+  end
+
+  describe "for a wrapped C pointer" do
+    it "loads" do
+      data = "\004\bd:\rUserData" \
+             "[\a[\b\"\aCN\"\vnobodyi\021[\b\"\aDC\"\fexamplei\e"
+
+      expected = UserData.parse 'CN=nobody/DC=example'
+
+      Marshal.load(data).to_a.should == expected.to_a
+    end
+
+    it "raises TypeError when the local class is missing _data_load" do
+      data = "\004\bd:\027UserDataUnloadable" \
+             "[\a[\b\"\aCN\"\vnobodyi\021[\b\"\aDC\"\fexamplei\e"
+
+      lambda { Marshal.load data }.should raise_error(TypeError)
+    end
+
+    it "raises ArgumentError when the local class is a regular object" do
+      data = "\004\bd:\020UserDefined\0"
+
+      lambda { Marshal.load data }.should raise_error(ArgumentError)
     end
   end
 

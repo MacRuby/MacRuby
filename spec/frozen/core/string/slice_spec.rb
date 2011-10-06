@@ -82,7 +82,7 @@ describe "String#slice! with index" do
     "hello".slice!(obj).should == ?e
 
     obj = mock('1')
-    def obj.respond_to?(name) name == :to_int ? true : super; end
+    def obj.respond_to?(name, *) name == :to_int ? true : super; end
     def obj.method_missing(name, *) name == :to_int ? 1 : super; end
     "hello".slice!(obj).should == ?e
   end
@@ -144,7 +144,7 @@ describe "String#slice! with index, length" do
     "hello".slice!(obj, obj).should == "ll"
 
     obj = mock('2')
-    def obj.respond_to?(name) name == :to_int; end
+    def obj.respond_to?(name, *) name == :to_int; end
     def obj.method_missing(name, *) name == :to_int ? 2 : super; end
     "hello".slice!(obj, obj).should == "ll"
   end
@@ -213,9 +213,9 @@ describe "String#slice! Range" do
     def from.<=>(o) 0 end
     def to.<=>(o) 0 end
 
-    def from.respond_to?(name) name == :to_int; end
+    def from.respond_to?(name, *) name == :to_int; end
     def from.method_missing(name) name == :to_int ? 1 : super; end
-    def to.respond_to?(name) name == :to_int; end
+    def to.respond_to?(name, *) name == :to_int; end
     def to.method_missing(name) name == :to_int ? -2 : super; end
 
     "hello there".slice!(from..to).should == "ello ther"
@@ -375,7 +375,7 @@ describe "String#slice! with Regexp, index" do
     "har".slice!(/(.)(.)(.)/, obj).should == "a"
 
     obj = mock('2')
-    def obj.respond_to?(name) name == :to_int; end
+    def obj.respond_to?(name, *) name == :to_int; end
     def obj.method_missing(name) name == :to_int ? 2: super; end
     "har".slice!(/(.)(.)(.)/, obj).should == "a"
   end
