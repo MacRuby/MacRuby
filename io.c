@@ -2707,8 +2707,37 @@ rb_f_open(VALUE klass, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_s_sysopen(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
-    VALUE f = rb_f_open(klass, sel, argc, argv);
-    return INT2FIX(ExtractIOStruct(f)->fd);
+    VALUE fname, vmode, vperm;
+    VALUE intmode;
+    int oflags, fd;
+    mode_t perm;
+
+    rb_scan_args(argc, argv, "12", &fname, &vmode, &vperm);
+    FilePathValue(fname);
+
+    if (NIL_P(vmode)) {
+	oflags = O_RDONLY;
+    }
+    else if (!NIL_P(intmode = rb_check_to_integer(vmode, "to_int"))) {
+	oflags = NUM2INT(intmode);
+    }
+    else {
+	oflags = convert_mode_string_to_oflags(vmode);
+    }
+
+    if (NIL_P(vperm)) {
+	perm = 0666;
+    }
+    else {
+	perm = NUM2UINT(vperm);
+    }
+
+    fd = open(RSTRING_PTR(fname), oflags, perm);
+    if (fd < 0) {
+	rb_sys_fail(RSTRING_PTR(fname));
+    }
+
+    return INT2NUM(fd);
 }
 
 /*
