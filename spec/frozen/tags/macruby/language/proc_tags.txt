@@ -1,0 +1,5 @@
+fails:A Proc taking |a, *b| arguments raises an ArgumentError if passed no values
+fails:A Proc taking |a, *b| arguments does not destructure a single Array value yielded
+fails:A Proc taking |a, | arguments raises an ArgumentError when passed no values
+fails:A Proc taking |a, | arguments raises an ArgumentError when passed more than one value
+fails:A Proc taking |a, | arguments does not destructure when passed a single Array

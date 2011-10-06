@@ -27,3 +27,10 @@ fails:Method#parameters returns [[:rest,:a],[:req,:b],[:req,:c]] for a method ex
 fails:Method#parameters returns [[:rest,:a],[:req,:b],[:block,:c]] for a method expecting a splat argument ('a'), a required argument ('b'), and a block ('c')
 fails:Method#parameters works with ->(){} as the value of an optional argument
 fails:Method#parameters returns [[:block,:blk]] for a method expecting one block argument called 'a'
+fails:Method#parameters returns [] for a define_method method with explicit no-args || specification
+fails:Method#parameters returns [[:rest, :x]] for a define_method method with rest arg 'x' only
+fails:Method#parameters returns [[:req, :x]] for a define_method method expecting one required argument 'x'
+fails:Method#parameters returns [[:req, :x], [:req, :y]] for a define_method method expecting two required arguments 'x' and 'y'
+fails:Method#parameters returns [] for a define_method method with no args specification
+fails:Method#parameters returns [[:req]] for a define_method method with a grouping as its only argument
+fails:Method#parameters returns [[:opt, :x]] for a define_method method with an optional argument 'x'

@@ -1,3 +1,10 @@
 fails:A block with multiple arguments tries to use #to_ary to convert a single incoming value
 fails:A block with multiple arguments raises a TypeError if the #to_ary value isn't an Array
 fails:Block-local variables override shadowed variables from the outer scope
+fails:A block taking |a, b| arguments calls #to_ary to convert a single yielded object to an Array
+fails:A block taking |a, b| arguments raises an TypeError if #to_ary does not return an Array
+fails:A block taking |a, *b| arguments calls #to_ary to convert a single yielded object to an Array
+fails:A block taking |a, *b| arguments raises an TypeError if #to_ary does not return an Array
+fails:A block taking |a, | arguments calls #to_ary to convert a single yielded object to an Array
+fails:A block taking |a, | arguments raises an TypeError if #to_ary does not return an Array
+fails:A block taking |(a, b), c| arguments calls #to_ary to convert a single yielded object to an Array

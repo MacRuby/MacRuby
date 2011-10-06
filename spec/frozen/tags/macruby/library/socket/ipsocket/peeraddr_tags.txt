@@ -1,0 +1,1 @@
+fails:Socket::IPSocket#peeraddr returns an IP instead of hostname if passed false

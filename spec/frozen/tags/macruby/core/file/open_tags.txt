@@ -1,1 +1,2 @@
 fails:File.open with a block invokes close on opened file when exiting the block
+fails:File.open defaults external_encoding to ASCII-8BIT for binary modes

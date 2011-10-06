@@ -1,0 +1,13 @@
+fails:A singleton class is a subclass of Class's singleton class
+fails:A singleton class is a subclass of the same level of Class's singleton class
+fails:A singleton class is a subclass of the same level of superclass's singleton class
+fails:A singleton class for BasicObject has Class as it's superclass
+fails:A singleton class for BasicObject has the proper level of superclass for Class
+fails:Instance methods of a singleton class for a class do not include class methods of the singleton class of Class
+fails:Instance methods of a singleton class for a singleton class includes instance methods of the singleton class of Class
+fails:Instance methods of a singleton class for a singleton class does not include class methods of the singleton class of Class
+fails:Class methods of a singleton class for a class include class methods of Class
+fails:Class methods of a singleton class for a class include instance methods of the singleton class of Class
+fails:Class methods of a singleton class for a class do not include class methods of the singleton class of Class
+fails:Class methods of a singleton class for a singleton class include instance methods of the singleton class of Class
+fails:Instantiating a singleton class raises a TypeError when new is called
