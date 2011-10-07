@@ -845,13 +845,14 @@ str_splice(rb_str_t *self, long pos, long len, rb_str_t *str)
 	}
     }
 
-    str_reset_flags(self);
-
     const long bytes_to_splice = end.end_offset_in_bytes
 	- beg.start_offset_in_bytes;
 
     long bytes_to_add = 0;
     if (str != NULL) {
+	if (str->length_in_bytes > 0 && self->flags != str->flags) {
+	    str_reset_flags(self);
+	}
 	if (str->length_in_bytes > bytes_to_splice) {
 	    str_resize_bytes(self, self->length_in_bytes
 		    + (str->length_in_bytes - bytes_to_splice));
