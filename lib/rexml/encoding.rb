@@ -31,11 +31,11 @@ module REXML
           raise ArgumentError, "Bad encoding name #@encoding" unless @encoding =~ /^[\w-]+$/
           @encoding.untaint
           begin
-            require 'rexml/encodings/ICONV.rb'
+            require 'rexml/encodings/ICONV'
             Encoding.apply(self, "ICONV")
           rescue LoadError, Exception
             begin
-              enc_file = File.join( "rexml", "encodings", "#@encoding.rb" )
+              enc_file = File.join( "rexml", "encodings", "#@encoding" )
               require enc_file
               Encoding.apply(self, @encoding)
             rescue LoadError => err
@@ -45,7 +45,7 @@ module REXML
           end
         else
           @encoding = UTF_8
-          require 'rexml/encodings/UTF-8.rb'
+          require 'rexml/encodings/UTF-8'
           Encoding.apply(self, @encoding)
         end
       ensure
