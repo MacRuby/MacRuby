@@ -907,7 +907,6 @@ str_concat_bytes(rb_str_t *self, const char *bytes, long len)
 
     const long new_length_in_bytes = self->length_in_bytes + len;
 
-    str_reset_flags(self);
     str_resize_bytes(self, new_length_in_bytes);
     memcpy(self->bytes + self->length_in_bytes, bytes, len);
     self->length_in_bytes = new_length_in_bytes;
@@ -968,7 +967,12 @@ str_concat_string(rb_str_t *self, rb_str_t *str)
     }
 
     rb_encoding_t *enc = str_must_have_compatible_encoding(self, str);
-    str_reset_flags(self);
+    if (!str->flags) {
+	str_update_flags(str);
+    }
+    if (self->flags != str->flags) {
+	str_reset_flags(self);
+    }
     self->encoding = enc;
     str_concat_bytes(self, str->bytes, str->length_in_bytes);
 }
@@ -1543,6 +1547,7 @@ rstr_append(VALUE str, VALUE substr)
 static void inline
 str_concat_ascii_cstr(rb_str_t *self, char *cstr)
 {
+    str_reset_flags(self);
     long len = strlen(cstr);
     if (self->encoding->ascii_compatible) {
 	str_concat_bytes(self, cstr, len);
@@ -2665,6 +2670,7 @@ rstr_concat(VALUE self, SEL sel, VALUE other)
 	    free(buf);
 	    goto out_of_range;
 	}
+	str_reset_flags(RSTR(self));
 	str_concat_bytes(RSTR(self), (const char *)buf, bytelen);
 	free(buf);
     }
@@ -6252,6 +6258,7 @@ void
 rb_bstr_concat(VALUE str, const uint8_t *bytes, long len)
 {
     assert(IS_RSTR(str));
+    str_reset_flags(RSTR(str));
     str_concat_bytes(RSTR(str), (const char *)bytes, len);
 }
 
