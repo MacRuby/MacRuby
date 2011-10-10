@@ -477,27 +477,27 @@ bsock_getsockopt(VALUE sock, SEL sel, VALUE lev, VALUE optname)
 static VALUE
 bsock_getsockname(VALUE sock)
 {
-    char buf[1024];
+    struct sockaddr_storage buf;
     socklen_t len = sizeof buf;
     rb_io_t *fptr;
 
     GetOpenFile(sock, fptr);
-    if (getsockname(fptr->fd, (struct sockaddr*)buf, &len) < 0)
+    if (getsockname(fptr->fd, (struct sockaddr*)&buf, &len) < 0)
 	rb_sys_fail("getsockname(2)");
-    return rb_str_new(buf, len);
+    return rb_str_new((char*)&buf, len);
 }
 
 static VALUE
 bsock_getpeername(VALUE sock)
 {
-    char buf[1024];
+    struct sockaddr_storage buf;
     socklen_t len = sizeof buf;
     rb_io_t *fptr;
 
     GetOpenFile(sock, fptr);
-    if (getpeername(fptr->fd, (struct sockaddr*)buf, &len) < 0)
+    if (getpeername(fptr->fd, (struct sockaddr*)&buf, &len) < 0)
 	rb_sys_fail("getpeername(2)");
-    return rb_str_new(buf, len);
+    return rb_str_new((char*)&buf, len);
 }
 
 static VALUE
@@ -575,7 +575,7 @@ s_recvfrom(VALUE sock, int argc, VALUE *argv, enum sock_recv_type from)
 {
     rb_io_t *fptr;
     VALUE str;
-    char buf[1024];
+    struct sockaddr_storage buf;
     socklen_t alen = sizeof buf;
     VALUE len, flg;
     long buflen;
@@ -604,7 +604,7 @@ s_recvfrom(VALUE sock, int argc, VALUE *argv, enum sock_recv_type from)
 	rb_raise(rb_eRuntimeError, "buffer string modified");
     }
     slen = recvfrom(fd, rb_bstr_bytes(str), buflen, flags,
-	    (struct sockaddr *)buf, &alen);
+	    (struct sockaddr *)&buf, &alen);
 
     if (slen < 0) {
 	if (rb_io_wait_readable(fd)) {
@@ -626,16 +626,16 @@ s_recvfrom(VALUE sock, int argc, VALUE *argv, enum sock_recv_type from)
 	}
 #endif
 	if (alen && alen != sizeof(buf)) /* OSX doesn't return a from result for connection-oriented sockets */
-	    return rb_assoc_new(str, ipaddr((struct sockaddr*)buf, fptr->mode & FMODE_NOREVLOOKUP));
+	    return rb_assoc_new(str, ipaddr((struct sockaddr*)&buf, fptr->mode & FMODE_NOREVLOOKUP));
 	else
 	    return rb_assoc_new(str, Qnil);
 
 #ifdef HAVE_SYS_UN_H
       case RECV_UNIX:
-        return rb_assoc_new(str, unixaddr((struct sockaddr_un*)buf, alen));
+        return rb_assoc_new(str, unixaddr((struct sockaddr_un*)&buf, alen));
 #endif
       case RECV_SOCKET:
-	return rb_assoc_new(str, rb_str_new(buf, alen));
+	return rb_assoc_new(str, rb_str_new((char*)&buf, alen));
       default:
 	rb_bug("s_recvfrom called with bad value");
     }
@@ -646,7 +646,7 @@ s_recvfrom_nonblock(VALUE sock, int argc, VALUE *argv, enum sock_recv_type from)
 {
     rb_io_t *fptr;
     VALUE str;
-    char buf[1024];
+    struct sockaddr_storage buf;
     socklen_t alen = sizeof buf;
     VALUE len, flg;
     long buflen;
@@ -678,7 +678,7 @@ s_recvfrom_nonblock(VALUE sock, int argc, VALUE *argv, enum sock_recv_type from)
     rb_io_check_closed(fptr);
     rb_io_set_nonblock(fptr);
     slen = recvfrom(fd, rb_bstr_bytes(str), buflen, flags,
-	    (struct sockaddr *)buf, &alen);
+	    (struct sockaddr *)&buf, &alen);
 
     if (slen < 0) {
 	switch (errno) {
@@ -700,11 +700,11 @@ s_recvfrom_nonblock(VALUE sock, int argc, VALUE *argv, enum sock_recv_type from)
 
       case RECV_IP:
         if (alen && alen != sizeof(buf)) /* connection-oriented socket may not return a from result */
-            addr = ipaddr((struct sockaddr*)buf, fptr->mode & FMODE_NOREVLOOKUP);
+            addr = ipaddr((struct sockaddr*)&buf, fptr->mode & FMODE_NOREVLOOKUP);
         break;
 
       case RECV_SOCKET:
-        addr = rb_str_new(buf, alen);
+        addr = rb_str_new((char*)&buf, alen);
         break;
 
       default:
@@ -2905,13 +2905,13 @@ sock_accept(VALUE sock)
 {
     rb_io_t *fptr;
     VALUE sock2;
-    char buf[1024];
+    struct sockaddr_storage buf;
     socklen_t len = sizeof buf;
 
     GetOpenFile(sock, fptr);
-    sock2 = s_accept(rb_cSocket,fptr->fd,(struct sockaddr*)buf,&len);
+    sock2 = s_accept(rb_cSocket,fptr->fd,(struct sockaddr*)&buf,&len);
 
-    return rb_assoc_new(sock2, rb_str_new(buf, len));
+    return rb_assoc_new(sock2, rb_str_new((char*)&buf, len));
 }
 
 /*
@@ -2967,12 +2967,12 @@ sock_accept_nonblock(VALUE sock)
 {
     rb_io_t *fptr;
     VALUE sock2;
-    char buf[1024];
+    struct sockaddr_storage buf;
     socklen_t len = sizeof buf;
 
     GetOpenFile(sock, fptr);
-    sock2 = s_accept_nonblock(rb_cSocket, fptr, (struct sockaddr *)buf, &len);
-    return rb_assoc_new(sock2, rb_str_new(buf, len));
+    sock2 = s_accept_nonblock(rb_cSocket, fptr, (struct sockaddr *)&buf, &len);
+    return rb_assoc_new(sock2, rb_str_new((char*)&buf, len));
 }
 
 /*
@@ -3019,13 +3019,13 @@ sock_sysaccept(VALUE sock)
 {
     rb_io_t *fptr;
     VALUE sock2;
-    char buf[1024];
+    struct sockaddr_storage buf;
     socklen_t len = sizeof buf;
 
     GetOpenFile(sock, fptr);
-    sock2 = s_accept(0,fptr->fd,(struct sockaddr*)buf,&len);
+    sock2 = s_accept(0,fptr->fd,(struct sockaddr*)&buf,&len);
 
-    return rb_assoc_new(sock2, rb_str_new(buf, len));
+    return rb_assoc_new(sock2, rb_str_new((char*)&buf, len));
 }
 
 static inline VALUE
