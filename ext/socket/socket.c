@@ -3081,7 +3081,10 @@ socket_sendfile(VALUE self, SEL sel, VALUE file, VALUE offset, VALUE len)
 static VALUE
 sock_gethostname(VALUE obj)
 {
-    char buf[1024];
+#ifndef HOST_NAME_MAX
+#  define HOST_NAME_MAX 1024
+#endif
+    char buf[HOST_NAME_MAX+1];
 
     rb_secure(3);
     if (gethostname(buf, (int)sizeof buf - 1) < 0)
