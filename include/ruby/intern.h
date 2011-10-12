@@ -525,6 +525,7 @@ void rb_str_update(VALUE, long, long, VALUE);
 void rb_str_delete(VALUE str, long beg, long len);
 VALUE rb_str_replace(VALUE, VALUE);
 VALUE rb_str_inspect(VALUE);
+VALUE rb_str_dump(VALUE);
 VALUE rb_str_split(VALUE, const char*);
 void rb_str_associate(VALUE, VALUE);
 VALUE rb_str_associated(VALUE);

@@ -6927,6 +6927,13 @@ rb_str_replace(VALUE str1, VALUE str2)
 }
 
 VALUE
+rb_str_dump(VALUE str)
+{
+    str = (VALUE)str_need_string(str);
+    return rstr_dump(str, 0);
+}
+
+VALUE
 rstr_new_path(const char *path)
 {
     // XXX this should be rewritten using ICU (utrans.h?) to avoid creating
