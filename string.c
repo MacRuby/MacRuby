@@ -6913,6 +6913,13 @@ rb_str_plus(VALUE str1, VALUE str2)
 }
 
 VALUE
+rb_str_times(VALUE str, VALUE times)
+{
+    str = (VALUE)str_need_string(str);
+    return rstr_times(str, 0, times);
+}
+
+VALUE
 rstr_new_path(const char *path)
 {
     // XXX this should be rewritten using ICU (utrans.h?) to avoid creating
