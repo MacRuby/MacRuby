@@ -523,6 +523,8 @@ int rb_str_casecmp(VALUE, VALUE);
 VALUE rb_str_equal(VALUE str1, VALUE str2);
 void rb_str_update(VALUE, long, long, VALUE);
 void rb_str_delete(VALUE str, long beg, long len);
+VALUE rb_str_replace(VALUE, VALUE);
+VALUE rb_str_inspect(VALUE);
 VALUE rb_str_split(VALUE, const char*);
 void rb_str_associate(VALUE, VALUE);
 VALUE rb_str_associated(VALUE);
@@ -530,7 +532,6 @@ void rb_str_setter(VALUE, ID, VALUE*);
 VALUE rb_str_intern(VALUE);
 VALUE rb_sym_to_s(VALUE);
 VALUE rb_str_length(VALUE);
-VALUE rb_str_inspect(VALUE);
 
 // Return a string object appropriate for bstr_ calls. This does nothing for
 // data/binary RubyStrings.
