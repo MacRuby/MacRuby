@@ -39,12 +39,12 @@ typedef struct rb_io_t {
 #define FMODE_READABLE  1
 #define FMODE_WRITABLE  2
 #define FMODE_READWRITE 3
-#define FMODE_APPEND   64
-#define FMODE_CREATE  128
 #define FMODE_BINMODE   4
 #define FMODE_SYNC      8
 #define FMODE_TTY      16
 #define FMODE_DUPLEX   32
+#define FMODE_APPEND   64
+#define FMODE_CREATE  128
 #define FMODE_WSPLIT  0x200
 #define FMODE_WSPLIT_INITIALIZED  0x400
 #define FMODE_TRUNC                 0x00000800

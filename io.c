@@ -2268,6 +2268,20 @@ rb_io_binmode_m(VALUE io, SEL sel)
 
 /*
  *  call-seq:
+ *     ios.binmode?    -> true or false
+ *
+ *  Returns <code>true</code> if <em>ios</em> is binmode.
+ */
+static VALUE
+rb_io_binmode_p(VALUE io, SEL sel)
+{
+    rb_io_t *io_struct = ExtractIOStruct(io);
+    rb_io_check_closed(io_struct);
+    return io_struct->mode & FMODE_BINMODE ? Qtrue : Qfalse;
+}
+
+/*
+ *  call-seq:
  *     IO.popen(cmd, mode="r")               => io
  *     IO.popen(cmd, mode="r") {|io| block } => obj
  *
@@ -5216,6 +5230,7 @@ Init_IO(void)
     rb_objc_define_method(rb_cIO, "isatty", rb_io_isatty, 0);
     rb_objc_define_method(rb_cIO, "tty?", rb_io_isatty, 0);
     rb_objc_define_method(rb_cIO, "binmode",  rb_io_binmode_m, 0);
+    rb_objc_define_method(rb_cIO, "binmode?",  rb_io_binmode_p, 0);
     rb_objc_define_method(rb_cIO, "sysseek", rb_io_seek_m, -1);
 
     rb_objc_define_method(rb_cIO, "ioctl", rb_io_ioctl, -1);
