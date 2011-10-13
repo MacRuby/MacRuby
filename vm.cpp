@@ -3444,8 +3444,8 @@ rb_vm_create_block_calling_mid(ID mid)
     }
     char buf[100];
     snprintf(buf, sizeof buf, "%s:", midstr);
-    b->dvars[0] = (VALUE *)sel_registerName(midstr);
-    b->dvars[1] = (VALUE *)sel_registerName(buf);
+    *(b->dvars + 0) = (VALUE *)sel_registerName(midstr);
+    *(b->dvars + 1) = (VALUE *)sel_registerName(buf);
 
     return b;
 }
@@ -3482,9 +3482,9 @@ rb_vm_make_curry_proc(VALUE proc, VALUE passed, VALUE arity)
     b->arity.real = 1;
     b->flags = VM_BLOCK_PROC;
     b->imp = (IMP)rb_vm_block_curry;
-    GC_WB(&b->dvars[0], (VALUE *)proc);
-    GC_WB(&b->dvars[1], (VALUE *)passed);
-    b->dvars[2] = (VALUE *)arity;
+    GC_WB((b->dvars + 0), (VALUE *)proc);
+    GC_WB((b->dvars + 1), (VALUE *)passed);
+    *(b->dvars + 2) = (VALUE *)arity;
 
     return rb_proc_alloc_with_block(rb_cProc, b);
 }
