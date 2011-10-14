@@ -1978,6 +1978,68 @@ rb_io_readbyte(VALUE io, SEL sel)
     return c;
 }
 
+static void
+io_ungetbyte(rb_io_t *io_struct, UInt8 *bytes, size_t len)
+{
+    rb_io_create_buf(io_struct);
+
+    if (len <= io_struct->buf_offset) {
+	io_struct->buf_offset -= len;
+	UInt8 *data = CFDataGetMutableBytePtr(io_struct->buf);
+	memcpy(data + io_struct->buf_offset, bytes, len);
+    }
+    else {
+	const long n = len - io_struct->buf_offset;
+	CFDataIncreaseLength(io_struct->buf, n);
+	// CFDataGetMutableBytePtr must be called after CFDataIncreaseLength
+	UInt8 *data = CFDataGetMutableBytePtr(io_struct->buf);
+	memmove(data + n, data, CFDataGetLength(io_struct->buf) - n);
+	memcpy(data, bytes, len);
+    }
+}
+
+/*
+ *  call-seq:
+ *     ios.ungetbyte(string)   -> nil
+ *     ios.ungetbyte(integer)   -> nil
+ *
+ *  Pushes back bytes (passed as a parameter) onto <em>ios</em>,
+ *  such that a subsequent buffered read will return it. Only one byte
+ *  may be pushed back before a subsequent read operation (that is,
+ *  you will be able to read only the last of several bytes that have been pushed
+ *  back). Has no effect with unbuffered reads (such as <code>IO#sysread</code>).
+ *
+ *     f = File.new("testfile")   #=> #<File:testfile>
+ *     b = f.getbyte              #=> 0x38
+ *     f.ungetbyte(b)             #=> nil
+ *     f.getbyte                  #=> 0x38
+ */
+
+VALUE
+rb_io_ungetbyte(VALUE io, SEL sel, VALUE b)
+{
+    rb_io_t *io_struct = ExtractIOStruct(io);
+    rb_io_assert_readable(io_struct);
+
+    if (NIL_P(b)) {
+	return Qnil;
+    }
+    if (FIXNUM_P(b)) {
+	char cc = FIX2INT(b);
+	b = rb_str_new(&cc, 1);
+    }
+    else {
+	SafeStringValue(b);
+    }
+
+    UInt8 *bytes = (UInt8 *)RSTRING_PTR(b);
+    size_t len = RSTRING_LEN(b);
+
+    io_ungetbyte(io_struct, bytes, len);
+
+    return Qnil;
+}
+
 /*
  *  call-seq:
  *     ios.ungetc(string)   => nil
@@ -2019,21 +2081,7 @@ rb_io_ungetc(VALUE io, SEL sel, VALUE c)
 	len = RSTRING_LEN(c);
     }
 
-    rb_io_create_buf(io_struct);
-
-    if (len <= io_struct->buf_offset) {
-	io_struct->buf_offset -= len;
-	UInt8 *data = CFDataGetMutableBytePtr(io_struct->buf);
-	memcpy(data + io_struct->buf_offset, bytes, len);
-    }
-    else {
-	const long n = len - io_struct->buf_offset;
-	CFDataIncreaseLength(io_struct->buf, n);
-	// CFDataGetMutableBytePtr must be called after CFDataIncreaseLength
-	UInt8 *data = CFDataGetMutableBytePtr(io_struct->buf);
-	memmove(data + n, data, CFDataGetLength(io_struct->buf) - n);
-	memcpy(data, bytes, len);
-    }
+    io_ungetbyte(io_struct, bytes, len);
 
     return Qnil;
 }
@@ -5205,6 +5253,7 @@ Init_IO(void)
     rb_objc_define_method(rb_cIO, "getbyte",  rb_io_getbyte, 0);
     rb_objc_define_method(rb_cIO, "readchar",  rb_io_readchar, 0);
     rb_objc_define_method(rb_cIO, "readbyte",  rb_io_readbyte, 0);
+    rb_objc_define_method(rb_cIO, "ungetbyte",rb_io_ungetbyte, 1);
     rb_objc_define_method(rb_cIO, "ungetc",rb_io_ungetc, 1);
     rb_objc_define_method(rb_cIO, "<<",    rb_io_addstr, 1);
     rb_objc_define_method(rb_cIO, "flush", rb_io_flush, 0);
