@@ -783,6 +783,10 @@ str_resize_bytes(rb_str_t *self, long new_capacity)
 	rb_raise(rb_eArgError, "negative string size (or size too big)");
     }
     if (self->capacity_in_bytes < new_capacity) {
+	size_t capacity = new_capacity * 1.2;
+	if (capacity > 0){
+	    new_capacity = capacity;
+	}
 	if (self->bytes == NULL) {
 	    GC_WB(&self->bytes, xmalloc(new_capacity));
 	}
