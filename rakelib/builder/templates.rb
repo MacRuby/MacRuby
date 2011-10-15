@@ -243,7 +243,6 @@ module RbConfig
 end
 Config = RbConfig # compatibility for ruby-1.8.4 and older.
 CROSS_COMPILING = nil
-RUBY_FRAMEWORK = true
 EOS
     if !File.exist?('rbconfig.rb') or File.read('rbconfig.rb') != rbconfig
       File.open('rbconfig.rb', 'w') { |io| io.print rbconfig }
