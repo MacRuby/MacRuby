@@ -345,9 +345,9 @@ class StringIO
   # In other case, there is no limitation for multiple pushbacks.
   #
   def ungetc(chars)
+    raise(IOError, "not opened for reading") unless @readable
     return nil if chars == nil
 
-    raise(IOError, "not opened for reading") unless @readable
     chars = chars.chr if chars.kind_of?(Fixnum)
     raise TypeError unless chars.respond_to?(:to_str)
     chars = chars.to_str
