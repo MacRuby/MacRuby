@@ -330,6 +330,7 @@ class StringIO
   # Gets the next character from io.
   # Returns nil if called at end of file
   def getc
+    raise(IOError, "not opened for reading") unless @readable
     return nil if eof?
     result = string[pos]
     @pos += 1
