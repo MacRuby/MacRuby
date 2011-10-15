@@ -70,7 +70,7 @@ module RbConfig
   CONFIG["PACKAGE_STRING"] = ""
   CONFIG["PACKAGE_BUGREPORT"] = ""
   CONFIG["exec_prefix"] = "$(prefix)"
-  CONFIG["bindir"] = "$(exec_prefix)/bin"
+  CONFIG["bindir"] = "#{SYM_INSTDIR}/bin"
   CONFIG["sbindir"] = "$(exec_prefix)/sbin"
   CONFIG["libexecdir"] = "$(exec_prefix)/libexec"
   CONFIG["datarootdir"] = "$(prefix)/share"
