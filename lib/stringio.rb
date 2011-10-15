@@ -362,6 +362,28 @@ class StringIO
     nil
   end
 
+  #   strio.ungetbyte(fixnum)   -> nil
+  #
+  # See IO#ungetbyte
+  #
+  def ungetbyte(bytes)
+    raise(IOError, "not opened for reading") unless @readable
+    return nil if bytes == nil
+
+    bytes = bytes.chr if bytes.kind_of?(Fixnum)
+    raise TypeError unless bytes.respond_to?(:to_str)
+    bytes = bytes.to_str
+
+    if pos == 0
+      @string = bytes + string
+    elsif pos > 0
+      @pos -= 1
+      string[pos] = bytes
+    end
+
+    nil
+  end
+
   #   strio.readchar   -> fixnum
   #
   # See IO#readchar.
