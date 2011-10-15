@@ -8,4 +8,9 @@ module Gem
   Platform::MACRUBY_CURRENT = Platform.new([Platform.local.cpu, RUBY_ENGINE,
                                             MACRUBY_VERSION.split('.')[0, 2].join('.')])
   platforms << Platform::MACRUBY_CURRENT
+
+  def self.default_dir
+    "/Library/Ruby/Gems/MacRuby/#{MACRUBY_VERSION.to_f}"
+  end
+
 end
