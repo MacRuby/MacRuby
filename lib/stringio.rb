@@ -517,11 +517,11 @@ class StringIO
   # Returns the number of bytes written.  See IO#write.
   #
   def write(str)
-    str = str.to_s
-    return 0 if str.empty?
-
     raise(IOError, "not opened for writing") unless @writable
     raise(IOError, "not modifiable string") if @string.frozen?
+
+    str = str.to_s
+    return 0 if str.empty?
 
     if @append || (pos >= string.length)
       # add padding in case it's needed
