@@ -632,7 +632,7 @@ class StringScanner
       Regexp === pattern
 
     @match = nil
-    rest = self.rest
+    rest = @pos == 0 ? @string : self.rest
 
     if headonly
       headonly_pattern = Regexp.new('\A' + pattern.source, pattern.options)
