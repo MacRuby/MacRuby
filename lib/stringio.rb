@@ -136,7 +136,7 @@ class StringIO
     elsif length == nil
       return buffer.replace("") if self.eof?
       buffer.replace(@string[@pos..-1])
-      @pos = string.size
+      @pos = @string.size
     else
       if self.eof?
         buffer.replace("")
@@ -145,7 +145,7 @@ class StringIO
       raise TypeError unless length.respond_to?(:to_int)
       length = length.to_int
       raise ArgumentError if length < 0
-      buffer.replace(string[pos, length])
+      buffer.replace(@string[@pos, length])
       @pos += buffer.length
     end
 
@@ -263,7 +263,7 @@ class StringIO
   #
   def eof?
     raise(IOError, "not opened for reading") unless @readable
-    pos >= @string.length
+    @pos >= @string.length
   end
   alias_method :eof, :eof?
 
@@ -321,7 +321,7 @@ class StringIO
   alias_method :tty?, :isatty
 
   def length
-    string.length
+    @string.length
   end
   alias_method :size, :length
 
@@ -332,7 +332,7 @@ class StringIO
   def getc
     raise(IOError, "not opened for reading") unless @readable
     return nil if eof?
-    result = string[pos]
+    result = @string[@pos]
     @pos += 1
     result
   end
@@ -353,11 +353,11 @@ class StringIO
     raise TypeError unless chars.respond_to?(:to_str)
     chars = chars.to_str
 
-    if pos == 0
-      @string = chars + string
-    elsif pos > 0
+    if @pos == 0
+      @string = chars + @string
+    elsif @pos > 0
       @pos -= 1
-      string[pos] = chars
+      @string[@pos] = chars
     end
 
     nil
@@ -375,11 +375,11 @@ class StringIO
     raise TypeError unless bytes.respond_to?(:to_str)
     bytes = bytes.to_str
 
-    if pos == 0
-      @string = bytes + string
-    elsif pos > 0
+    if @pos == 0
+      @string = bytes + @string
+    elsif @pos > 0
       @pos -= 1
-      string[pos] = bytes
+      @string[@pos] = bytes
     end
 
     nil
@@ -401,10 +401,10 @@ class StringIO
   def each_char
     raise(IOError, "not opened for reading") unless @readable
     if block_given?
-      string.each_char{|c| yield(c)}
+      @string.each_char{|c| yield(c)}
       self
     else
-      string.each_char
+      @string.each_char
     end
   end
   alias_method :chars, :each_char
@@ -417,7 +417,7 @@ class StringIO
     # Because we currently don't support bytes access
     # the following code isn't used
     # instead we are dealing with chars
-    result = string.bytes.to_a[pos]
+    result = @string.bytes.to_a[@pos]
     @pos += 1 unless eof?
     result
     # getc
@@ -429,12 +429,12 @@ class StringIO
   #
   def each_byte
     raise(IOError, "not opened for reading") unless @readable
-    return self if (pos > string.length)
+    return self if (@pos > @string.length)
     if block_given?
-      string.each_byte{|b| @pos += 1; yield(b)}
+      @string.each_byte{|b| @pos += 1; yield(b)}
       self
     else
-      string.each_byte
+      @string.each_byte
     end
   end
   alias_method :bytes, :each_byte
@@ -524,17 +524,17 @@ class StringIO
     str = str.to_s
     return 0 if str.empty?
 
-    if @append || (pos >= string.length)
+    if @append || (@pos >= @string.length)
       # add padding in case it's needed
-      str = str.rjust((pos + str.length) - string.length, "\000") if (pos > string.length)
+      str = str.rjust((@pos + str.length) - @string.length, "\000") if (@pos > @string.length)
       enc1, enc2 = str.encoding, @string.encoding
       if enc1 != enc2
         str = str.dup.force_encoding(enc2)
       end
       @string << str
-      @pos = string.length
+      @pos = @string.length
     else
-      @string[pos, str.length] = str
+      @string[@pos, str.length] = str
       @pos += str.length
       @string.taint if str.tainted?
     end
@@ -569,10 +569,10 @@ class StringIO
     raise(TypeError) unless len.respond_to?(:to_int)
     length = len.to_int
     raise(Errno::EINVAL, "negative length") if (length < 0)
-    if length < string.size
-      @string[length .. string.size] = ""
+    if length < @string.size
+      @string[length .. @string.size] = ""
     else
-      @string = string.ljust(length, "\000")
+      @string = @string.ljust(length, "\000")
     end
     # send back what was passed, not our :to_int version
     len
@@ -646,15 +646,15 @@ class StringIO
       char = obj.to_int % 256
     end
 
-    if @append || pos == string.length
+    if @append || @pos == @string.length
       @string << char
-      @pos = string.length
-    elsif pos > string.length
-      @string = string.ljust(pos, "\000")
+      @pos = @string.length
+    elsif @pos > @string.length
+      @string = @string.ljust(@pos, "\000")
       @string << char
-      @pos = string.length
+      @pos = @string.length
     else
-      @string[pos] = ("" << char)
+      @string[@pos] = ("" << char)
       @pos += 1
     end
 
@@ -727,7 +727,7 @@ class StringIO
     def define_mode(mode=nil)
       if mode == nil
         # default modes
-        string.frozen? ? set_mode_from_string("r") : set_mode_from_string("r+")
+        @string.frozen? ? set_mode_from_string("r") : set_mode_from_string("r+")
       elsif mode.is_a?(Integer)
         set_mode_from_integer(mode)
       else
@@ -743,22 +743,22 @@ class StringIO
       when "r", "rb"
         @readable = true
       when "r+", "rb+"
-        raise(Errno::EACCES) if string.frozen?
+        raise(Errno::EACCES) if @string.frozen?
         @readable = true
         @writable = true
       when "w", "wb"
-        string.frozen? ? raise(Errno::EACCES) : string.replace("")
+        @string.frozen? ? raise(Errno::EACCES) : @string.replace("")
         @writable = true
       when "w+", "wb+"
-        string.frozen? ? raise(Errno::EACCES) : string.replace("")
+        @string.frozen? ? raise(Errno::EACCES) : @string.replace("")
         @readable = true
         @writable = true
       when "a", "ab"
-        raise(Errno::EACCES) if string.frozen?
+        raise(Errno::EACCES) if @string.frozen?
         @writable = true
         @append = true
       when "a+", "ab+"
-        raise(Errno::EACCES) if string.frozen?
+        raise(Errno::EACCES) if @string.frozen?
         @readable = true
         @writable = true
         @append = true
@@ -775,15 +775,15 @@ class StringIO
       when IO::WRONLY
         @readable = false
         @writable = true
-        raise(Errno::EACCES) if string.frozen?
+        raise(Errno::EACCES) if @string.frozen?
       when IO::RDWR
         @readable = true
         @writable = true
-        raise(Errno::EACCES) if string.frozen?
+        raise(Errno::EACCES) if @string.frozen?
       end
 
       @append = true if (mode & IO::APPEND) != 0
-      raise(Errno::EACCES) if @append && string.frozen?
+      raise(Errno::EACCES) if @append && @string.frozen?
       @string.replace("") if (mode & IO::TRUNC) != 0
     end
 
@@ -794,33 +794,33 @@ class StringIO
       offset = limit = -1
       if lim != nil
         limit  = lim - 1
-        offset = pos + limit
+        offset = @pos + limit
       end
 
       if lim != nil && lim == 0
         line = ""
       elsif sep == nil
-        line = string[pos .. offset]
+        line = @string[@pos .. offset]
       elsif sep.empty?
-        while string[@pos] == ?\n
+        while @string[@pos] == ?\n
           @pos += 1
           limit -= 1
         end
 
-        if stop = string.index("\n\n", pos)
+        if stop = @string.index("\n\n", @pos)
           stop += 1
-          line = string[pos .. stop]
+          line = @string[@pos .. stop]
           if lim != nil && line[limit, 2] != "\n\n"
             line = line[0 .. limit]
           end
         else
-          line = string[pos .. offset]
+          line = @string[@pos .. offset]
         end
       else
-        if stop = string.index(sep, pos)
-          line = string[pos .. (stop + sep.size - 1)]
+        if stop = @string.index(sep, @pos)
+          line = @string[@pos .. (stop + sep.size - 1)]
         else
-          line = string[pos .. offset]
+          line = @string[@pos .. offset]
         end
       end
       @pos += line.size
