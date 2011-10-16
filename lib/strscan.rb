@@ -357,7 +357,7 @@ class StringScanner
   # <tt>s.rest_size</tt> is equivalent to <tt>s.rest.size</tt>.
   #
   def rest_size
-    rest.size
+    @string.size - @pos
   end
 
   # <tt>s.restsize</tt> is equivalent to <tt>s.rest_size</tt>.
