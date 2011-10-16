@@ -158,7 +158,7 @@ class StringScanner
   # Reset the scan pointer (index 0) and clear matching data.
   #
   def reset
-    self.pos = 0
+    @pos = 0
     @match = nil
     self
   end
@@ -167,7 +167,7 @@ class StringScanner
   #
   def terminate
     @match = nil
-    self.pos = string.size
+    @pos = @string.size
     self
   end
 
@@ -202,7 +202,7 @@ class StringScanner
   #
   def concat(str)
     begin
-      self.string << str.to_str
+      @string << str.to_str
     rescue
       raise TypeError, "can't convert #{str.class.name} into String"
     end
@@ -217,8 +217,8 @@ class StringScanner
   #   s.rest               # -> "ring"
   #
   def pos=(n)
-    n = (n + string.size) if (n < 0)
-    raise RangeError, "index out of range" if (n < 0 || (string && n > string.size))
+    n = (n + @string.size) if (n < 0)
+    raise RangeError, "index out of range" if (n < 0 || (@string && n > @string.size))
     @pos = n
   end
 
@@ -325,7 +325,7 @@ class StringScanner
   #   p s.eos?          # => true
   #
   def eos?
-    self.pos >= self.string.size
+    @pos >= @string.size
   end
 
   # Equivalent to #eos?.
@@ -351,7 +351,7 @@ class StringScanner
   # If there is no more data (eos? = true), it returns <tt>""</tt>.
   #
   def rest
-    string[pos..-1] || ""
+    @string[@pos..-1] || ""
   end
 
   # <tt>s.rest_size</tt> is equivalent to <tt>s.rest.size</tt>.
@@ -380,16 +380,16 @@ class StringScanner
   #
   def inspect
     if defined?(@string)
-      rest = string.size > 5 ? string[pos..pos+4] + "..." : string
+      rest = @string.size > 5 ? @string[@pos..@pos+4] + "..." : @string
       to_return =  if eos? then
                     "#<StringScanner fin>"
                   elsif pos > 0 then
-                    prev = string[0...pos].inspect
-                    "#<StringScanner #{pos}/#{string.size} #{prev} @ #{rest.inspect}>"
+                    prev = @string[0...@pos].inspect
+                    "#<StringScanner #{@pos}/#{@string.size} #{prev} @ #{rest.inspect}>"
                   else
-                    "#<StringScanner #{pos}/#{string.size} @ #{rest.inspect}>"
+                    "#<StringScanner #{@pos}/#{@string.size} @ #{rest.inspect}>"
                   end
-      to_return.taint if self.string.tainted?
+      to_return.taint if @string.tainted?
       to_return
     else
       "#<StringScanner (uninitialized)>"
@@ -537,7 +537,7 @@ class StringScanner
   def peek(length)
     raise TypeError, "can't convert #{length.class.name} into Integer" unless length.respond_to?(:to_int)
     raise ArgumentError if length < 0
-    length.zero? ? "" :  string[pos, length]
+    length.zero? ? "" :  @string[@pos, length]
   end
 
   # Equivalent to #peek.
@@ -560,7 +560,7 @@ class StringScanner
   #
   def unscan
     raise(ScanError, "unscan failed: previous match record not exist") if @match.nil?
-    self.pos = @prev_pos
+    @pos = @prev_pos
     @prev_pos = nil
     @match = nil
     self
@@ -578,7 +578,7 @@ class StringScanner
   #   s.bol?           # => true
   #
   def bol?
-    (pos == 0) || (string[pos-1] == "\n")
+    (@pos == 0) || (@string[@pos-1] == "\n")
   end
   alias :beginning_of_line? :bol?
 
@@ -608,8 +608,8 @@ class StringScanner
   #
   def pre_match
     if matched?
-      p = self.string.size - @match.string.size + @match.begin(0)
-      string[0...p]
+      p = @string.size - @match.string.size + @match.begin(0)
+      @string[0...p]
     end
   end
 
@@ -646,8 +646,8 @@ class StringScanner
     m = rest[0, @match.end(0)]
 
     if succptr
-      @prev_pos = pos
-      self.pos += m.size
+      @prev_pos = @pos
+      @pos += m.size
     end
 
     getstr ? m : m.size
