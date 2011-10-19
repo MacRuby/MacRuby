@@ -111,12 +111,20 @@ module RbConfig
   CONFIG["target_cpu"] = "i686"
   CONFIG["target_vendor"] = "apple"
   CONFIG["target_os"] = "darwin9.0"
-  CONFIG["CC"] = "#{CC}"
+  if File.exist? "#{CC}"
+    CONFIG["CC"] = "#{CC}"
+  else
+    CONFIG["CC"] = "/usr/bin/gcc"
+  end
   CONFIG["CFLAGS"] = "$(ARCH_FLAG) -fexceptions -fno-common -pipe $(cflags)"
   CONFIG["LDFLAGS"] = "$(ARCH_FLAG)"
   CONFIG["CPPFLAGS"] = "$(cppflags)"
   CONFIG["OBJEXT"] = "o"
-  CONFIG["CXX"] = "#{CXX}"
+  if File.exist? "#{CXX}"
+    CONFIG["CXX"] = "#{CXX}"
+  else
+    CONFIG["CXX"] = "/usr/bin/g++"
+  end
   CONFIG["CXXFLAGS"] = "$(ARCH_FLAG)"
   CONFIG["CPP"] = "/usr/bin/gcc -E"
   CONFIG["GREP"] = "/usr/bin/grep"
