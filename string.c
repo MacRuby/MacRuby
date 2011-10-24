@@ -3327,10 +3327,10 @@ rstr_split(VALUE str, SEL sel, int argc, VALUE *argv)
 	}
     }
 
-    VALUE result = rb_ary_new();
     if (len == 0) {
-	return result;
+	return rb_ary_new();
     }
+    VALUE result = (lim > 0) ? rb_ary_new2(lim) : rb_ary_new();
 
     bool awk_split = false, spat_string = false;
     long spat_len = 0;
