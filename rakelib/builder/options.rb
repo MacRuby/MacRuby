@@ -82,7 +82,7 @@ end
 
 LLVM_CONFIG = File.join(LLVM_PATH, 'bin/llvm-config')
 unless File.exist?(LLVM_CONFIG)
-  $stderr.puts "The llvm-config executable was not located at #{LLVM_CONFIG}. Please make sure LLVM is correctly installed on your machine and pass the llvm_config option to rake if necessary."
+  $stderr.puts "The llvm-config executable was not located at #{LLVM_CONFIG}. Please make sure LLVM is correctly installed on your machine and pass the llvm_path option to rake if necessary. Example: $ rake llvm_path=/path/"
   exit 1
 end
 
