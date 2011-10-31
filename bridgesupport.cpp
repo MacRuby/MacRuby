@@ -815,7 +815,7 @@ rb_vm_get_struct_fields(VALUE rval, VALUE *buf, rb_vm_bs_boxed_t *bs_boxed)
 		    bs_boxed->as.s->name,
 		    RSTRING_PTR(rb_inspect(rval)));
 	}
-	int length = exclusive ? end-1-begin : end-begin;
+	int length = exclusive ? end-begin : end-begin+1;
 	buf[0] = INT2NUM(begin);
 	buf[1] = INT2NUM(length);
     }
