@@ -11,7 +11,7 @@ describe "A Range object" do
   it "responds to #relative_to, which returns a new Range object without negative indicies" do
     ( 0 ..  10).relative_to(11).should == (0..10)
     ( 1 ..  9 ).relative_to(11).should == (1..9 )
-    ( 0 ..  15).relative_to(11).should == (0..10)
+    ( 0 ..  15).relative_to(11).should == (0..11)
 
     ( 0 .. -1 ).relative_to(11).should == (0..10)
     ( 0 .. -2 ).relative_to(11).should == (0..9 )

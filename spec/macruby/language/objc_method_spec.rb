@@ -368,12 +368,12 @@ describe "A pure Objective-C method" do
   end
 
   it "accepting a Range as a structure type should receive a NSRange C structure" do
-    @o.methodAcceptingNSRange(0..41).should == 0
+    @o.methodAcceptingNSRange(0..41).should == 1
     @o.methodAcceptingNSRange(1..42).should == 0
-    @o.methodAcceptingNSRange(0..42).should == 1
-    @o.methodAcceptingNSRange(0...42).should == 0
+    @o.methodAcceptingNSRange(0..42).should == 0
+    @o.methodAcceptingNSRange(0...42).should == 1
     @o.methodAcceptingNSRange(1...42).should == 0
-    @o.methodAcceptingNSRange(0...43).should == 1
+    @o.methodAcceptingNSRange(0...43).should == 0
 
     lambda { @o.methodAcceptingNSRange(-1..1) }.should raise_error(ArgumentError)
     lambda { @o.methodAcceptingNSRange(1..-1) }.should raise_error(ArgumentError)
