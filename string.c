@@ -6910,6 +6910,12 @@ rb_str_modify(VALUE obj)
 }
 
 VALUE
+rb_str_freeze(VALUE str)
+{
+    return rb_obj_freeze(str);
+}
+
+VALUE
 rb_str_plus(VALUE str1, VALUE str2)
 {
     str1 = (VALUE)str_need_string(str1);
