@@ -63,6 +63,13 @@ module Timeout
         end
       end
     rescue exception => e
+      # FIXME: workaround for Ticket #1411
+      if e.backtrace.nil?
+        raise if klass
+        raise Error, e.message
+      end
+      ####################################
+
       rej = /\A#{Regexp.quote(__FILE__)}:#{__LINE__-4}\z/o
       (bt = e.backtrace).reject! {|m| rej =~ m}
       level = -caller(CALLER_OFFSET).size
