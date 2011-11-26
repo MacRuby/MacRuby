@@ -970,6 +970,8 @@ ossl_ssl_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
     ossl_ssl_set_sync_close(self, Qfalse);
     ossl_sslctx_setup(ctx);
 
+    rb_iv_set(self, "@hostname", Qnil);
+
     rb_vm_call_super(self, sel, 0, NULL);
 
     return self;
