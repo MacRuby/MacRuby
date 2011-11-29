@@ -252,7 +252,7 @@ init_sock(VALUE sock, int fd)
 }
 
 static VALUE
-bsock_s_for_fd(VALUE klass, VALUE SEL, VALUE fd)
+bsock_s_for_fd(VALUE klass, SEL sel, VALUE fd)
 {
     rb_io_t *fptr;
     VALUE sock = init_sock(rb_obj_alloc(klass), NUM2INT(fd));
@@ -289,7 +289,7 @@ bsock_shutdown(VALUE sock, SEL sel, int argc, VALUE *argv)
 }
 
 static VALUE
-bsock_close_read(VALUE sock)
+bsock_close_read(VALUE sock, SEL sel)
 {
     rb_io_t *fptr;
 
@@ -308,7 +308,7 @@ bsock_close_read(VALUE sock)
 }
 
 static VALUE
-bsock_close_write(VALUE sock)
+bsock_close_write(VALUE sock, SEL sel)
 {
     rb_io_t *fptr;
 
@@ -475,7 +475,7 @@ bsock_getsockopt(VALUE sock, SEL sel, VALUE lev, VALUE optname)
 }
 
 static VALUE
-bsock_getsockname(VALUE sock)
+bsock_getsockname(VALUE sock, SEL sel)
 {
     struct sockaddr_storage buf;
     socklen_t len = sizeof buf;
@@ -488,7 +488,7 @@ bsock_getsockname(VALUE sock)
 }
 
 static VALUE
-bsock_getpeername(VALUE sock)
+bsock_getpeername(VALUE sock, SEL sel)
 {
     struct sockaddr_storage buf;
     socklen_t len = sizeof buf;
@@ -534,7 +534,7 @@ bsock_send(VALUE sock, SEL sel, int argc, VALUE *argv)
 }
 
 static VALUE
-bsock_do_not_reverse_lookup(VALUE sock)
+bsock_do_not_reverse_lookup(VALUE sock, SEL sel)
 {
     rb_io_t *fptr;
 
@@ -763,7 +763,7 @@ bsock_recv_nonblock(VALUE sock, SEL sel, int argc, VALUE *argv)
 }
 
 static VALUE
-bsock_do_not_rev_lookup(VALUE self)
+bsock_do_not_rev_lookup(VALUE self, SEL sel)
 {
     return do_not_reverse_lookup ? Qtrue : Qfalse;
 }
@@ -1513,7 +1513,7 @@ s_accept(VALUE klass, int fd, struct sockaddr *sockaddr, socklen_t *len)
 }
 
 static VALUE
-tcp_accept(VALUE sock)
+tcp_accept(VALUE sock, SEL sel)
 {
     rb_io_t *fptr;
     struct sockaddr_storage from;
@@ -1555,7 +1555,7 @@ tcp_accept(VALUE sock)
  * * Socket#accept
  */
 static VALUE
-tcp_accept_nonblock(VALUE sock)
+tcp_accept_nonblock(VALUE sock, SEL sel)
 {
     rb_io_t *fptr;
     struct sockaddr_storage from;
@@ -1568,7 +1568,7 @@ tcp_accept_nonblock(VALUE sock)
 }
 
 static VALUE
-tcp_sysaccept(VALUE sock)
+tcp_sysaccept(VALUE sock, SEL sel)
 {
     rb_io_t *fptr;
     struct sockaddr_storage from;
@@ -1647,7 +1647,7 @@ init_unixsock(VALUE sock, VALUE path, int server)
 #endif
 
 static VALUE
-ip_addr(VALUE sock)
+ip_addr(VALUE sock, SEL sel)
 {
     rb_io_t *fptr;
     struct sockaddr_storage addr;
@@ -1661,7 +1661,7 @@ ip_addr(VALUE sock)
 }
 
 static VALUE
-ip_peeraddr(VALUE sock)
+ip_peeraddr(VALUE sock, SEL sel)
 {
     rb_io_t *fptr;
     struct sockaddr_storage addr;
@@ -1867,7 +1867,7 @@ unixpath(struct sockaddr_un *sockaddr, socklen_t len)
 }
 
 static VALUE
-unix_path(VALUE sock)
+unix_path(VALUE sock, SEL sel)
 {
     rb_io_t *fptr;
 
@@ -2078,7 +2078,7 @@ unix_recv_io(VALUE sock, SEL sel, int argc, VALUE *argv)
 }
 
 static VALUE
-unix_accept(VALUE sock)
+unix_accept(VALUE sock, SEL sel)
 {
     rb_io_t *fptr;
     struct sockaddr_un from;
@@ -2120,7 +2120,7 @@ unix_accept(VALUE sock)
  * * Socket#accept
  */
 static VALUE
-unix_accept_nonblock(VALUE sock)
+unix_accept_nonblock(VALUE sock, SEL sel)
 {
     rb_io_t *fptr;
     struct sockaddr_un from;
@@ -2133,7 +2133,7 @@ unix_accept_nonblock(VALUE sock)
 }
 
 static VALUE
-unix_sysaccept(VALUE sock)
+unix_sysaccept(VALUE sock, SEL sel)
 {
     rb_io_t *fptr;
     struct sockaddr_un from;
@@ -2154,7 +2154,7 @@ unixaddr(struct sockaddr_un *sockaddr, socklen_t len)
 #endif
 
 static VALUE
-unix_addr(VALUE sock)
+unix_addr(VALUE sock, SEL sel)
 {
     rb_io_t *fptr;
     struct sockaddr_un addr;
@@ -2168,7 +2168,7 @@ unix_addr(VALUE sock)
 }
 
 static VALUE
-unix_peeraddr(VALUE sock)
+unix_peeraddr(VALUE sock, SEL sel)
 {
     rb_io_t *fptr;
     struct sockaddr_un addr;
@@ -2907,7 +2907,7 @@ sock_recvfrom_nonblock(VALUE sock, SEL sel, int argc, VALUE *argv)
 }
 
 static VALUE
-sock_accept(VALUE sock)
+sock_accept(VALUE sock, SEL sel)
 {
     rb_io_t *fptr;
     VALUE sock2;
@@ -2969,7 +2969,7 @@ sock_accept(VALUE sock)
  * * Socket#accept
  */
 static VALUE
-sock_accept_nonblock(VALUE sock)
+sock_accept_nonblock(VALUE sock, SEL sel)
 {
     rb_io_t *fptr;
     VALUE sock2;
@@ -3021,7 +3021,7 @@ sock_accept_nonblock(VALUE sock)
  * * Socket#accept
  */
 static VALUE
-sock_sysaccept(VALUE sock)
+sock_sysaccept(VALUE sock, SEL sel)
 {
     rb_io_t *fptr;
     VALUE sock2;
@@ -3085,7 +3085,7 @@ socket_sendfile(VALUE self, SEL sel, VALUE file, VALUE offset, VALUE len)
 
 #ifdef HAVE_GETHOSTNAME
 static VALUE
-sock_gethostname(VALUE obj)
+sock_gethostname(VALUE obj, SEL sel)
 {
 #ifndef HOST_NAME_MAX
 #  define HOST_NAME_MAX 1024
@@ -3105,7 +3105,7 @@ sock_gethostname(VALUE obj)
 #include <sys/utsname.h>
 
 static VALUE
-sock_gethostname(VALUE obj)
+sock_gethostname(VALUE obj, SEL sel)
 {
     struct utsname un;
 
@@ -3115,7 +3115,7 @@ sock_gethostname(VALUE obj)
 }
 #else
 static VALUE
-sock_gethostname(VALUE obj)
+sock_gethostname(VALUE obj, SEL sel)
 {
     rb_notimplement();
 }
