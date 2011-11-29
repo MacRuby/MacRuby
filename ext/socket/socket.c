@@ -1142,6 +1142,12 @@ ruby_connect(int fd, struct sockaddr *sockaddr, int len, int socks)
 	status = connect(fd, sockaddr, len);
 	if (status < 0) {
 	    switch (errno) {
+	      case EINTR:
+#if defined(ERESTART)
+	      case ERESTART:
+#endif
+		continue;
+
 	      case EAGAIN:
 #ifdef EINPROGRESS
 	      case EINPROGRESS:
