@@ -145,8 +145,6 @@ class TestThread < Test::Unit::TestCase
 #  end
 
   def test_condvar_wait_deadlock_2
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     nr_threads = 3
     threads = Array.new
     mutex = Mutex.new

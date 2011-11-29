@@ -1,7 +1,7 @@
 require 'test/unit'
 require 'tmpdir'
 require "fcntl"
-#require 'io/nonblock'
+require 'io/nonblock'
 require 'socket'
 require 'stringio'
 require 'timeout'

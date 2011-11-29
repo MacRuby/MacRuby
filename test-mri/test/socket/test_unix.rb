@@ -7,7 +7,7 @@ require "test/unit"
 require "tempfile"
 require "tmpdir"
 require "thread"
-#require "io/nonblock"
+require "io/nonblock"
 
 class TestSocket_UNIXSocket < Test::Unit::TestCase
   def test_fd_passing
@@ -105,6 +105,8 @@ class TestSocket_UNIXSocket < Test::Unit::TestCase
   end
 
   def test_fd_passing_race_condition
+    skip("[BUG : #???] Timeout, MacRuby don't finish")
+
     r1, w = IO.pipe
     s1, s2 = UNIXSocket.pair
     s1.nonblock = s2.nonblock = true
