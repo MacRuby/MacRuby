@@ -3069,6 +3069,7 @@ socket_sendfile(VALUE self, SEL sel, VALUE file, VALUE offset, VALUE len)
 
     file = rb_io_check_io(file);
     rb_io_t *source = ExtractIOStruct(file);
+    rb_io_check_closed(source);
 
     if (sendfile(source->fd, socket->fd, to_offset, &to_write, NULL, 0) == -1) {
         if (needs_to_close) {
