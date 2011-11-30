@@ -3057,6 +3057,9 @@ static VALUE
 socket_sendfile(VALUE self, SEL sel, VALUE file, VALUE offset, VALUE len)
 {
     bool needs_to_close = false;
+    rb_io_t *socket;
+
+    GetOpenFile(self, socket);
     if (TYPE(file) == T_STRING) {
         file = rb_f_open(rb_cIO, 0, 1, &file);
         needs_to_close = true;
@@ -3064,7 +3067,6 @@ socket_sendfile(VALUE self, SEL sel, VALUE file, VALUE offset, VALUE len)
 
     file = rb_io_check_io(file);
 
-    rb_io_t *socket = ExtractIOStruct(self);
     rb_io_t *source = ExtractIOStruct(file);
 
     off_t to_write = NUM2OFFT(len);
