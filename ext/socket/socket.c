@@ -3062,13 +3062,13 @@ socket_sendfile(VALUE self, SEL sel, VALUE file, VALUE offset, VALUE len)
     rb_io_t *socket;
 
     GetOpenFile(self, socket);
-    if (TYPE(file) == T_STRING) {
-        file = rb_f_open(rb_cIO, 0, 1, &file);
+    VALUE io = rb_io_check_io(file);
+    if (NIL_P(io)) {
+        io = rb_f_open(rb_cIO, 0, 1, &file);
         needs_to_close = true;
     }
 
-    file = rb_io_check_io(file);
-    rb_io_t *source = ExtractIOStruct(file);
+    rb_io_t *source = ExtractIOStruct(io);
     rb_io_check_closed(source);
 
     if (sendfile(source->fd, socket->fd, to_offset, &to_write, NULL, 0) == -1) {
