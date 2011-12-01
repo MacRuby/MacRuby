@@ -1082,10 +1082,14 @@ do_select(int n, fd_set *read, fd_set *write, fd_set *except,
   retry:
     lerrno = 0;
 
+    rb_vm_thread_t *thread = GetThreadPtr(rb_vm_current_thread());
+    rb_vm_thread_status_t prev_status = thread->status;
+    thread->status = THREAD_SLEEP;
     //BLOCKING_REGION({
 	result = select(n, read, write, except, timeout);
 	if (result < 0) lerrno = errno;
     //}, ubf_select, GET_THREAD());
+    thread->status = prev_status;
 
     errno = lerrno;
 

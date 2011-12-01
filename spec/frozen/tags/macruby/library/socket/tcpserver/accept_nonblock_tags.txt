@@ -1,1 +1,0 @@
-critical:Socket::TCPServer.accept_nonblock accepts non blocking connections
