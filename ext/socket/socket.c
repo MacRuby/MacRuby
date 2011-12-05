@@ -1303,8 +1303,13 @@ init_inetsock_internal(struct inetsock_arg *arg)
 
     arg->fd = -1;
 
-    if (type == INET_SERVER)
-	listen(fd, 5);
+    if (type == INET_SERVER) {
+	status = listen(fd, 5);
+	if (status < 0) {
+	    close(fd);
+	    syscall = "listen(2)";
+	}
+    }
 
     /* create new instance */
     return init_sock(arg->sock, fd);
@@ -1634,7 +1639,12 @@ init_unixsock(VALUE sock, VALUE path, int server)
 	rb_sys_fail(sockaddr.sun_path);
     }
 
-    if (server) listen(fd, 5);
+    if (server) {
+	if (listen(fd, 5) < 0) {
+	    close(fd);
+	    rb_sys_fail("listen(2)");
+	}
+    }
 
     init_sock(sock, fd);
     if (server) {
