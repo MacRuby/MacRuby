@@ -3073,13 +3073,13 @@ socket_sendfile(VALUE self, SEL sel, VALUE file, VALUE offset, VALUE len)
 
     if (sendfile(source->fd, socket->fd, to_offset, &to_write, NULL, 0) == -1) {
         if (needs_to_close) {
-            rb_io_close(file);
+            rb_io_close(io);
         }
         rb_sys_fail("sendfile(2) failed.");
     }
 
     if (needs_to_close) {
-        rb_io_close(file);
+        rb_io_close(io);
     }
 
     return OFFT2NUM(to_write);
