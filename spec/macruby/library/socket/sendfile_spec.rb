@@ -25,6 +25,7 @@ describe "Socket" do
       end
       
       @socket.readlines.should == io.readlines
+      io.close
     end
     
     it "should be able to send files specified by a path" do
@@ -38,6 +39,7 @@ describe "Socket" do
       end
       
       @socket.readlines.should == io.readlines
+      io.close
     end
 
    it "should raise if wrong value passed" do
