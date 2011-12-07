@@ -49,6 +49,8 @@ describe "Socket" do
       lambda{ client.sendfile(Object.new, 0, 1) }.should raise_error(TypeError)
       lambda{ client.sendfile(path, Object.new, 1) }.should raise_error(TypeError)
       lambda{ client.sendfile(path, 0, Object.new) }.should raise_error(TypeError)
+      lambda{ client.sendfile(path, -1, 1) }.should raise_error(ArgumentError)
+      lambda{ client.sendfile(path, 0, -1) }.should raise_error(ArgumentError)
       client.close
     end
 

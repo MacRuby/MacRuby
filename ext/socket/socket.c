@@ -3071,6 +3071,10 @@ socket_sendfile(VALUE self, SEL sel, VALUE file, VALUE offset, VALUE len)
     off_t to_write  = NUM2OFFT(len);
     rb_io_t *socket;
 
+    if (to_offset < 0 || to_write < 0) {
+	rb_raise(rb_eArgError, "negative argument");
+    }
+
     GetOpenFile(self, socket);
     VALUE io = rb_io_check_io(file);
     if (NIL_P(io)) {
