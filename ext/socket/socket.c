@@ -1972,8 +1972,11 @@ unix_send_io(VALUE sock, SEL sel, VALUE val)
     msg.msg_accrightslen = sizeof(fd);
 #endif
 
-    if (sendmsg(fptr->fd, &msg, 0) == -1)
-	rb_sys_fail("sendmsg(2)");
+    while (sendmsg(fptr->fd, &msg, 0) == -1) {
+	if (!rb_io_wait_readable(fptr->fd)) {
+	    rb_sys_fail("sendmsg(2)");
+	}
+    }
 
     return Qnil;
 #else
@@ -2032,8 +2035,11 @@ unix_recv_io(VALUE sock, SEL sel, int argc, VALUE *argv)
     fd = -1;
 #endif
 
-    if (recvmsg(fptr->fd, &msg, 0) == -1)
-	rb_sys_fail("recvmsg(2)");
+    while (recvmsg(fptr->fd, &msg, 0) == -1) {
+	if (!rb_io_wait_readable(fptr->fd)) {
+	    rb_sys_fail("recvmsg(2)");
+	}
+    }
 
 #if FD_PASSING_BY_MSG_CONTROL
     if (msg.msg_controllen != CMSG_SPACE(sizeof(int))) {
