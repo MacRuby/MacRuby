@@ -1890,7 +1890,7 @@ unix_path(VALUE sock, SEL sel)
 	}
 	GC_WB(&fptr->path, rb_str_new2(unixpath(&addr, len)));
     }
-    return (VALUE)fptr->path;
+    return rb_str_dup(fptr->path);
 }
 
 static VALUE
