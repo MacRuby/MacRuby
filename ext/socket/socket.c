@@ -515,8 +515,8 @@ bsock_send(VALUE sock, SEL sel, int argc, VALUE *argv)
     if (!NIL_P(to)) StringValue(to);
     GetOpenFile(sock, fptr);
     fd = fptr->fd;
-    rb_thread_fd_writable(fd);
   retry:
+    rb_thread_fd_writable(fd);
     if (!NIL_P(to)) {
 	n = sendto(fd, RSTRING_PTR(mesg), RSTRING_LEN(mesg), NUM2INT(flags),
 		   (struct sockaddr*)RSTRING_PTR(to), RSTRING_LEN(to));
@@ -1799,6 +1799,7 @@ udp_send(VALUE sock, SEL sel, int argc, VALUE *argv)
     GetOpenFile(sock, fptr);
     for (res = res0; res; res = res->ai_next) {
       retry:
+	rb_thread_fd_writable(fptr->fd);
 	n = sendto(fptr->fd, RSTRING_PTR(mesg), RSTRING_LEN(mesg), NUM2INT(flags),
 		   res->ai_addr, res->ai_addrlen);
 	if (n >= 0) {
