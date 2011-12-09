@@ -938,12 +938,51 @@ __rb_io_wait_readable(int fd)
 {
     fd_set readset;
 
+    if (fd < 0) {
+	rb_raise(rb_eIOError, "closed stream");
+    }
     switch (errno) {
 	case EINTR:
+#if defined(ERESTART)
+	case ERESTART:
+#endif
+	    rb_thread_wait_fd(fd);
+	    return true;
+
 	case EAGAIN:
+#if defined(EWOULDBLOCK) && EWOULDBLOCK != EAGAIN
+	case EWOULDBLOCK:
+#endif
 	    FD_ZERO(&readset);
 	    FD_SET(fd, &readset);
 	    return select(fd + 1, &readset, NULL, NULL, NULL) >= 0;
+    }
+    return false;
+}
+
+static bool
+__rb_io_wait_writable(int fd)
+{
+    fd_set writeset;
+
+    if (fd < 0) {
+	rb_raise(rb_eIOError, "closed stream");
+    }
+    switch (errno) {
+	case EINTR:
+#if defined(ERESTART)
+	case ERESTART:
+#endif
+	    rb_thread_fd_writable(fd);
+	    return TRUE;
+
+	case EAGAIN:
+#if defined(EWOULDBLOCK) && EWOULDBLOCK != EAGAIN
+	case EWOULDBLOCK:
+#endif
+	    FD_ZERO(&writeset);
+	    FD_SET(fd, &writeset);
+	    return select(fd + 1, NULL, &writeset, NULL, NULL) >= 0;
     }
     return false;
 }
@@ -961,8 +1000,7 @@ rb_io_wait_readable(int fd)
 int
 rb_io_wait_writable(int fd)
 {
-    // TODO
-    return false;
+    return __rb_io_wait_writable(fd);
 }
 
 // Note: not bool since it's exported in a public header which does not
