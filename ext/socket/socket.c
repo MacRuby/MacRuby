@@ -243,6 +243,7 @@ init_sock(VALUE sock, int fd)
 
     fp->fd = fp->read_fd = fp->write_fd = fd;
     fp->mode = FMODE_READWRITE|FMODE_DUPLEX;
+    rb_io_ascii8bit_binmode(sock);
     if (do_not_reverse_lookup) {
 	fp->mode |= FMODE_NOREVLOOKUP;
     }

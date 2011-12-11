@@ -2336,6 +2336,17 @@ rb_io_binmode(VALUE io, SEL sel)
     return io;
 }
 
+VALUE
+rb_io_ascii8bit_binmode(VALUE io)
+{
+    rb_io_t *io_struct = ExtractIOStruct(io);
+    rb_io_check_closed(io_struct);
+
+    io_struct->mode |= FMODE_BINMODE;
+    io_struct->mode &= ~FMODE_TEXTMODE;
+    return io;
+}
+
 /*
  *  call-seq:
  *     ios.binmode    => ios

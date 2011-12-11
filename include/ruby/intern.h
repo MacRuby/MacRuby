@@ -319,6 +319,7 @@ VALUE rb_io_write(VALUE, VALUE);
 VALUE rb_io_close(VALUE);
 VALUE rb_io_fdopen(int, int, const char*);
 VALUE rb_gets(void);
+VALUE rb_io_ascii8bit_binmode(VALUE);
 void rb_write_error(const char*);
 void rb_write_error2(const char*, long);
 int rb_io_mode_modenum(const char *mode);
