@@ -15,6 +15,7 @@
 #include "ruby/util.h"
 #include <stdio.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -239,8 +240,18 @@ static VALUE
 init_sock(VALUE sock, int fd)
 {
     rb_io_t *fp;
-    MakeOpenFile(sock, fp);
 
+#ifdef S_ISSOCK
+    struct stat sbuf;
+    if (fstat(fd, &sbuf) < 0) {
+        rb_sys_fail(0);
+    }
+    if (!S_ISSOCK(sbuf.st_mode)) {
+        rb_raise(rb_eArgError, "not a socket file descriptor");
+    }
+#endif
+
+    MakeOpenFile(sock, fp);
     fp->fd = fp->read_fd = fp->write_fd = fd;
     fp->mode = FMODE_READWRITE|FMODE_DUPLEX;
     rb_io_ascii8bit_binmode(sock);
