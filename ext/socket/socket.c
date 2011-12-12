@@ -1113,31 +1113,11 @@ static int
 ruby_connect(int fd, struct sockaddr *sockaddr, int len, int socks)
 {
     int status;
-    int mode;
 #if WAIT_IN_PROGRESS > 0
     int wait_in_progress = -1;
     int sockerr;
     socklen_t sockerrlen;
 #endif
-
-#if defined(HAVE_FCNTL)
-# if defined(F_GETFL)
-    mode = fcntl(fd, F_GETFL, 0);
-# else
-    mode = 0;
-# endif
-
-#ifdef O_NDELAY
-# define NONBLOCKING O_NDELAY
-#else
-#ifdef O_NBIO
-# define NONBLOCKING O_NBIO
-#else
-# define NONBLOCKING O_NONBLOCK
-#endif
-#endif
-    fcntl(fd, F_SETFL, mode|NONBLOCKING);
-#endif /* HAVE_FCNTL */
 
     for (;;) {
 	status = connect(fd, sockaddr, len);
@@ -1207,9 +1187,6 @@ ruby_connect(int fd, struct sockaddr *sockaddr, int len, int socks)
 		break;
 	    }
 	}
-#ifdef HAVE_FCNTL
-	fcntl(fd, F_SETFL, mode);
-#endif
 	return status;
     }
 }
