@@ -184,14 +184,9 @@ ruby_getaddrinfo__aix(char *nodename, char *servname,
 #undef getaddrinfo
 #define getaddrinfo(node,serv,hints,res) ruby_getaddrinfo__aix((node),(serv),(hints),(res))
 static int
-ruby_getnameinfo__aix(sa, salen, host, hostlen, serv, servlen, flags)
-     const struct sockaddr *sa;
-     size_t salen;
-     char *host;
-     size_t hostlen;
-     char *serv;
-     size_t servlen;
-     int flags;
+ruby_getnameinfo__aix(const struct sockaddr *sa, size_t salen,
+		      char *host, size_t hostlen,
+		      char *serv, size_t servlen, int flags)
 {
   struct sockaddr_in6 *sa6;
   u_int32_t *a6;
