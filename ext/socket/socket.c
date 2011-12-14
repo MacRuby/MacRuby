@@ -410,9 +410,11 @@ bsock_setsockopt(VALUE sock, SEL sel, VALUE lev, VALUE optname, VALUE val)
 	break;
     }
 
+#define rb_sys_fail_path(path) rb_sys_fail(path == 0 ? NULL : RSTRING_PTR(path));
+
     GetOpenFile(sock, fptr);
     if (setsockopt(fptr->fd, level, option, v, vlen) < 0)
-	rb_sys_fail(fptr->path == 0 ? NULL : RSTRING_PTR(fptr->path));
+	rb_sys_fail_path(fptr->path);
 
     return INT2FIX(0);
 }
@@ -473,7 +475,7 @@ bsock_getsockopt(VALUE sock, SEL sel, VALUE lev, VALUE optname)
 
     GetOpenFile(sock, fptr);
     if (getsockopt(fptr->fd, level, option, buf, &len) < 0)
-	rb_sys_fail(fptr->path == 0 ? NULL : RSTRING_PTR(fptr->path));
+	rb_sys_fail_path(fptr->path);
 
     return rb_str_new(buf, len);
 #else
