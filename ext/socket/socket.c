@@ -1635,7 +1635,7 @@ init_unixsock(VALUE sock, VALUE path, int server)
     init_sock(sock, fd);
     if (server) {
 	GetOpenFile(sock, fptr);
-        GC_WB(&fptr->path, path);
+        GC_WB(&fptr->path, rb_str_dup(path));
     }
 
     return sock;
