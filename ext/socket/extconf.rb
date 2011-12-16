@@ -260,7 +260,7 @@ end
 have_header("sys/un.h")
 have_header("sys/uio.h")
 
-$distcleanfiles << "constants.h"
+$cleanfiles << "constants.h"
 
 if have_func(test_func)
   have_func("hsterror")

@@ -121,6 +121,10 @@ struct sockaddr_storage {
 };
 #endif
 
+static void sock_define_const(char *name, int value);
+static void sock_define_uconst(const char *name, unsigned int value);
+#include "constants.h"
+
 #if defined(INET6) && (defined(LOOKUP_ORDER_HACK_INET) || defined(LOOKUP_ORDER_HACK_INET6))
 #define LOOKUP_ORDERS		3
 static int lookup_order_table[LOOKUP_ORDERS] = {
@@ -3591,6 +3595,13 @@ sock_define_const(char *name, int value)
     rb_define_const(mConst, name, INT2FIX(value));
 }
 
+static void
+sock_define_uconst(const char *name, unsigned int value)
+{
+    rb_define_const(rb_cSocket, name, UINT2NUM(value));
+    rb_define_const(mConst, name, UINT2NUM(value));
+}
+
 /*
  * Class +Socket+ provides access to the underlying operating system
  * socket implementations. It can be used to provide more operating system
@@ -3723,9 +3734,5 @@ Init_socket()
 
     /* constants */
     mConst = rb_define_module_under(rb_cSocket, "Constants");
-#include "constants.h"
-#ifdef INET6 /* IPv6 is not supported although AF_INET6 is defined on bcc32/mingw */
-    sock_define_const("AF_INET6", AF_INET6);
-    sock_define_const("PF_INET6", PF_INET6);
-#endif
+    init_constants(mConst);
 }
