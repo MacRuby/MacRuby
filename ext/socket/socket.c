@@ -359,11 +359,11 @@ bsock_shutdown(VALUE sock, SEL sel, int argc, VALUE *argv)
     }
     rb_scan_args(argc, argv, "01", &howto);
     if (howto == Qnil)
-	how = 2;
+	how = SHUT_RDWR;
     else {
-	how = NUM2INT(howto);
-	if (how < 0 || 2 < how) {
-	    rb_raise(rb_eArgError, "`how' should be either 0, 1, 2");
+	how = shutdown_how_arg(howto);
+	if (how != SHUT_WR && how != SHUT_RD && how != SHUT_RDWR) {
+	    rb_raise(rb_eArgError, "`how' should be either :SHUT_RD, :SHUT_WR, :SHUT_RDWR");
 	}
     }
     GetOpenFile(sock, fptr);
