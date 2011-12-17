@@ -1771,14 +1771,14 @@ static VALUE
 udp_init(VALUE sock, SEL sel, int argc, VALUE *argv)
 {
     VALUE arg;
-    int socktype = AF_INET;
+    int family = AF_INET;
     int fd;
 
     rb_secure(3);
     if (rb_scan_args(argc, argv, "01", &arg) == 1) {
-	socktype = NUM2INT(arg);
+	family = family_arg(arg);
     }
-    fd = ruby_socket(socktype, SOCK_DGRAM, 0);
+    fd = ruby_socket(family, SOCK_DGRAM, 0);
     if (fd < 0) {
 	rb_sys_fail("socket(2) - udp");
     }
@@ -2266,58 +2266,8 @@ unix_peeraddr(VALUE sock, SEL sel)
 static void
 setup_domain_and_type(VALUE domain, int *dv, VALUE type, int *tv)
 {
-    VALUE tmp = rb_check_string_type(domain);
-    if (!NIL_P(tmp)) {
-	domain = tmp;
-	rb_check_safe_obj(domain);
-	const char *ptr = RSTRING_PTR(domain);
-	if (strcmp(ptr, "AF_INET") == 0)
-	    *dv = AF_INET;
-#ifdef AF_UNIX
-	else if (strcmp(ptr, "AF_UNIX") == 0)
-	    *dv = AF_UNIX;
-#endif
-#ifdef AF_ISO
-	else if (strcmp(ptr, "AF_ISO") == 0)
-	    *dv = AF_ISO;
-#endif
-#ifdef AF_NS
-	else if (strcmp(ptr, "AF_NS") == 0)
-	    *dv = AF_NS;
-#endif
-#ifdef AF_IMPLINK
-	else if (strcmp(ptr, "AF_IMPLINK") == 0)
-	    *dv = AF_IMPLINK;
-#endif
-#ifdef PF_INET
-	else if (strcmp(ptr, "PF_INET") == 0)
-	    *dv = PF_INET;
-#endif
-#ifdef PF_UNIX
-	else if (strcmp(ptr, "PF_UNIX") == 0)
-	    *dv = PF_UNIX;
-#endif
-#ifdef PF_IMPLINK
-	else if (strcmp(ptr, "PF_IMPLINK") == 0)
-	    *dv = PF_IMPLINK;
-	else if (strcmp(ptr, "AF_IMPLINK") == 0)
-	    *dv = AF_IMPLINK;
-#endif
-#ifdef PF_AX25
-	else if (strcmp(ptr, "PF_AX25") == 0)
-	    *dv = PF_AX25;
-#endif
-#ifdef PF_IPX
-	else if (strcmp(ptr, "PF_IPX") == 0)
-	    *dv = PF_IPX;
-#endif
-	else
-	    rb_raise(rb_eSocket, "unknown socket domain %s", ptr);
-    }
-    else {
-	*dv = NUM2INT(domain);
-    }
-    tmp = rb_check_string_type(type);
+    *dv = family_arg(domain);
+    VALUE tmp = rb_check_string_type(type);
     if (!NIL_P(tmp)) {
 	type = tmp;
 	rb_check_safe_obj(type);
@@ -3265,17 +3215,17 @@ sock_s_gethostbyname(VALUE obj, SEL sel, VALUE host)
 static VALUE
 sock_s_gethostbyaddr(VALUE self, SEL sel, int argc, VALUE *argv)
 {
-    VALUE addr, type;
+    VALUE addr, family;
     struct hostent *h;
     struct sockaddr *sa;
     char **pch;
     VALUE ary, names;
     int t = AF_INET;
 
-    rb_scan_args(argc, argv, "11", &addr, &type);
+    rb_scan_args(argc, argv, "11", &addr, &family);
     sa = (struct sockaddr*)StringValuePtr(addr);
-    if (!NIL_P(type)) {
-	t = NUM2INT(type);
+    if (!NIL_P(family)) {
+	t = family_arg(family);
     }
 #ifdef INET6
     else if (RSTRING_LEN(addr) == 16) {
@@ -3369,11 +3319,10 @@ sock_s_getaddrinfo(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE host, port, family, socktype, protocol, flags, ret;
     char hbuf[1024], pbuf[1024];
-    char *hptr, *pptr, *ap;
+    char *hptr, *pptr;
     struct addrinfo hints, *res;
     int error;
 
-    host = port = family = socktype = protocol = flags = Qnil;
     rb_scan_args(argc, argv, "24", &host, &port, &family, &socktype, &protocol, &flags);
     if (NIL_P(host)) {
 	hptr = NULL;
@@ -3397,22 +3346,7 @@ sock_s_getaddrinfo(VALUE self, SEL sel, int argc, VALUE *argv)
     }
 
     MEMZERO(&hints, struct addrinfo, 1);
-    if (NIL_P(family)) {
-	hints.ai_family = PF_UNSPEC;
-    }
-    else if (FIXNUM_P(family)) {
-	hints.ai_family = FIX2INT(family);
-    }
-    else if ((ap = StringValuePtr(family)) != 0) {
-	if (strcmp(ap, "AF_INET") == 0) {
-	    hints.ai_family = PF_INET;
-	}
-#ifdef INET6
-	else if (strcmp(ap, "AF_INET6") == 0) {
-	    hints.ai_family = PF_INET6;
-	}
-#endif
-    }
+    hints.ai_family = NIL_P(family) ? PF_UNSPEC : family_arg(family);
 
     if (!NIL_P(socktype)) {
 	hints.ai_socktype = NUM2INT(socktype);
@@ -3444,7 +3378,6 @@ sock_s_getnameinfo(VALUE self, SEL sel, int argc, VALUE *argv)
     int error;
     struct sockaddr_storage ss;
     struct sockaddr *sap;
-    char *ap;
 
     sa = flags = Qnil;
     rb_scan_args(argc, argv, "11", &sa, &flags);
@@ -3521,22 +3454,7 @@ sock_s_getnameinfo(VALUE self, SEL sel, int argc, VALUE *argv)
 	}
 	hints.ai_socktype = (fl & NI_DGRAM) ? SOCK_DGRAM : SOCK_STREAM;
 	/* af */
-	if (NIL_P(af)) {
-	    hints.ai_family = PF_UNSPEC;
-	}
-	else if (FIXNUM_P(af)) {
-	    hints.ai_family = FIX2INT(af);
-	}
-	else if ((ap = StringValuePtr(af)) != 0) {
-	    if (strcmp(ap, "AF_INET") == 0) {
-		hints.ai_family = PF_INET;
-	    }
-#ifdef INET6
-	    else if (strcmp(ap, "AF_INET6") == 0) {
-		hints.ai_family = PF_INET6;
-	    }
-#endif
-	}
+	hints.ai_family = NIL_P(af) ? PF_UNSPEC : family_arg(af);
 	error = getaddrinfo(hptr, pptr, &hints, &res);
 	if (error) goto error_exit_addr;
 	sap = res->ai_addr;
