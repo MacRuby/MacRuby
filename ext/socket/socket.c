@@ -466,8 +466,8 @@ bsock_setsockopt(VALUE sock, SEL sel, VALUE lev, VALUE optname, VALUE val)
     int vlen;
 
     rb_secure(2);
-    level = NUM2INT(lev);
-    option = NUM2INT(optname);
+    level = level_arg(lev);
+    option = optname_arg(level, optname);
 
     switch (TYPE(val)) {
       case T_FIXNUM:
@@ -546,8 +546,8 @@ bsock_getsockopt(VALUE sock, SEL sel, VALUE lev, VALUE optname)
     char *buf;
     rb_io_t *fptr;
 
-    level = NUM2INT(lev);
-    option = NUM2INT(optname);
+    level = level_arg(lev);
+    option = optname_arg(level, optname);
     len = 256;
     buf = ALLOCA_N(char,len);
 
