@@ -2267,37 +2267,7 @@ static void
 setup_domain_and_type(VALUE domain, int *dv, VALUE type, int *tv)
 {
     *dv = family_arg(domain);
-    VALUE tmp = rb_check_string_type(type);
-    if (!NIL_P(tmp)) {
-	type = tmp;
-	rb_check_safe_obj(type);
-	const char *ptr = RSTRING_PTR(type);
-	if (strcmp(ptr, "SOCK_STREAM") == 0)
-	    *tv = SOCK_STREAM;
-	else if (strcmp(ptr, "SOCK_DGRAM") == 0)
-	    *tv = SOCK_DGRAM;
-#ifdef SOCK_RAW
-	else if (strcmp(ptr, "SOCK_RAW") == 0)
-	    *tv = SOCK_RAW;
-#endif
-#ifdef SOCK_SEQPACKET
-	else if (strcmp(ptr, "SOCK_SEQPACKET") == 0)
-	    *tv = SOCK_SEQPACKET;
-#endif
-#ifdef SOCK_RDM
-	else if (strcmp(ptr, "SOCK_RDM") == 0)
-	    *tv = SOCK_RDM;
-#endif
-#ifdef SOCK_PACKET
-	else if (strcmp(ptr, "SOCK_PACKET") == 0)
-	    *tv = SOCK_PACKET;
-#endif
-	else
-	    rb_raise(rb_eSocket, "unknown socket type %s", ptr);
-    }
-    else {
-	*tv = NUM2INT(type);
-    }
+    *tv = socktype_arg(type);
 }
 
 static VALUE
@@ -3349,7 +3319,7 @@ sock_s_getaddrinfo(VALUE self, SEL sel, int argc, VALUE *argv)
     hints.ai_family = NIL_P(family) ? PF_UNSPEC : family_arg(family);
 
     if (!NIL_P(socktype)) {
-	hints.ai_socktype = NUM2INT(socktype);
+	hints.ai_socktype = socktype_arg(socktype);
     }
     if (!NIL_P(protocol)) {
 	hints.ai_protocol = NUM2INT(protocol);
