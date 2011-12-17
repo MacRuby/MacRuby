@@ -175,6 +175,7 @@ end
 
 ERB.new(<<'EOS', nil, '%').def_method(Object, "gen_int_to_name_hash(hash_var, pat, prefix_pat)")
     <%=hash_var%> = st_init_numtable();
+    GC_RETAIN(<%=hash_var%>);
 % reverse_each_name_with_prefix_optional(pat, prefix_pat) {|n,s|
 #ifdef <%=n%>
     st_insert(<%=hash_var%>, (st_data_t)<%=n%>, (st_data_t)rb_intern2(<%=c_str s%>, <%=s.length%>));
