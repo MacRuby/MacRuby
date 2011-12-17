@@ -1038,32 +1038,15 @@ ipaddr(struct sockaddr *sockaddr, int norevlookup)
     VALUE ary;
     int error;
     char hbuf[1024], pbuf[1024];
+    ID id;
 
-    switch (sockaddr->sa_family) {
-    case AF_UNSPEC:
-	family = rb_str_new2("AF_UNSPEC");
-	break;
-    case AF_INET:
-	family = rb_str_new2("AF_INET");
-	break;
-#ifdef INET6
-    case AF_INET6:
-	family = rb_str_new2("AF_INET6");
-	break;
-#endif
-#ifdef AF_LOCAL
-    case AF_LOCAL:
-	family = rb_str_new2("AF_LOCAL");
-	break;
-#elif  AF_UNIX
-    case AF_UNIX:
-	family = rb_str_new2("AF_UNIX");
-	break;
-#endif
-    default:
+    id = intern_family(sockaddr->sa_family);
+    if (id) {
+        family = rb_str_dup(rb_id2str(id));
+    }
+    else {
         sprintf(pbuf, "unknown:%d", sockaddr->sa_family);
 	family = rb_str_new2(pbuf);
-	break;
     }
 
     addr1 = Qnil;
