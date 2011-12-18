@@ -253,6 +253,15 @@ unless getaddr_info_ok and have_func("getnameinfo", "netdb.h") and have_func("ge
   have_header("resolv.h")
 end
 
+have_header("ifaddrs.h")
+have_func("getifaddrs")
+have_header("sys/ioctl.h")
+have_header("sys/sockio.h")
+have_header("net/if.h", headers)
+
+have_header("sys/param.h", headers)
+have_header("sys/ucred.h", headers)
+
 unless have_type("socklen_t", headers)
   $defs << "-Dsocklen_t=int"
 end
