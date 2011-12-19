@@ -473,6 +473,7 @@ void ruby_default_signal(int);
 VALUE rb_f_sprintf(int, const VALUE*);
 PRINTF_ARGS(VALUE rb_sprintf(const char*, ...), 1, 2);
 VALUE rb_vsprintf(const char*, va_list);
+PRINTF_ARGS(VALUE rb_str_catf(VALUE, const char*, ...), 2, 3);
 VALUE rb_str_format(int, const VALUE *, VALUE);
 
 /* string.c */

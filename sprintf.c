@@ -313,6 +313,17 @@ rb_sprintf(const char *format, ...)
     return result;
 }
 
+VALUE
+rb_str_catf(VALUE str, const char *format, ...)
+{
+    va_list ap;
+    va_start(ap, format);
+    VALUE result = rb_vsprintf(format, ap);
+    va_end(ap);
+    rb_str_concat(str, result);
+    return str;
+}
+
 #define IS_NEG(num) RBIGNUM_NEGATIVE_P(num)
 #define REL_REF	    1
 #define ABS_REF	    2
