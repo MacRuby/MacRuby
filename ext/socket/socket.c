@@ -400,6 +400,17 @@ init_sock(VALUE sock, int fd)
     return sock;
 }
 
+/*
+ * call-seq:
+ *   BasicSocket.for_fd(fd) => basicsocket
+ *
+ * Returns a socket object which contains the file descriptor, _fd_.
+ *
+ *   # If invoked by inetd, STDIN/STDOUT/STDERR is a socket.
+ *   STDIN_SOCK = Socket.for_fd(STDIN.fileno)
+ *   p STDIN_SOCK.remote_address
+ *
+ */
 static VALUE
 bsock_s_for_fd(VALUE klass, SEL sel, VALUE fd)
 {
@@ -411,6 +422,33 @@ bsock_s_for_fd(VALUE klass, SEL sel, VALUE fd)
     return sock;
 }
 
+/*
+ * call-seq:
+ *   basicsocket.shutdown([how]) => 0
+ *
+ * Calls shutdown(2) system call.
+ *
+ * s.shutdown(Socket::SHUT_RD) disallows further read.
+ *
+ * s.shutdown(Socket::SHUT_WR) disallows further write.
+ *
+ * s.shutdown(Socket::SHUT_RDWR) disallows further read and write.
+ *
+ * _how_ can be symbol or string:
+ * - :RD, :SHUT_RD, "RD" and "SHUT_RD" are accepted as Socket::SHUT_RD.
+ * - :WR, :SHUT_WR, "WR" and "SHUT_WR" are accepted as Socket::SHUT_WR.
+ * - :RDWR, :SHUT_RDWR, "RDWR" and "SHUT_RDWR" are accepted as Socket::SHUT_RDWR.
+ *
+ *   UNIXSocket.pair {|s1, s2|
+ *     s1.puts "ping"
+ *     s1.shutdown(:WR)
+ *     p s2.read          #=> "ping\n"
+ *     s2.puts "pong"
+ *     s2.close
+ *     p s1.read          #=> "pong\n"
+ *   }
+ *
+ */
 static VALUE
 bsock_shutdown(VALUE sock, SEL sel, int argc, VALUE *argv)
 {
@@ -437,6 +475,16 @@ bsock_shutdown(VALUE sock, SEL sel, int argc, VALUE *argv)
     return INT2FIX(0);
 }
 
+/*
+ * call-seq:
+ *   basicsocket.close_read => nil
+ *
+ * Disallows further read using shutdown system call.
+ *
+ *   s1, s2 = UNIXSocket.pair
+ *   s1.close_read
+ *   s2.puts #=> Broken pipe (Errno::EPIPE)
+ */
 static VALUE
 bsock_close_read(VALUE sock, SEL sel)
 {
@@ -456,6 +504,21 @@ bsock_close_read(VALUE sock, SEL sel)
     return Qnil;
 }
 
+/*
+ * call-seq:
+ *   basicsocket.close_write => nil
+ *
+ * Disallows further write using shutdown system call.
+ *
+ *   UNIXSocket.pair {|s1, s2|
+ *     s1.print "ping"
+ *     s1.close_write
+ *     p s2.read        #=> "ping"
+ *     s2.print "pong"
+ *     s2.close
+ *     p s1.read        #=> "pong"
+ *   }
+ */
 static VALUE
 bsock_close_write(VALUE sock, SEL sel)
 {
@@ -477,16 +540,22 @@ bsock_close_write(VALUE sock, SEL sel)
 
 /*
  * Document-method: setsockopt
- * call-seq: setsockopt(level, optname, optval)
+ * call-seq:
+ *   setsockopt(level, optname, optval)
+ *   setsockopt(socketoption)
  *
  * Sets a socket option. These are protocol and system specific, see your
- * local sytem documentation for details.
+ * local system documentation for details.
  *
  * === Parameters
  * * +level+ is an integer, usually one of the SOL_ constants such as
  *   Socket::SOL_SOCKET, or a protocol level.
+ *   A string or symbol of the name, possibly without prefix, is also
+ *   accepted.
  * * +optname+ is an integer, usually one of the SO_ constants, such
  *   as Socket::SO_REUSEADDR.
+ *   A string or symbol of the name, possibly without prefix, is also
+ *   accepted.
  * * +optval+ is the value of the option, it is passed to the underlying
  *   setsockopt() as a pointer to a certain number of bytes. How this is
  *   done depends on the type:
@@ -496,16 +565,21 @@ bsock_close_write(VALUE sock, SEL sel)
  *     int is passed as for a Fixnum. Note that +false+ must be passed,
  *     not +nil+.
  *   - String: the string's data and length is passed to the socket.
+ * * +socketoption+ is an instance of Socket::Option
  *
  * === Examples
  *
  * Some socket options are integers with boolean values, in this case
  * #setsockopt could be called like this:
+ *   sock.setsockopt(:SOCKET, :REUSEADDR, true)
  *   sock.setsockopt(Socket::SOL_SOCKET,Socket::SO_REUSEADDR, true)
+ *   sock.setsockopt(Socket::Option.bool(:INET, :SOCKET, :REUSEADDR, true))
  *
  * Some socket options are integers with numeric values, in this case
  * #setsockopt could be called like this:
+ *   sock.setsockopt(:IP, :TTL, 255)
  *   sock.setsockopt(Socket::IPPROTO_IP, Socket::IP_TTL, 255)
+ *   sock.setsockopt(Socket::Option.int(:INET, :IP, :TTL, 255))
  *
  * Option values may be structs. Passing them can be complex as it involves
  * examining your system headers to determine the correct definition. An
@@ -516,7 +590,8 @@ bsock_close_write(VALUE sock, SEL sel)
  *   };
  *
  * In this case #setsockopt could be called like this:
- *   optval =  IPAddr.new("224.0.0.251") + Socket::INADDR_ANY
+ *   optval = IPAddr.new("224.0.0.251").hton +
+ *            IPAddr.new(Socket::INADDR_ANY, Socket::AF_INET).hton
  *   sock.setsockopt(Socket::IPPROTO_IP, Socket::IP_ADD_MEMBERSHIP, optval)
  *
 */
@@ -563,28 +638,39 @@ bsock_setsockopt(VALUE sock, SEL sel, VALUE lev, VALUE optname, VALUE val)
 
 /*
  * Document-method: getsockopt
- * call-seq: getsockopt(level, optname)
+ * call-seq:
+ *   getsockopt(level, optname) => socketoption
  *
  * Gets a socket option. These are protocol and system specific, see your
- * local sytem documentation for details. The option is returned as
- * a String with the data being the binary value of the socket option.
+ * local system documentation for details. The option is returned as
+ * a Socket::Option object.
  *
  * === Parameters
  * * +level+ is an integer, usually one of the SOL_ constants such as
  *   Socket::SOL_SOCKET, or a protocol level.
+ *   A string or symbol of the name, possibly without prefix, is also
+ *   accepted.
  * * +optname+ is an integer, usually one of the SO_ constants, such
  *   as Socket::SO_REUSEADDR.
+ *   A string or symbol of the name, possibly without prefix, is also
+ *   accepted.
  *
  * === Examples
  *
  * Some socket options are integers with boolean values, in this case
  * #getsockopt could be called like this:
+ *
+ *   reuseaddr = sock.getsockopt(:SOCKET, :REUSEADDR).bool
+ *
  *   optval = sock.getsockopt(Socket::SOL_SOCKET,Socket::SO_REUSEADDR)
  *   optval = optval.unpack "i"
  *   reuseaddr = optval[0] == 0 ? false : true
  *
  * Some socket options are integers with numeric values, in this case
  * #getsockopt could be called like this:
+ *
+ *   ipttl = sock.getsockopt(:IP, :TTL).int
+ *
  *   optval = sock.getsockopt(Socket::IPPROTO_IP, Socket::IP_TTL)
  *   ipttl = optval.unpack("i")[0]
  *
@@ -598,8 +684,13 @@ bsock_setsockopt(VALUE sock, SEL sel, VALUE lev, VALUE optname, VALUE val)
  *   };
  *
  * In this case #getsockopt could be called like this:
+ *
+ *   # Socket::Option knows linger structure.
+ *   onoff, linger = sock.getsockopt(:SOCKET, :LINGER).linger
+ *
  *   optval =  sock.getsockopt(Socket::SOL_SOCKET, Socket::SO_LINGER)
  *   onoff, linger = optval.unpack "ii"
+ *   onoff = onoff == 0 ? false : true
 */
 static VALUE
 bsock_getsockopt(VALUE sock, SEL sel, VALUE lev, VALUE optname)
@@ -625,6 +716,19 @@ bsock_getsockopt(VALUE sock, SEL sel, VALUE lev, VALUE optname)
 #endif
 }
 
+/*
+ * call-seq:
+ *   basicsocket.getsockname => sockaddr
+ *
+ * Returns the local address of the socket as a sockaddr string.
+ *
+ *   TCPServer.open("127.0.0.1", 15120) {|serv|
+ *     p serv.getsockname #=> "\x02\x00;\x10\x7F\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00"
+ *   }
+ *
+ * If Addrinfo object is preferred over the binary string,
+ * use BasicSocket#local_address.
+ */
 static VALUE
 bsock_getsockname(VALUE sock, SEL sel)
 {
@@ -638,6 +742,22 @@ bsock_getsockname(VALUE sock, SEL sel)
     return rb_str_new((char*)&buf, len);
 }
 
+/*
+ * call-seq:
+ *   basicsocket.getpeername => sockaddr
+ *
+ * Returns the remote address of the socket as a sockaddr string.
+ *
+ *   TCPServer.open("127.0.0.1", 1440) {|serv|
+ *     c = TCPSocket.new("127.0.0.1", 1440)
+ *     s = serv.accept
+ *     p s.getpeername #=> "\x02\x00\x82u\x7F\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00"
+ *   }
+ *
+ * If Addrinfo object is preferred over the binary string,
+ * use BasicSocket#remote_address.
+ *
+ */
 static VALUE
 bsock_getpeername(VALUE sock, SEL sel)
 {
@@ -659,12 +779,16 @@ static VALUE io_socket_addrinfo(VALUE io, struct sockaddr *addr, socklen_t len);
  * call-seq:
  *   bsock.local_address => addrinfo
  *
- * Returns an AddrInfo object for local address obtained by getsockname.
+ * Returns an Addrinfo object for local address obtained by getsockname.
  *
  * Note that addrinfo.protocol is filled by 0.
  *
+ *   TCPSocket.open("www.ruby-lang.org", 80) {|s|
+ *     p s.local_address #=> #<Addrinfo: 192.168.0.129:36873 TCP>
+ *   }
+ *
  *   TCPServer.open("127.0.0.1", 1512) {|serv|
- *     p serv.local_address #=> #<AddrInfo: 127.0.0.1:1512 TCP>
+ *     p serv.local_address #=> #<Addrinfo: 127.0.0.1:1512 TCP>
  *   }
  *
  */
@@ -685,14 +809,18 @@ bsock_local_address(VALUE sock, SEL sel)
  * call-seq:
  *   bsock.remote_address => addrinfo
  *
- * Returns an AddrInfo object for remote address obtained by getpeername.
+ * Returns an Addrinfo object for remote address obtained by getpeername.
  *
  * Note that addrinfo.protocol is filled by 0.
+ *
+ *   TCPSocket.open("www.ruby-lang.org", 80) {|s|
+ *     p s.remote_address #=> #<Addrinfo: 221.186.184.68:80 TCP>
+ *   }
  *
  *   TCPServer.open("127.0.0.1", 1728) {|serv|
  *     c = TCPSocket.new("127.0.0.1", 1728)
  *     s = serv.accept
- *     p s.remote_address #=> #<AddrInfo: 127.0.0.1:36504 TCP>
+ *     p s.remote_address #=> #<Addrinfo: 127.0.0.1:36504 TCP>
  *   }
  *
  */
@@ -714,6 +842,23 @@ bsock_remote_address(VALUE sock, SEL sel)
 static VALUE sockaddr_string_value(volatile VALUE *);
 static char *sockaddr_string_value_ptr(volatile VALUE *);
 
+/*
+ * call-seq:
+ *   basicsocket.send(mesg, flags [, dest_sockaddr]) => numbytes_sent
+ *
+ * send _mesg_ via _basicsocket_.
+ *
+ * _mesg_ should be a string.
+ *
+ * _flags_ should be a bitwise OR of Socket::MSG_* constants.
+ *
+ * _dest_sockaddr_ should be a packed sockaddr string or an addrinfo.
+ *
+ *   TCPSocket.open("localhost", 80) {|s|
+ *     s.send "GET / HTTP/1.0\r\n\r\n", 0
+ *     p s.read
+ *   }
+ */
 static VALUE
 bsock_send(VALUE sock, SEL sel, int argc, VALUE *argv)
 {
@@ -747,6 +892,19 @@ bsock_send(VALUE sock, SEL sel, int argc, VALUE *argv)
     return INT2FIX(n);
 }
 
+/*
+ * call-seq:
+ *   basicsocket.do_not_reverse_lookup => true or false
+ *
+ * Gets the do_not_reverse_lookup flag of _basicsocket_.
+ *
+ *   TCPSocket.open("www.ruby-lang.org", 80) {|sock|
+ *     p sock.do_not_reverse_lookup      #=> false
+ *     p sock.peeraddr                   #=> ["AF_INET", 80, "carbon.ruby-lang.org", "221.186.184.68"]
+ *     sock.do_not_reverse_lookup = true
+ *     p sock.peeraddr                   #=> ["AF_INET", 80, "221.186.184.68", "221.186.184.68"]
+ *   }
+ */
 static VALUE
 bsock_do_not_reverse_lookup(VALUE sock, SEL sel)
 {
@@ -756,6 +914,18 @@ bsock_do_not_reverse_lookup(VALUE sock, SEL sel)
     return (fptr->mode & FMODE_NOREVLOOKUP) ? Qtrue : Qfalse;
 }
 
+/*
+ * call-seq:
+ *   basicsocket.do_not_reverse_lookup = bool
+ *
+ * Sets the do_not_reverse_lookup flag of _basicsocket_.
+ *
+ *   BasicSocket.do_not_reverse_lookup = false
+ *   p TCPSocket.new("127.0.0.1", 80).do_not_reverse_lookup #=> false
+ *   BasicSocket.do_not_reverse_lookup = true
+ *   p TCPSocket.new("127.0.0.1", 80).do_not_reverse_lookup #=> true
+ *
+ */
 static VALUE
 bsock_do_not_reverse_lookup_set(VALUE sock, SEL sel, VALUE state)
 {
@@ -927,6 +1097,25 @@ s_recvfrom_nonblock(VALUE sock, int argc, VALUE *argv, enum sock_recv_type from)
     return rb_assoc_new(str, addr);
 }
 
+/*
+ * call-seq:
+ *   basicsocket.recv(maxlen) => mesg
+ *   basicsocket.recv(maxlen, flags) => mesg
+ *
+ * Receives a message.
+ *
+ * _maxlen_ is the maximum number of bytes to receive.
+ *
+ * _flags_ should be a bitwise OR of Socket::MSG_* constants.
+ *
+ *   UNIXSocket.pair {|s1, s2|
+ *     s1.puts "Hello World"
+ *     p s2.recv(4)                     #=> "Hell"
+ *     p s2.recv(4, Socket::MSG_PEEK)   #=> "o Wo"
+ *     p s2.recv(4)                     #=> "o Wo"
+ *     p s2.recv(10)                    #=> "rld\n"
+ *   }
+ */
 static VALUE
 bsock_recv(VALUE sock, SEL sel, int argc, VALUE *argv)
 {
@@ -957,8 +1146,12 @@ bsock_recv(VALUE sock, SEL sel, int argc, VALUE *argv)
  * 	c = TCPSocket.new(addr, port)
  * 	s = serv.accept
  * 	c.send "aaa", 0
- * 	IO.select([s])
- * 	p s.recv_nonblock(10) #=> "aaa"
+ * 	begin # emulate blocking recv.
+ * 	  p s.recv_nonblock(10) #=> "aaa"
+ * 	rescue IO::WaitReadable
+ * 	  IO.select([s])
+ * 	  retry
+ * 	end
  *
  * Refer to Socket#recvfrom for the exceptions that may be thrown if the call
  * to _recv_nonblock_ fails.
@@ -966,22 +1159,49 @@ bsock_recv(VALUE sock, SEL sel, int argc, VALUE *argv)
  * BasicSocket#recv_nonblock may raise any error corresponding to recvfrom(2) failure,
  * including Errno::EWOULDBLOCK.
  *
+ * If the exception is Errno::EWOULDBLOCK or Errno::AGAIN,
+ * it is extended by IO::WaitReadable.
+ * So IO::WaitReadable can be used to rescue the exceptions for retrying recv_nonblock.
+ *
  * === See
  * * Socket#recvfrom
  */
-
 static VALUE
 bsock_recv_nonblock(VALUE sock, SEL sel, int argc, VALUE *argv)
 {
     return s_recvfrom_nonblock(sock, argc, argv, RECV_RECV);
 }
 
+/*
+ * call-seq:
+ *   BasicSocket.do_not_reverse_lookup => true or false
+ *
+ * Gets the global do_not_reverse_lookup flag.
+ *
+ *   BasicSocket.do_not_reverse_lookup  #=> false
+ */
 static VALUE
 bsock_do_not_rev_lookup(VALUE self, SEL sel)
 {
     return do_not_reverse_lookup ? Qtrue : Qfalse;
 }
 
+/*
+ * call-seq:
+ *   BasicSocket.do_not_reverse_lookup = bool
+ *
+ * Sets the global do_not_reverse_lookup flag.
+ *
+ * The flag is used for initial value of do_not_reverse_lookup for each socket.
+ *
+ *   s1 = TCPSocket.new("localhost", 80)
+ *   p s1.do_not_reverse_lookup                 #=> true
+ *   BasicSocket.do_not_reverse_lookup = false
+ *   s2 = TCPSocket.new("localhost", 80)
+ *   p s2.do_not_reverse_lookup                 #=> false
+ *   p s1.do_not_reverse_lookup                 #=> true
+ *
+ */
 static VALUE
 bsock_do_not_rev_lookup_set(VALUE self, SEL sel, VALUE val)
 {
@@ -1602,6 +1822,16 @@ tcp_sockaddr(struct sockaddr *addr, size_t len)
     return make_ipaddr(addr);
 }
 
+/*
+ * call-seq:
+ *   TCPSocket.gethostbyname(hostname) => [official_hostname, alias_hostnames, address_family, *address_list]
+ *
+ * Lookups host information by _hostname_.
+ *
+ *   TCPSocket.gethostbyname("localhost")
+ *   #=> ["localhost", ["hal"], 2, "127.0.0.1"]
+ *
+ */
 static VALUE
 tcp_s_gethostbyname(VALUE obj, SEL sel, VALUE host)
 {
@@ -1610,6 +1840,19 @@ tcp_s_gethostbyname(VALUE obj, SEL sel, VALUE host)
 		AI_CANONNAME), tcp_sockaddr);
 }
 
+/*
+ * call-seq:
+ *   TCPServer.new([hostname,] port)                    => tcpserver
+ *
+ * Creates a new server socket bound to _port_.
+ *
+ * If _hostname_ is given, the socket is bound to it.
+ *
+ *   serv = TCPServer.new("127.0.0.1", 28561)
+ *   s = serv.accept
+ *   s.puts Time.now
+ *   s.close
+ */
 static VALUE
 tcp_svr_init(VALUE sock, SEL sel, int argc, VALUE *argv)
 {
@@ -1698,6 +1941,17 @@ s_accept(VALUE klass, int fd, struct sockaddr *sockaddr, socklen_t *len)
     return init_sock(rb_obj_alloc(klass), fd2);
 }
 
+/*
+ * call-seq:
+ *   tcpserver.accept => tcpsocket
+ *
+ *   TCPServer.open("127.0.0.1", 14641) {|serv|
+ *     s = serv.accept
+ *     s.puts Time.now
+ *     s.close
+ *   }
+ *
+ */
 static VALUE
 tcp_accept(VALUE sock, SEL sel)
 {
@@ -1722,9 +1976,9 @@ tcp_accept(VALUE sock, SEL sel)
  * === Example
  * 	require 'socket'
  * 	serv = TCPServer.new(2202)
- * 	begin
+ * 	begin # emulate blocking accept
  * 	  sock = serv.accept_nonblock
- * 	rescue Errno::EAGAIN, Errno::EWOULDBLOCK, Errno::ECONNABORTED, Errno::EPROTO, Errno::EINTR
+ * 	rescue IO::WaitReadable, Errno::EINTR
  * 	  IO.select([serv])
  * 	  retry
  * 	end
@@ -1735,6 +1989,10 @@ tcp_accept(VALUE sock, SEL sel)
  *
  * TCPServer#accept_nonblock may raise any error corresponding to accept(2) failure,
  * including Errno::EWOULDBLOCK.
+ *
+ * If the exception is Errno::EWOULDBLOCK, Errno::AGAIN, Errno::ECONNABORTED, Errno::EPROTO,
+ * it is extended by IO::WaitReadable.
+ * So IO::WaitReadable can be used to rescue the exceptions for retrying accept_nonblock.
  *
  * === See
  * * TCPServer#accept
@@ -1753,6 +2011,20 @@ tcp_accept_nonblock(VALUE sock, SEL sel)
 			     (struct sockaddr *)&from, &fromlen);
 }
 
+/*
+ * call-seq:
+ *   tcpserver.sysaccept => file_descriptor
+ *
+ * Returns a file descriptor of a accepted connection.
+ *
+ *   TCPServer.open("127.0.0.1", 28561) {|serv|
+ *     fd = serv.sysaccept
+ *     s = IO.for_fd(fd)
+ *     s.puts Time.now
+ *     s.close
+ *   }
+ *
+ */
 static VALUE
 tcp_sysaccept(VALUE sock, SEL sel)
 {
@@ -1836,6 +2108,29 @@ init_unixsock(VALUE sock, VALUE path, int server)
 }
 #endif
 
+/*
+ * call-seq:
+ *   ipsocket.addr([reverse_lookup]) => [address_family, port, hostname, numeric_address]
+ *
+ * Returns the local address as an array which contains
+ * address_family, port, hostname and numeric_address.
+ *
+ * If +reverse_lookup+ is +true+ or +:hostname+,
+ * hostname is obtained from numeric_address using reverse lookup.
+ * Or if it is +false+, or +:numeric+,
+ * hostname is same as numeric_address.
+ * Or if it is +nil+ or ommitted, obeys to +ipsocket.do_not_reverse_lookup+.
+ * See +Socket.getaddrinfo+ also.
+ *
+ *   TCPSocket.open("www.ruby-lang.org", 80) {|sock|
+ *     p sock.addr #=> ["AF_INET", 49429, "hal", "192.168.0.128"]
+ *     p sock.addr(true)  #=> ["AF_INET", 49429, "hal", "192.168.0.128"]
+ *     p sock.addr(false) #=> ["AF_INET", 49429, "192.168.0.128", "192.168.0.128"]
+ *     p sock.addr(:hostname)  #=> ["AF_INET", 49429, "hal", "192.168.0.128"]
+ *     p sock.addr(:numeric)   #=> ["AF_INET", 49429, "192.168.0.128", "192.168.0.128"]
+ *   }
+ *
+ */
 static VALUE
 ip_addr(VALUE sock, SEL sel)
 {
@@ -1850,6 +2145,30 @@ ip_addr(VALUE sock, SEL sel)
     return ipaddr((struct sockaddr*)&addr, fptr->mode & FMODE_NOREVLOOKUP);
 }
 
+/*
+ * call-seq:
+ *   ipsocket.peeraddr([reverse_lookup]) => [address_family, port, hostname, numeric_address]
+ *
+ * Returns the remote address as an array which contains
+ * address_family, port, hostname and numeric_address.
+ * It is defined for connection oriented socket such as TCPSocket.
+ *
+ * If +reverse_lookup+ is +true+ or +:hostname+,
+ * hostname is obtained from numeric_address using reverse lookup.
+ * Or if it is +false+, or +:numeric+,
+ * hostname is same as numeric_address.
+ * Or if it is +nil+ or ommitted, obeys to +ipsocket.do_not_reverse_lookup+.
+ * See +Socket.getaddrinfo+ also.
+ *
+ *   TCPSocket.open("www.ruby-lang.org", 80) {|sock|
+ *     p sock.peeraddr #=> ["AF_INET", 80, "carbon.ruby-lang.org", "221.186.184.68"]
+ *     p sock.peeraddr(true)  #=> ["AF_INET", 80, "221.186.184.68", "221.186.184.68"]
+ *     p sock.peeraddr(false) #=> ["AF_INET", 80, "221.186.184.68", "221.186.184.68"]
+ *     p sock.peeraddr(:hostname) #=> ["AF_INET", 80, "carbon.ruby-lang.org", "221.186.184.68"]
+ *     p sock.peeraddr(:numeric)  #=> ["AF_INET", 80, "221.186.184.68", "221.186.184.68"]
+ *   }
+ *
+ */
 static VALUE
 ip_peeraddr(VALUE sock, SEL sel)
 {
@@ -1864,12 +2183,43 @@ ip_peeraddr(VALUE sock, SEL sel)
     return ipaddr((struct sockaddr*)&addr, fptr->mode & FMODE_NOREVLOOKUP);
 }
 
+/*
+ * call-seq:
+ *   ipsocket.recvfrom(maxlen)        => [mesg, ipaddr]
+ *   ipsocket.recvfrom(maxlen, flags) => [mesg, ipaddr]
+ *
+ * Receives a message and return the message as a string and
+ * an address which the message come from.
+ *
+ * _maxlen_ is the maximum number of bytes to receive.
+ *
+ * _flags_ should be a bitwise OR of Socket::MSG_* constants.
+ *
+ * ipaddr is same as IPSocket#{peeraddr,addr}.
+ *
+ *   u1 = UDPSocket.new
+ *   u1.bind("127.0.0.1", 4913)
+ *   u2 = UDPSocket.new
+ *   u2.send "uuuu", 0, "127.0.0.1", 4913
+ *   p u1.recvfrom(10) #=> ["uuuu", ["AF_INET", 33230, "localhost", "127.0.0.1"]]
+ *
+ */
 static VALUE
 ip_recvfrom(VALUE sock, SEL sel, int argc, VALUE *argv)
 {
     return s_recvfrom(sock, argc, argv, RECV_IP);
 }
 
+/*
+ * call-seq:
+ *   IPSocket.getaddress(host)        => ipaddress
+ *
+ * Lookups the IP address of _host_.
+ *
+ *   IPSocket.getaddress("localhost")     #=> "127.0.0.1"
+ *   IPSocket.getaddress("ip6-localhost") #=> "::1"
+ *
+ */
 static VALUE
 ip_s_getaddress(VALUE obj, SEL sel, VALUE host)
 {
@@ -1883,6 +2233,19 @@ ip_s_getaddress(VALUE obj, SEL sel, VALUE host)
     return make_ipaddr((struct sockaddr*)&addr);
 }
 
+/*
+ * call-seq:
+ *   UDPSocket.new([address_family]) => socket
+ *
+ * Creates a new UDPSocket object.
+ *
+ * _address_family_ should be an integer, a string or a symbol:
+ * Socket::AF_INET, "AF_INET", :INET, etc.
+ *
+ *   UDPSocket.new                   #=> #<UDPSocket:fd 3>
+ *   UDPSocket.new(Socket::AF_INET6) #=> #<UDPSocket:fd 4>
+ *
+ */
 static VALUE
 udp_init(VALUE sock, SEL sel, int argc, VALUE *argv)
 {
@@ -1922,6 +2285,22 @@ udp_connect_internal(struct udp_arg *arg)
     return Qfalse;
 }
 
+/*
+ * call-seq:
+ *   udpsocket.connect(host, port) => 0
+ *
+ * Connects _udpsocket_ to _host_:_port_.
+ *
+ * This makes possible to send without destination address.
+ *
+ *   u1 = UDPSocket.new
+ *   u1.bind("127.0.0.1", 4913)
+ *   u2 = UDPSocket.new
+ *   u2.connect("127.0.0.1", 4913)
+ *   u2.send "uuuu", 0
+ *   p u1.recvfrom(10) #=> ["uuuu", ["AF_INET", 33230, "localhost", "127.0.0.1"]]
+ *
+ */
 static VALUE
 udp_connect(VALUE sock, SEL sel, VALUE host, VALUE port)
 {
@@ -1939,6 +2318,18 @@ udp_connect(VALUE sock, SEL sel, VALUE host, VALUE port)
     return INT2FIX(0);
 }
 
+/*
+ * call-seq:
+ *   udpsocket.bind(host, port) #=> 0
+ *
+ * Binds _udpsocket_ to _host_:_port_.
+ *
+ *   u1 = UDPSocket.new
+ *   u1.bind("127.0.0.1", 4913)
+ *   u1.send "message-to-self", 0, "127.0.0.1", 4913
+ *   p u1.recvfrom(10) #=> ["message-to", ["AF_INET", 4913, "localhost", "127.0.0.1"]]
+ *
+ */
 static VALUE
 udp_bind(VALUE sock, SEL sel, VALUE host, VALUE port)
 {
@@ -1960,6 +2351,28 @@ udp_bind(VALUE sock, SEL sel, VALUE host, VALUE port)
     return INT2FIX(0);
 }
 
+/*
+ * call-seq:
+ *   udpsocket.send(mesg, flags, host, port)  => numbytes_sent
+ *   udpsocket.send(mesg, flags, sockaddr_to) => numbytes_sent
+ *   udpsocket.send(mesg, flags)              => numbytes_sent
+ *
+ * Sends _mesg_ via _udpsocket_.
+ *
+ * _flags_ should be a bitwise OR of Socket::MSG_* constants.
+ *
+ *   u1 = UDPSocket.new
+ *   u1.bind("127.0.0.1", 4913)
+ *
+ *   u2 = UDPSocket.new
+ *   u2.send "hi", 0, "127.0.0.1", 4913
+ *
+ *   mesg, addr = u1.recvfrom(10)
+ *   u1.send mesg, 0, addr[3], addr[1]
+ *
+ *   p u2.recv(100) #=> "hi"
+ *
+ */
 static VALUE
 udp_send(VALUE sock, SEL sel, int argc, VALUE *argv)
 {
@@ -2002,6 +2415,7 @@ udp_send(VALUE sock, SEL sel, int argc, VALUE *argv)
  *
  * Receives up to _maxlen_ bytes from +udpsocket+ using recvfrom(2) after
  * O_NONBLOCK is set for the underlying file descriptor.
+ * If _maxlen_ is omitted, its default value is 65536.
  * _flags_ is zero or more of the +MSG_+ options.
  * The first element of the results, _mesg_, is the data received.
  * The second element, _sender_inet_addr_, is an array to represent the sender address.
@@ -2023,14 +2437,22 @@ udp_send(VALUE sock, SEL sel, int argc, VALUE *argv)
  * 	s2.connect(*s1.addr.values_at(3,1))
  * 	s1.connect(*s2.addr.values_at(3,1))
  * 	s1.send "aaa", 0
- * 	IO.select([s2])
- * 	p s2.recvfrom_nonblock(10)  #=> ["aaa", ["AF_INET", 33302, "localhost.localdomain", "127.0.0.1"]]
+ * 	begin # emulate blocking recvfrom
+ * 	  p s2.recvfrom_nonblock(10)  #=> ["aaa", ["AF_INET", 33302, "localhost.localdomain", "127.0.0.1"]]
+ * 	rescue IO::WaitReadable
+ * 	  IO.select([s2])
+ * 	  retry
+ * 	end
  *
  * Refer to Socket#recvfrom for the exceptions that may be thrown if the call
  * to _recvfrom_nonblock_ fails.
  *
  * UDPSocket#recvfrom_nonblock may raise any error corresponding to recvfrom(2) failure,
  * including Errno::EWOULDBLOCK.
+ *
+ * If the exception is Errno::EWOULDBLOCK or Errno::AGAIN,
+ * it is extended by IO::WaitReadable.
+ * So IO::WaitReadable can be used to rescue the exceptions for retrying recvfrom_nonblock.
  *
  * === See
  * * Socket#recvfrom
@@ -2042,6 +2464,16 @@ udp_recvfrom_nonblock(VALUE sock, SEL sel, int argc, VALUE *argv)
 }
 
 #ifdef HAVE_SYS_UN_H
+/*
+ * call-seq:
+ *   UNIXSocket.new(path) => unixsocket
+ *
+ * Creates a new UNIX client socket connected to _path_.
+ *
+ *   s = UNIXSocket.new("/tmp/sock")
+ *   s.send "hello", 0
+ *
+ */
 static VALUE
 unix_init(VALUE sock, SEL sel, VALUE path)
 {
@@ -2057,6 +2489,16 @@ unixpath(struct sockaddr_un *sockaddr, socklen_t len)
         return "";
 }
 
+/*
+ * call-seq:
+ *   unixsocket.path => path
+ *
+ * Returns the path of the local address of unixsocket.
+ *
+ *   s = UNIXServer.new("/tmp/sock")
+ *   p s.path #=> "/tmp/sock"
+ *
+ */
 static VALUE
 unix_path(VALUE sock, SEL sel)
 {
@@ -2074,12 +2516,45 @@ unix_path(VALUE sock, SEL sel)
     return rb_str_dup(fptr->path);
 }
 
+/*
+ * call-seq:
+ *   UNIXServer.new(path) => unixserver
+ *
+ * Creates a new UNIX server socket bound to _path_.
+ *
+ *   serv = UNIXServer.new("/tmp/sock")
+ *   s = serv.accept
+ *   p s.read
+ */
 static VALUE
 unix_svr_init(VALUE sock, SEL sel, VALUE path)
 {
     return init_unixsock(sock, path, 1);
 }
 
+/*
+ * call-seq:
+ *   unixsocket.recvfrom(maxlen [, flags]) => [mesg, unixaddress]
+ *
+ * Receives a message via _unixsocket_.
+ *
+ * _maxlen_ is the maximum number of bytes to receive.
+ *
+ * _flags_ should be a bitwise OR of Socket::MSG_* constants.
+ *
+ *   s1 = Socket.new(:UNIX, :DGRAM, 0)
+ *   s1_ai = Addrinfo.unix("/tmp/sock1")
+ *   s1.bind(s1_ai)
+ *
+ *   s2 = Socket.new(:UNIX, :DGRAM, 0)
+ *   s2_ai = Addrinfo.unix("/tmp/sock2")
+ *   s2.bind(s2_ai)
+ *   s3 = UNIXSocket.for_fd(s2.fileno)
+ *
+ *   s1.send "a", 0, s2_ai
+ *   p s3.recvfrom(10) #=> ["a", ["AF_UNIX", "/tmp/sock1"]]
+ *
+ */
 static VALUE
 unix_recvfrom(VALUE sock, SEL sel, int argc, VALUE *argv)
 {
@@ -2098,6 +2573,22 @@ unix_recvfrom(VALUE sock, SEL sel, int argc, VALUE *argv)
 #define FD_PASSING_BY_MSG_ACCRIGHTS 0
 #endif
 
+/*
+ * call-seq:
+ *   unixsocket.send_io(io) => nil
+ *
+ * Sends _io_ as file descriptor passing.
+ *
+ *   s1, s2 = UNIXSocket.pair
+ *
+ *   s1.send_io STDOUT
+ *   stdout = s2.recv_io
+ *
+ *   p STDOUT.fileno #=> 1
+ *   p stdout.fileno #=> 6
+ *
+ *   stdout.puts "hello" # outputs "hello\n" to standard output.
+ */
 static VALUE
 unix_send_io(VALUE sock, SEL sel, VALUE val)
 {
@@ -2166,6 +2657,25 @@ unix_send_io(VALUE sock, SEL sel, VALUE val)
 #endif
 }
 
+/*
+ * call-seq:
+ *   unixsocket.recv_io([klass [, mode]]) => io
+ *
+ *   UNIXServer.open("/tmp/sock") {|serv|
+ *     UNIXSocket.open("/tmp/sock") {|c|
+ *       s = serv.accept
+ *
+ *       c.send_io STDOUT
+ *       stdout = s.recv_io
+ *
+ *       p STDOUT.fileno #=> 1
+ *       p stdout.fileno #=> 7
+ *
+ *       stdout.puts "hello" # outputs "hello\n" to standard output.
+ *     }
+ *   }
+ *
+ */
 static VALUE
 unix_recv_io(VALUE sock, SEL sel, int argc, VALUE *argv)
 {
@@ -2274,6 +2784,23 @@ unix_recv_io(VALUE sock, SEL sel, int argc, VALUE *argv)
 #endif
 }
 
+/*
+ * call-seq:
+ *   unixserver.accept => unixsocket
+ *
+ * Accepts a new connection.
+ * It returns new UNIXSocket object.
+ *
+ *   UNIXServer.open("/tmp/sock") {|serv|
+ *     UNIXSocket.open("/tmp/sock") {|c|
+ *       s = serv.accept
+ *       s.puts "hi"
+ *       s.close
+ *       p c.read #=> "hi\n"
+ *     }
+ *   }
+ *
+ */
 static VALUE
 unix_accept(VALUE sock, SEL sel)
 {
@@ -2298,9 +2825,9 @@ unix_accept(VALUE sock, SEL sel)
  * === Example
  * 	require 'socket'
  * 	serv = UNIXServer.new("/tmp/sock")
- * 	begin
+ * 	begin # emulate blocking accept
  * 	  sock = serv.accept_nonblock
- * 	rescue Errno::EAGAIN, Errno::EWOULDBLOCK, Errno::ECONNABORTED, Errno::EPROTO, Errno::EINTR
+ * 	rescue IO::WaitReadable, Errno::EINTR
  * 	  IO.select([serv])
  * 	  retry
  * 	end
@@ -2311,6 +2838,10 @@ unix_accept(VALUE sock, SEL sel)
  *
  * UNIXServer#accept_nonblock may raise any error corresponding to accept(2) failure,
  * including Errno::EWOULDBLOCK.
+ *
+ * If the exception is Errno::EWOULDBLOCK, Errno::AGAIN, Errno::ECONNABORTED or Errno::EPROTO,
+ * it is extended by IO::WaitReadable.
+ * So IO::WaitReadable can be used to rescue the exceptions for retrying accept_nonblock.
  *
  * === See
  * * UNIXServer#accept
@@ -2329,6 +2860,24 @@ unix_accept_nonblock(VALUE sock, SEL sel)
 			     (struct sockaddr *)&from, &fromlen);
 }
 
+/*
+ * call-seq:
+ *   unixserver.sysaccept => file_descriptor
+ *
+ * Accepts a new connection.
+ * It returns the new file descriptor which is an integer.
+ *
+ *   UNIXServer.open("/tmp/sock") {|serv|
+ *     UNIXSocket.open("/tmp/sock") {|c|
+ *       fd = serv.sysaccept
+ *       s = IO.new(fd)
+ *       s.puts "hi"
+ *       s.close
+ *       p c.read #=> "hi\n"
+ *     }
+ *   }
+ *
+ */
 static VALUE
 unix_sysaccept(VALUE sock, SEL sel)
 {
@@ -2350,6 +2899,17 @@ unixaddr(struct sockaddr_un *sockaddr, socklen_t len)
 }
 #endif
 
+/*
+ * call-seq:
+ *   unixsocket.addr => [address_family, unix_path]
+ *
+ * Returns the local address as an array which contains
+ * address_family and unix_path.
+ *
+ * Example
+ *   serv = UNIXServer.new("/tmp/sock")
+ *   p serv.addr #=> ["AF_UNIX", "/tmp/sock"]
+ */
 static VALUE
 unix_addr(VALUE sock, SEL sel)
 {
@@ -2364,6 +2924,18 @@ unix_addr(VALUE sock, SEL sel)
     return unixaddr(&addr, len);
 }
 
+/*
+ * call-seq:
+ *   unixsocket.peeraddr => [address_family, unix_path]
+ *
+ * Returns the remote address as an array which contains
+ * address_family and unix_path.
+ *
+ * Example
+ *   serv = UNIXServer.new("/tmp/sock")
+ *   c = UNIXSocket.new("/tmp/sock")
+ *   p c.peeraddr #=> ["AF_UNIX", "/tmp/sock"]
+ */
 static VALUE
 unix_peeraddr(VALUE sock, SEL sel)
 {
@@ -2386,6 +2958,25 @@ setup_domain_and_type(VALUE domain, int *dv, VALUE type, int *tv)
     *tv = socktype_arg(type);
 }
 
+/*
+ * call-seq:
+ *   Socket.new(domain, socktype [, protocol]) => socket
+ *
+ * Creates a new socket object.
+ *
+ * _domain_ should be a communications domain such as: :INET, :INET6, :UNIX, etc.
+ *
+ * _socktype_ should be a socket type such as: :STREAM, :DGRAM, :RAW, etc.
+ *
+ * _protocol_ should be a protocol defined in the domain.
+ * This is optional.
+ * If it is not given, 0 is used internally.
+ *
+ *   Socket.new(:INET, :STREAM) # TCP socket
+ *   Socket.new(:INET, :DGRAM)  # UDP socket
+ *   Socket.new(:UNIX, :STREAM) # UNIX stream socket
+ *   Socket.new(:UNIX, :DGRAM)  # UNIX datagram socket
+ */
 static VALUE
 sock_initialize(VALUE sock, SEL sel, int argc, VALUE *argv)
 {
@@ -2425,6 +3016,27 @@ pair_yield(VALUE pair)
 }
 #endif
 
+/*
+ * call-seq:
+ *   Socket.pair(domain, type, protocol)       => [socket1, socket2]
+ *   Socket.socketpair(domain, type, protocol) => [socket1, socket2]
+ *
+ * Creates a pair of sockets connected each other.
+ *
+ * _domain_ should be a communications domain such as: :INET, :INET6, :UNIX, etc.
+ *
+ * _socktype_ should be a socket type such as: :STREAM, :DGRAM, :RAW, etc.
+ *
+ * _protocol_ should be a protocol defined in the domain.
+ * 0 is default protocol for the domain.
+ *
+ *   s1, s2 = Socket.pair(:UNIX, :DGRAM, 0)
+ *   s1.send "a", 0
+ *   s1.send "b", 0
+ *   p s2.recv(10) #=> "a"
+ *   p s2.recv(10) #=> "b"
+ *
+ */
 static VALUE
 sock_s_socketpair(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
@@ -2462,6 +3074,24 @@ sock_s_socketpair(VALUE klass, SEL sel, int argc, VALUE *argv)
 }
 
 #ifdef HAVE_SYS_UN_H
+/*
+ * call-seq:
+ *   UNIXSocket.pair([type [, protocol]])       => [unixsocket1, unixsocket2]
+ *   UNIXSocket.socketpair([type [, protocol]]) => [unixsocket1, unixsocket2]
+ *
+ * Creates a pair of sockets connected each other.
+ *
+ * _socktype_ should be a socket type such as: :STREAM, :DGRAM, :RAW, etc.
+ *
+ * _protocol_ should be a protocol defined in the domain.
+ * 0 is default protocol for the domain.
+ *
+ *   s1, s2 = UNIXSocket.pair
+ *   s1.send "a", 0
+ *   s1.send "b", 0
+ *   p s2.recv(10) #=> "ab"
+ *
+ */
 static VALUE
 unix_s_socketpair(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
@@ -2485,13 +3115,13 @@ unix_s_socketpair(VALUE klass, SEL sel, int argc, VALUE *argv)
 
 /*
  * call-seq:
- * 	socket.connect(server_sockaddr) => 0
+ * 	socket.connect(remote_sockaddr) => 0
  *
- * Requests a connection to be made on the given +server_sockaddr+. Returns 0 if
+ * Requests a connection to be made on the given +remote_sockaddr+. Returns 0 if
  * successful, otherwise an exception is raised.
  *
  * === Parameter
- * * +server_sockaddr+ - the +struct+ sockaddr contained in a string
+ * * +remote_sockaddr+ - the +struct+ sockaddr contained in a string or Addrinfo object
  *
  * === Example:
  * 	# Pull down Google's web page
@@ -2507,7 +3137,7 @@ unix_s_socketpair(VALUE klass, SEL sel, int argc, VALUE *argv)
  * On unix-based systems the following system exceptions may be raised if
  * the call to _connect_ fails:
  * * Errno::EACCES - search permission is denied for a component of the prefix
- *   path or write access to the +socket+ is denided
+ *   path or write access to the +socket+ is denied
  * * Errno::EADDRINUSE - the _sockaddr_ is already in use
  * * Errno::EADDRNOTAVAIL - the specified _sockaddr_ is not available from the
  *   local machine
@@ -2523,7 +3153,7 @@ unix_s_socketpair(VALUE klass, SEL sel, int argc, VALUE *argv)
  * * Errno::EHOSTUNREACH - the destination host cannot be reached (probably
  *   because the host is down or a remote router cannot reach it)
  * * Errno::EINPROGRESS - the O_NONBLOCK is set for the +socket+ and the
- *   connection cnanot be immediately established; the connection will be
+ *   connection cannot be immediately established; the connection will be
  *   established asynchronously
  * * Errno::EINTR - the attempt to establish the connection was interrupted by
  *   delivery of a signal that was caught; the connection will be established
@@ -2548,12 +3178,12 @@ unix_s_socketpair(VALUE klass, SEL sel, int argc, VALUE *argv)
  * On unix-based systems if the address family of the calling +socket+ is
  * AF_UNIX the follow exceptions may be raised if the call to _connect_
  * fails:
- * * Errno::EIO - an i/o error occured while reading from or writing to the
+ * * Errno::EIO - an i/o error occurred while reading from or writing to the
  *   file system
  * * Errno::ELOOP - too many symbolic links were encountered in translating
  *   the pathname in _sockaddr_
  * * Errno::ENAMETOOLLONG - a component of a pathname exceeded NAME_MAX
- *   characters, or an entired pathname exceeded PATH_MAX characters
+ *   characters, or an entire pathname exceeded PATH_MAX characters
  * * Errno::ENOENT - a component of the pathname does not name an existing file
  *   or the pathname is an empty string
  * * Errno::ENOTDIR - a component of the path prefix of the pathname in _sockaddr_
@@ -2614,14 +3244,14 @@ sock_connect(VALUE sock, SEL sel, VALUE addr)
 
 /*
  * call-seq:
- * 	socket.connect_nonblock(server_sockaddr) => 0
+ * 	socket.connect_nonblock(remote_sockaddr) => 0
  *
- * Requests a connection to be made on the given +server_sockaddr+ after
+ * Requests a connection to be made on the given +remote_sockaddr+ after
  * O_NONBLOCK is set for the underlying file descriptor.
  * Returns 0 if successful, otherwise an exception is raised.
  *
  * === Parameter
- * * +server_sockaddr+ - the +struct+ sockaddr contained in a string
+ * * +remote_sockaddr+ - the +struct+ sockaddr contained in a string or Addrinfo object
  *
  * === Example:
  * 	# Pull down Google's web page
@@ -2629,12 +3259,12 @@ sock_connect(VALUE sock, SEL sel, VALUE addr)
  * 	include Socket::Constants
  * 	socket = Socket.new(AF_INET, SOCK_STREAM, 0)
  * 	sockaddr = Socket.sockaddr_in(80, 'www.google.com')
- * 	begin
+ * 	begin # emulate blocking connect
  * 	  socket.connect_nonblock(sockaddr)
- * 	rescue Errno::EINPROGRESS
- * 	  IO.select(nil, [socket])
+ * 	rescue IO::WaitWritable
+ * 	  IO.select(nil, [socket]) # wait 3-way handshake completion
  * 	  begin
- * 	    socket.connect_nonblock(sockaddr)
+ * 	    socket.connect_nonblock(sockaddr) # check connection failure
  * 	  rescue Errno::EISCONN
  * 	  end
  * 	end
@@ -2646,6 +3276,10 @@ sock_connect(VALUE sock, SEL sel, VALUE addr)
  *
  * Socket#connect_nonblock may raise any error corresponding to connect(2) failure,
  * including Errno::EINPROGRESS.
+ *
+ * If the exception is Errno::EINPROGRESS,
+ * it is extended by IO::WaitWritable.
+ * So IO::WaitWritable can be used to rescue the exceptions for retrying connect_nonblock.
  *
  * === See
  * * Socket#connect
@@ -2673,15 +3307,22 @@ sock_connect_nonblock(VALUE sock, SEL sel, VALUE addr)
 
 /*
  * call-seq:
- * 	socket.bind(server_sockaddr) => 0
+ * 	socket.bind(local_sockaddr) => 0
  *
- * Binds to the given +struct+ sockaddr.
+ * Binds to the given local address.
  *
  * === Parameter
- * * +server_sockaddr+ - the +struct+ sockaddr contained in a string
+ * * +local_sockaddr+ - the +struct+ sockaddr contained in a string or an Addrinfo object
  *
  * === Example
  * 	require 'socket'
+ *
+ * 	# use Addrinfo
+ * 	socket = Socket.new(:INET, :STREAM, 0)
+ * 	socket.bind(Addrinfo.tcp("127.0.0.1", 2222))
+ * 	p socket.local_address #=> #<Addrinfo: 127.0.0.1:2222 TCP>
+ *
+ * 	# use struct sockaddr
  * 	include Socket::Constants
  * 	socket = Socket.new( AF_INET, SOCK_STREAM, 0 )
  * 	sockaddr = Socket.pack_sockaddr_in( 2200, 'localhost' )
@@ -2695,7 +3336,7 @@ sock_connect_nonblock(VALUE sock, SEL sel, VALUE addr)
  * * Errno::EADDRINUSE - the specified _sockaddr_ is already in use
  * * Errno::EADDRNOTAVAIL - the specified _sockaddr_ is not available from the
  *   local machine
- * * Errno::EAFNOSUPPORT - the specified _sockaddr_ isnot a valid address for
+ * * Errno::EAFNOSUPPORT - the specified _sockaddr_ is not a valid address for
  *   the family of the calling +socket+
  * * Errno::EBADF - the _sockaddr_ specified is not a valid file descriptor
  * * Errno::EFAULT - the _sockaddr_ argument cannot be accessed
@@ -2717,14 +3358,14 @@ sock_connect_nonblock(VALUE sock, SEL sel, VALUE addr)
  * Socket::AF_UNIX the follow exceptions may be raised if the call to _bind_
  * fails:
  * * Errno::EACCES - search permission is denied for a component of the prefix
- *   path or write access to the +socket+ is denided
+ *   path or write access to the +socket+ is denied
  * * Errno::EDESTADDRREQ - the _sockaddr_ argument is a null pointer
  * * Errno::EISDIR - same as Errno::EDESTADDRREQ
  * * Errno::EIO - an i/o error occurred
  * * Errno::ELOOP - too many symbolic links were encountered in translating
  *   the pathname in _sockaddr_
  * * Errno::ENAMETOOLLONG - a component of a pathname exceeded NAME_MAX
- *   characters, or an entired pathname exceeded PATH_MAX characters
+ *   characters, or an entire pathname exceeded PATH_MAX characters
  * * Errno::ENOENT - a component of the pathname does not name an existing file
  *   or the pathname is an empty string
  * * Errno::ENOTDIR - a component of the path prefix of the pathname in _sockaddr_
@@ -2782,7 +3423,7 @@ sock_bind(VALUE sock, SEL sel, VALUE addr)
  * 	socket.bind( sockaddr )
  * 	socket.listen( 5 )
  *
- * === Example 2 (listening on an arbitary port, unix-based systems only):
+ * === Example 2 (listening on an arbitrary port, unix-based systems only):
  * 	require 'socket'
  * 	include Socket::Constants
  * 	socket = Socket.new( AF_INET, SOCK_STREAM, 0 )
@@ -2805,7 +3446,7 @@ sock_bind(VALUE sock, SEL sel, VALUE addr)
  * * Errno::EINVAL - the _socket_ is already connected
  * * Errno::ENOTSOCK - the _socket_ argument does not refer to a socket
  * * Errno::EOPNOTSUPP - the _socket_ protocol does not support listen
- * * Errno::EACCES - the calling process does not have approriate privileges
+ * * Errno::EACCES - the calling process does not have appropriate privileges
  * * Errno::EINVAL - the _socket_ has been shut down
  * * Errno::ENOBUFS - insufficient resources are available in the system to
  *   complete the call
@@ -2817,7 +3458,7 @@ sock_bind(VALUE sock, SEL sel, VALUE addr)
  * * Errno::EADDRINUSE - the socket's local address is already in use. This
  *   usually occurs during the execution of _bind_ but could be delayed
  *   if the call to _bind_ was to a partially wildcard address (involving
- *   ADDR_ANY) and if a specific address needs to be commmitted at the
+ *   ADDR_ANY) and if a specific address needs to be committed at the
  *   time of the call to _listen_
  * * Errno::EINPROGRESS - a Windows Sockets 1.1 call is in progress or the
  *   service provider is still processing a callback function
@@ -2850,16 +3491,16 @@ sock_listen(VALUE sock, SEL sel, VALUE log)
 
 /*
  * call-seq:
- * 	socket.recvfrom(maxlen) => [mesg, sender_sockaddr]
- * 	socket.recvfrom(maxlen, flags) => [mesg, sender_sockaddr]
+ * 	socket.recvfrom(maxlen) => [mesg, sender_addrinfo]
+ * 	socket.recvfrom(maxlen, flags) => [mesg, sender_addrinfo]
  *
  * Receives up to _maxlen_ bytes from +socket+. _flags_ is zero or more
  * of the +MSG_+ options. The first element of the results, _mesg_, is the data
- * received. The second element, _sender_sockaddr_, contains protocol-specific information
- * on the sender.
+ * received. The second element, _sender_addrinfo_, contains protocol-specific
+ * address information of the sender.
  *
  * === Parameters
- * * +maxlen+ - the number of bytes to receive from the socket
+ * * +maxlen+ - the maximum number of bytes to receive from the socket
  * * +flags+ - zero or more of the +MSG_+ options
  *
  * === Example
@@ -2870,7 +3511,7 @@ sock_listen(VALUE sock, SEL sel, VALUE log)
  * 	sockaddr = Socket.pack_sockaddr_in( 2200, 'localhost' )
  * 	socket.bind( sockaddr )
  * 	socket.listen( 5 )
- * 	client, client_sockaddr = socket.accept
+ * 	client, client_addrinfo = socket.accept
  * 	data = client.recvfrom( 20 )[0].chomp
  * 	puts "I only received 20 bytes '#{data}'"
  * 	sleep 1
@@ -2898,7 +3539,7 @@ sock_listen(VALUE sock, SEL sel, VALUE log)
  * * Errno::ECONNRESET - a connection was forcibly closed by a peer
  * * Errno::EFAULT - the socket's internal buffer, address or address length
  *   cannot be accessed or written
- * * Errno::EINTR - a signal interupted _recvfrom_ before any data was available
+ * * Errno::EINTR - a signal interrupted _recvfrom_ before any data was available
  * * Errno::EINVAL - the MSG_OOB flag is set and no out-of-band data is available
  * * Errno::EIO - an i/o error occurred while reading from or writing to the
  *   filesystem
@@ -2920,7 +3561,7 @@ sock_listen(VALUE sock, SEL sel, VALUE log)
  * * Errno::ENETDOWN - the network is down
  * * Errno::EFAULT - the internal buffer and from parameters on +socket+ are not
  *   part of the user address space, or the internal fromlen parameter is
- *   too small to accomodate the peer address
+ *   too small to accommodate the peer address
  * * Errno::EINTR - the (blocking) call was cancelled by an internal call to
  *   the WinSock function WSACancelBlockingCall
  * * Errno::EINPROGRESS - a blocking Windows Sockets 1.1 call is in progress or
@@ -2930,7 +3571,7 @@ sock_listen(VALUE sock, SEL sel, VALUE log)
  *   SO_OOBINLINE enabled, or (for byte stream-style sockets only) the internal
  *   len parameter on +socket+ was zero or negative
  * * Errno::EISCONN - +socket+ is already connected. The call to _recvfrom_ is
- *   not permitted with a connected socket on a socket that is connetion
+ *   not permitted with a connected socket on a socket that is connection
  *   oriented or connectionless.
  * * Errno::ENETRESET - the connection has been broken due to the keep-alive
  *   activity detecting a failure while the operation was in progress.
@@ -2961,22 +3602,22 @@ sock_recvfrom(VALUE sock, SEL sel, int argc, VALUE *argv)
 
 /*
  * call-seq:
- * 	socket.recvfrom_nonblock(maxlen) => [mesg, sender_sockaddr]
- * 	socket.recvfrom_nonblock(maxlen, flags) => [mesg, sender_sockaddr]
+ * 	socket.recvfrom_nonblock(maxlen) => [mesg, sender_addrinfo]
+ * 	socket.recvfrom_nonblock(maxlen, flags) => [mesg, sender_addrinfo]
  *
  * Receives up to _maxlen_ bytes from +socket+ using recvfrom(2) after
  * O_NONBLOCK is set for the underlying file descriptor.
  * _flags_ is zero or more of the +MSG_+ options.
  * The first element of the results, _mesg_, is the data received.
- * The second element, _sender_sockaddr_, contains protocol-specific information
- * on the sender.
+ * The second element, _sender_addrinfo_, contains protocol-specific address
+ * information of the sender.
  *
  * When recvfrom(2) returns 0, Socket#recvfrom_nonblock returns
  * an empty string as data.
  * The meaning depends on the socket: EOF on TCP, empty packet on UDP, etc.
  *
  * === Parameters
- * * +maxlen+ - the number of bytes to receive from the socket
+ * * +maxlen+ - the maximum number of bytes to receive from the socket
  * * +flags+ - zero or more of the +MSG_+ options
  *
  * === Example
@@ -2987,10 +3628,10 @@ sock_recvfrom(VALUE sock, SEL sel, int argc, VALUE *argv)
  * 	sockaddr = Socket.sockaddr_in(2200, 'localhost')
  * 	socket.bind(sockaddr)
  * 	socket.listen(5)
- * 	client, client_sockaddr = socket.accept
- * 	begin
+ * 	client, client_addrinfo = socket.accept
+ * 	begin # emulate blocking recvfrom
  * 	  pair = client.recvfrom_nonblock(20)
- * 	rescue Errno::EAGAIN, Errno::EWOULDBLOCK
+ * 	rescue IO::WaitReadable
  * 	  IO.select([client])
  * 	  retry
  * 	end
@@ -3014,6 +3655,10 @@ sock_recvfrom(VALUE sock, SEL sel, int argc, VALUE *argv)
  * Socket#recvfrom_nonblock may raise any error corresponding to recvfrom(2) failure,
  * including Errno::EWOULDBLOCK.
  *
+ * If the exception is Errno::EWOULDBLOCK or Errno::AGAIN,
+ * it is extended by IO::WaitReadable.
+ * So IO::WaitReadable can be used to rescue the exceptions for retrying recvfrom_nonblock.
+ *
  * === See
  * * Socket#recvfrom
  */
@@ -3023,6 +3668,20 @@ sock_recvfrom_nonblock(VALUE sock, SEL sel, int argc, VALUE *argv)
     return s_recvfrom_nonblock(sock, argc, argv, RECV_SOCKET);
 }
 
+/*
+ * call-seq:
+ *   socket.accept => [client_socket, client_addrinfo]
+ *
+ * Accepts a next connection.
+ * Returns a new Socket object and Addrinfo object.
+ *
+ *   serv = Socket.new(:INET, :STREAM, 0)
+ *   serv.listen(5)
+ *   c = Socket.new(:INET, :STREAM, 0)
+ *   c.connect(serv.connect_address)
+ *   p serv.accept #=> [#<Socket:fd 6>, #<Addrinfo: 127.0.0.1:48555 TCP>]
+ *
+ */
 static VALUE
 sock_accept(VALUE sock, SEL sel)
 {
@@ -3039,14 +3698,13 @@ sock_accept(VALUE sock, SEL sel)
 
 /*
  * call-seq:
- * 	socket.accept_nonblock => [client_socket, client_sockaddr]
+ * 	socket.accept_nonblock => [client_socket, client_addrinfo]
  *
  * Accepts an incoming connection using accept(2) after
  * O_NONBLOCK is set for the underlying file descriptor.
- * It returns an array containg the accpeted socket
+ * It returns an array containing the accepted socket
  * for the incoming connection, _client_socket_,
- * and a string that contains the +struct+ sockaddr information
- * about the caller, _client_sockaddr_.
+ * and an Addrinfo, _client_addrinfo_.
  *
  * === Example
  * 	# In one script, start this first
@@ -3056,9 +3714,9 @@ sock_accept(VALUE sock, SEL sel)
  * 	sockaddr = Socket.sockaddr_in(2200, 'localhost')
  * 	socket.bind(sockaddr)
  * 	socket.listen(5)
- * 	begin
- * 	  client_socket, client_sockaddr = socket.accept_nonblock
- * 	rescue Errno::EAGAIN, Errno::EWOULDBLOCK, Errno::ECONNABORTED, Errno::EPROTO, Errno::EINTR
+ * 	begin # emulate blocking accept
+ * 	  client_socket, client_addrinfo = socket.accept_nonblock
+ * 	rescue IO::WaitReadable, Errno::EINTR
  * 	  IO.select([socket])
  * 	  retry
  * 	end
@@ -3082,6 +3740,10 @@ sock_accept(VALUE sock, SEL sel)
  * Socket#accept_nonblock may raise any error corresponding to accept(2) failure,
  * including Errno::EWOULDBLOCK.
  *
+ * If the exception is Errno::EWOULDBLOCK, Errno::AGAIN, Errno::ECONNABORTED or Errno::EPROTO,
+ * it is extended by IO::WaitReadable.
+ * So IO::WaitReadable can be used to rescue the exceptions for retrying accept_nonblock.
+ *
  * === See
  * * Socket#accept
  */
@@ -3100,12 +3762,11 @@ sock_accept_nonblock(VALUE sock, SEL sel)
 
 /*
  * call-seq:
- * 	socket.sysaccept => [client_socket_fd, client_sockaddr]
+ * 	socket.sysaccept => [client_socket_fd, client_addrinfo]
  *
- * Accepts an incoming connection returnings an array containg the (integer)
+ * Accepts an incoming connection returning an array containing the (integer)
  * file descriptor for the incoming connection, _client_socket_fd_,
- * and a string that contains the +struct+ sockaddr information
- * about the caller, _client_sockaddr_.
+ * and an Addrinfo, _client_addrinfo_.
  *
  * === Example
  * 	# In one script, start this first
@@ -3115,7 +3776,7 @@ sock_accept_nonblock(VALUE sock, SEL sel)
  * 	sockaddr = Socket.pack_sockaddr_in( 2200, 'localhost' )
  * 	socket.bind( sockaddr )
  * 	socket.listen( 5 )
- * 	client_fd, client_sockaddr = socket.sysaccept
+ * 	client_fd, client_addrinfo = socket.sysaccept
  * 	client_socket = Socket.for_fd( client_fd )
  * 	puts "The client said, '#{client_socket.readline.chomp}'"
  * 	client_socket.puts "Hello from script one!"
@@ -3207,6 +3868,17 @@ socket_sendfile(VALUE self, SEL sel, VALUE file, VALUE offset, VALUE len)
 }
 
 #ifdef HAVE_GETHOSTNAME
+/*
+ * call-seq:
+ *   Socket.gethostname => hostname
+ *
+ * Returns the hostname.
+ *
+ *   p Socket.gethostname #=> "hal"
+ *
+ * Note that it is not guaranteed to be able to convert to IP address using gethostbyname, getaddrinfo, etc.
+ * If you need local IP address, use Socket.ip_address_list.
+ */
 static VALUE
 sock_gethostname(VALUE obj, SEL sel)
 {
@@ -3291,6 +3963,15 @@ sock_sockaddr(struct sockaddr *addr, size_t len)
     return rb_str_new(ptr, len);
 }
 
+/*
+ * call-seq:
+ *   Socket.gethostbyname(hostname) => [official_hostname, alias_hostnames, address_family, *address_list]
+ *
+ * Obtains the host information for _hostname_.
+ *
+ *   p Socket.gethostbyname("hal") #=> ["localhost", ["hal"], 2, "\x7F\x00\x00\x01"]
+ *
+ */
 static VALUE
 sock_s_gethostbyname(VALUE obj, SEL sel, VALUE host)
 {
@@ -3298,6 +3979,15 @@ sock_s_gethostbyname(VALUE obj, SEL sel, VALUE host)
     return make_hostent(host, sock_addrinfo(host, Qnil, SOCK_STREAM, AI_CANONNAME), sock_sockaddr);
 }
 
+/*
+ * call-seq:
+ *   Socket.gethostbyaddr(address_string [, address_family]) => hostent
+ *
+ * Obtains the host information for _address_.
+ *
+ *   p Socket.gethostbyaddr([221,186,184,68].pack("CCCC"))
+ *   #=> ["carbon.ruby-lang.org", [], 2, "\xDD\xBA\xB8D"]
+ */
 static VALUE
 sock_s_gethostbyaddr(VALUE self, SEL sel, int argc, VALUE *argv)
 {
@@ -3348,6 +4038,19 @@ sock_s_gethostbyaddr(VALUE self, SEL sel, int argc, VALUE *argv)
     return ary;
 }
 
+/*
+ * call-seq:
+ *   Socket.getservbyname(service_name)                => port_number
+ *   Socket.getservbyname(service_name, protocol_name) => port_number
+ *
+ * Obtains the port number for _service_name_.
+ *
+ * If _protocol_name_ is not given, "tcp" is assumed.
+ *
+ *   Socket.getservbyname("smtp")          #=> 25
+ *   Socket.getservbyname("shell")         #=> 514
+ *   Socket.getservbyname("syslog", "udp") #=> 514
+ */
 static VALUE
 sock_s_getservbyname(VALUE self, SEL sel, int argc, VALUE *argv)
 {
@@ -3376,6 +4079,19 @@ sock_s_getservbyname(VALUE self, SEL sel, int argc, VALUE *argv)
     return INT2FIX(port);
 }
 
+/*
+ * call-seq:
+ *   Socket.getservbyport(port [, protocol_name]) => service
+ *
+ * Obtains the port number for _port_.
+ *
+ * If _protocol_name_ is not given, "tcp" is assumed.
+ *
+ *   Socket.getservbyport(80)         #=> "www"
+ *   Socket.getservbyport(514, "tcp") #=> "shell"
+ *   Socket.getservbyport(514, "udp") #=> "syslog"
+ *
+ */
 static VALUE
 sock_s_getservbyport(VALUE self, SEL sel, int argc, VALUE *argv)
 {
@@ -3400,6 +4116,39 @@ sock_s_getservbyport(VALUE self, SEL sel, int argc, VALUE *argv)
     return rb_tainted_str_new2(sp->s_name);
 }
 
+/*
+ * call-seq:
+ *   Socket.getaddrinfo(nodename, servname[, family[, socktype[, protocol[, flags[, reverse_lookup]]]]]) => array
+ *
+ * Obtains address information for _nodename_:_servname_.
+ *
+ * _family_ should be an address family such as: :INET, :INET6, :UNIX, etc.
+ *
+ * _socktype_ should be a socket type such as: :STREAM, :DGRAM, :RAW, etc.
+ *
+ * _protocol_ should be a protocol defined in the family.
+ * 0 is default protocol for the family.
+ *
+ * _flags_ should be bitwise OR of Socket::AI_* constants.
+ *
+ *   Socket.getaddrinfo("www.ruby-lang.org", "http", nil, :STREAM)
+ *   #=> [["AF_INET", 80, "carbon.ruby-lang.org", "221.186.184.68", 2, 1, 6]] # PF_INET/SOCK_STREAM/IPPROTO_TCP
+ *
+ *   Socket.getaddrinfo("localhost", nil)
+ *   #=> [["AF_INET", 0, "localhost", "127.0.0.1", 2, 1, 6],  # PF_INET/SOCK_STREAM/IPPROTO_TCP
+ *   #    ["AF_INET", 0, "localhost", "127.0.0.1", 2, 2, 17], # PF_INET/SOCK_DGRAM/IPPROTO_UDP
+ *   #    ["AF_INET", 0, "localhost", "127.0.0.1", 2, 3, 0]]  # PF_INET/SOCK_RAW/IPPROTO_IP
+ *
+ * _reverse_lookup_ directs the form of the third element, and has to
+ * be one of below.
+ * If it is ommitted, the default value is +nil+.
+ *
+ *   +true+, +:hostname+:  hostname is obtained from numeric address using reverse lookup, which may take a time.
+ *   +false+, +:numeric+:  hostname is same as numeric address.
+ *   +nil+:              obey to the current +do_not_reverse_lookup+ flag.
+ *
+ * If Addrinfo object is preferred, use Addrinfo.getaddrinfo.
+ */
 static VALUE
 sock_s_getaddrinfo(VALUE self, SEL sel, int argc, VALUE *argv)
 {
@@ -3453,6 +4202,27 @@ sock_s_getaddrinfo(VALUE self, SEL sel, int argc, VALUE *argv)
     return ret;
 }
 
+/*
+ * call-seq:
+ *   Socket.getnameinfo(sockaddr [, flags]) => [hostname, servicename]
+ *
+ * Obtains name information for _sockaddr_.
+ *
+ * _sockaddr_ should be one of follows.
+ * - packed sockaddr string such as Socket.sockaddr_in(80, "127.0.0.1")
+ * - 3-elements array such as ["AF_INET", 80, "127.0.0.1"]
+ * - 4-elements array such as ["AF_INET", 80, ignored, "127.0.0.1"]
+ *
+ * _flags_ should be bitwise OR of Socket::NI_* constants.
+ *
+ * Note that the last form is compatible with IPSocket#{addr,peeraddr}.
+ *
+ *   Socket.getnameinfo(Socket.sockaddr_in(80, "127.0.0.1"))       #=> ["localhost", "www"]
+ *   Socket.getnameinfo(["AF_INET", 80, "127.0.0.1"])              #=> ["localhost", "www"]
+ *   Socket.getnameinfo(["AF_INET", 80, "localhost", "127.0.0.1"]) #=> ["localhost", "www"]
+ *
+ * If Addrinfo object is preferred, use Addrinfo#getnameinfo.
+ */
 static VALUE
 sock_s_getnameinfo(VALUE self, SEL sel, int argc, VALUE *argv)
 {
@@ -3579,6 +4349,20 @@ sock_s_getnameinfo(VALUE self, SEL sel, int argc, VALUE *argv)
     raise_socket_error("getnameinfo", error);
 }
 
+/*
+ * call-seq:
+ *   Socket.sockaddr_in(port, host)      => sockaddr
+ *   Socket.pack_sockaddr_in(port, host) => sockaddr
+ *
+ * Packs _port_ and _host_ as an AF_INET/AF_INET6 sockaddr string.
+ *
+ *   Socket.sockaddr_in(80, "127.0.0.1")
+ *   #=> "\x02\x00\x00P\x7F\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00"
+ *
+ *   Socket.sockaddr_in(80, "::1")
+ *   #=> "\n\x00\x00P\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00"
+ *
+ */
 static VALUE
 sock_s_pack_sockaddr_in(VALUE self, SEL sel, VALUE port, VALUE host)
 {
@@ -3592,6 +4376,19 @@ sock_s_pack_sockaddr_in(VALUE self, SEL sel, VALUE port, VALUE host)
     return addr;
 }
 
+/*
+ * call-seq:
+ *   Socket.unpack_sockaddr_in(sockaddr) => [port, ip_address]
+ *
+ * Unpacks _sockaddr_ into port and ip_address.
+ *
+ * _sockaddr_ should be a string or an addrinfo for AF_INET/AF_INET6.
+ *
+ *   sockaddr = Socket.sockaddr_in(80, "127.0.0.1")
+ *   p sockaddr #=> "\x02\x00\x00P\x7F\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00"
+ *   p Socket.unpack_sockaddr_in(sockaddr) #=> [80, "127.0.0.1"]
+ *
+ */
 static VALUE
 sock_s_unpack_sockaddr_in(VALUE self, SEL sel, VALUE addr)
 {
@@ -3616,6 +4413,16 @@ sock_s_unpack_sockaddr_in(VALUE self, SEL sel, VALUE addr)
 }
 
 #ifdef HAVE_SYS_UN_H
+/*
+ * call-seq:
+ *   Socket.sockaddr_un(path)      => sockaddr
+ *   Socket.pack_sockaddr_un(path) => sockaddr
+ *
+ * Packs _path_ as an AF_UNIX sockaddr string.
+ *
+ *   Socket.sockaddr_un("/tmp/sock") #=> "\x01\x00/tmp/sock\x00\x00..."
+ *
+ */
 static VALUE
 sock_s_pack_sockaddr_un(VALUE self, SEL sel, VALUE path)
 {
@@ -3637,6 +4444,18 @@ sock_s_pack_sockaddr_un(VALUE self, SEL sel, VALUE path)
     return addr;
 }
 
+/*
+ * call-seq:
+ *   Socket.unpack_sockaddr_un(sockaddr) => path
+ *
+ * Unpacks _sockaddr_ into path.
+ *
+ * _sockaddr_ should be a string or an addrinfo for AF_UNIX.
+ *
+ *   sockaddr = Socket.sockaddr_un("/tmp/sock")
+ *   p Socket.unpack_sockaddr_un(sockaddr) #=> "/tmp/sock"
+ *
+ */
 static VALUE
 sock_s_unpack_sockaddr_un(VALUE self, SEL sel, VALUE addr)
 {
