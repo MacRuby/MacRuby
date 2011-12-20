@@ -771,6 +771,64 @@ bsock_getpeername(VALUE sock, SEL sel)
     return rb_str_new((char*)&buf, len);
 }
 
+#if defined(HAVE_GETPEEREID) || defined(SO_PEERCRED) || defined(HAVE_GETPEERUCRED)
+/*
+ * call-seq:
+ *   basicsocket.getpeereid => [euid, egid]
+ *
+ * Returns the user and group on the peer of the UNIX socket.
+ * The result is a two element array which contains the effective uid and the effective gid.
+ *
+ *   Socket.unix_server_loop("/tmp/sock") {|s|
+ *     begin
+ *       euid, egid = s.getpeereid
+ *
+ *       # Check the connected client is myself or not.
+ *       next if euid != Process.uid
+ *
+ *       # do something about my resource.
+ *
+ *     ensure
+ *       s.close
+ *     end
+ *   }
+ *
+ */
+static VALUE
+bsock_getpeereid(VALUE self, SEL sel)
+{
+#if defined(HAVE_GETPEEREID)
+    rb_io_t *fptr;
+    uid_t euid;
+    gid_t egid;
+    GetOpenFile(self, fptr);
+    if (getpeereid(fptr->fd, &euid, &egid) == -1)
+	rb_sys_fail("getpeereid");
+    return rb_assoc_new(UIDT2NUM(euid), GIDT2NUM(egid));
+#elif defined(SO_PEERCRED) /* GNU/Linux */
+    rb_io_t *fptr;
+    struct ucred cred;
+    socklen_t len = sizeof(cred);
+    GetOpenFile(self, fptr);
+    if (getsockopt(fptr->fd, SOL_SOCKET, SO_PEERCRED, &cred, &len) == -1)
+	rb_sys_fail("getsockopt(SO_PEERCRED)");
+    return rb_assoc_new(UIDT2NUM(cred.uid), GIDT2NUM(cred.gid));
+#elif defined(HAVE_GETPEERUCRED) /* Solaris */
+    rb_io_t *fptr;
+    ucred_t *uc = NULL;
+    VALUE ret;
+    GetOpenFile(self, fptr);
+    if (getpeerucred(fptr->fd, &uc) == -1)
+	rb_sys_fail("getpeerucred");
+    ret = rb_assoc_new(UIDT2NUM(ucred_geteuid(uc)), GIDT2NUM(ucred_getegid(uc)));
+    ucred_free(uc);
+    return ret;
+#endif
+}
+#else
+#define bsock_getpeereid rb_f_notimplement
+#endif
+
 static VALUE addrinfo_new(struct sockaddr *addr, socklen_t len, int family, int socktype, int protocol, VALUE canonname, VALUE inspectname);
 static VALUE fd_socket_addrinfo(int fd, struct sockaddr *addr, socklen_t len);
 static VALUE io_socket_addrinfo(VALUE io, struct sockaddr *addr, socklen_t len);
@@ -6350,6 +6408,7 @@ Init_socket()
     rb_objc_define_method(rb_cBasicSocket, "getsockopt", bsock_getsockopt, 2);
     rb_objc_define_method(rb_cBasicSocket, "getsockname", bsock_getsockname, 0);
     rb_objc_define_method(rb_cBasicSocket, "getpeername", bsock_getpeername, 0);
+    rb_objc_define_method(rb_cBasicSocket, "getpeereid", bsock_getpeereid, 0);
     rb_objc_define_method(rb_cBasicSocket, "local_address", bsock_local_address, 0);
     rb_objc_define_method(rb_cBasicSocket, "remote_address", bsock_remote_address, 0);
     rb_objc_define_method(rb_cBasicSocket, "send", bsock_send, -1);

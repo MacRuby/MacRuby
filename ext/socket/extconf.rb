@@ -269,6 +269,8 @@ end
 have_header("sys/un.h")
 have_header("sys/uio.h")
 
+have_func("getpeereid")
+
 $cleanfiles << "constants.h"
 
 if have_func(test_func)
