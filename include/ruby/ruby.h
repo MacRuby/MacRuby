@@ -713,6 +713,8 @@ const char *rb_id2name(ID val)
     return s == 0 ? NULL : rb_sym2name(s);
 }
 
+#define rb_intern_const(str) rb_intern2(str, (long)strlen(str))
+
 const char *rb_class2name(VALUE);
 const char *rb_obj_classname(VALUE);
 

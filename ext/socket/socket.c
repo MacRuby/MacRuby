@@ -2170,6 +2170,29 @@ init_unixsock(VALUE sock, VALUE path, int server)
 }
 #endif
 
+static ID id_numeric, id_hostname;
+
+int
+revlookup_flag(VALUE revlookup, int *norevlookup)
+{
+#define return_norevlookup(x) {*norevlookup = x; return 1;}
+    ID id;
+
+    switch (revlookup) {
+      case Qtrue:  return_norevlookup(0);
+      case Qfalse: return_norevlookup(1);
+      case Qnil: break;
+      default:
+	Check_Type(revlookup, T_SYMBOL);
+	id = SYM2ID(revlookup);
+	if (id == id_numeric) return_norevlookup(1);
+	if (id == id_hostname) return_norevlookup(0);
+	rb_raise(rb_eArgError, "invalid reverse_lookup flag: :%s", rb_id2name(id));
+    }
+    return 0;
+#undef return_norevlookup
+}
+
 /*
  * call-seq:
  *   ipsocket.addr([reverse_lookup]) => [address_family, port, hostname, numeric_address]
@@ -2194,17 +2217,20 @@ init_unixsock(VALUE sock, VALUE path, int server)
  *
  */
 static VALUE
-ip_addr(VALUE sock, SEL sel)
+ip_addr(VALUE sock, SEL sel, int argc, VALUE *argv)
 {
     rb_io_t *fptr;
     struct sockaddr_storage addr;
     socklen_t len = (socklen_t)sizeof addr;
+    int norevlookup;
 
     GetOpenFile(sock, fptr);
 
+    if (argc < 1 || !revlookup_flag(argv[0], &norevlookup))
+	norevlookup = fptr->mode & FMODE_NOREVLOOKUP;
     if (getsockname(fptr->fd, (struct sockaddr*)&addr, &len) < 0)
 	rb_sys_fail("getsockname(2)");
-    return ipaddr((struct sockaddr*)&addr, fptr->mode & FMODE_NOREVLOOKUP);
+    return ipaddr((struct sockaddr*)&addr, norevlookup);
 }
 
 /*
@@ -2232,17 +2258,20 @@ ip_addr(VALUE sock, SEL sel)
  *
  */
 static VALUE
-ip_peeraddr(VALUE sock, SEL sel)
+ip_peeraddr(VALUE sock, SEL sel, int argc, VALUE *argv)
 {
     rb_io_t *fptr;
     struct sockaddr_storage addr;
     socklen_t len = (socklen_t)sizeof addr;
+    int norevlookup;
 
     GetOpenFile(sock, fptr);
 
+    if (argc < 1 || !revlookup_flag(argv[0], &norevlookup))
+	norevlookup = fptr->mode & FMODE_NOREVLOOKUP;
     if (getpeername(fptr->fd, (struct sockaddr*)&addr, &len) < 0)
 	rb_sys_fail("getpeername(2)");
-    return ipaddr((struct sockaddr*)&addr, fptr->mode & FMODE_NOREVLOOKUP);
+    return ipaddr((struct sockaddr*)&addr, norevlookup);
 }
 
 /*
@@ -3980,7 +4009,7 @@ sock_gethostname(VALUE obj, SEL sel)
 #endif
 
 static VALUE
-make_addrinfo(struct addrinfo *res0)
+make_addrinfo(struct addrinfo *res0, int norevlookup)
 {
     VALUE base, ary;
     struct addrinfo *res;
@@ -3990,7 +4019,7 @@ make_addrinfo(struct addrinfo *res0)
     }
     base = rb_ary_new();
     for (res = res0; res; res = res->ai_next) {
-	ary = ipaddr(res->ai_addr, do_not_reverse_lookup);
+	ary = ipaddr(res->ai_addr, norevlookup);
 	if (res->ai_canonname) {
 	    rb_ary_store(ary, 2, rb_str_new2(res->ai_canonname));
 	}
@@ -4214,13 +4243,14 @@ sock_s_getservbyport(VALUE self, SEL sel, int argc, VALUE *argv)
 static VALUE
 sock_s_getaddrinfo(VALUE self, SEL sel, int argc, VALUE *argv)
 {
-    VALUE host, port, family, socktype, protocol, flags, ret;
+    VALUE host, port, family, socktype, protocol, flags, ret, revlookup;
     char hbuf[1024], pbuf[1024];
     char *hptr, *pptr;
     struct addrinfo hints, *res;
     int error;
+    int norevlookup;
 
-    rb_scan_args(argc, argv, "24", &host, &port, &family, &socktype, &protocol, &flags);
+    rb_scan_args(argc, argv, "25", &host, &port, &family, &socktype, &protocol, &flags, &revlookup);
     if (NIL_P(host)) {
 	hptr = NULL;
     }
@@ -4254,12 +4284,15 @@ sock_s_getaddrinfo(VALUE self, SEL sel, int argc, VALUE *argv)
     if (!NIL_P(flags)) {
 	hints.ai_flags = NUM2INT(flags);
     }
+    if (NIL_P(revlookup) || !revlookup_flag(revlookup, &norevlookup)) {
+	norevlookup = do_not_reverse_lookup;
+    }
     error = getaddrinfo(hptr, pptr, &hints, &res);
     if (error) {
 	raise_socket_error("getaddrinfo", error);
     }
 
-    ret = make_addrinfo(res);
+    ret = make_addrinfo(res, norevlookup);
     freeaddrinfo(res);
     return ret;
 }
@@ -6433,10 +6466,13 @@ Init_socket()
     rb_objc_define_method(rb_cBasicSocket, "sendfile", socket_sendfile, 3);
 
     rb_cIPSocket = rb_define_class("IPSocket", rb_cBasicSocket);
-    rb_objc_define_method(rb_cIPSocket, "addr", ip_addr, 0);
-    rb_objc_define_method(rb_cIPSocket, "peeraddr", ip_peeraddr, 0);
+    rb_objc_define_method(rb_cIPSocket, "addr", ip_addr, -1);
+    rb_objc_define_method(rb_cIPSocket, "peeraddr", ip_peeraddr, -1);
     rb_objc_define_method(rb_cIPSocket, "recvfrom", ip_recvfrom, -1);
     rb_objc_define_method(*(VALUE *)rb_cIPSocket, "getaddress", ip_s_getaddress, 1);
+
+    id_numeric = rb_intern_const("numeric");
+    id_hostname = rb_intern_const("hostname");
 
     rb_cTCPSocket = rb_define_class("TCPSocket", rb_cIPSocket);
     rb_objc_define_method(*(VALUE *)rb_cTCPSocket, "gethostbyname", tcp_s_gethostbyname, 1);
