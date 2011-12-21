@@ -1535,9 +1535,10 @@ RoxorCore::respond_to(VALUE obj, VALUE klass, SEL sel, bool priv,
 	lock();
 	const long key = respond_to_key((Class)klass, sel);
 	std::map<long, int>::iterator iter = respond_to_cache.find(key);
+	int iter_cached = (iter != respond_to_cache.end());
 	unlock();
 	int status;
-	if (iter != respond_to_cache.end()) {
+	if (iter_cached) {
 	    status = iter->second;
 	}
 	else {
