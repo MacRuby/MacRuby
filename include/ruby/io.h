@@ -101,7 +101,7 @@ rb_io_assert_readable(rb_io_t *io_struct)
 #define HAVE_RB_IO_T 1
 #define rb_io_check_writable rb_io_assert_writable
 #define rb_io_check_readable rb_io_assert_readable
-#define GetOpenFile(obj,fp) (fp = ExtractIOStruct(obj))
+#define GetOpenFile(obj,fp) rb_io_check_closed(fp = ExtractIOStruct(rb_io_taint_check(obj)))
 
 #if defined(__cplusplus)
 }  // extern "C" {

@@ -287,9 +287,6 @@ ruby_getnameinfo__aix(const struct sockaddr *sa, size_t salen,
 #define close closesocket
 #endif
 
-#undef GetOpenFile
-#define GetOpenFile(obj, fp) rb_io_check_closed(fp = ExtractIOStruct(obj))
-
 #define MakeOpenFile(obj, fp) \
     do { \
 	fp = ALLOC(rb_io_t); \
