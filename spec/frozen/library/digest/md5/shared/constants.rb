@@ -7,8 +7,9 @@ module MD5Constants
   Klass          = ::Digest::MD5
   BlockLength    = 64
   DigestLength   = 16
-  BlankDigest    = "\324\035\214\331\217\000\262\004\351\200\t\230\354\370B~"
-  Digest         = "\2473\267qw\276\364\343\345\320\304\350\313\314\217n"
+  # MACRUBY
+  BlankDigest    = "\324\035\214\331\217\000\262\004\351\200\t\230\354\370B~".force_encoding('BINARY')
+  Digest         = "\2473\267qw\276\364\343\345\320\304\350\313\314\217n".force_encoding('BINARY')
   BlankHexdigest = "d41d8cd98f00b204e9800998ecf8427e"
   Hexdigest      = "a733b77177bef4e3e5d0c4e8cbcc8f6e"
 

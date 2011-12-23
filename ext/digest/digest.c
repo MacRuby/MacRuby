@@ -547,9 +547,9 @@ rb_digest_base_finish(VALUE self, SEL sel)
     /* avoid potential coredump caused by use of a finished context */
     algo->init_func(pctx);
 
-    VALUE str = rb_str_new(buf, algo->digest_len);
+    VALUE bstr = rb_bstr_new_with_data((UInt8 *)buf, algo->digest_len);
     free(buf);
-    return str;
+    return bstr;
 }
 
 /* :nodoc: */

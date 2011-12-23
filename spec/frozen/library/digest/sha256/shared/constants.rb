@@ -7,8 +7,9 @@ module SHA256Constants
   Klass          = ::Digest::SHA256
   BlockLength    = 64
   DigestLength   = 32
-  BlankDigest    = "\343\260\304B\230\374\034\024\232\373\364\310\231o\271$'\256A\344d\233\223L\244\225\231\exR\270U"
-  Digest         = "\230b\265\344_\337\357\337\242\004\314\311A\211jb\350\373\254\370\365M\230B\002\372\020j\as\270\376"
+  # MACRUBY
+  BlankDigest    = "\343\260\304B\230\374\034\024\232\373\364\310\231o\271$'\256A\344d\233\223L\244\225\231\exR\270U".force_encoding('BINARY')
+  Digest         = "\230b\265\344_\337\357\337\242\004\314\311A\211jb\350\373\254\370\365M\230B\002\372\020j\as\270\376".force_encoding('BINARY')
   BlankHexdigest = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   Hexdigest      = "9862b5e45fdfefdfa204ccc941896a62e8fbacf8f54d984202fa106a0773b8fe"
 
