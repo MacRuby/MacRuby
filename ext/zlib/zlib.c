@@ -159,6 +159,7 @@ static VALUE rb_gzfile_sync _((VALUE, SEL));
 static VALUE rb_gzfile_set_sync _((VALUE, SEL, VALUE));
 static VALUE rb_gzfile_total_in _((VALUE, SEL));
 static VALUE rb_gzfile_total_out _((VALUE, SEL));
+static VALUE rb_gzfile_path _((VALUE, SEL));
 
 static VALUE rb_gzwriter_s_allocate _((VALUE, SEL));
 static VALUE rb_gzwriter_s_open _((VALUE, SEL, int, VALUE*));
@@ -1622,7 +1623,7 @@ rb_inflate_set_dictionary(VALUE obj, SEL sel, VALUE dic)
 #define OS_CODE  OS_UNIX
 #endif
 
-static ID id_write, id_read, id_readpartial, id_flush, id_seek, id_close;
+static ID id_write, id_read, id_readpartial, id_flush, id_seek, id_close, id_path;
 static VALUE cGzError, cNoFooter, cCRCError, cLengthError;
 
 
@@ -1641,6 +1642,7 @@ struct gzfile {
     int lineno;
     int ungetc;
     void (*end)(struct gzfile *);
+    VALUE path;
 };
 
 #define GZFILE_FLAG_SYNC             ZSTREAM_FLAG_UNUSED
@@ -1689,6 +1691,7 @@ gzfile_new(klass, funcs, endfunc)
     gz->lineno = 0;
     gz->ungetc = 0;
     gz->end = endfunc;
+    gz->path = Qnil;
 
     return obj;
 }
@@ -2555,6 +2558,22 @@ rb_gzfile_total_out(VALUE obj, SEL sel)
     return rb_uint2inum(gz->z.stream.total_out - gz->z.buf_filled);
 }
 
+/*
+ * Document-method: path
+ *
+ * call-seq: path
+ *
+ * Returns the path string of the associated IO-like object.  This
+ * method is only defined when the IO-like object responds to #path().
+ */
+static VALUE
+rb_gzfile_path(VALUE obj, SEL sel)
+{
+    struct gzfile *gz;
+    Data_Get_Struct(obj, struct gzfile, gz);
+    return gz->path;
+}
+
 
 /* ------------------------------------------------------------------------- */
 
@@ -2631,6 +2650,11 @@ rb_gzwriter_initialize(VALUE obj, SEL sel, int argc, VALUE *argv)
     }
     GC_WB(&gz->io, io);
     ZSTREAM_READY(&gz->z);
+
+    if (rb_respond_to(io, id_path)) {
+	gz->path = rb_funcall(gz->io, id_path, 0);
+	rb_define_singleton_method(obj, "path", rb_gzfile_path, 0);
+    }
 
     return obj;
 }
@@ -2821,6 +2845,11 @@ rb_gzreader_initialize(VALUE obj, SEL sel, VALUE io)
     GC_WB(&gz->io, io);
     ZSTREAM_READY(&gz->z);
     gzfile_read_header(gz);
+
+    if (rb_respond_to(io, id_path)) {
+	gz->path = rb_funcall(gz->io, id_path, 0);
+	rb_define_singleton_method(obj, "path", rb_gzfile_path, 0);
+    }
 
     return obj;
 }
@@ -3353,6 +3382,7 @@ void Init_zlib()
     id_flush = rb_intern("flush");
     id_seek = rb_intern("seek");
     id_close = rb_intern("close");
+    id_path = rb_intern("path");
 
     cGzipFile = rb_define_class_under(mZlib, "GzipFile", rb_cObject);
     cGzError = rb_define_class_under(cGzipFile, "Error", cZError);
