@@ -55,6 +55,10 @@ if %w'z libz zlib1 zlib zdll'.find {|z| have_library(z, 'deflateReset')} and
   defines << "OS_CODE=#{os_code}"
 
   $defs.concat(defines.collect{|d|' -D'+d})
+
+  have_func('crc32_combine', 'zlib.h')
+  have_func('adler32_combine', 'zlib.h')
+
   $INCFLAGS << ' -I../..'
 
   create_makefile('zlib')

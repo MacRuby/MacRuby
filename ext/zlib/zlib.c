@@ -288,7 +288,7 @@ do_checksum(argc, argv, func)
 /*
  * call-seq: Zlib.adler32(string, adler)
  *
- * Calculates Alder-32 checksum for +string+, and returns updated value of
+ * Calculates Adler-32 checksum for +string+, and returns updated value of
  * +adler+. If +string+ is omitted, it returns the Adler-32 initial value. If
  * +adler+ is omitted, it assumes that the initial value is given to +adler+.
  *
@@ -299,6 +299,25 @@ rb_zlib_adler32(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     return do_checksum(argc, argv, adler32);
 }
+
+#ifdef HAVE_ADLER32_COMBINE
+/*
+ * call-seq: Zlib.adler32_combine(adler1, adler2, len2)
+ *
+ * Combine two Adler-32 check values in to one.  +alder1+ is the first Adler-32
+ * value, +adler2+ is the second Adler-32 value.  +len2+ is the length of the
+ * string used to generate +adler2+.
+ *
+ */
+static VALUE
+rb_zlib_adler32_combine(VALUE klass, SEL sel, VALUE adler1, VALUE adler2, VALUE len2)
+{
+  return ULONG2NUM(
+	adler32_combine(NUM2ULONG(adler1), NUM2ULONG(adler2), NUM2LONG(len2)));
+}
+#else
+#define rb_zlib_adler32_combine rb_f_notimplement
+#endif
 
 /*
  * call-seq: Zlib.crc32(string, adler)
@@ -3237,6 +3256,7 @@ void Init_zlib()
     
     rb_objc_define_method(*(VALUE *)mZlib, "zlib_version", rb_zlib_version, 0);
     rb_objc_define_method(*(VALUE *)mZlib, "adler32", rb_zlib_adler32, -1);
+    rb_objc_define_method(*(VALUE *)mZlib, "adler32_combine", rb_zlib_adler32_combine, 3);
     rb_objc_define_method(*(VALUE *)mZlib, "crc32", rb_zlib_crc32, -1);
     rb_objc_define_method(*(VALUE *)mZlib, "crc_table", rb_zlib_crc_table, 0);
 
