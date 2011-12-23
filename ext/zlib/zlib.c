@@ -334,6 +334,25 @@ rb_zlib_crc32(VALUE klass, SEL sel, int argc, VALUE *argv)
     return do_checksum(argc, argv, crc32);
 }
 
+#ifdef HAVE_CRC32_COMBINE
+/*
+ * call-seq: Zlib.crc32_combine(crc1, crc2, len2)
+ *
+ * Combine two CRC-32 check values in to one.  +crc1+ is the first CRC-32
+ * value, +crc2+ is the second CRC-32 value.  +len2+ is the length of the
+ * string used to generate +crc2+.
+ *
+ */
+static VALUE
+rb_zlib_crc32_combine(VALUE klass, SEL sel, VALUE crc1, VALUE crc2, VALUE len2)
+{
+  return ULONG2NUM(
+	crc32_combine(NUM2ULONG(crc1), NUM2ULONG(crc2), NUM2LONG(len2)));
+}
+#else
+#define rb_zlib_crc32_combine rb_f_notimplement
+#endif
+
 /*
  * Returns the table for calculating CRC checksum as an array.
  */
@@ -3258,6 +3277,7 @@ void Init_zlib()
     rb_objc_define_method(*(VALUE *)mZlib, "adler32", rb_zlib_adler32, -1);
     rb_objc_define_method(*(VALUE *)mZlib, "adler32_combine", rb_zlib_adler32_combine, 3);
     rb_objc_define_method(*(VALUE *)mZlib, "crc32", rb_zlib_crc32, -1);
+    rb_objc_define_method(*(VALUE *)mZlib, "crc32_combine", rb_zlib_crc32_combine, 3);
     rb_objc_define_method(*(VALUE *)mZlib, "crc_table", rb_zlib_crc_table, 0);
 
     rb_define_const(mZlib, "VERSION", rb_str_new2(RUBY_ZLIB_VERSION));
