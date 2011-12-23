@@ -53,7 +53,7 @@ static void zstream_expand_buffer_into _((struct zstream*, int));
 static void zstream_append_buffer _((struct zstream*, const Bytef*, int));
 static VALUE zstream_detach_buffer _((struct zstream*));
 static VALUE zstream_shift_buffer _((struct zstream*, int));
-static void zstream_buffer_ungetc _((struct zstream*, int));
+static void zstream_buffer_ungetbyte _((struct zstream*, int));
 static void zstream_append_input _((struct zstream*, const Bytef*, unsigned int));
 static void zstream_discard_input _((struct zstream*, unsigned int));
 static void zstream_reset_input _((struct zstream*));
@@ -127,7 +127,7 @@ static long gzfile_read_more _((struct gzfile*));
 static void gzfile_calc_crc _((struct gzfile*, VALUE));
 static VALUE gzfile_read _((struct gzfile*, int));
 static VALUE gzfile_read_all _((struct gzfile*));
-static void gzfile_ungetc _((struct gzfile*, int));
+static void gzfile_ungetbyte _((struct gzfile*, int));
 static VALUE gzfile_writer_end_run _((VALUE));
 static void gzfile_writer_end _((struct gzfile*));
 static VALUE gzfile_reader_end_run _((VALUE));
@@ -177,7 +177,7 @@ static VALUE rb_gzreader_read _((VALUE, SEL, int, VALUE*));
 static VALUE rb_gzreader_getc _((VALUE, SEL));
 static VALUE rb_gzreader_readchar _((VALUE, SEL));
 static VALUE rb_gzreader_each_byte _((VALUE, SEL));
-static VALUE rb_gzreader_ungetc _((VALUE, SEL, VALUE));
+static VALUE rb_gzreader_ungetbyte _((VALUE, SEL, VALUE));
 static void gzreader_skip_linebreaks _((struct gzfile*));
 static VALUE gzreader_gets _((VALUE, SEL, int, VALUE*));
 static VALUE rb_gzreader_gets _((VALUE, SEL, int, VALUE*));
@@ -555,7 +555,7 @@ zstream_shift_buffer(struct zstream *z, int len)
 }
 
 static void
-zstream_buffer_ungetc(struct zstream *z, int c)
+zstream_buffer_ungetbyte(struct zstream *z, int c)
 {
     if (NIL_P(z->buf) || BSTRING_LEN(z->buf) - z->buf_filled == 0) {
         zstream_expand_buffer(z);
@@ -2132,9 +2132,9 @@ gzfile_read_all(struct gzfile *gz)
 }
 
 static void
-gzfile_ungetc(struct gzfile *gz, int c)
+gzfile_ungetbyte(struct gzfile *gz, int c)
 {
-    zstream_buffer_ungetc(&gz->z, c);
+    zstream_buffer_ungetbyte(&gz->z, c);
     gz->ungetc++;
 }
 
@@ -3019,10 +3019,10 @@ rb_gzreader_each_byte(VALUE obj, SEL sel)
  * See Zlib::GzipReader documentation for a description.
  */
 static VALUE
-rb_gzreader_ungetc(VALUE obj, SEL sel, VALUE ch)
+rb_gzreader_ungetbyte(VALUE obj, SEL sel, VALUE ch)
 {
     struct gzfile *gz = get_gzfile(obj);
-    gzfile_ungetc(gz, NUM2CHR(ch));
+    gzfile_ungetbyte(gz, NUM2CHR(ch));
     return Qnil;
 }
 
@@ -3446,7 +3446,7 @@ void Init_zlib()
     rb_objc_define_method(cGzipReader, "each_byte", rb_gzreader_each_byte, 0);
     rb_objc_define_method(cGzipReader, "each_char", rb_gzreader_each_char, 0);
     rb_objc_define_method(cGzipReader, "bytes", rb_gzreader_each_byte, 0);
-    rb_objc_define_method(cGzipReader, "ungetc", rb_gzreader_ungetc, 1);
+    rb_objc_define_method(cGzipReader, "ungetbyte", rb_gzreader_ungetbyte, 1);
     rb_objc_define_method(cGzipReader, "gets", rb_gzreader_gets, -1);
     rb_objc_define_method(cGzipReader, "readline", rb_gzreader_readline, -1);
     rb_objc_define_method(cGzipReader, "each", rb_gzreader_each, -1);
