@@ -464,6 +464,7 @@ long rb_str_clen(VALUE);
 #define RSTRING_PTR(str) (rb_str_cstr((VALUE)str))
 #define RSTRING_LEN(str) (rb_str_clen((VALUE)str))
 #define RSTRING_END(str) (RSTRING_PTR(str)+RSTRING_LEN(str))
+#define RSTRING_LENINT(str) rb_long2int(RSTRING_LEN(str))
 
 long rb_ary_len(VALUE);
 VALUE rb_ary_elt(VALUE, long);
