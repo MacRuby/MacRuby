@@ -118,6 +118,24 @@ typedef unsigned LONG_LONG ID;
 # define SIZET2NUM(v) UINT2NUM(v)
 #endif
 
+#if SIZEOF_INT < SIZEOF_VALUE
+NORETURN(void rb_out_of_int(SIGNED_VALUE num));
+#endif
+
+#if SIZEOF_INT < SIZEOF_LONG
+#define rb_long2int_internal(n, i) \
+    int i = (int)(n); \
+    if ((long)i != (n)) rb_out_of_int(n)
+#ifdef __GNUC__
+#define rb_long2int(n) __extension__ ({long i2l_n = (n); rb_long2int_internal(i2l_n, i2l_i); i2l_i;})
+#else
+static inline int
+rb_long2int(long n) {rb_long2int_internal(n, i); return i;}
+#endif
+#else
+#define rb_long2int(n) ((int)(n))
+#endif
+
 #ifndef PIDT2NUM
 # define PIDT2NUM(v) LONG2NUM(v)
 #endif
