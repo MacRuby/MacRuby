@@ -367,6 +367,51 @@ num_div(VALUE x, SEL sel, VALUE y)
 
 /*
  *  call-seq:
+ *     num.modulo(numeric)  ->  real
+ *
+ *     x.modulo(y) means x-y*(x/y).floor
+ *
+ *  Equivalent to
+ *  <i>num</i>.<code>divmod(</code><i>aNumeric</i><code>)[1]</code>.
+ *
+ *  See <code>Numeric#divmod</code>.
+ */
+
+static VALUE
+num_modulo(VALUE x, SEL sel, VALUE y)
+{
+    VALUE tmp1 = rb_vm_call(x, selDiv, 1, &y);
+    VALUE tmp2 = rb_vm_call(y, selMULT, 1, &tmp1);
+    return rb_vm_call(x, selMINUS, 1, &tmp2);
+}
+
+/*
+ *  call-seq:
+ *     num.remainder(numeric)  ->  real
+ *
+ *     x.remainder(y) means x-y*(x/y).truncate
+ *
+ *  See <code>Numeric#divmod</code>.
+ */
+
+static VALUE
+num_remainder(VALUE x, SEL sel, VALUE y)
+{
+    VALUE z = rb_vm_call(x, selMOD, 1, &y);
+
+    VALUE zero = INT2FIX(0);
+    if ((!rb_equal(z, INT2FIX(0))) &&
+	((RTEST(rb_vm_call(x, selLT, 1, &zero)) &&
+	  RTEST(rb_vm_call(y, selGT, 1, &zero))) ||
+	 (RTEST(rb_vm_call(x, selGT, 1, &zero)) &&
+	  RTEST(rb_vm_call(y, selLT, 1, &zero))))) {
+	return rb_vm_call(z, selMINUS, 1, &y);
+    }
+    return z;
+}
+
+/*
+ *  call-seq:
  *     num.divmod(numeric)  ->  array
  *
  *  Returns an array containing the quotient and modulus obtained by
@@ -412,50 +457,6 @@ num_divmod(VALUE x, SEL sel, VALUE y)
     return rb_assoc_new(num_div(x, 0, y), rb_vm_call(x, selMOD, 1, &y));
 }
 
-/*
- *  call-seq:
- *     num.modulo(numeric)  ->  real
- *
- *     x.modulo(y) means x-y*(x/y).floor
- *
- *  Equivalent to
- *  <i>num</i>.<code>divmod(</code><i>aNumeric</i><code>)[1]</code>.
- *
- *  See <code>Numeric#divmod</code>.
- */
-
-static VALUE
-num_modulo(VALUE x, SEL sel, VALUE y)
-{
-    VALUE tmp1 = rb_vm_call(x, selDiv, 1, &y);
-    VALUE tmp2 = rb_vm_call(y, selMULT, 1, &tmp1);
-    return rb_vm_call(x, selMINUS, 1, &tmp2);
-}
-
-/*
- *  call-seq:
- *     num.remainder(numeric)  ->  real
- *
- *     x.remainder(y) means x-y*(x/y).truncate
- *
- *  See <code>Numeric#divmod</code>.
- */
-
-static VALUE
-num_remainder(VALUE x, SEL sel, VALUE y)
-{
-    VALUE z = rb_vm_call(x, selMOD, 1, &y);
-
-    VALUE zero = INT2FIX(0);
-    if ((!rb_equal(z, INT2FIX(0))) &&
-	((RTEST(rb_vm_call(x, selLT, 1, &zero)) &&
-	  RTEST(rb_vm_call(y, selGT, 1, &zero))) ||
-	 (RTEST(rb_vm_call(x, selGT, 1, &zero)) &&
-	  RTEST(rb_vm_call(y, selLT, 1, &zero))))) {
-	return rb_vm_call(z, selMINUS, 1, &y);
-    }
-    return z;
-}
 
 /*
  *  call-seq:
