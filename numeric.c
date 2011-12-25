@@ -912,7 +912,14 @@ flo_pow(VALUE x, SEL sel, VALUE y)
       case T_BIGNUM:
 	return DBL2NUM(pow(RFLOAT_VALUE(x), rb_big2dbl(y)));
       case T_FLOAT:
-	return DBL2NUM(pow(RFLOAT_VALUE(x), RFLOAT_VALUE(y)));
+	{
+	    double dx = RFLOAT_VALUE(x);
+	    double dy = RFLOAT_VALUE(y);
+	    if (dx < 0 && dy != round(dy)) {
+		return rb_vm_call(rb_complex_raw1(x), selExp, 1, &y);
+	    }
+	    return DBL2NUM(pow(dx, dy));
+	}
       default:
 	return rb_objc_num_coerce_bin(x, y, selExp);
     }
@@ -2754,7 +2761,13 @@ fix_pow(VALUE x, SEL sel, VALUE y)
 	  if (a == 1) {
 	      return DBL2NUM(1.0);
 	  }
-	  return DBL2NUM(pow((double)a, RFLOAT_VALUE(y)));
+	  {
+	      double dy = RFLOAT_VALUE(y);
+	      if (a < 0 && dy != round(dy)) {
+		  return rb_vm_call(rb_complex_raw1(x), selExp, 1, &y);
+	      }
+	      return DBL2NUM(pow((double)a, dy));
+	  }
 
       default:
 	  return rb_objc_num_coerce_bin(x, y, selExp);
