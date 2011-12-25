@@ -1866,18 +1866,6 @@ rb_num2ull(VALUE val)
 
 #endif  /* HAVE_LONG_LONG */
 
-static VALUE
-num_numerator(VALUE num, SEL sel)
-{
-    return rb_funcall(rb_Rational1(num), rb_intern("numerator"), 0);
-}
-
-static VALUE
-num_denominator(VALUE num, SEL sel)
-{
-    return rb_funcall(rb_Rational1(num), rb_intern("denominator"), 0);
-}
-
 /*
  * Document-class: Integer
  *
@@ -2099,18 +2087,6 @@ decode:
 
     rb_raise(rb_eArgError, "encoding `%s' not supported yet",
 	    RSTRING_PTR(rb_inspect((VALUE)enc)));
-}
-
-static VALUE
-int_numerator(VALUE num, SEL sel)
-{
-    return num;
-}
-
-static VALUE
-int_denominator(VALUE num, SEL sel)
-{
-    return INT2FIX(1);
 }
 
 /*
@@ -3530,9 +3506,6 @@ Init_Numeric(void)
     rb_objc_define_method(rb_cNumeric, "truncate", num_truncate, 0);
     rb_objc_define_method(rb_cNumeric, "step", num_step, -1);
 
-    rb_objc_define_method(rb_cNumeric, "numerator", num_numerator, 0);
-    rb_objc_define_method(rb_cNumeric, "denominator", num_denominator, 0);
-
     rb_cInteger = rb_define_class("Integer", rb_cNumeric);
     rb_undef_alloc_func(rb_cInteger);
     rb_undef_method(CLASS_OF(rb_cInteger), "new");
@@ -3560,9 +3533,6 @@ Init_Numeric(void)
     rb_include_module(rb_cFixnum, rb_mPrecision);
     rb_objc_define_method(*(VALUE *)rb_cFixnum, "induced_from", rb_fix_induced_from, 1);
     rb_objc_define_method(*(VALUE *)rb_cInteger, "induced_from", rb_int_induced_from, 1);
-
-    rb_objc_define_method(rb_cInteger, "numerator", int_numerator, 0);
-    rb_objc_define_method(rb_cInteger, "denominator", int_denominator, 0);
 
     rb_objc_define_method(rb_cFixnum, "to_s", fix_to_s, -1);
 
