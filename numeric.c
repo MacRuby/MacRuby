@@ -1736,18 +1736,9 @@ rb_out_of_int(SIGNED_VALUE num)
 static void
 check_int(SIGNED_VALUE num)
 {
-    const char *s;
-
-    if (num < INT_MIN) {
-	s = "small";
+    if ((SIGNED_VALUE)(int)num != num) {
+	rb_out_of_int(num);
     }
-    else if (num > INT_MAX) {
-	s = "big";
-    }
-    else {
-	return;
-    }
-    rb_raise(rb_eRangeError, "integer %"PRIdVALUE " too %s to convert to `int'", num, s);
 }
 
 static void
