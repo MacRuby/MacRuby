@@ -2462,6 +2462,8 @@ fix_fdiv(VALUE x, SEL sel, VALUE y)
     }
 }
 
+VALUE rb_rational_reciprocal(VALUE x);
+
 static VALUE
 fix_divide(VALUE x, VALUE y, SEL op)
 {
@@ -2491,6 +2493,10 @@ fix_divide(VALUE x, VALUE y, SEL op)
 		    return rb_dbl2big(floor(div));
 		}
 	    }
+	case T_RATIONAL:
+	    if (op == selDIV && FIX2LONG(x) == 1)
+		return rb_rational_reciprocal(y);
+	    /* fall through */
 	default:
 	    return rb_objc_num_coerce_bin(x, y, op);
     }
