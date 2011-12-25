@@ -2131,66 +2131,6 @@ int_ord(VALUE num, SEL sel)
  * call-seq:
  *   -fix  ->  integer
  *
- * Convert <code>obj</code> to a Fixnum. Works with numeric parameters.
- * Also works with Symbols, but this is deprecated.
- */
-
-static VALUE
-rb_fix_induced_from(VALUE klass, SEL sel, VALUE x)
-{
-    return rb_num2fix(x);
-}
-
-/*
- * call-seq:
- *   Integer.induced_from(obj)    =>  fixnum, bignum
- *
- * Convert <code>obj</code> to an Integer.
- */
-
-static VALUE
-rb_int_induced_from(VALUE klass, SEL sel, VALUE x)
-{
-    switch (TYPE(x)) {
-      case T_FIXNUM:
-      case T_BIGNUM:
-	return x;
-      case T_FLOAT:
-      case T_RATIONAL:
-	return rb_funcall(x, id_to_i, 0);
-      default:
-	rb_raise(rb_eTypeError, "failed to convert %s into Integer",
-		 rb_obj_classname(x));
-    }
-}
-
-/*
- * call-seq:
- *   Float.induced_from(obj)    =>  float
- *
- * Convert <code>obj</code> to a float.
- */
-
-static VALUE
-rb_flo_induced_from(VALUE klass, SEL sel, VALUE x)
-{
-    switch (TYPE(x)) {
-      case T_FIXNUM:
-      case T_BIGNUM:
-      case T_RATIONAL:
-	return rb_funcall(x, rb_intern("to_f"), 0);
-      case T_FLOAT:
-	return x;
-      default:
-	rb_raise(rb_eTypeError, "failed to convert %s into Float",
-		 rb_obj_classname(x));
-    }
-}
-
-/*
- * call-seq:
- *   -fix   =>  integer
- *
  * Negates <code>fix</code> (which might return a Bignum).
  */
 
@@ -3531,8 +3471,6 @@ Init_Numeric(void)
 
     rb_cFixnum = rb_define_class("Fixnum", rb_cInteger);
     rb_include_module(rb_cFixnum, rb_mPrecision);
-    rb_objc_define_method(*(VALUE *)rb_cFixnum, "induced_from", rb_fix_induced_from, 1);
-    rb_objc_define_method(*(VALUE *)rb_cInteger, "induced_from", rb_int_induced_from, 1);
 
     rb_objc_define_method(rb_cFixnum, "to_s", fix_to_s, -1);
 
@@ -3581,7 +3519,6 @@ Init_Numeric(void)
     rb_undef_alloc_func(rb_cFloat);
     rb_undef_method(CLASS_OF(rb_cFloat), "new");
 
-    rb_objc_define_method(*(VALUE *)rb_cFloat, "induced_from", rb_flo_induced_from, 1);
     rb_include_module(rb_cFloat, rb_mPrecision);
 
     rb_define_const(rb_cFloat, "ROUNDS", INT2FIX(FLT_ROUNDS));
