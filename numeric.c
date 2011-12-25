@@ -457,7 +457,6 @@ num_divmod(VALUE x, SEL sel, VALUE y)
     return rb_assoc_new(num_div(x, 0, y), rb_vm_call(x, selMOD, 1, &y));
 }
 
-
 /*
  *  call-seq:
  *     num.real?  ->  true or false
@@ -468,20 +467,6 @@ num_divmod(VALUE x, SEL sel, VALUE y)
 
 static VALUE
 num_real_p(VALUE num, SEL sel)
-{
-    return Qtrue;
-}
-
-/*
- *  call-seq:
- *     num.scalar? -> true or false
- *
- *  Returns <code>true</code> if <i>num</i> is an <code>Scalar</code>
- *  (i.e. non <code>Complex</code>).
- */
-
-static VALUE
-num_scalar_p(VALUE num, SEL sel)
 {
     return Qtrue;
 }
@@ -3535,7 +3520,6 @@ Init_Numeric(void)
     rb_objc_define_method(rb_cNumeric, "to_int", num_to_int, 0);
     
     rb_objc_define_method(rb_cNumeric, "real?", num_real_p, 0);
-    rb_objc_define_method(rb_cNumeric, "scalar?", num_scalar_p, 0);
     rb_objc_define_method(rb_cNumeric, "integer?", num_int_p, 0);
     rb_objc_define_method(rb_cNumeric, "zero?", num_zero_p, 0);
     rb_objc_define_method(rb_cNumeric, "nonzero?", num_nonzero_p, 0);
