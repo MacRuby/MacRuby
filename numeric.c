@@ -454,7 +454,7 @@ num_remainder(VALUE x, SEL sel, VALUE y)
 static VALUE
 num_divmod(VALUE x, SEL sel, VALUE y)
 {
-    return rb_assoc_new(num_div(x, 0, y), rb_vm_call(x, selMOD, 1, &y));
+    return rb_assoc_new(num_div(x, 0, y), num_modulo(x, 0, y));
 }
 
 /*
