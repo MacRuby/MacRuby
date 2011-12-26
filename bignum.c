@@ -27,9 +27,9 @@ VALUE rb_cBignum;
 #define BDIGITS(x) (RBIGNUM_DIGITS(x))
 #define BITSPERDIG (SIZEOF_BDIGITS*CHAR_BIT)
 #define BIGRAD ((BDIGIT_DBL)1 << BITSPERDIG)
-#define DIGSPERLONG ((unsigned int)(SIZEOF_LONG/SIZEOF_BDIGITS))
+#define DIGSPERLONG (SIZEOF_LONG/SIZEOF_BDIGITS)
 #if HAVE_LONG_LONG
-# define DIGSPERLL ((unsigned int)(SIZEOF_LONG_LONG/SIZEOF_BDIGITS))
+# define DIGSPERLL (SIZEOF_LONG_LONG/SIZEOF_BDIGITS)
 #endif
 #define BIGUP(x) ((BDIGIT_DBL)(x) << BITSPERDIG)
 #define BIGDN(x) RSHIFT(x,BITSPERDIG)
@@ -225,14 +225,14 @@ bigfixize(VALUE x)
     if ((size_t)(len*SIZEOF_BDIGITS) <= sizeof(long)) {
 	long num = 0;
 	while (len--) {
-	    num = BIGUP(num) + ds[len];
+	    num = (long)(BIGUP(num) + ds[len]);
 	}
 	if (num >= 0) {
 	    if (RBIGNUM_SIGN(x)) {
 		if (POSFIXABLE(num)) return LONG2FIX(num);
 	    }
 	    else {
-		if (NEGFIXABLE(-(long)num)) return LONG2FIX(-(long)num);
+		if (NEGFIXABLE(-num)) return LONG2FIX(-num);
 	    }
 	}
     }
@@ -645,7 +645,7 @@ rb_cstr_to_inum(const char *str, int base, int badcheck)
     }
     len *= strlen(str)*sizeof(char);
 
-    if (len <= (sizeof(long)*CHAR_BIT)) {
+    if ((size_t)len <= (sizeof(long)*CHAR_BIT)) {
 	unsigned long val = STRTOUL(str, &end, base);
 
 	if (str < end && *end == '_') goto bigparse;
@@ -897,7 +897,8 @@ power_cache_get_power0(int base, int i)
 static VALUE
 power_cache_get_power(int base, long n1, long* m1)
 {
-    long i, j, m;
+    int i, m;
+    long j;
     VALUE t;
 
     if (n1 <= KARATSUBA_DIGITS)
@@ -1318,20 +1319,27 @@ big2dbl(VALUE x)
 	    }
 	    dl = ds[i];
 	    if (bits && (dl & (1UL << (bits %= BITSPERDIG)))) {
-		int carry = dl & ~(~0UL << bits);
+		int carry = dl & ~(~(BDIGIT)0 << bits);
 		if (!carry) {
 		    while (i-- > 0) {
 			if ((carry = ds[i]) != 0) break;
 		    }
 		}
 		if (carry) {
-		    dl &= ~0UL << bits;
-		    dl += 1UL << bits;
+		    dl &= (BDIGIT)~0 << bits;
+		    dl += (BDIGIT)1 << bits;
 		    if (!dl) d += 1;
 		}
 	    }
 	    d = dl + BIGRAD*d;
-	    if (lo) d = ldexp(d, lo * BITSPERDIG);
+	    if (lo) {
+		if (lo > INT_MAX / BITSPERDIG)
+		    d = HUGE_VAL;
+		else if (lo < INT_MIN / BITSPERDIG)
+		    d = 0.0;
+		else
+		    d = ldexp(d, (int)(lo * BITSPERDIG));
+	    }
 	}
     }
     if (!RBIGNUM_SIGN(x)) d = -d;
@@ -2342,7 +2350,7 @@ bigdivrem1(void *ptr)
     j = nx==ny?nx+1:nx;
     do {
 	if (bds->stop) return Qnil;
-	if (zds[j] ==  yds[ny-1]) q = BIGRAD-1;
+	if (zds[j] ==  yds[ny-1]) q = (BDIGIT)BIGRAD-1;
 	else q = (BDIGIT)((BIGUP(zds[j]) + zds[j-1])/yds[ny-1]);
 	if (q) {
 	    i = 0; num = 0; t2 = 0;
@@ -2425,7 +2433,7 @@ bigdivrem(VALUE x, VALUE y, VALUE *divp, VALUE *modp)
 
     dd = 0;
     q = yds[ny-1];
-    while ((q & (1UL<<(BITSPERDIG-1))) == 0) {
+    while ((q & (BDIGIT)(1UL<<(BITSPERDIG-1))) == 0) {
 	q <<= 1UL;
 	dd++;
     }
@@ -2708,12 +2716,13 @@ bdigbitsize(BDIGIT x)
 static VALUE big_lshift(VALUE, unsigned long);
 static VALUE big_rshift(VALUE, unsigned long);
 
-static VALUE big_shift(VALUE x, int n)
+static VALUE
+big_shift(VALUE x, long n)
 {
     if (n < 0)
-	return big_lshift(x, (unsigned int)-n);
+	return big_lshift(x, (unsigned long)-n);
     else if (n > 0)
-	return big_rshift(x, (unsigned int)n);
+	return big_rshift(x, (unsigned long)n);
     return x;
 }
 
@@ -3091,7 +3100,7 @@ rb_big_or(VALUE xx, VALUE yy)
 	zds[i] = ds1[i] | ds2[i];
     }
     for (; i<l2; i++) {
-	zds[i] = sign?ds2[i]:(BIGRAD-1);
+	zds[i] = sign?ds2[i]:(BDIGIT)(BIGRAD-1);
     }
     if (!RBIGNUM_SIGN(z)) get2comp(z);
     return bignorm(z);
