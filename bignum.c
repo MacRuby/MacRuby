@@ -2444,7 +2444,7 @@ rb_big_pow(VALUE x, VALUE y)
 		break;
 	    }
 	    for (mask = FIXNUM_MAX + 1; mask; mask >>= 1) {
-		if (z) z = bigtrunc(bigsqr(z));
+		if (z) z = bigsqr(z);
 		if (yy & mask) {
 		    z = z ? bigtrunc(rb_big_mul0(z, x)) : x;
 		}
