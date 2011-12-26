@@ -2281,6 +2281,52 @@ static VALUE big_shift(VALUE x, int n)
     return x;
 }
 
+static VALUE
+big_fdiv(VALUE x, VALUE y)
+{
+#define DBL_BIGDIG ((DBL_MANT_DIG + BITSPERDIG) / BITSPERDIG)
+    VALUE z;
+    long l, ex, ey;
+    int i;
+
+    bigtrunc(x);
+    l = RBIGNUM_LEN(x) - 1;
+    ex = l * BITSPERDIG;
+    ex += bdigbitsize(BDIGITS(x)[l]);
+    ex -= 2 * DBL_BIGDIG * BITSPERDIG;
+    if (ex) x = big_shift(x, ex);
+
+    switch (TYPE(y)) {
+      case T_FIXNUM:
+	y = rb_int2big(FIX2LONG(y));
+      case T_BIGNUM: {
+	bigtrunc(y);
+	l = RBIGNUM_LEN(y) - 1;
+	ey = l * BITSPERDIG;
+	ey += bdigbitsize(BDIGITS(y)[l]);
+	ey -= DBL_BIGDIG * BITSPERDIG;
+	if (ey) y = big_shift(y, ey);
+      bignum:
+	bigdivrem(x, y, &z, 0);
+	l = ex - ey;
+#if SIZEOF_LONG > SIZEOF_INT
+	{
+	    /* Visual C++ can't be here */
+	    if (l > INT_MAX) return DBL2NUM(INFINITY);
+	    if (l < INT_MIN) return DBL2NUM(0.0);
+	}
+#endif
+	return DBL2NUM(ldexp(big2dbl(z), (int)l));
+      }
+      case T_FLOAT:
+	y = dbl2big(ldexp(frexp(RFLOAT_VALUE(y), &i), DBL_MANT_DIG));
+	ey = i - DBL_MANT_DIG;
+	goto bignum;
+    }
+    rb_bug("big_fdiv");
+    /* NOTREACHED */
+}
+
 /*
  *  call-seq:
   *     big.fdiv(numeric) -> float
@@ -2296,49 +2342,28 @@ static VALUE big_shift(VALUE x, int n)
 VALUE
 rb_big_fdiv(VALUE x, SEL sel, VALUE y)
 {
-    double dx = big2dbl(x);
-    double dy;
+    double dx, dy;
 
-    if (isinf(dx)) {
-#define DBL_BIGDIG ((DBL_MANT_DIG + BITSPERDIG) / BITSPERDIG)
-	VALUE z;
-	int ex, ey;
-
-	ex = (RBIGNUM_LEN(bigtrunc(x)) - 1) * BITSPERDIG;
-	ex += bdigbitsize(BDIGITS(x)[RBIGNUM_LEN(x) - 1]);
-	ex -= 2 * DBL_BIGDIG * BITSPERDIG;
-	if (ex) x = big_shift(x, ex);
-
-	switch (TYPE(y)) {
-	  case T_FIXNUM:
-	    y = rb_int2big(FIX2LONG(y));
-	  case T_BIGNUM: {
-	    ey = (RBIGNUM_LEN(bigtrunc(y)) - 1) * BITSPERDIG;
-	    ey += bdigbitsize(BDIGITS(y)[RBIGNUM_LEN(y) - 1]);
-	    ey -= DBL_BIGDIG * BITSPERDIG;
-	    if (ey) y = big_shift(y, ey);
-	  bignum:
-	    bigdivrem(x, y, &z, 0);
-	    return DBL2NUM(ldexp(big2dbl(z), ex - ey));
-	  }
-	  case T_FLOAT:
-	    if (isnan(RFLOAT_VALUE(y))) return y;
-	    y = dbl2big(ldexp(frexp(RFLOAT_VALUE(y), &ey), DBL_MANT_DIG));
-	    ey -= DBL_MANT_DIG;
-	    goto bignum;
-	}
-    }
+    dx = big2dbl(x);
     switch (TYPE(y)) {
       case T_FIXNUM:
 	dy = (double)FIX2LONG(y);
+	if (isinf(dx))
+	    return big_fdiv(x, y);
 	break;
 
       case T_BIGNUM:
 	dy = rb_big2dbl(y);
+	if (isinf(dx) || isinf(dy))
+	    return big_fdiv(x, y);
 	break;
 
       case T_FLOAT:
 	dy = RFLOAT_VALUE(y);
+	if (isnan(dy))
+	    return y;
+	if (isinf(dx))
+	    return big_fdiv(x, y);
 	break;
 
       default:
