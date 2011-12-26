@@ -2058,7 +2058,7 @@ static VALUE big_shift(VALUE x, int n)
  *
  */
 
-static VALUE
+VALUE
 rb_big_fdiv(VALUE x, SEL sel, VALUE y)
 {
     double dx = big2dbl(x);
