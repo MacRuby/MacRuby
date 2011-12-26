@@ -2541,7 +2541,7 @@ rb_big_and_imp(VALUE x, SEL sel, VALUE y)
 
 /*
  * call-seq:
- *     big | numeric   =>  integer
+ *     big | numeric   ->  integer
  *
  * Performs bitwise +or+ between _big_ and _numeric_.
  */
@@ -2604,7 +2604,7 @@ rb_big_or_imp(VALUE x, SEL sel, VALUE y)
 
 /*
  * call-seq:
- *     big ^ numeric   =>  integer
+ *     big ^ numeric   ->  integer
  *
  * Performs bitwise +exclusive or+ between _big_ and _numeric_.
  */
@@ -2680,7 +2680,7 @@ check_shiftdown(VALUE y, VALUE x)
 
 /*
  * call-seq:
- *     big << numeric   =>  integer
+ *     big << numeric   ->  integer
  *
  * Shifts big left _numeric_ positions (right if _numeric_ is negative).
  */
@@ -2706,7 +2706,7 @@ rb_big_lshift(VALUE x, VALUE y)
 		if (!NIL_P(t)) return t;
 		neg = 1;
 	    }
-	    shift = big2ulong(y, "long", Qtrue);
+	    shift = big2ulong(y, "long", TRUE);
 	    break;
 	}
 	y = rb_to_int(y);
@@ -2778,7 +2778,7 @@ rb_big_rshift(VALUE x, VALUE y)
 	    else {
 		neg = 1;
 	    }
-	    shift = big2ulong(y, "long", Qtrue);
+	    shift = big2ulong(y, "long", TRUE);
 	    break;
 	}
 	y = rb_to_int(y);
@@ -2871,7 +2871,7 @@ rb_big_aref(VALUE x, SEL sel, VALUE y)
 	  out_of_range:
 	    return RBIGNUM_SIGN(x) ? INT2FIX(0) : INT2FIX(1);
 	}
-	shift = big2ulong(y, "long", Qfalse);
+	shift = big2ulong(y, "long", FALSE);
     }
     else {
 	i = NUM2LONG(y);
