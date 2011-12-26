@@ -2811,48 +2811,7 @@ rb_big_fdiv(VALUE x, SEL sel, VALUE y)
 static VALUE
 bigsqr(VALUE x)
 {
-    long len = RBIGNUM_LEN(x), k = len / 2, i;
-    VALUE a, b, a2, z;
-    BDIGIT_DBL num;
-
-    if (len < 4000 / BITSPERDIG) {
-	return bigtrunc(bigmul0(x, x));
-    }
-
-    a = bignew(len - k, 1);
-    MEMCPY(BDIGITS(a), BDIGITS(x) + k, BDIGIT, len - k);
-    b = bignew(k, 1);
-    MEMCPY(BDIGITS(b), BDIGITS(x), BDIGIT, k);
-
-    a2 = bigtrunc(bigsqr(a));
-    z = bigsqr(b);
-    rb_big_realloc(z, (len = 2 * k + RBIGNUM_LEN(a2)) + 1);
-    while (RBIGNUM_LEN(z) < 2 * k) {
-	BDIGITS(z)[RBIGNUM_LEN(z)] = 0;
-	RBIGNUM_SET_LEN(z, RBIGNUM_LEN(z)+1);
-    }
-    MEMCPY(BDIGITS(z) + 2 * k, BDIGITS(a2), BDIGIT, RBIGNUM_LEN(a2));
-    RBIGNUM_SET_LEN(z, len);
-    a2 = bigtrunc(bigmul0(a, b));
-    len = RBIGNUM_LEN(a2);
-    for (i = 0, num = 0; i < len; i++) {
-	num += (BDIGIT_DBL)BDIGITS(z)[i + k] + ((BDIGIT_DBL)BDIGITS(a2)[i] << 1);
-	BDIGITS(z)[i + k] = BIGLO(num);
-	num = BIGDN(num);
-    }
-    if (num) {
-	len = RBIGNUM_LEN(z);
-	for (i += k; i < len && num; ++i) {
-	    num += (BDIGIT_DBL)BDIGITS(z)[i];
-	    BDIGITS(z)[i] = BIGLO(num);
-	    num = BIGDN(num);
-	}
-	if (num) {
-	    BDIGITS(z)[RBIGNUM_LEN(z)] = BIGLO(num);
-	    RBIGNUM_SET_LEN(z, RBIGNUM_LEN(z)+1);
-	}
-    }
-    return bigtrunc(z);
+    return bigtrunc(bigmul0(x, x));
 }
 
 /*
