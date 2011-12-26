@@ -149,6 +149,20 @@ bignew_1(VALUE klass, long len, int sign)
 #define bignew(len,sign) bignew_1(rb_cBignum,len,sign)
 
 VALUE
+rb_bignum_new_retained(const char *str)
+{
+    VALUE v = rb_cstr2inum(str, 10);
+    GC_RETAIN(v);
+    return v;
+}
+
+VALUE
+rb_big_new(long len, int sign)
+{
+    return bignew(len, sign != 0);
+}
+
+VALUE
 rb_big_clone(VALUE x)
 {
     VALUE z = bignew_1(CLASS_OF(x), RBIGNUM_LEN(x), RBIGNUM_SIGN(x));
@@ -781,20 +795,6 @@ VALUE
 rb_str2inum(VALUE str, int base)
 {
     return rb_str_to_inum(str, base, base==0);
-}
-
-VALUE
-rb_bignum_new_retained(const char *str)
-{
-    VALUE v = rb_cstr2inum(str, 10);
-    GC_RETAIN(v);
-    return v;
-}
-
-VALUE
-rb_big_new(long len, int sign)
-{
-    return bignew(len, sign != 0);
 }
 
 const char ruby_digitmap[] = "0123456789abcdefghijklmnopqrstuvwxyz";
@@ -1746,7 +1746,7 @@ bigadd(VALUE x, VALUE y, int sign)
 
 /*
  *  call-seq:
- *     big + other  => Numeric
+ *     big + other  -> Numeric
  *
  *  Adds big and other, returning the result.
  */
@@ -2135,6 +2135,13 @@ rb_big_div(VALUE x, VALUE y)
 {
   return rb_big_divide(x, y, '/');
 }
+
+/*
+ *  call-seq:
+ *     big.div(other)  -> integer
+ *
+ * Performs integer division: returns integer value.
+ */
 
 VALUE
 rb_big_idiv_imp(VALUE x, SEL sel, VALUE y)
