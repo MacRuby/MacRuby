@@ -194,7 +194,9 @@ bigtrunc(VALUE x)
 
     if (len == 0) return x;
     while (--len && !ds[len]);
-    rb_big_resize(x, len+1);
+    if (RBIGNUM_LEN(x) > len+1) {
+	rb_big_resize(x, len+1);
+    }
     return x;
 }
 
