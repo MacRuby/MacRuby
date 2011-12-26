@@ -1091,7 +1091,7 @@ rb_big2str0(VALUE x, int base, int trim)
 
     ptr[len] = '\0';
 
-    return rb_str_new2(ptr);
+    return rb_usascii_str_new2(ptr);
 }
 
 VALUE
