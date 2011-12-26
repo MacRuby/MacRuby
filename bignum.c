@@ -1713,6 +1713,110 @@ bigsub(VALUE x, VALUE y)
     return z;
 }
 
+static VALUE bigadd_int(VALUE x, long y);
+
+static VALUE
+bigsub_int(VALUE x, long y0)
+{
+    VALUE z;
+    BDIGIT *xds, *zds;
+    long xn;
+    BDIGIT_DBL_SIGNED num;
+    long i, y;
+
+    y = y0;
+    xds = BDIGITS(x);
+    xn = RBIGNUM_LEN(x);
+
+    z = bignew(xn, RBIGNUM_SIGN(x));
+    zds = BDIGITS(z);
+
+#if SIZEOF_BDIGITS == SIZEOF_LONG
+    num = (BDIGIT_DBL_SIGNED)xds[0] - y;
+    if (xn == 1 && num < 0) {
+	RBIGNUM_SET_SIGN(z, !RBIGNUM_SIGN(x));
+	zds[0] = (BDIGIT)-num;
+	return bignorm(z);
+    }
+    zds[0] = BIGLO(num);
+    num = BIGDN(num);
+    i = 1;
+#else
+    num = 0;
+    for (i=0; i<(int)(sizeof(y)/sizeof(BDIGIT)); i++) {
+	num += (BDIGIT_DBL_SIGNED)xds[i] - BIGLO(y);
+	zds[i] = BIGLO(num);
+	num = BIGDN(num);
+	y = BIGDN(y);
+    }
+#endif
+    while (num && i < xn) {
+	num += xds[i];
+	zds[i++] = BIGLO(num);
+	num = BIGDN(num);
+    }
+    while (i < xn) {
+	zds[i] = xds[i];
+	i++;
+    }
+    if (num < 0) {
+	z = bigsub(x, rb_int2big(y0));
+    }
+    return bignorm(z);
+}
+
+static VALUE
+bigadd_int(VALUE x, long y)
+{
+    VALUE z;
+    BDIGIT *xds, *zds;
+    long xn, zn;
+    BDIGIT_DBL num;
+    long i;
+
+    xds = BDIGITS(x);
+    xn = RBIGNUM_LEN(x);
+
+    if (xn < 2) {
+	zn = 3;
+    }
+    else {
+	zn = xn + 1;
+    }
+    z = bignew(zn, RBIGNUM_SIGN(x));
+    zds = BDIGITS(z);
+
+#if SIZEOF_BDIGITS == SIZEOF_LONG
+    num = (BDIGIT_DBL)xds[0] + y;
+    zds[0] = BIGLO(num);
+    num = BIGDN(num);
+    i = 1;
+#else
+    num = 0;
+    for (i=0; i<(int)(sizeof(y)/sizeof(BDIGIT)); i++) {
+	num += (BDIGIT_DBL)xds[i] + BIGLO(y);
+	zds[i] = BIGLO(num);
+	num = BIGDN(num);
+	y = BIGDN(y);
+    }
+#endif
+    while (num && i < xn) {
+	num += xds[i];
+	zds[i++] = BIGLO(num);
+	num = BIGDN(num);
+    }
+    if (num) zds[i++] = (BDIGIT)num;
+    else while (i < xn) {
+	zds[i] = xds[i];
+	i++;
+    }
+    assert(i <= zn);
+    while (i < zn) {
+	zds[i++] = 0;
+    }
+    return bignorm(z);
+}
+
 static void
 bigadd_core(BDIGIT *xds, long xn, BDIGIT *yds, long yn, BDIGIT *zds, long zn)
 {
@@ -1785,10 +1889,22 @@ bigadd(VALUE x, VALUE y, int sign)
 static VALUE
 rb_big_plus_imp(VALUE x, SEL sel, VALUE y)
 {
+    long n;
+
     switch (TYPE(y)) {
       case T_FIXNUM:
-	y = rb_int2big(FIX2LONG(y));
-	/* fall through */
+	n = FIX2LONG(y);
+	if ((n > 0) != RBIGNUM_SIGN(x)) {
+	    if (n < 0) {
+		n = -n;
+	    }
+	    return bigsub_int(x, n);
+	}
+	if (n < 0) {
+	    n = -n;
+	}
+	return bigadd_int(x, n);
+
       case T_BIGNUM:
 	return bignorm(bigadd(x, y, 1));
 
@@ -1816,10 +1932,22 @@ rb_big_plus(VALUE x, VALUE y)
 VALUE
 rb_big_minus(VALUE x, VALUE y)
 {
+    long n;
+
     switch (TYPE(y)) {
       case T_FIXNUM:
-	y = rb_int2big(FIX2LONG(y));
-	/* fall through */
+	n = FIX2LONG(y);
+	if ((n > 0) != RBIGNUM_SIGN(x)) {
+	    if (n < 0) {
+		n = -n;
+	    }
+	    return bigadd_int(x, n);
+	}
+	if (n < 0) {
+	    n = -n;
+	}
+	return bigsub_int(x, n);
+
       case T_BIGNUM:
 	return bignorm(bigadd(x, y, 0));
 
