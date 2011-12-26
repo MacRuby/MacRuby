@@ -16,6 +16,7 @@
 #ifdef HAVE_IEEEFP_H
 #include <ieeefp.h>
 #endif
+#include <assert.h>
 
 VALUE rb_cBignum;
 
@@ -1655,12 +1656,36 @@ rb_big_neg(VALUE x, SEL sel)
     return bignorm(z);
 }
 
+static void
+bigsub_core(BDIGIT *xds, long xn, BDIGIT *yds, long yn, BDIGIT *zds, long zn)
+{
+    BDIGIT_DBL_SIGNED num;
+    long i;
+
+    for (i = 0, num = 0; i < yn; i++) {
+	num += (BDIGIT_DBL_SIGNED)xds[i] - yds[i];
+	zds[i] = BIGLO(num);
+	num = BIGDN(num);
+    }
+    while (num && i < xn) {
+	num += xds[i];
+	zds[i++] = BIGLO(num);
+	num = BIGDN(num);
+    }
+    while (i < xn) {
+	zds[i] = xds[i];
+	i++;
+    }
+    assert(i <= zn);
+    while (i < zn) {
+	zds[i++] = 0;
+    }
+}
+
 static VALUE
 bigsub(VALUE x, VALUE y)
 {
     VALUE z = 0;
-    BDIGIT *zds;
-    BDIGIT_DBL_SIGNED num;
     long i = RBIGNUM_LEN(x);
 
     /* if x is larger than y, swap */
@@ -1681,32 +1706,52 @@ bigsub(VALUE x, VALUE y)
     }
 
     z = bignew(RBIGNUM_LEN(x), z==0);
-    zds = BDIGITS(z);
+    bigsub_core(BDIGITS(x), RBIGNUM_LEN(x),
+		BDIGITS(y), RBIGNUM_LEN(y),
+		BDIGITS(z), RBIGNUM_LEN(z));
 
-    for (i = 0, num = 0; i < RBIGNUM_LEN(y); i++) {
-	num += (BDIGIT_DBL_SIGNED)BDIGITS(x)[i] - BDIGITS(y)[i];
-	zds[i] = BIGLO(num);
-	num = BIGDN(num);
+    return z;
+}
+
+static void
+bigadd_core(BDIGIT *xds, long xn, BDIGIT *yds, long yn, BDIGIT *zds, long zn)
+{
+    BDIGIT_DBL num = 0;
+    long i;
+
+    if (xn > yn) {
+	BDIGIT *tds;
+	tds = xds; xds = yds; yds = tds;
+	i = xn; xn = yn; yn = i;
     }
-    while (num && i < RBIGNUM_LEN(x)) {
-	num += BDIGITS(x)[i];
+
+    i = 0;
+    while (i < xn) {
+	num += (BDIGIT_DBL)xds[i] + yds[i];
 	zds[i++] = BIGLO(num);
 	num = BIGDN(num);
     }
-    while (i < RBIGNUM_LEN(x)) {
-	zds[i] = BDIGITS(x)[i];
+    while (num && i < yn) {
+	num += yds[i];
+	zds[i++] = BIGLO(num);
+	num = BIGDN(num);
+    }
+    while (i < yn) {
+	zds[i] = yds[i];
 	i++;
     }
-
-    return z;
+    if (num) zds[i++] = (BDIGIT)num;
+    assert(i <= zn);
+    while (i < zn) {
+	zds[i++] = 0;
+    }
 }
 
 static VALUE
 bigadd(VALUE x, VALUE y, int sign)
 {
     VALUE z;
-    BDIGIT_DBL num;
-    long i, len;
+    long len;
 
     sign = (sign == RBIGNUM_SIGN(y));
     if (RBIGNUM_SIGN(x) != sign) {
@@ -1723,23 +1768,9 @@ bigadd(VALUE x, VALUE y, int sign)
     }
     z = bignew(len, sign);
 
-    len = RBIGNUM_LEN(x);
-    for (i = 0, num = 0; i < len; i++) {
-	num += (BDIGIT_DBL)BDIGITS(x)[i] + BDIGITS(y)[i];
-	BDIGITS(z)[i] = BIGLO(num);
-	num = BIGDN(num);
-    }
-    len = RBIGNUM_LEN(y);
-    while (num && i < len) {
-	num += BDIGITS(y)[i];
-	BDIGITS(z)[i++] = BIGLO(num);
-	num = BIGDN(num);
-    }
-    while (i < len) {
-	BDIGITS(z)[i] = BDIGITS(y)[i];
-	i++;
-    }
-    BDIGITS(z)[i] = (BDIGIT)num;
+    bigadd_core(BDIGITS(x), RBIGNUM_LEN(x),
+		BDIGITS(y), RBIGNUM_LEN(y),
+		BDIGITS(z), RBIGNUM_LEN(z));
 
     return z;
 }
@@ -1806,53 +1837,339 @@ rb_big_minus_imp(VALUE x, SEL sel, VALUE y)
     return rb_big_minus(x, y);
 }
 
-struct big_mul_struct {
-    VALUE x, y, z, stop;
-};
-
-static inline VALUE
-bigmul1(void *ptr)
+static long
+big_real_len(VALUE x)
 {
-    struct big_mul_struct *bms = (struct big_mul_struct*)ptr;
-    long i, j;
-    BDIGIT_DBL n = 0;
-    VALUE x = bms->x, y = bms->y, z = bms->z;
-    BDIGIT *xds;
-    BDIGIT *yds;
-    BDIGIT *zds;
-    const int x_len = RBIGNUM_LEN(x);
-    const int y_len = RBIGNUM_LEN(y);
+    long i = RBIGNUM_LEN(x);
+    BDIGIT *xds = BDIGITS(x);
+    while (--i && !xds[i]);
+    return i + 1;
+}
 
-    j = x_len + y_len + 1;
+static VALUE
+bigmul1_single(VALUE x, VALUE y)
+{
+    BDIGIT_DBL n;
+    VALUE z = bignew(2, RBIGNUM_SIGN(x)==RBIGNUM_SIGN(y));
+    BDIGIT *xds, *yds, *zds;
+
+    xds = BDIGITS(x);
+    yds = BDIGITS(y);
+    zds = BDIGITS(z);
+
+    n = (BDIGIT_DBL)xds[0] * yds[0];
+    zds[0] = BIGLO(n);
+    zds[1] = (BDIGIT)BIGDN(n);
+
+    return z;
+}
+
+static VALUE
+bigmul1_normal(VALUE x, VALUE y)
+{
+    long xl = RBIGNUM_LEN(x), yl = RBIGNUM_LEN(y), i, j = xl + yl + 1;
+    BDIGIT_DBL n = 0;
+    VALUE z = bignew(j, RBIGNUM_SIGN(x)==RBIGNUM_SIGN(y));
+    BDIGIT *xds, *yds, *zds;
+
     xds = BDIGITS(x);
     yds = BDIGITS(y);
     zds = BDIGITS(z);
     while (j--) zds[j] = 0;
-    for (i = 0; i < x_len; i++) {
+    for (i = 0; i < xl; i++) {
 	BDIGIT_DBL dd;
-//	if (bms->stop) return Qnil;
 	dd = xds[i];
 	if (dd == 0) continue;
 	n = 0;
-	for (j = 0; j < y_len; j++) {
+	for (j = 0; j < yl; j++) {
 	    BDIGIT_DBL ee = n + (BDIGIT_DBL)dd * yds[j];
 	    n = zds[i + j] + ee;
 	    if (ee) zds[i + j] = BIGLO(n);
 	    n = BIGDN(n);
 	}
 	if (n) {
-	    zds[i + j] = n;
+	    zds[i + j] = (BDIGIT)n;
 	}
+    }
+    //rb_thread_check_ints();
+    return z;
+}
+
+static VALUE bigmul0(VALUE x, VALUE y);
+
+/* balancing multiplication by slicing larger argument */
+static VALUE
+bigmul1_balance(VALUE x, VALUE y)
+{
+    VALUE z, t1, t2;
+    long i, xn, yn, r, n;
+    BDIGIT *yds, *zds, *t1ds;
+
+    xn = RBIGNUM_LEN(x);
+    yn = RBIGNUM_LEN(y);
+    assert(2 * xn <= yn);
+
+    z = bignew(xn + yn, RBIGNUM_SIGN(x)==RBIGNUM_SIGN(y));
+    t1 = bignew(xn, 1);
+
+    yds = BDIGITS(y);
+    zds = BDIGITS(z);
+    t1ds = BDIGITS(t1);
+
+    for (i = 0; i < xn + yn; i++) zds[i] = 0;
+
+    n = 0;
+    while (yn > 0) {
+	r = xn > yn ? yn : xn;
+	MEMCPY(t1ds, yds + n, BDIGIT, r);
+	RBIGNUM_SET_LEN(t1, r);
+	t2 = bigmul0(x, t1);
+	bigadd_core(zds + n, RBIGNUM_LEN(z) - n,
+		    BDIGITS(t2), big_real_len(t2),
+		    zds + n, RBIGNUM_LEN(z) - n);
+	yn -= r;
+	n += r;
+    }
+
+    return z;
+}
+
+/* split a bignum into high and low bignums */
+static void
+big_split(VALUE v, long n, volatile VALUE *ph, volatile VALUE *pl)
+{
+    long hn = 0, ln = RBIGNUM_LEN(v);
+    VALUE h, l;
+    BDIGIT *vds = BDIGITS(v);
+
+    if (ln > n) {
+	hn = ln - n;
+	ln = n;
+    }
+
+    while (--hn && !vds[hn + ln]);
+    h = bignew(hn += 2, 1);
+    MEMCPY(BDIGITS(h), vds + ln, BDIGIT, hn - 1);
+    BDIGITS(h)[hn - 1] = 0; /* margin for carry */
+
+    while (--ln && !vds[ln]);
+    l = bignew(ln += 2, 1);
+    MEMCPY(BDIGITS(l), vds, BDIGIT, ln - 1);
+    BDIGITS(l)[ln - 1] = 0; /* margin for carry */
+
+    *pl = l;
+    *ph = h;
+}
+
+/* multiplication by karatsuba method */
+static VALUE
+bigmul1_karatsuba(VALUE x, VALUE y)
+{
+    long i, n, xn, yn, t1n, t2n;
+    VALUE xh, xl, yh, yl, z, t1, t2, t3;
+    BDIGIT *zds;
+
+    xn = RBIGNUM_LEN(x);
+    yn = RBIGNUM_LEN(y);
+    n = yn / 2;
+    big_split(x, n, &xh, &xl);
+    if (x == y) {
+	yh = xh; yl = xl;
+    }
+    else big_split(y, n, &yh, &yl);
+
+    /* x = xh * b + xl
+     * y = yh * b + yl
+     *
+     * Karatsuba method:
+     *   x * y = z2 * b^2 + z1 * b + z0
+     *   where
+     *     z2 = xh * yh
+     *     z0 = xl * yl
+     *     z1 = (xh + xl) * (yh + yl) - z2 - z0
+     *
+     *  ref: http://en.wikipedia.org/wiki/Karatsuba_algorithm
+     */
+
+    /* allocate a result bignum */
+    z = bignew(xn + yn, RBIGNUM_SIGN(x)==RBIGNUM_SIGN(y));
+    zds = BDIGITS(z);
+
+    /* t1 <- xh * yh */
+    t1 = bigmul0(xh, yh);
+    t1n = big_real_len(t1);
+
+    /* copy t1 into high bytes of the result (z2) */
+    MEMCPY(zds + 2 * n, BDIGITS(t1), BDIGIT, t1n);
+    for (i = 2 * n + t1n; i < xn + yn; i++) zds[i] = 0;
+
+    if (!BIGZEROP(xl) && !BIGZEROP(yl)) {
+	/* t2 <- xl * yl */
+	t2 = bigmul0(xl, yl);
+	t2n = big_real_len(t2);
+
+	/* copy t2 into low bytes of the result (z0) */
+	MEMCPY(zds, BDIGITS(t2), BDIGIT, t2n);
+	for (i = t2n; i < 2 * n; i++) zds[i] = 0;
+    }
+    else {
+	t2 = Qundef;
+	t2n = 0;
+
+	/* copy 0 into low bytes of the result (z0) */
+	for (i = 0; i < 2 * n; i++) zds[i] = 0;
+    }
+
+    /* xh <- xh + xl */
+    if (RBIGNUM_LEN(xl) > RBIGNUM_LEN(xh)) {
+	t3 = xl; xl = xh; xh = t3;
+    }
+    /* xh has a margin for carry */
+    bigadd_core(BDIGITS(xh), RBIGNUM_LEN(xh),
+		BDIGITS(xl), RBIGNUM_LEN(xl),
+		BDIGITS(xh), RBIGNUM_LEN(xh));
+
+    /* yh <- yh + yl */
+    if (x != y) {
+	if (RBIGNUM_LEN(yl) > RBIGNUM_LEN(yh)) {
+	    t3 = yl; yl = yh; yh = t3;
+	}
+	/* yh has a margin for carry */
+	bigadd_core(BDIGITS(yh), RBIGNUM_LEN(yh),
+		    BDIGITS(yl), RBIGNUM_LEN(yl),
+		    BDIGITS(yh), RBIGNUM_LEN(yh));
+    }
+    else yh = xh;
+
+    /* t3 <- xh * yh */
+    t3 = bigmul0(xh, yh);
+
+    i = xn + yn - n;
+    /* subtract t1 from t3 */
+    bigsub_core(BDIGITS(t3), big_real_len(t3), BDIGITS(t1), t1n, BDIGITS(t3), big_real_len(t3));
+
+    /* subtract t2 from t3; t3 is now the middle term of the product */
+    if (t2 != Qundef) bigsub_core(BDIGITS(t3), big_real_len(t3), BDIGITS(t2), t2n, BDIGITS(t3), big_real_len(t3));
+
+    /* add t3 to middle bytes of the result (z1) */
+    bigadd_core(zds + n, i, BDIGITS(t3), big_real_len(t3), zds + n, i);
+
+    return z;
+}
+
+/* efficient squaring (2 times faster than normal multiplication)
+ * ref: Handbook of Applied Cryptography, Algorithm 14.16
+ *      http://www.cacr.math.uwaterloo.ca/hac/about/chap14.pdf
+ */
+static VALUE
+bigsqr_fast(VALUE x)
+{
+    long len = RBIGNUM_LEN(x), i, j;
+    VALUE z = bignew(2 * len + 1, 1);
+    BDIGIT *xds = BDIGITS(x), *zds = BDIGITS(z);
+    BDIGIT_DBL c, v, w;
+
+    for (i = 2 * len + 1; i--; ) zds[i] = 0;
+    for (i = 0; i < len; i++) {
+	v = (BDIGIT_DBL)xds[i];
+	if (!v) continue;
+	c = (BDIGIT_DBL)zds[i + i] + v * v;
+	zds[i + i] = BIGLO(c);
+	c = BIGDN(c);
+	v *= 2;
+	for (j = i + 1; j < len; j++) {
+	    w = (BDIGIT_DBL)xds[j];
+	    c += (BDIGIT_DBL)zds[i + j] + BIGLO(v) * w;
+	    zds[i + j] = BIGLO(c);
+	    c = BIGDN(c);
+	    if (BIGDN(v)) c += w;
+	}
+	if (c) {
+	    c += (BDIGIT_DBL)zds[i + len];
+	    zds[i + len] = BIGLO(c);
+	    c = BIGDN(c);
+	}
+	if (c) zds[i + len + 1] += (BDIGIT)c;
     }
     return z;
 }
 
-static VALUE
-rb_big_mul0(VALUE x, VALUE y)
-{
-    struct big_mul_struct bms;
-    volatile VALUE z;
+#define KARATSUBA_MUL_DIGITS 70
 
+
+/* determine whether a bignum is sparse or not by random sampling */
+static inline VALUE
+big_sparse_p(VALUE x)
+{
+    long c = 0, n = RBIGNUM_LEN(x);
+    unsigned long rb_rand_internal(unsigned long i);
+
+    if (          BDIGITS(x)[rb_rand_internal(n / 2) + n / 4]) c++;
+    if (c <= 1 && BDIGITS(x)[rb_rand_internal(n / 2) + n / 4]) c++;
+    if (c <= 1 && BDIGITS(x)[rb_rand_internal(n / 2) + n / 4]) c++;
+
+    return (c <= 1) ? Qtrue : Qfalse;
+}
+
+#if 0
+static void
+dump_bignum(VALUE x)
+{
+    long i;
+    printf("0x0");
+    for (i = RBIGNUM_LEN(x); i--; ) {
+	printf("_%08x", BDIGITS(x)[i]);
+    }
+    puts("");
+}
+#endif
+
+static VALUE
+bigmul0(VALUE x, VALUE y)
+{
+    long xn, yn;
+
+    xn = RBIGNUM_LEN(x);
+    yn = RBIGNUM_LEN(y);
+
+    /* make sure that y is longer than x */
+    if (xn > yn) {
+	VALUE t;
+	long tn;
+	t = x; x = y; y = t;
+	tn = xn; xn = yn; yn = tn;
+    }
+    assert(xn <= yn);
+
+    /* normal multiplication when x is small */
+    if (xn < KARATSUBA_MUL_DIGITS) {
+      normal:
+	if (x == y) return bigsqr_fast(x);
+	if (xn == 1 && yn == 1) return bigmul1_single(x, y);
+	return bigmul1_normal(x, y);
+    }
+
+    /* normal multiplication when x or y is a sparse bignum */
+    if (big_sparse_p(x)) goto normal;
+    if (big_sparse_p(y)) return bigmul1_normal(y, x);
+
+    /* balance multiplication by slicing y when x is much smaller than y */
+    if (2 * xn <= yn) return bigmul1_balance(x, y);
+
+    /* multiplication by karatsuba method */
+    return bigmul1_karatsuba(x, y);
+}
+
+/*
+ *  call-seq:
+ *     big * other  -> Numeric
+ *
+ *  Multiplies big and other, returning the result.
+ */
+
+VALUE
+rb_big_mul(VALUE x, VALUE y)
+{
     switch (TYPE(y)) {
       case T_FIXNUM:
 	y = rb_int2big(FIX2LONG(y));
@@ -1868,38 +2185,13 @@ rb_big_mul0(VALUE x, VALUE y)
 	return rb_num_coerce_bin(x, y, '*');
     }
 
-    bms.x = x;
-    bms.y = y;
-    bms.z = bignew(RBIGNUM_LEN(x) + RBIGNUM_LEN(y) + 1, RBIGNUM_SIGN(x)==RBIGNUM_SIGN(y));
-    bms.stop = Qfalse;
-
-//    if (RBIGNUM_LEN(x) + RBIGNUM_LEN(y) > 10000) {
-//	z = rb_thread_blocking_region(bigmul1, &bms, rb_big_stop, &bms.stop);
-//    }
-//    else {
-	z = bigmul1(&bms);
-//    }
-
-    return z;
-}
-
-/*
- *  call-seq:
- *     big * other  -> Numeric
- *
- *  Multiplies big and other, returning the result.
- */
-
-VALUE
-rb_big_mul(VALUE x, VALUE y)
-{
-    return bignorm(rb_big_mul0(x, y));
+    return bignorm(bigmul0(x, y));
 }
 
 static VALUE
 rb_big_mul_imp(VALUE x, SEL sel, VALUE y)
 {
-    return bignorm(rb_big_mul0(x, y));
+    return bignorm(rb_big_mul(x, y));
 }
 
 struct big_div_struct {
@@ -1951,6 +2243,15 @@ bigdivrem1(void *ptr)
     } while (--j >= ny);
     return Qnil;
 }
+
+#if 0
+static void
+rb_big_stop(void *ptr)
+{
+    VALUE *stop = (VALUE*)ptr;
+    *stop = Qtrue;
+}
+#endif
 
 static VALUE
 bigdivrem(VALUE x, VALUE y, VALUE *divp, VALUE *modp)
@@ -2387,7 +2688,7 @@ bigsqr(VALUE x)
     BDIGIT_DBL num;
 
     if (len < 4000 / BITSPERDIG) {
-	return bigtrunc(rb_big_mul0(x, x));
+	return bigtrunc(bigmul0(x, x));
     }
 
     a = bignew(len - k, 1);
@@ -2404,7 +2705,7 @@ bigsqr(VALUE x)
     }
     MEMCPY(BDIGITS(z) + 2 * k, BDIGITS(a2), BDIGIT, RBIGNUM_LEN(a2));
     RBIGNUM_SET_LEN(z, len);
-    a2 = bigtrunc(rb_big_mul0(a, b));
+    a2 = bigtrunc(bigmul0(a, b));
     len = RBIGNUM_LEN(a2);
     for (i = 0, num = 0; i < len; i++) {
 	num += (BDIGIT_DBL)BDIGITS(z)[i + k] + ((BDIGIT_DBL)BDIGITS(a2)[i] << 1);
@@ -2480,7 +2781,7 @@ rb_big_pow(VALUE x, VALUE y)
 	    for (mask = FIXNUM_MAX + 1; mask; mask >>= 1) {
 		if (z) z = bigsqr(z);
 		if (yy & mask) {
-		    z = z ? bigtrunc(rb_big_mul0(z, x)) : x;
+		    z = z ? bigtrunc(bigmul0(z, x)) : x;
 		}
 	    }
 	    return bignorm(z);
