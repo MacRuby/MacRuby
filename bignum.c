@@ -1696,18 +1696,21 @@ bigsub(VALUE x, VALUE y)
 {
     VALUE z = 0;
     long i = RBIGNUM_LEN(x);
+    BDIGIT *xds, *yds;
 
     /* if x is larger than y, swap */
     if (RBIGNUM_LEN(x) < RBIGNUM_LEN(y)) {
 	z = x; x = y; y = z;	/* swap x y */
     }
     else if (RBIGNUM_LEN(x) == RBIGNUM_LEN(y)) {
+	xds = BDIGITS(x);
+	yds = BDIGITS(y);
 	while (i > 0) {
 	    i--;
-	    if (BDIGITS(x)[i] > BDIGITS(y)[i]) {
+	    if (xds[i] > yds[i]) {
 		break;
 	    }
-	    if (BDIGITS(x)[i] < BDIGITS(y)[i]) {
+	    if (xds[i] < yds[i]) {
 		z = x; x = y; y = z;	/* swap x y */
 		break;
 	    }
