@@ -2712,8 +2712,8 @@ rb_big_lshift(VALUE x, VALUE y)
 	y = rb_to_int(y);
     }
 
-    if (neg) return big_rshift(x, shift);
-    return big_lshift(x, shift);
+    x = neg ? big_rshift(x, shift) : big_lshift(x, shift);
+    return bignorm(x);
 }
 
 static VALUE
@@ -2727,7 +2727,7 @@ big_lshift(VALUE x, unsigned long shift)
 {
     BDIGIT *xds, *zds;
     long s1 = shift/BITSPERDIG;
-    int s2 = shift%BITSPERDIG;
+    int s2 = (int)(shift%BITSPERDIG);
     VALUE z;
     BDIGIT_DBL num = 0;
     long len, i;
@@ -2745,7 +2745,7 @@ big_lshift(VALUE x, unsigned long shift)
 	num = BIGDN(num);
     }
     *zds = BIGLO(num);
-    return bignorm(z);
+    return z;
 }
 
 /*
@@ -2784,8 +2784,8 @@ rb_big_rshift(VALUE x, VALUE y)
 	y = rb_to_int(y);
     }
 
-    if (neg) return big_lshift(x, shift);
-    return big_rshift(x, shift);
+    x = neg ? big_lshift(x, shift) : big_rshift(x, shift);
+    return bignorm(x);
 }
 
 static VALUE
@@ -2799,7 +2799,7 @@ big_rshift(VALUE x, unsigned long shift)
 {
     BDIGIT *xds, *zds;
     long s1 = shift/BITSPERDIG;
-    int s2 = shift%BITSPERDIG;
+    int s2 = (int)(shift%BITSPERDIG);
     VALUE z;
     BDIGIT_DBL num = 0;
     long i, j;
@@ -2834,7 +2834,7 @@ big_rshift(VALUE x, unsigned long shift)
     if (!RBIGNUM_SIGN(x)) {
 	get2comp(z);
     }
-    return bignorm(z);
+    return z;
 }
 
 /*
