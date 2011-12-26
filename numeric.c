@@ -102,7 +102,7 @@ VALUE rb_big_idiv(VALUE x, VALUE y);
 static VALUE int_pow(long x, unsigned long y);
 
 static SEL sel_coerce, selDiv, selDivmod, selExp;
-static ID id_to_i, id_eq;
+static ID id_to_i, id_eq, id_floor;
 
 VALUE rb_cNumeric;
 VALUE rb_cFloat;
@@ -343,8 +343,6 @@ num_fdiv(VALUE x, SEL sel, VALUE y)
 }
 
 
-static VALUE num_floor(VALUE num, SEL sel);
-
 /*
  *  call-seq:
  *     num.div(numeric)  ->  integer
@@ -365,7 +363,8 @@ num_div(VALUE x, SEL sel, VALUE y)
     if (rb_equal(INT2FIX(0), y)) {
 	rb_num_zerodiv();
     }
-    return num_floor(rb_vm_call(x, selDIV, 1, &y), 0);
+    VALUE tmp = rb_vm_call(x, selDIV, 1, &y);
+    return rb_funcall(tmp, id_floor, 0);
 }
 
 
@@ -3484,6 +3483,7 @@ Init_Numeric(void)
 
     id_to_i = rb_intern("to_i");
     id_eq = rb_intern("==");
+    id_floor = rb_intern("floor");
 
     rb_eZeroDivError = rb_define_class("ZeroDivisionError", rb_eStandardError);
     rb_eFloatDomainError = rb_define_class("FloatDomainError", rb_eRangeError);
