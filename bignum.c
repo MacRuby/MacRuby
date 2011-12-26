@@ -378,6 +378,8 @@ rb_big_unpack(unsigned long *buf, long num_longs)
     }
 }
 
+#define QUAD_SIZE 8
+
 #ifdef HAVE_LONG_LONG
 
 void
@@ -448,7 +450,19 @@ rb_quad_unpack(const char *buf, int sign)
 
 #else
 
-#define QUAD_SIZE 8
+static int
+quad_buf_complement(char *buf, size_t len)
+{
+    size_t i;
+    for (i = 0; i < len; i++)
+        buf[i] = ~buf[i];
+    for (i = 0; i < len; i++) {
+        buf[i]++;
+        if (buf[i] != 0)
+            return 0;
+    }
+    return 1;
+}
 
 void
 rb_quad_pack(char *buf, VALUE val)
@@ -462,15 +476,11 @@ rb_quad_pack(char *buf, VALUE val)
     }
     len = RBIGNUM_LEN(val) * SIZEOF_BDIGITS;
     if (len > QUAD_SIZE) {
-	rb_raise(rb_eRangeError, "bignum too big to convert into `quad int'");
+        len = QUAD_SIZE;
     }
     memcpy(buf, (char*)BDIGITS(val), len);
-    if (!RBIGNUM_SIGN(val)) {
-	len = QUAD_SIZE;
-	while (len--) {
-	    *buf = ~*buf;
-	    buf++;
-	}
+    if (RBIGNUM_NEGATIVE_P(val)) {
+        quad_buf_complement(buf, QUAD_SIZE);
     }
 }
 
@@ -483,14 +493,10 @@ rb_quad_unpack(const char *buf, int sign)
 
     memcpy((char*)BDIGITS(big), buf, QUAD_SIZE);
     if (sign && BNEG(buf)) {
-	long len = QUAD_SIZE;
 	char *tmp = (char*)BDIGITS(big);
 
 	RBIGNUM_SET_SIGN(big, 0);
-	while (len--) {
-	    *tmp = ~*tmp;
-	    tmp++;
-	}
+        quad_buf_complement(tmp, QUAD_SIZE);
     }
 
     return bignorm(big);
