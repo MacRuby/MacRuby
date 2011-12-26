@@ -1006,11 +1006,13 @@ static VALUE
 flo_hash(VALUE num, SEL sel)
 {
     double d;
-    int hash;
+    st_index_t hash;
 
     d = RFLOAT_VALUE(num);
+    /* normalize -0.0 to 0.0 */
+    if (d == 0.0) d = 0.0;
     hash = rb_memhash(&d, sizeof(d));
-    return INT2FIX(hash);
+    return LONG2FIX(hash);
 }
 
 VALUE
