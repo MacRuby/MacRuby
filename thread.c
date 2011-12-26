@@ -271,7 +271,7 @@ rb_thread_polling(void)
 void
 rb_thread_schedule(void)
 {
-    // TODO
+    pthread_yield_np();
 }
 
 int rb_thread_critical; /* TODO: dummy variable */
@@ -299,7 +299,7 @@ int rb_thread_critical; /* TODO: dummy variable */
 static VALUE
 thread_s_pass(VALUE klass, SEL sel)
 {
-    pthread_yield_np();
+    rb_thread_schedule();
     return Qnil;
 }
 
