@@ -166,9 +166,10 @@ rb_big_new(long len, int sign)
 VALUE
 rb_big_clone(VALUE x)
 {
-    VALUE z = bignew_1(CLASS_OF(x), RBIGNUM_LEN(x), RBIGNUM_SIGN(x));
+    long len = RBIGNUM_LEN(x);
+    VALUE z = bignew_1(CLASS_OF(x), len, RBIGNUM_SIGN(x));
 
-    MEMCPY(BDIGITS(z), BDIGITS(x), BDIGIT, RBIGNUM_LEN(x));
+    MEMCPY(BDIGITS(z), BDIGITS(x), BDIGIT, len);
     return z;
 }
 
@@ -801,7 +802,7 @@ rb_str2inum(VALUE str, int base)
 const char ruby_digitmap[] = "0123456789abcdefghijklmnopqrstuvwxyz";
 
 static VALUE bigsqr(VALUE x);
-static void bigdivmod(VALUE x, VALUE y, VALUE *divp, VALUE *modp);
+static void bigdivmod(VALUE x, VALUE y, volatile VALUE *divp, volatile VALUE *modp);
 
 #define POW2_P(x) (((x)&((x)-1))==0)
 
@@ -1301,7 +1302,7 @@ static double
 big2dbl(VALUE x)
 {
     double d = 0.0;
-    long i = RBIGNUM_LEN(x), lo = 0, bits;
+    long i = (bigtrunc(x), RBIGNUM_LEN(x)), lo = 0, bits;
     BDIGIT *ds = BDIGITS(x), dl;
 
     if (i) {
@@ -2390,24 +2391,24 @@ rb_big_stop(void *ptr)
 #endif
 
 static VALUE
-bigdivrem(VALUE x, VALUE y, VALUE *divp, VALUE *modp)
+bigdivrem(VALUE x, VALUE y, volatile VALUE *divp, volatile VALUE *modp)
 {
     struct big_div_struct bds;
     long nx = RBIGNUM_LEN(x), ny = RBIGNUM_LEN(y);
     long i, j;
-    volatile VALUE yy, z;
+    VALUE z, yy, zz;
     BDIGIT *xds, *yds, *zds, *tds;
     BDIGIT_DBL t2;
     BDIGIT dd, q;
 
     if (BIGZEROP(y)) rb_num_zerodiv();
+    xds = BDIGITS(x);
     yds = BDIGITS(y);
-    if (nx < ny || (nx == ny && BDIGITS(x)[nx - 1] < BDIGITS(y)[ny - 1])) {
+    if (nx < ny || (nx == ny && xds[nx - 1] < yds[ny - 1])) {
 	if (divp) *divp = rb_int2big(0);
 	if (modp) *modp = x;
 	return Qnil;
     }
-    xds = BDIGITS(x);
     if (ny == 1) {
 	dd = yds[0];
 	z = rb_big_clone(x);
@@ -2468,7 +2469,7 @@ bigdivrem(VALUE x, VALUE y, VALUE *divp, VALUE *modp)
     bds.zds = zds;
     bds.yds = yds;
     bds.stop = Qfalse;
-//    if (RBIGNUM_LEN(x) > 10000 || RBIGNUM_LEN(y) > 10000) {
+//    if (nx > 10000 || ny > 10000) {
 //	rb_thread_blocking_region(bigdivrem1, &bds, rb_big_stop, &bds.stop);
 //    }
 //    else {
@@ -2476,16 +2477,16 @@ bigdivrem(VALUE x, VALUE y, VALUE *divp, VALUE *modp)
 //    }
 
     if (divp) {			/* move quotient down in z */
-	*divp = rb_big_clone(z);
-	zds = BDIGITS(*divp);
+	*divp = zz = rb_big_clone(z);
+	zds = BDIGITS(zz);
 	j = (nx==ny ? nx+2 : nx+1) - ny;
 	for (i = 0;i < j;i++) zds[i] = zds[i+ny];
 	if (!zds[i-1]) i--;
-	RBIGNUM_SET_LEN(*divp, i);
+	RBIGNUM_SET_LEN(zz, i);
     }
     if (modp) {			/* normalize remainder */
-	*modp = rb_big_clone(z);
-	zds = BDIGITS(*modp);
+	*modp = zz = rb_big_clone(z);
+	zds = BDIGITS(zz);
 	while (--ny && !zds[ny]); ++ny;
 	if (dd) {
 	    t2 = 0; i = ny;
@@ -2497,14 +2498,14 @@ bigdivrem(VALUE x, VALUE y, VALUE *divp, VALUE *modp)
 	    }
 	}
 	if (!zds[ny-1]) ny--;
-	RBIGNUM_SET_LEN(*modp, ny);
-	RBIGNUM_SET_SIGN(*modp, RBIGNUM_SIGN(x));
+	RBIGNUM_SET_LEN(zz, ny);
+	RBIGNUM_SET_SIGN(zz, RBIGNUM_SIGN(x));
     }
     return z;
 }
 
 static void
-bigdivmod(VALUE x, VALUE y, VALUE *divp, VALUE *modp)
+bigdivmod(VALUE x, VALUE y, volatile VALUE *divp, volatile VALUE *modp)
 {
     VALUE mod;
 
