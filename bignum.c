@@ -2900,6 +2900,50 @@ bit_coerce(VALUE x)
     return x;
 }
 
+static VALUE
+bigand_int(VALUE x, long y)
+{
+    VALUE z;
+    BDIGIT *xds, *zds;
+    long xn, zn;
+    long i;
+    char sign;
+
+    if (y == 0) return INT2FIX(0);
+    sign = (y > 0);
+    xds = BDIGITS(x);
+    zn = xn = RBIGNUM_LEN(x);
+#if SIZEOF_BDIGITS == SIZEOF_LONG
+    if (sign) {
+	y &= xds[0];
+	return LONG2NUM(y);
+    }
+#endif
+
+    z = bignew(zn, RBIGNUM_SIGN(x) || sign);
+    zds = BDIGITS(z);
+
+#if SIZEOF_BDIGITS == SIZEOF_LONG
+    i = 1;
+    zds[0] = xds[0] & y;
+#else
+    {
+	BDIGIT_DBL num = y;
+
+	for (i=0; i<(int)(sizeof(y)/sizeof(BDIGIT)); i++) {
+	    zds[i] = xds[i] & BIGLO(num);
+	    num = BIGDN(num);
+	}
+    }
+#endif
+    while (i < xn) {
+	zds[i] = sign?0:xds[i];
+	i++;
+    }
+    if (!RBIGNUM_SIGN(z)) get2comp(z);
+    return bignorm(z);
+}
+
 /*
  * call-seq:
  *     big & numeric   ->  integer
@@ -2917,16 +2961,16 @@ rb_big_and(VALUE xx, VALUE yy)
 
     x = xx;
     y = bit_coerce(yy);
+    if (!RBIGNUM_SIGN(x)) {
+	x = rb_big_clone(x);
+	get2comp(x);
+    }
     if (FIXNUM_P(y)) {
-	y = rb_int2big(FIX2LONG(y));
+	return bigand_int(x, FIX2LONG(y));
     }
     if (!RBIGNUM_SIGN(y)) {
 	y = rb_big_clone(y);
 	get2comp(y);
-    }
-    if (!RBIGNUM_SIGN(x)) {
-	x = rb_big_clone(x);
-	get2comp(x);
     }
     if (RBIGNUM_LEN(x) > RBIGNUM_LEN(y)) {
 	l1 = RBIGNUM_LEN(y);
@@ -2961,6 +3005,42 @@ rb_big_and_imp(VALUE x, SEL sel, VALUE y)
     return rb_big_and(x, y);
 }
 
+static VALUE
+bigor_int(VALUE x, long y)
+{
+    VALUE z;
+    BDIGIT *xds, *zds;
+    long xn, zn;
+    long i;
+    char sign;
+
+    sign = (y >= 0);
+    xds = BDIGITS(x);
+    zn = xn = RBIGNUM_LEN(x);
+    z = bignew(zn, RBIGNUM_SIGN(x) && sign);
+    zds = BDIGITS(z);
+
+#if SIZEOF_BDIGITS == SIZEOF_LONG
+    i = 1;
+    zds[0] = xds[0] | y;
+#else
+    {
+	BDIGIT_DBL num = y;
+
+	for (i=0; i<(int)(sizeof(y)/sizeof(BDIGIT)); i++) {
+	    zds[i] = xds[i] | BIGLO(num);
+	    num = BIGDN(num);
+	}
+    }
+#endif
+    while (i < xn) {
+	zds[i] = sign?xds[i]:(BDIGIT)(BIGRAD-1);
+	i++;
+    }
+    if (!RBIGNUM_SIGN(z)) get2comp(z);
+    return bignorm(z);
+}
+
 /*
  * call-seq:
  *     big | numeric   ->  integer
@@ -2978,17 +3058,17 @@ rb_big_or(VALUE xx, VALUE yy)
 
     x = xx;
     y = bit_coerce(yy);
-    if (FIXNUM_P(y)) {
-	y = rb_int2big(FIX2LONG(y));
-    }
 
-    if (!RBIGNUM_SIGN(y)) {
-	y = rb_big_clone(y);
-	get2comp(y);
-    }
     if (!RBIGNUM_SIGN(x)) {
 	x = rb_big_clone(x);
 	get2comp(x);
+    }
+    if (FIXNUM_P(y)) {
+	return bigor_int(x, FIX2LONG(y));
+    }
+    if (!RBIGNUM_SIGN(y)) {
+	y = rb_big_clone(y);
+	get2comp(y);
     }
     if (RBIGNUM_LEN(x) > RBIGNUM_LEN(y)) {
 	l1 = RBIGNUM_LEN(y);
@@ -3014,7 +3094,6 @@ rb_big_or(VALUE xx, VALUE yy)
 	zds[i] = sign?ds2[i]:(BIGRAD-1);
     }
     if (!RBIGNUM_SIGN(z)) get2comp(z);
-
     return bignorm(z);
 }
 
@@ -3022,6 +3101,42 @@ static VALUE
 rb_big_or_imp(VALUE x, SEL sel, VALUE y)
 {
     return rb_big_or(x, y);
+}
+
+static VALUE
+bigxor_int(VALUE x, long y)
+{
+    VALUE z;
+    BDIGIT *xds, *zds;
+    long xn, zn;
+    long i;
+    char sign;
+
+    sign = (y >= 0) ? 1 : 0;
+    xds = BDIGITS(x);
+    zn = xn = RBIGNUM_LEN(x);
+    z = bignew(zn, !(RBIGNUM_SIGN(x) ^ sign));
+    zds = BDIGITS(z);
+
+#if SIZEOF_BDIGITS == SIZEOF_LONG
+    i = 1;
+    zds[0] = xds[0] ^ y;
+#else
+    {
+	BDIGIT_DBL num = y;
+
+	for (i=0; i<(int)(sizeof(y)/sizeof(BDIGIT)); i++) {
+	    zds[i] = xds[i] ^ BIGLO(num);
+	    num = BIGDN(num);
+	}
+    }
+#endif
+    while (i < xn) {
+	zds[i] = sign?xds[i]:~xds[i];
+	i++;
+    }
+    if (!RBIGNUM_SIGN(z)) get2comp(z);
+    return bignorm(z);
 }
 
 /*
@@ -3042,17 +3157,17 @@ rb_big_xor(VALUE xx, VALUE yy)
 
     x = xx;
     y = bit_coerce(yy);
-    if (FIXNUM_P(y)) {
-	y = rb_int2big(FIX2LONG(y));
-    }
 
-    if (!RBIGNUM_SIGN(y)) {
-	y = rb_big_clone(y);
-	get2comp(y);
-    }
     if (!RBIGNUM_SIGN(x)) {
 	x = rb_big_clone(x);
 	get2comp(x);
+    }
+    if (FIXNUM_P(y)) {
+	return bigxor_int(x, FIX2LONG(y));
+    }
+    if (!RBIGNUM_SIGN(y)) {
+	y = rb_big_clone(y);
+	get2comp(y);
     }
     if (RBIGNUM_LEN(x) > RBIGNUM_LEN(y)) {
 	l1 = RBIGNUM_LEN(y);
