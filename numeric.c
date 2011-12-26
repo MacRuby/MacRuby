@@ -97,6 +97,10 @@ round(double x)
 }
 #endif
 
+VALUE rb_fix_mul(VALUE x, VALUE y);
+VALUE rb_big_idiv(VALUE x, VALUE y);
+static VALUE int_pow(long x, unsigned long y);
+
 static SEL sel_coerce, selDiv, selDivmod, selExp;
 static ID id_to_i, id_eq;
 
@@ -1469,11 +1473,30 @@ flo_round(VALUE num, SEL sel, int argc, VALUE *argv)
     while  (--i >= 0)
 	f = f*10.0;
 
-    if (ndigits < 0) number /= f;
-    else number *= f;
-    number = round(number);
-    if (ndigits < 0) number *= f;
-    else number /= f;
+    if (isinf(f)) {
+	if (ndigits < 0) number = 0;
+    }
+    else {
+	if (ndigits < 0) {
+	    double absnum = fabs(number);
+	    if (absnum < f) return INT2FIX(0);
+	    if (!FIXABLE(number)) {
+		VALUE f10 = int_pow(10, -ndigits);
+		VALUE n10 = f10;
+		if (number < 0) {
+                    extern VALUE rb_big_uminus(VALUE x);
+		    f10 = FIXNUM_P(f10) ? rb_fix_uminus(f10) : rb_big_uminus(f10);
+		}
+		num = rb_big_idiv(rb_dbl2big(absnum), n10);
+		return FIXNUM_P(num) ? rb_fix_mul(num, f10) : rb_big_mul(num, f10);
+	    }
+	    number /= f;
+	}
+	else number *= f;
+	number = round(number);
+	if (ndigits < 0) number *= f;
+	else number /= f;
+    }
 
     if (ndigits > 0) return DBL2NUM(number);
 
