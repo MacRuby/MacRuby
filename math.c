@@ -9,12 +9,11 @@
 #include <math.h>
 #include <errno.h>
 
+#define numberof(array) (int)(sizeof(array) / sizeof((array)[0]))
+
 VALUE rb_mMath;
 VALUE rb_eMathDomainError;
 
-#define numberof(array) (int)(sizeof(array) / sizeof((array)[0]))
-#define domain_error(msg) \
-    rb_raise(rb_eMathDomainError, "Numerical argument is out of domain - " #msg);
 
 static VALUE
 to_flo(VALUE x)
@@ -37,6 +36,9 @@ to_flo(VALUE x)
     Need_Float(x);\
     Need_Float(y);\
 } while (0)
+
+#define domain_error(msg) \
+    rb_raise(rb_eMathDomainError, "Numerical argument is out of domain - " #msg);
 
 /*
  *  call-seq:
