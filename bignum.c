@@ -225,9 +225,13 @@ bigfixize(VALUE x)
     if (len == 0) return INT2FIX(0);
     if ((size_t)(len*SIZEOF_BDIGITS) <= sizeof(long)) {
 	long num = 0;
+#if 2*SIZEOF_BDIGITS > SIZEOF_LONG
+	num = (long)ds[0];
+#else
 	while (len--) {
 	    num = (long)(BIGUP(num) + ds[len]);
 	}
+#endif
 	if (num >= 0) {
 	    if (RBIGNUM_SIGN(x)) {
 		if (POSFIXABLE(num)) return LONG2FIX(num);
