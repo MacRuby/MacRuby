@@ -87,7 +87,7 @@ VALUE
 math_cos(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
-    return DOUBLE2NUM(cos(RFLOAT_VALUE(x)));
+    return DBL2NUM(cos(RFLOAT_VALUE(x)));
 }
 
 /*
@@ -103,7 +103,7 @@ math_sin(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
 
-    return DOUBLE2NUM(sin(RFLOAT_VALUE(x)));
+    return DBL2NUM(sin(RFLOAT_VALUE(x)));
 }
 
 
@@ -119,7 +119,7 @@ math_tan(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
 
-    return DOUBLE2NUM(tan(RFLOAT_VALUE(x)));
+    return DBL2NUM(tan(RFLOAT_VALUE(x)));
 }
 
 /*
@@ -177,7 +177,7 @@ static VALUE
 math_atan(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
-    return DOUBLE2NUM(atan(RFLOAT_VALUE(x)));
+    return DBL2NUM(atan(RFLOAT_VALUE(x)));
 }
 
 #ifndef HAVE_COSH
@@ -200,7 +200,7 @@ math_cosh(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
     
-    return DOUBLE2NUM(cosh(RFLOAT_VALUE(x)));
+    return DBL2NUM(cosh(RFLOAT_VALUE(x)));
 }
 
 #ifndef HAVE_SINH
@@ -223,7 +223,7 @@ VALUE
 math_sinh(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
-    return DOUBLE2NUM(sinh(RFLOAT_VALUE(x)));
+    return DBL2NUM(sinh(RFLOAT_VALUE(x)));
 }
 
 #ifndef HAVE_TANH
@@ -246,7 +246,7 @@ static VALUE
 math_tanh(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
-    return DOUBLE2NUM(tanh(RFLOAT_VALUE(x)));
+    return DBL2NUM(tanh(RFLOAT_VALUE(x)));
 }
 
 /*
@@ -282,7 +282,7 @@ static VALUE
 math_asinh(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
-    return DOUBLE2NUM(asinh(RFLOAT_VALUE(x)));
+    return DBL2NUM(asinh(RFLOAT_VALUE(x)));
 }
 
 /*
@@ -326,7 +326,7 @@ VALUE
 math_exp(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
-    return DOUBLE2NUM(exp(RFLOAT_VALUE(x)));
+    return DBL2NUM(exp(RFLOAT_VALUE(x)));
 }
 
 /*
@@ -523,7 +523,7 @@ static VALUE
 math_cbrt(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
-    return DOUBLE2NUM(cbrt(RFLOAT_VALUE(x)));
+    return DBL2NUM(cbrt(RFLOAT_VALUE(x)));
 }
 
 /*
@@ -547,7 +547,7 @@ math_frexp(VALUE obj, SEL sel, VALUE x)
     Need_Float(x);
 
     d = frexp(RFLOAT_VALUE(x), &exp);
-    return rb_assoc_new(DOUBLE2NUM(d), INT2NUM(exp));
+    return rb_assoc_new(DBL2NUM(d), INT2NUM(exp));
 }
 
 /*
@@ -564,7 +564,7 @@ static VALUE
 math_ldexp(VALUE obj, SEL sel, VALUE x, VALUE n)
 {
     Need_Float(x);
-    return DOUBLE2NUM(ldexp(RFLOAT_VALUE(x), NUM2INT(n)));
+    return DBL2NUM(ldexp(RFLOAT_VALUE(x), NUM2INT(n)));
 }
 
 /*
@@ -581,7 +581,7 @@ VALUE
 math_hypot(VALUE obj, SEL sel, VALUE x, VALUE y)
 {
     Need_Float2(x, y);
-    return DOUBLE2NUM(hypot(RFLOAT_VALUE(x), RFLOAT_VALUE(y)));
+    return DBL2NUM(hypot(RFLOAT_VALUE(x), RFLOAT_VALUE(y)));
 }
 
 /*
@@ -595,7 +595,7 @@ static VALUE
 math_erf(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
-    return DOUBLE2NUM(erf(RFLOAT_VALUE(x)));
+    return DBL2NUM(erf(RFLOAT_VALUE(x)));
 }
 
 /*
@@ -609,7 +609,7 @@ static VALUE
 math_erfc(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
-    return DOUBLE2NUM(erfc(RFLOAT_VALUE(x)));
+    return DBL2NUM(erfc(RFLOAT_VALUE(x)));
 }
 
 /*
@@ -771,15 +771,15 @@ Init_Math(void)
     rb_eMathDomainError = rb_define_class_under(rb_mMath, "DomainError", rb_eStandardError);
 
 #ifdef M_PI
-    rb_define_const(rb_mMath, "PI", DOUBLE2NUM(M_PI));
+    rb_define_const(rb_mMath, "PI", DBL2NUM(M_PI));
 #else
-    rb_define_const(rb_mMath, "PI", DOUBLE2NUM(atan(1.0)*4.0));
+    rb_define_const(rb_mMath, "PI", DBL2NUM(atan(1.0)*4.0));
 #endif
 
 #ifdef M_E
-    rb_define_const(rb_mMath, "E", DOUBLE2NUM(M_E));
+    rb_define_const(rb_mMath, "E", DBL2NUM(M_E));
 #else
-    rb_define_const(rb_mMath, "E", DOUBLE2NUM(exp(1.0)));
+    rb_define_const(rb_mMath, "E", DBL2NUM(exp(1.0)));
 #endif
 
     rb_objc_define_module_function(rb_mMath, "atan2", math_atan2, 2);
