@@ -1,2 +1,1 @@
-fails:Timeout.timeout raises Timeout::Error when it times out with no specified error type
 fails:Timeout.timeout does not return too quickly
