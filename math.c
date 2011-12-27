@@ -14,24 +14,8 @@
 VALUE rb_mMath;
 VALUE rb_eMathDomainError;
 
-
-static VALUE
-to_flo(VALUE x)
-{
-    if (CLASS_OF(x) == rb_cFloat) {
-	return x;
-    }
-    if (!rb_obj_is_kind_of(x, rb_cNumeric)) {
-	rb_raise(rb_eTypeError, "can't convert %s into Float",
-		 NIL_P(x) ? "nil" :
-		 x == Qtrue ? "true" :
-		 x == Qfalse ? "false" :
-		 rb_obj_classname(x));
-    }
-    return rb_convert_type(x, T_FLOAT, "Float", "to_f");
-}
-
-#define Need_Float(x) do {if (TYPE(x) != T_FLOAT) {(x) = to_flo(x);}} while(0)
+extern VALUE rb_to_float(VALUE val);
+#define Need_Float(x) do {if (TYPE(x) != T_FLOAT) {(x) = rb_to_float(x);}} while(0)
 #define Need_Float2(x,y) do {\
     Need_Float(x);\
     Need_Float(y);\
