@@ -473,6 +473,7 @@ enum_to_a(VALUE obj, SEL sel, int argc, VALUE *argv)
     VALUE ary = rb_ary_new();
 
     rb_objc_block_call(obj, selEach, argc, argv, collect_all, ary);
+    OBJ_INFECT(ary, obj);
 
     return ary;
 }
@@ -674,6 +675,7 @@ enum_group_by(VALUE obj, SEL sel)
 
     hash = rb_hash_new();
     rb_objc_block_call(obj, selEach, 0, 0, group_by_i, hash);
+    OBJ_INFECT(hash, obj);
 
     return hash;
 }
@@ -870,6 +872,8 @@ enum_sort_by(VALUE obj, SEL sel)
     for (long i = 0; i < RARRAY_LEN(ary); i++) {
 	rb_ary_store(ary, i, RNODE(RARRAY_AT(ary, i))->u2.value);
     }
+    OBJ_INFECT(ary, obj);
+
     return ary;
 }
 
