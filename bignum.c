@@ -1881,7 +1881,6 @@ bigadd(VALUE x, VALUE y, int sign)
 
     if (RBIGNUM_LEN(x) > RBIGNUM_LEN(y)) {
 	len = RBIGNUM_LEN(x) + 1;
-	z = x; x = y; y = z;
     }
     else {
 	len = RBIGNUM_LEN(y) + 1;
