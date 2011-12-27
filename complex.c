@@ -1092,9 +1092,9 @@ nucomp_polar(VALUE self, SEL sel)
 /*
  * call-seq:
  *    cmp.conj       ->  complex
- *    cmp.conjucate  ->  complex
+ *    cmp.conjugate  ->  complex
  *
- * Returns the complex conjucate.
+ * Returns the complex conjugate.
  */
 static VALUE
 nucomp_conj(VALUE self, SEL sel)
@@ -1632,7 +1632,7 @@ string_to_c_strict(VALUE self)
  *
  * Returns a complex which denotes the string form.  The parser
  * ignores leading whitespaces and trailing garbage.  Any digit
- * sequences can be separeted by an underscore.  Returns zero for null
+ * sequences can be separated by an underscore.  Returns zero for null
  * or garbage string.
  *
  * For example:
@@ -1835,7 +1835,7 @@ numeric_polar(VALUE self, SEL sel)
 /*
  * call-seq:
  *    num.conj       ->  self
- *    num.conjucate  ->  self
+ *    num.conjugate  ->  self
  *
  * Returns self.
  */
