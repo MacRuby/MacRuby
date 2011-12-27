@@ -202,7 +202,7 @@ rb_big_2comp(VALUE x)			/* get 2's complement */
     get2comp(x);
 }
 
-static VALUE
+static inline VALUE
 bigtrunc(VALUE x)
 {
     long len = RBIGNUM_LEN(x);
@@ -216,7 +216,7 @@ bigtrunc(VALUE x)
     return x;
 }
 
-static VALUE
+static inline VALUE
 bigfixize(VALUE x)
 {
     long len = RBIGNUM_LEN(x);
@@ -2575,7 +2575,7 @@ rb_big_div_imp(VALUE x, SEL sel, VALUE y)
 VALUE
 rb_big_div(VALUE x, VALUE y)
 {
-  return rb_big_divide(x, y, '/');
+    return rb_big_divide(x, y, '/');
 }
 
 /*
@@ -2594,7 +2594,7 @@ rb_big_idiv_imp(VALUE x, SEL sel, VALUE y)
 VALUE
 rb_big_idiv(VALUE x, VALUE y)
 {
-  return rb_big_divide(x, y, rb_intern("div"));
+    return rb_big_divide(x, y, rb_intern("div"));
 }
 
 /*
@@ -2902,7 +2902,7 @@ rb_big_pow_imp(VALUE x, SEL sel, VALUE y)
     return rb_big_pow(x, y);
 }
 
-static VALUE
+static inline VALUE
 bit_coerce(VALUE x)
 {
     while (!FIXNUM_P(x) && TYPE(x) != T_BIGNUM) {
