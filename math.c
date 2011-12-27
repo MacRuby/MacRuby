@@ -40,11 +40,22 @@ to_flo(VALUE x)
 
 /*
  *  call-seq:
- *     Math.atan2(y, x)  => float
- *  
+ *     Math.atan2(y, x)  -> float
+ *
  *  Computes the arc tangent given <i>y</i> and <i>x</i>. Returns
  *  -PI..PI.
- *     
+ *
+ *    Math.atan2(-0.0, -1.0) #=> -3.141592653589793
+ *    Math.atan2(-1.0, -1.0) #=> -2.356194490192345
+ *    Math.atan2(-1.0, 0.0)  #=> -1.5707963267948966
+ *    Math.atan2(-1.0, 1.0)  #=> -0.7853981633974483
+ *    Math.atan2(-0.0, 1.0)  #=> -0.0
+ *    Math.atan2(0.0, 1.0)   #=> 0.0
+ *    Math.atan2(1.0, 1.0)   #=> 0.7853981633974483
+ *    Math.atan2(1.0, 0.0)   #=> 1.5707963267948966
+ *    Math.atan2(1.0, -1.0)  #=> 2.356194490192345
+ *    Math.atan2(0.0, -1.0)  #=> 3.141592653589793
+ *
  */
 
 VALUE
@@ -66,8 +77,8 @@ math_atan2(VALUE obj, SEL sel, VALUE y, VALUE x)
 
 /*
  *  call-seq:
- *     Math.cos(x)    => float
- *  
+ *     Math.cos(x)    -> float
+ *
  *  Computes the cosine of <i>x</i> (expressed in radians). Returns
  *  -1..1.
  */
@@ -81,8 +92,8 @@ math_cos(VALUE obj, SEL sel, VALUE x)
 
 /*
  *  call-seq:
- *     Math.sin(x)    => float
- *  
+ *     Math.sin(x)    -> float
+ *
  *  Computes the sine of <i>x</i> (expressed in radians). Returns
  *  -1..1.
  */
@@ -98,8 +109,8 @@ math_sin(VALUE obj, SEL sel, VALUE x)
 
 /*
  *  call-seq:
- *     Math.tan(x)    => float
- *  
+ *     Math.tan(x)    -> float
+ *
  *  Returns the tangent of <i>x</i> (expressed in radians).
  */
 
@@ -113,8 +124,8 @@ math_tan(VALUE obj, SEL sel, VALUE x)
 
 /*
  *  call-seq:
- *     Math.acos(x)    => float
- *  
+ *     Math.acos(x)    -> float
+ *
  *  Computes the arc cosine of <i>x</i>. Returns 0..PI.
  */
 
@@ -135,8 +146,8 @@ math_acos(VALUE obj, SEL sel, VALUE x)
 
 /*
  *  call-seq:
- *     Math.asin(x)    => float
- *  
+ *     Math.asin(x)    -> float
+ *
  *  Computes the arc sine of <i>x</i>. Returns -{PI/2} .. {PI/2}.
  */
 
@@ -157,8 +168,8 @@ math_asin(VALUE obj, SEL sel, VALUE x)
 
 /*
  *  call-seq:
- *     Math.atan(x)    => float
- *  
+ *     Math.atan(x)    -> float
+ *
  *  Computes the arc tangent of <i>x</i>. Returns -{PI/2} .. {PI/2}.
  */
 
@@ -179,8 +190,8 @@ cosh(double x)
 
 /*
  *  call-seq:
- *     Math.cosh(x)    => float
- *  
+ *     Math.cosh(x)    -> float
+ *
  *  Computes the hyperbolic cosine of <i>x</i> (expressed in radians).
  */
 
@@ -202,8 +213,8 @@ sinh(double x)
 
 /*
  *  call-seq:
- *     Math.sinh(x)    => float
- *  
+ *     Math.sinh(x)    -> float
+ *
  *  Computes the hyperbolic sine of <i>x</i> (expressed in
  *  radians).
  */
@@ -225,8 +236,8 @@ tanh(double x)
 
 /*
  *  call-seq:
- *     Math.tanh()    => float
- *  
+ *     Math.tanh()    -> float
+ *
  *  Computes the hyperbolic tangent of <i>x</i> (expressed in
  *  radians).
  */
@@ -240,8 +251,8 @@ math_tanh(VALUE obj, SEL sel, VALUE x)
 
 /*
  *  call-seq:
- *     Math.acosh(x)    => float
- *  
+ *     Math.acosh(x)    -> float
+ *
  *  Computes the inverse hyperbolic cosine of <i>x</i>.
  */
 
@@ -262,8 +273,8 @@ math_acosh(VALUE obj, SEL sel, VALUE x)
 
 /*
  *  call-seq:
- *     Math.asinh(x)    => float
- *  
+ *     Math.asinh(x)    -> float
+ *
  *  Computes the inverse hyperbolic sine of <i>x</i>.
  */
 
@@ -276,8 +287,8 @@ math_asinh(VALUE obj, SEL sel, VALUE x)
 
 /*
  *  call-seq:
- *     Math.atanh(x)    => float
- *  
+ *     Math.atanh(x)    -> float
+ *
  *  Computes the inverse hyperbolic tangent of <i>x</i>.
  */
 
@@ -301,9 +312,14 @@ math_atanh(VALUE obj, SEL sel, VALUE x)
 
 /*
  *  call-seq:
- *     Math.exp(x)    => float
- *  
+ *     Math.exp(x)    -> float
+ *
  *  Returns e**x.
+ *
+ *    Math.exp(0)       #=> 1.0
+ *    Math.exp(1)       #=> 2.718281828459045
+ *    Math.exp(1.5)     #=> 4.4816890703380645
+ *
  */
 
 VALUE
@@ -315,12 +331,18 @@ math_exp(VALUE obj, SEL sel, VALUE x)
 
 /*
  *  call-seq:
- *     Math.log(numeric)    => float
- *     Math.log(num,base)   => float
- *  
+ *     Math.log(numeric)    -> float
+ *     Math.log(num,base)   -> float
+ *
  *  Returns the natural logarithm of <i>numeric</i>.
  *  If additional second argument is given, it will be the base
  *  of logarithm.
+ *
+ *    Math.log(1)          #=> 0.0
+ *    Math.log(Math::E)    #=> 1.0
+ *    Math.log(Math::E**3) #=> 3.0
+ *    Math.log(12,3)       #=> 2.2618595071429146
+ *
  */
 
 VALUE
@@ -362,9 +384,15 @@ extern double log2(double);
 
 /*
  *  call-seq:
- *     Math.log2(numeric)    => float
- *  
+ *     Math.log2(numeric)    -> float
+ *
  *  Returns the base 2 logarithm of <i>numeric</i>.
+ *
+ *    Math.log2(1)      #=> 0.0
+ *    Math.log2(2)      #=> 1.0
+ *    Math.log2(32768)  #=> 15.0
+ *    Math.log2(65536)  #=> 16.0
+ *
  */
 
 static VALUE
@@ -388,9 +416,14 @@ math_log2(VALUE obj, SEL sel, VALUE x)
 
 /*
  *  call-seq:
- *     Math.log10(numeric)    => float
- *  
+ *     Math.log10(numeric)    -> float
+ *
  *  Returns the base 10 logarithm of <i>numeric</i>.
+ *
+ *    Math.log10(1)       #=> 0.0
+ *    Math.log10(10)      #=> 1.0
+ *    Math.log10(10**100) #=> 100.0
+ *
  */
 
 static VALUE
@@ -414,9 +447,26 @@ math_log10(VALUE obj, SEL sel, VALUE x)
 
 /*
  *  call-seq:
- *     Math.sqrt(numeric)    => float
- *  
+ *     Math.sqrt(numeric)    -> float
+ *
  *  Returns the non-negative square root of <i>numeric</i>.
+ *
+ *    0.upto(10) {|x|
+ *      p [x, Math.sqrt(x), Math.sqrt(x)**2]
+ *    }
+ *    #=>
+ *    [0, 0.0, 0.0]
+ *    [1, 1.0, 1.0]
+ *    [2, 1.4142135623731, 2.0]
+ *    [3, 1.73205080756888, 3.0]
+ *    [4, 2.0, 4.0]
+ *    [5, 2.23606797749979, 5.0]
+ *    [6, 2.44948974278318, 6.0]
+ *    [7, 2.64575131106459, 7.0]
+ *    [8, 2.82842712474619, 8.0]
+ *    [9, 3.0, 9.0]
+ *    [10, 3.16227766016838, 10.0]
+ *
  */
 
 VALUE
@@ -439,9 +489,34 @@ math_sqrt(VALUE obj, SEL sel, VALUE x)
 
 /*
  *  call-seq:
- *     Math.cbrt(numeric)    => float
- *  
+ *     Math.cbrt(numeric)    -> float
+ *
  *  Returns the cube root of <i>numeric</i>.
+ *
+ *    -9.upto(9) {|x|
+ *      p [x, Math.cbrt(x), Math.cbrt(x)**3]
+ *    }
+ *    #=>
+ *    [-9, -2.0800838230519, -9.0]
+ *    [-8, -2.0, -8.0]
+ *    [-7, -1.91293118277239, -7.0]
+ *    [-6, -1.81712059283214, -6.0]
+ *    [-5, -1.7099759466767, -5.0]
+ *    [-4, -1.5874010519682, -4.0]
+ *    [-3, -1.44224957030741, -3.0]
+ *    [-2, -1.25992104989487, -2.0]
+ *    [-1, -1.0, -1.0]
+ *    [0, 0.0, 0.0]
+ *    [1, 1.0, 1.0]
+ *    [2, 1.25992104989487, 2.0]
+ *    [3, 1.44224957030741, 3.0]
+ *    [4, 1.5874010519682, 4.0]
+ *    [5, 1.7099759466767, 5.0]
+ *    [6, 1.81712059283214, 6.0]
+ *    [7, 1.91293118277239, 7.0]
+ *    [8, 2.0, 8.0]
+ *    [9, 2.0800838230519, 9.0]
+ *
  */
 
 static VALUE
@@ -453,12 +528,12 @@ math_cbrt(VALUE obj, SEL sel, VALUE x)
 
 /*
  *  call-seq:
- *     Math.frexp(numeric)    => [ fraction, exponent ]
- *  
+ *     Math.frexp(numeric)    -> [ fraction, exponent ]
+ *
  *  Returns a two-element array containing the normalized fraction (a
  *  <code>Float</code>) and exponent (a <code>Fixnum</code>) of
  *  <i>numeric</i>.
- *     
+ *
  *     fraction, exponent = Math.frexp(1234)   #=> [0.6025390625, 11]
  *     fraction * 2**exponent                  #=> 1234.0
  */
@@ -470,7 +545,7 @@ math_frexp(VALUE obj, SEL sel, VALUE x)
     int exp;
 
     Need_Float(x);
-    
+
     d = frexp(RFLOAT_VALUE(x), &exp);
     return rb_assoc_new(DOUBLE2NUM(d), INT2NUM(exp));
 }
@@ -478,9 +553,9 @@ math_frexp(VALUE obj, SEL sel, VALUE x)
 /*
  *  call-seq:
  *     Math.ldexp(flt, int) -> float
- *  
+ *
  *  Returns the value of <i>flt</i>*(2**<i>int</i>).
- *     
+ *
  *     fraction, exponent = Math.frexp(1234)
  *     Math.ldexp(fraction, exponent)   #=> 1234.0
  */
@@ -494,11 +569,11 @@ math_ldexp(VALUE obj, SEL sel, VALUE x, VALUE n)
 
 /*
  *  call-seq:
- *     Math.hypot(x, y)    => float
- *  
+ *     Math.hypot(x, y)    -> float
+ *
  *  Returns sqrt(x**2 + y**2), the hypotenuse of a right-angled triangle
  *  with sides <i>x</i> and <i>y</i>.
- *     
+ *
  *     Math.hypot(3, 4)   #=> 5.0
  */
 
@@ -511,7 +586,7 @@ math_hypot(VALUE obj, SEL sel, VALUE x, VALUE y)
 
 /*
  * call-seq:
- *    Math.erf(x)  => float
+ *    Math.erf(x)  -> float
  *
  *  Calculates the error function of x.
  */
@@ -525,7 +600,7 @@ math_erf(VALUE obj, SEL sel, VALUE x)
 
 /*
  * call-seq:
- *    Math.erfc(x)  => float
+ *    Math.erfc(x)  -> float
  *
  *  Calculates the complementary error function of x.
  */
@@ -539,7 +614,7 @@ math_erfc(VALUE obj, SEL sel, VALUE x)
 
 /*
  * call-seq:
- *    Math.gamma(x)  => float
+ *    Math.gamma(x)  -> float
  *
  *  Calculates the gamma function of x.
  *
@@ -632,7 +707,7 @@ math_gamma(VALUE obj, SEL sel, VALUE x)
 
 /*
  * call-seq:
- *    Math.lgamma(x)  => [float, -1 or 1]
+ *    Math.lgamma(x)  -> [float, -1 or 1]
  *
  *  Calculates the logarithmic gamma of x and
  *  the sign of gamma of x.
@@ -666,11 +741,27 @@ math_lgamma(VALUE obj, SEL sel, VALUE x)
 }
 
 /*
+ *  Document-class: Math::DomainError
+ *
+ *  Raised when a mathematical function is evaluated outside of its
+ *  domain of definition.
+ *
+ *  For example, since +cos+ returns values in the range -1..1,
+ *  its inverse function +acos+ is only defined on that interval:
+ *
+ *     Math.acos(42)
+ *
+ *  <em>produces:</em>
+ *
+ *     Math::DomainError: Numerical argument is out of domain - "acos"
+ */
+
+/*
  *  The <code>Math</code> module contains module functions for basic
  *  trigonometric and transcendental functions. See class
  *  <code>Float</code> for a list of constants that
  *  define Ruby's floating point accuracy.
- */     
+ */
 
 
 void
