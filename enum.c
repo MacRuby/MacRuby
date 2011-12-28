@@ -883,7 +883,11 @@ enum_sort_by(VALUE obj, SEL sel)
     return ary;
 }
 
+#define ENUMFUNC(name) rb_block_given_p() ? name##_iter_i : name##_i
+
 #define DEFINE_ENUMFUNCS(name) \
+static VALUE enum_##name##_func(VALUE result, VALUE *memo); \
+\
 static VALUE \
 name##_i(VALUE i, VALUE *memo, int argc, VALUE *argv) \
 { \
@@ -894,10 +898,12 @@ static VALUE \
 name##_iter_i(VALUE i, VALUE *memo, int argc, VALUE *argv) \
 { \
     return enum_##name##_func(enum_yield(argc, argv), memo); \
-}
-    
-static VALUE
-enum_all_func(VALUE result, VALUE *memo)
+} \
+\
+static VALUE \
+enum_##name##_func(VALUE result, VALUE *memo)
+
+DEFINE_ENUMFUNCS(all)
 {
     if (!RTEST(result)) {
 	*memo = Qfalse;
@@ -905,8 +911,6 @@ enum_all_func(VALUE result, VALUE *memo)
     }
     return Qnil;
 }
-
-DEFINE_ENUMFUNCS(all)
 
 /*
  *  call-seq:
@@ -930,12 +934,11 @@ enum_all(VALUE obj, SEL sel)
 {
     VALUE result = Qtrue;
 
-    rb_objc_block_call(obj, selEach, 0, 0, rb_block_given_p() ? all_iter_i : all_i, (VALUE)&result);
+    rb_objc_block_call(obj, selEach, 0, 0, ENUMFUNC(all), (VALUE)&result);
     return result;
 }
 
-static VALUE
-enum_any_func(VALUE result, VALUE *memo)
+DEFINE_ENUMFUNCS(any)
 {
     if (RTEST(result)) {
 	*memo = Qtrue;
@@ -943,8 +946,6 @@ enum_any_func(VALUE result, VALUE *memo)
     }
     return Qnil;
 }
-
-DEFINE_ENUMFUNCS(any)
 
 /*
  *  call-seq:
@@ -969,12 +970,11 @@ enum_any(VALUE obj, SEL sel)
 {
     VALUE result = Qfalse;
 
-    rb_objc_block_call(obj, selEach, 0, 0, rb_block_given_p() ? any_iter_i : any_i, (VALUE)&result);
+    rb_objc_block_call(obj, selEach, 0, 0, ENUMFUNC(any), (VALUE)&result);
     return result;
 }
 
-static VALUE
-enum_one_func(VALUE result, VALUE *memo)
+DEFINE_ENUMFUNCS(one)
 {
     if (RTEST(result)) {
 	if (*memo == Qundef) {
@@ -987,8 +987,6 @@ enum_one_func(VALUE result, VALUE *memo)
     }
     return Qnil;
 }
-
-DEFINE_ENUMFUNCS(one)
 
 /*
  *  call-seq:
@@ -1013,13 +1011,12 @@ enum_one(VALUE obj, SEL sel)
 {
     VALUE result = Qundef;
 
-    rb_objc_block_call(obj, selEach, 0, 0, rb_block_given_p() ? one_iter_i : one_i, (VALUE)&result);
+    rb_objc_block_call(obj, selEach, 0, 0, ENUMFUNC(one), (VALUE)&result);
     if (result == Qundef) return Qfalse;
     return result;
 }
 
-static VALUE
-enum_none_func(VALUE result, VALUE *memo)
+DEFINE_ENUMFUNCS(none)
 {
     if (RTEST(result)) {
 	*memo = Qfalse;
@@ -1027,8 +1024,6 @@ enum_none_func(VALUE result, VALUE *memo)
     }
     return Qnil;
 }
-
-DEFINE_ENUMFUNCS(none)
 
 /*
  *  call-seq:
@@ -1050,7 +1045,7 @@ enum_none(VALUE obj, SEL sel)
 {
     VALUE result = Qtrue;
 
-    rb_objc_block_call(obj, selEach, 0, 0, rb_block_given_p() ? none_iter_i : none_i, (VALUE)&result);
+    rb_objc_block_call(obj, selEach, 0, 0, ENUMFUNC(none), (VALUE)&result);
     return result;
 }
 
