@@ -84,113 +84,6 @@ obj_to_enum(VALUE obj, SEL sel, int argc, VALUE *argv)
 }
 
 static VALUE
-each_slice_i(VALUE val, VALUE *memo)
-{
-    VALUE ary = memo[0];
-    VALUE v = Qnil;
-    long size = (long)memo[1];
-
-    rb_ary_push(ary, val);
-
-    if (RARRAY_LEN(ary) == size) {
-	v = rb_yield(ary);
-	memo[0] = rb_ary_new2(size);
-    }
-
-    return v;
-}
-
-/*
- *  call-seq:
- *    e.each_slice(n) {...}
- *    e.each_slice(n)
- *
- *  Iterates the given block for each slice of <n> elements.  If no
- *  block is given, returns an enumerator.
- *
- *  e.g.:
- *      (1..10).each_slice(3) {|a| p a}
- *      # outputs below
- *      [1, 2, 3]
- *      [4, 5, 6]
- *      [7, 8, 9]
- *      [10]
- *
- */
-static VALUE
-enum_each_slice(VALUE obj, SEL sel, VALUE n)
-{
-    long size = NUM2LONG(n);
-    VALUE args[2], ary;
-
-    if (size <= 0) rb_raise(rb_eArgError, "invalid slice size");
-    RETURN_ENUMERATOR(obj, 1, &n);
-    args[0] = rb_ary_new2(size);
-    args[1] = (VALUE)size;
-
-    rb_objc_block_call(obj, selEach, 0, 0, each_slice_i, (VALUE)args);
-
-    ary = args[0];
-    if (RARRAY_LEN(ary) > 0) rb_yield(ary);
-
-    return Qnil;
-}
-
-static VALUE
-each_cons_i(VALUE val, VALUE *memo)
-{
-    VALUE ary = memo[0];
-    VALUE v = Qnil;
-    long size = (long)memo[1];
-
-    if (RARRAY_LEN(ary) == size) {
-	rb_ary_shift(ary);
-    }
-    rb_ary_push(ary, val);
-    if (RARRAY_LEN(ary) == size) {
-	v = rb_yield(rb_ary_dup(ary));
-    }
-    return v;
-}
-
-/*
- *  call-seq:
- *    each_cons(n) {...}
- *    each_cons(n)
- *
- *  Iterates the given block for each array of consecutive <n>
- *  elements.  If no block is given, returns an enumerator.a
- *
- *  e.g.:
- *      (1..10).each_cons(3) {|a| p a}
- *      # outputs below
- *      [1, 2, 3]
- *      [2, 3, 4]
- *      [3, 4, 5]
- *      [4, 5, 6]
- *      [5, 6, 7]
- *      [6, 7, 8]
- *      [7, 8, 9]
- *      [8, 9, 10]
- *
- */
-static VALUE
-enum_each_cons(VALUE obj, SEL sel, VALUE n)
-{
-    long size = NUM2LONG(n);
-    VALUE args[2];
-
-    if (size <= 0) rb_raise(rb_eArgError, "invalid size");
-    RETURN_ENUMERATOR(obj, 1, &n);
-    args[0] = rb_ary_new2(size);
-    args[1] = (VALUE)size;
-
-    rb_objc_block_call(obj, selEach, 0, 0, each_cons_i, (VALUE)args);
-
-    return Qnil;
-}
-
-static VALUE
 enumerator_allocate(VALUE klass, SEL sel)
 {
     struct enumerator *ptr;
@@ -481,9 +374,6 @@ Init_Enumerator(void)
 {
     rb_objc_define_method(rb_mKernel, "to_enum", obj_to_enum, -1);
     rb_objc_define_method(rb_mKernel, "enum_for", obj_to_enum, -1);
-
-    rb_objc_define_method(rb_mEnumerable, "each_slice", enum_each_slice, 1);
-    rb_objc_define_method(rb_mEnumerable, "each_cons", enum_each_cons, 1);
 
     rb_cEnumerator = rb_define_class("Enumerator", rb_cObject);
     rb_include_module(rb_cEnumerator, rb_mEnumerable);
