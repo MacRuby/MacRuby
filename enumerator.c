@@ -98,7 +98,7 @@ enumerator_ptr(VALUE obj)
 		 rb_obj_classname(obj), rb_class2name(rb_cEnumerator));
     }
 #endif
-    if (!ptr) {
+    if (!ptr || ptr->obj == Qundef) {
 	rb_raise(rb_eArgError, "uninitialized enumerator");
     }
     return ptr;
@@ -142,8 +142,13 @@ static VALUE
 enumerator_allocate(VALUE klass, SEL sel)
 {
     struct enumerator *ptr;
-    return Data_Make_Struct(klass, struct enumerator,
-	    NULL, NULL, ptr);
+    VALUE enum_obj;
+
+    enum_obj = Data_Make_Struct(klass, struct enumerator,
+				NULL, NULL, ptr);
+    ptr->obj = Qundef;
+
+    return enum_obj;
 }
 
 static VALUE
@@ -155,7 +160,13 @@ enumerator_each_i(VALUE v, VALUE enum_obj, int argc, VALUE *argv)
 static VALUE
 enumerator_init(VALUE enum_obj, VALUE obj, SEL sel, int argc, VALUE *argv)
 {
-    struct enumerator *ptr = enumerator_ptr(enum_obj);
+    struct enumerator *ptr;
+
+    Data_Get_Struct(enum_obj, struct enumerator, ptr);
+
+    if (!ptr) {
+	rb_raise(rb_eArgError, "unallocated enumerator");
+    }
 
     GC_WB(&ptr->obj, obj);
     ptr->sel = sel;
@@ -229,7 +240,12 @@ enumerator_init_copy(VALUE obj, SEL sel, VALUE orig)
 	/* Fibers cannot be copied */
 	rb_raise(rb_eTypeError, "can't copy execution context");
     }
-    ptr1 = enumerator_ptr(obj);
+
+    Data_Get_Struct(obj, struct enumerator, ptr1);
+
+    if (!ptr1) {
+	rb_raise(rb_eArgError, "unallocated enumerator");
+    }
 
     GC_WB(&ptr1->obj, ptr0->obj);
     ptr1->sel = ptr0->sel;
