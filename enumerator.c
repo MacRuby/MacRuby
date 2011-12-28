@@ -11,10 +11,65 @@
 #include "vm.h"
 
 /*
- * Document-class: Enumerable::Enumerator
+ * Document-class: Enumerator
  *
  * A class which provides a method `each' to be used as an Enumerable
  * object.
+ *
+ * An enumerator can be created by following methods.
+ * - Kernel#to_enum
+ * - Kernel#enum_for
+ * - Enumerator.new
+ *
+ * Also, most iteration methods without a block returns an enumerator.
+ * For example, Array#map returns an enumerator if a block is not given.
+ * The enumerator has the with_index method.
+ * So ary.map.with_index works as follows.
+ *
+ *   p %w[foo bar baz].map.with_index {|w,i| "#{i}:#{w}" }
+ *   #=> ["0:foo", "1:bar", "2:baz"]
+ *
+ * An enumerator object can be used as an external iterator.
+ * I.e.  Enumerator#next returns the next value of the iterator.
+ * Enumerator#next raises StopIteration at end.
+ *
+ *   e = [1,2,3].each   # returns an enumerator object.
+ *   p e.next   #=> 1
+ *   p e.next   #=> 2
+ *   p e.next   #=> 3
+ *   p e.next   #raises StopIteration
+ *
+ * An external iterator can be used to implement an internal iterator as follows.
+ *
+ *   def ext_each(e)
+ *     while true
+ *       begin
+ *         vs = e.next_values
+ *       rescue StopIteration
+ *         return $!.result
+ *       end
+ *       y = yield(*vs)
+ *       e.feed y
+ *     end
+ *   end
+ *
+ *   o = Object.new
+ *   def o.each
+ *     p yield
+ *     p yield(1)
+ *     p yield(1, 2)
+ *     3
+ *   end
+ *
+ *   # use o.each as an internal iterator directly.
+ *   p o.each {|*x| p x; [:b, *x] }
+ *   #=> [], [:b], [1], [:b, 1], [1, 2], [:b, 1, 2], 3
+ *
+ *   # convert o.each to an external iterator for
+ *   # implementing an internal iterator.
+ *   p ext_each(o.to_enum) {|*x| p x; [:b, *x] }
+ *   #=> [], [:b], [1], [:b, 1], [1, 2], [:b, 1, 2], 3
+ *
  */
 VALUE rb_cEnumerator;
 static VALUE sym_each;
@@ -54,7 +109,7 @@ enumerator_ptr(VALUE obj)
  *    obj.to_enum(method = :each, *args)
  *    obj.enum_for(method = :each, *args)
  *
- *  Returns Enumerable::Enumerator.new(self, method, *args).
+ *  Returns Enumerator.new(self, method, *args).
  *
  *  e.g.:
  *
@@ -116,14 +171,35 @@ enumerator_init(VALUE enum_obj, VALUE obj, SEL sel, int argc, VALUE *argv)
 
 /*
  *  call-seq:
- *    Enumerable::Enumerator.new(obj, method = :each, *args)
+ *    Enumerator.new(obj, method = :each, *args)
+ *    Enumerator.new { |y| ... }
  *
- *  Creates a new Enumerable::Enumerator object, which is to be
- *  used as an Enumerable object using the given object's given
- *  method with the given arguments.
+ *  Creates a new Enumerator object, which is to be used as an
+ *  Enumerable object iterating in a given way.
  *
- *  Use of this method is not discouraged.  Use Kernel#enum_for()
- *  instead.
+ *  In the first form, a generated Enumerator iterates over the given
+ *  object using the given method with the given arguments passed.
+ *  Use of this form is discouraged.  Use Kernel#enum_for(), alias
+ *  to_enum, instead.
+ *
+ *    e = Enumerator.new(ObjectSpace, :each_object)
+ *        #-> ObjectSpace.enum_for(:each_object)
+ *
+ *    e.select { |obj| obj.is_a?(Class) }  #=> array of all classes
+ *
+ *  In the second form, iteration is defined by the given block, in
+ *  which a "yielder" object given as block parameter can be used to
+ *  yield a value by calling the +yield+ method, alias +<<+.
+ *
+ *    fib = Enumerator.new { |y|
+ *      a = b = 1
+ *      loop {
+ *        y << a
+ *        a, b = b, a + b
+ *      }
+ *    }
+ *
+ *    p fib.take(10) #=> [1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
  */
 static VALUE
 enumerator_initialize(VALUE obj, SEL sel, int argc, VALUE *argv)
@@ -223,9 +299,9 @@ enumerator_with_index_i(VALUE val, VALUE m, int argc, VALUE *argv)
 /*
  *  call-seq:
  *    e.with_index(offset = 0) {|(*args), idx| ... }
- *    e.with_index
+ *    e.with_index(offset = 0)
  *
- *  Iterates the given block for each elements with an index, which
+ *  Iterates the given block for each element with an index, which
  *  starts from +offset+.  If no block is given, returns an enumerator.
  *
  */
@@ -245,7 +321,7 @@ enumerator_with_index(VALUE obj, SEL sel, int argc, VALUE *argv)
  *    e.each_with_index {|(*args), idx| ... }
  *    e.each_with_index
  *
- *  Same as Enumeartor#with_index, except each_with_index does not
+ *  Same as Enumerator#with_index, except each_with_index does not
  *  receive an offset argument.
  *
  */
@@ -314,11 +390,18 @@ next_init(VALUE obj, struct enumerator *e)
 
 /*
  * call-seq:
- *   e.next   => object
+ *   e.next   -> object
  *
  * Returns the next object in the enumerator, and move the internal
- * position forward.  When the position reached at the end, internal
- * position is rewinded then StopIteration is raised.
+ * position forward.  When the position reached at the end, StopIteration
+ * is raised.
+ *
+ *   a = [1,2,3]
+ *   e = a.to_enum
+ *   p e.next   #=> 1
+ *   p e.next   #=> 2
+ *   p e.next   #=> 3
+ *   p e.next   #raises StopIteration
  *
  * Note that enumeration sequence by next method does not affect other
  * non-external enumeration methods, unless underlying iteration
@@ -353,9 +436,11 @@ enumerator_next(VALUE obj, SEL sel)
 
 /*
  * call-seq:
- *   e.rewind   => e
+ *   e.rewind   -> e
  *
  * Rewinds the enumeration sequence by the next method.
+ *
+ * If the enclosed object responds to a "rewind" method, it is called.
  */
 
 static VALUE
