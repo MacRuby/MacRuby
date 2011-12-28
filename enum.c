@@ -724,9 +724,13 @@ enum_first(VALUE obj, SEL sel, int argc, VALUE *argv)
 	ary[0] = ary[1] = Qnil;
     }
     else {
+	long len;
+
 	rb_scan_args(argc, argv, "01", &n);
-	ary[0] = n;
-	ary[1] = rb_ary_new2(NUM2LONG(n));
+	len = NUM2LONG(n);
+	if (len == 0) return rb_ary_new2(0);
+	ary[0] = len;
+	ary[1] = rb_ary_new2(len);
     }
     rb_objc_block_call(obj, selEach, 0, 0, first_i, (VALUE)ary);
 
