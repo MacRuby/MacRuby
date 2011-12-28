@@ -1931,6 +1931,7 @@ enum_zip(VALUE obj, SEL sel, int argc, VALUE *argv)
     VALUE args = rb_ary_new4(argc, argv);
     int allary = Qtrue;
 
+    argv = (VALUE*)RARRAY_PTR(args);
     for (i = 0; i < argc; i++) {
 	VALUE ary = rb_check_array_type(argv[i]);
 	if (NIL_P(ary)) {
