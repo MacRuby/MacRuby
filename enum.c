@@ -1313,8 +1313,7 @@ static VALUE
 enum_minmax(VALUE obj, SEL sel)
 {
     struct minmax_t memo;
-    VALUE elems[] = { Qnil, Qnil };
-    VALUE ary = rb_ary_new4(2, elems);
+    VALUE ary = rb_ary_new3(2, Qnil, Qnil);
 
     memo.min = Qundef;
     memo.last = Qundef;
