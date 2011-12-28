@@ -1929,13 +1929,13 @@ enum_zip(VALUE obj, SEL sel, int argc, VALUE *argv)
     NODE *memo;
     VALUE result = Qnil;
     VALUE args = rb_ary_new4(argc, argv);
-    int allary = Qtrue;
+    int allary = TRUE;
 
     argv = (VALUE*)RARRAY_PTR(args);
     for (i = 0; i < argc; i++) {
 	VALUE ary = rb_check_array_type(argv[i]);
 	if (NIL_P(ary)) {
-	    allary = Qfalse;
+	    allary = FALSE;
 	    break;
 	}
 	rary_store(args, i, ary);
