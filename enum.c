@@ -773,7 +773,8 @@ sort_by_i(VALUE i, VALUE ary, int argc, VALUE *argv)
 	rb_raise(rb_eRuntimeError, "sort_by reentered");
     }
 #endif
-    memo = rb_node_newnode(NODE_MEMO, rb_yield(i), i, 0);
+    /* use NODE_DOT2 as memo(v, v, -) */
+    memo = rb_node_newnode(NODE_DOT2, rb_yield(i), i, 0);
     rb_ary_push(ary, (VALUE)memo);
     return Qnil;
 }
@@ -1859,7 +1860,8 @@ enum_zip(VALUE obj, SEL sel, int argc, VALUE *argv)
     if (!rb_block_given_p()) {
 	result = rb_ary_new();
     }
-    memo = rb_node_newnode(NODE_MEMO, result, args, 0);
+    /* use NODE_DOT2 as memo(v, v, -) */
+    memo = rb_node_newnode(NODE_DOT2, result, args, 0);
     rb_objc_block_call(obj, selEach, 0, 0, allary ? zip_ary : zip_i, (VALUE)memo);
 
     return result;
