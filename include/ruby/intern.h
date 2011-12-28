@@ -234,6 +234,8 @@ VALUE rb_obj_call_init(VALUE, int, VALUE*);
 VALUE rb_class_new_instance(int, VALUE*, VALUE);
 VALUE rb_block_proc(void);
 VALUE rb_f_lambda(void);
+VALUE rb_proc_new(VALUE (*)(ANYARGS/* VALUE yieldarg[, VALUE procarg] */), VALUE);
+VALUE rb_obj_is_proc(VALUE);
 VALUE rb_proc_call(VALUE, VALUE);
 VALUE rb_proc_call2(VALUE self, int argc, VALUE *argv);
 int rb_proc_arity(VALUE);

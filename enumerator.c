@@ -85,6 +85,19 @@ struct enumerator {
     VALUE no_next;
 };
 
+static VALUE rb_cGenerator, rb_cYielder;
+
+struct generator {
+    VALUE proc;
+};
+
+struct yielder {
+    VALUE proc;
+};
+
+static VALUE generator_allocate(VALUE klass, SEL sel);
+static VALUE generator_init(VALUE obj, VALUE proc);
+
 static struct enumerator *
 enumerator_ptr(VALUE obj)
 {
@@ -217,13 +230,20 @@ enumerator_initialize(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
     VALUE recv, meth = sym_each;
 
-    if (argc == 0)
-	rb_raise(rb_eArgError, "wrong number of argument (0 for 1)");
-    recv = *argv++;
-    if (--argc) {
-	meth = *argv++;
-	--argc;
+    if (argc == 0) {
+	if (!rb_block_given_p())
+	    rb_raise(rb_eArgError, "wrong number of argument (0 for 1+)");
+
+	recv = generator_init(generator_allocate(rb_cGenerator, 0), rb_block_proc());
     }
+    else {
+	recv = *argv++;
+	if (--argc) {
+	    meth = *argv++;
+	    --argc;
+	}
+    }
+
     ID meth_id = rb_to_id(meth);
     SEL meth_sel = rb_vm_id_to_sel(meth_id, argc);
     return enumerator_init(obj, recv, meth_sel, argc, argv);
@@ -540,6 +560,224 @@ enumerator_inspect(VALUE obj, SEL sel)
     return rb_exec_recursive(inspect_enumerator, obj, 0);
 }
 
+/*
+ * Yielder
+ */
+#if !WITH_OBJC
+static void
+yielder_mark(void *p)
+{
+    struct yielder *ptr = p;
+    rb_gc_mark(ptr->proc);
+}
+#endif
+
+static struct yielder *
+yielder_ptr(VALUE obj)
+{
+    struct yielder *ptr;
+
+    Data_Get_Struct(obj, struct yielder, ptr);
+#if !WITH_OBJC
+    if (RDATA(obj)->dmark != yielder_mark) {
+	rb_raise(rb_eTypeError,
+		 "wrong argument type %s (expected %s)",
+		 rb_obj_classname(obj), rb_class2name(rb_cYielder));
+    }
+#endif
+    if (!ptr || ptr->proc == Qundef) {
+	rb_raise(rb_eArgError, "uninitialized yielder");
+    }
+    return ptr;
+}
+
+/* :nodoc: */
+static VALUE
+yielder_allocate(VALUE klass, SEL sel)
+{
+    struct yielder *ptr;
+    VALUE obj;
+
+    obj = Data_Make_Struct(klass, struct yielder, NULL, NULL, ptr);
+    ptr->proc = Qundef;
+
+    return obj;
+}
+
+static VALUE
+yielder_init(VALUE obj, VALUE proc)
+{
+    struct yielder *ptr;
+
+    Data_Get_Struct(obj, struct yielder, ptr);
+
+    if (!ptr) {
+	rb_raise(rb_eArgError, "unallocated yielder");
+    }
+
+    GC_WB(&ptr->proc, proc);
+
+    return obj;
+}
+
+/* :nodoc: */
+static VALUE
+yielder_initialize(VALUE obj, SEL sel)
+{
+    rb_need_block();
+
+    return yielder_init(obj, rb_block_proc());
+}
+
+/* :nodoc: */
+static VALUE
+yielder_yield(VALUE obj, SEL sel, VALUE args)
+{
+    struct yielder *ptr = yielder_ptr(obj);
+
+    return rb_proc_call(ptr->proc, args);
+}
+
+/* :nodoc: */
+static VALUE yielder_yield_push(VALUE obj, SEL sel, VALUE args)
+{
+    yielder_yield(obj, 0, args);
+    return obj;
+}
+
+static VALUE
+yielder_yield_i(VALUE obj, VALUE memo, int argc, VALUE *argv)
+{
+    return rb_yield_values2(argc, argv);
+}
+
+static VALUE
+yielder_new(void)
+{
+    return yielder_init(yielder_allocate(rb_cYielder, 0), rb_proc_new(yielder_yield_i, 0));
+}
+
+/*
+ * Generator
+ */
+#if !WITH_OBJC
+static void
+generator_mark(void *p)
+{
+    struct generator *ptr = p;
+    rb_gc_mark(ptr->proc);
+}
+#endif
+
+static struct generator *
+generator_ptr(VALUE obj)
+{
+    struct generator *ptr;
+
+    Data_Get_Struct(obj, struct generator, ptr);
+#if !WITH_OBJC
+    if (RDATA(obj)->dmark != generator_mark) {
+	rb_raise(rb_eTypeError,
+		 "wrong argument type %s (expected %s)",
+		 rb_obj_classname(obj), rb_class2name(rb_cGenerator));
+    }
+#endif
+    if (!ptr || ptr->proc == Qundef) {
+	rb_raise(rb_eArgError, "uninitialized generator");
+    }
+    return ptr;
+}
+
+/* :nodoc: */
+static VALUE
+generator_allocate(VALUE klass, SEL sel)
+{
+    struct generator *ptr;
+    VALUE obj;
+
+    obj = Data_Make_Struct(klass, struct generator, NULL, NULL, ptr);
+    ptr->proc = Qundef;
+
+    return obj;
+}
+
+static VALUE
+generator_init(VALUE obj, VALUE proc)
+{
+    struct generator *ptr;
+
+    Data_Get_Struct(obj, struct generator, ptr);
+
+    if (!ptr) {
+	rb_raise(rb_eArgError, "unallocated generator");
+    }
+
+    GC_WB(&ptr->proc, proc);
+
+    return obj;
+}
+
+VALUE rb_obj_is_proc(VALUE proc);
+
+/* :nodoc: */
+static VALUE
+generator_initialize(VALUE obj, SEL sel, int argc, VALUE *argv)
+{
+    VALUE proc;
+
+    if (argc == 0) {
+	rb_need_block();
+
+	proc = rb_block_proc();
+    } else {
+	rb_scan_args(argc, argv, "1", &proc);
+
+	if (!rb_obj_is_proc(proc))
+	    rb_raise(rb_eTypeError,
+		     "wrong argument type %s (expected Proc)",
+		     rb_obj_classname(proc));
+
+	if (rb_block_given_p()) {
+	    rb_warn("given block not used");
+	}
+    }
+
+    return generator_init(obj, proc);
+}
+
+/* :nodoc: */
+static VALUE
+generator_init_copy(VALUE obj, SEL sel, VALUE orig)
+{
+    struct generator *ptr0, *ptr1;
+
+    ptr0 = generator_ptr(orig);
+
+    Data_Get_Struct(obj, struct generator, ptr1);
+
+    if (!ptr1) {
+	rb_raise(rb_eArgError, "unallocated generator");
+    }
+
+    ptr1->proc = ptr0->proc;
+
+    return obj;
+}
+
+/* :nodoc: */
+static VALUE
+generator_each(VALUE obj, SEL sel)
+{
+    struct generator *ptr = generator_ptr(obj);
+    VALUE yielder;
+
+    yielder = yielder_new();
+
+    return rb_proc_call(ptr->proc, rb_ary_new3(1, yielder));
+
+    return obj;
+}
+
 void
 Init_Enumerator(void)
 {
@@ -562,6 +800,21 @@ Init_Enumerator(void)
     rb_objc_define_method(rb_cEnumerator, "inspect", enumerator_inspect, 0);
 
     rb_eStopIteration   = rb_define_class("StopIteration", rb_eIndexError);
+
+    /* Generator */
+    rb_cGenerator = rb_define_class_under(rb_cEnumerator, "Generator", rb_cObject);
+    rb_include_module(rb_cGenerator, rb_mEnumerable);
+    rb_objc_define_method(*(VALUE *)rb_cGenerator, "alloc", generator_allocate, 0);
+    rb_objc_define_method(rb_cGenerator, "initialize", generator_initialize, -1);
+    rb_objc_define_method(rb_cGenerator, "initialize_copy", generator_init_copy, 1);
+    rb_objc_define_method(rb_cGenerator, "each", generator_each, 0);
+
+    /* Yielder */
+    rb_cYielder = rb_define_class_under(rb_cEnumerator, "Yielder", rb_cObject);
+    rb_objc_define_method(*(VALUE *)rb_cYielder, "alloc", yielder_allocate, 0);
+    rb_objc_define_method(rb_cYielder, "initialize", yielder_initialize, 0);
+    rb_objc_define_method(rb_cYielder, "yield", yielder_yield, -2);
+    rb_objc_define_method(rb_cYielder, "<<", yielder_yield_push, -2);
 
     sym_each	 	= ID2SYM(rb_intern("each"));
 }

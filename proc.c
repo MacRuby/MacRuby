@@ -52,10 +52,15 @@ rb_proc_alloc_with_block(VALUE klass, rb_vm_block_t *proc)
     return obj;
 }
 
-static inline bool
+VALUE
 rb_obj_is_proc(VALUE obj)
 {
-    return CLASS_OF(obj) == rb_cProc;
+    if (CLASS_OF(obj) == rb_cProc) {
+	return Qtrue;
+    }
+    else {
+	return Qfalse;
+    }
 }
 
 static inline bool
@@ -1321,13 +1326,13 @@ method_inspect(VALUE method, SEL sel)
     return str;
 }
 
-#if 0
 static VALUE
 mproc(VALUE method)
 {
     return rb_funcall(Qnil, rb_intern("proc"), 0);
 }
 
+#if 0
 static VALUE
 mlambda(VALUE method)
 {
@@ -1355,6 +1360,15 @@ bmcall(VALUE args, VALUE method)
     return rb_method_call(RARRAY_LEN(a), (VALUE *)RARRAY_PTR(a), method);
 }
 #endif
+
+VALUE
+rb_proc_new(
+    VALUE (*func)(ANYARGS), /* VALUE yieldarg[, VALUE procarg] */
+    VALUE val)
+{
+    VALUE procval = rb_iterate(mproc, 0, func, val);
+    return procval;
+}
 
 /*
  *  call-seq:
