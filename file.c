@@ -728,8 +728,10 @@ rb_stat(VALUE file, struct stat *st)
     rb_secure(2);
     VALUE tmp = rb_check_convert_type(file, T_FILE, "IO", "to_io");
     if (!NIL_P(tmp)) {
-	rb_io_t *io_struct = ExtractIOStruct(tmp);
-	return fstat(io_struct->fd, st);
+	rb_io_t *io;
+
+	GetOpenFile(tmp, io);
+	return fstat(io->fd, st);
     }
     FilePathValue(file);
     file = rb_str_encode_ospath(file);
@@ -778,10 +780,10 @@ rb_file_s_stat(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_io_stat(VALUE obj, SEL sel)
 {
-    struct rb_io_t *io = ExtractIOStruct(obj);
-    rb_io_check_closed(io);
-    
+    struct rb_io_t *io;
     struct stat st;
+
+    GetOpenFile(obj, io);
     if (fstat(io->fd, &st) == -1) {
 	rb_sys_fail(RSTRING_PTR(io->path));
     }
@@ -1549,9 +1551,10 @@ rb_file_s_size(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_file_size(VALUE obj, SEL sel)
 {
+    struct rb_io_t *io;
     struct stat st;
-    struct rb_io_t *io = ExtractIOStruct(obj);
-    rb_io_check_closed(io);
+
+    GetOpenFile(obj, io);
     if (fstat(io->fd, &st) == -1) {
 	rb_sys_fail(RSTRING_PTR(io->path));
     }
@@ -1663,8 +1666,10 @@ rb_file_s_atime(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_file_atime(VALUE obj, SEL sel)
 {
+    struct rb_io_t *io;
     struct stat st;
-    struct rb_io_t *io = ExtractIOStruct(obj);
+
+    GetOpenFile(obj, io);
     if (fstat(io->fd, &st) == -1) {
 	rb_sys_fail(RSTRING_PTR(io->path));
     }
@@ -1704,8 +1709,10 @@ rb_file_s_mtime(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_file_mtime(VALUE obj, SEL sel)
 {
+    struct rb_io_t *io;
     struct stat st;
-    struct rb_io_t *io = ExtractIOStruct(obj);
+
+    GetOpenFile(obj, io);
     if (fstat(io->fd, &st) == -1) {
 	rb_sys_fail(RSTRING_PTR(io->path));
     }
@@ -1748,8 +1755,10 @@ rb_file_s_ctime(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_file_ctime(VALUE obj, SEL sel)
 {
+    struct rb_io_t *io;
     struct stat st;
-    struct rb_io_t *io = ExtractIOStruct(obj);
+
+    GetOpenFile(obj, io);
     if (fstat(io->fd, &st) == -1) {
 	rb_sys_fail(RSTRING_PTR(io->path));
     }
@@ -1810,9 +1819,12 @@ rb_file_s_chmod(VALUE rcv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_file_chmod(VALUE obj, SEL sel, VALUE vmode)
 {
+    rb_io_t *io;
+
     rb_secure(2);
-    rb_io_t *io = ExtractIOStruct(obj);
     vmode = rb_check_to_integer(vmode, "to_int");
+
+    GetOpenFile(obj, io);
     if (NIL_P(vmode)) {
 	rb_raise(rb_eTypeError, "chmod() takes a numeric argument");
     }
@@ -1931,14 +1943,16 @@ rb_file_s_chown(VALUE rcv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_file_chown(VALUE obj, SEL sel, VALUE owner, VALUE group)
 {
+    rb_io_t *io;
+
     rb_secure(2);
 
     const int o = NIL_P(owner) ? -1 : NUM2INT(owner);
     const int g = NIL_P(group) ? -1 : NUM2INT(group);
-    rb_io_t *io_struct = ExtractIOStruct(obj);
+    GetOpenFile(obj, io);
 
-    if (fchown(io_struct->fd, o, g) == -1) {
-	rb_sys_fail(RSTRING_PTR(io_struct->path));
+    if (fchown(io->fd, o, g) == -1) {
+	rb_sys_fail(RSTRING_PTR(io->path));
     }
 
     return INT2FIX(0);
@@ -3023,9 +3037,11 @@ rb_file_s_truncate(VALUE klass, SEL sel, VALUE path, VALUE len)
 static VALUE
 rb_file_truncate(VALUE obj, SEL sel, VALUE len)
 {
+    rb_io_t *io;
+
     rb_secure(2);
-    rb_io_t *io = ExtractIOStruct(obj);
     const off_t pos = NUM2OFFT(len);
+    GetOpenFile(obj, io);
     rb_io_assert_writable(io);
     if (ftruncate(io->fd, pos) < 0) {
 	rb_sys_fail(RSTRING_PTR(io->path));
@@ -3099,11 +3115,12 @@ static VALUE
 rb_file_flock(VALUE obj, SEL sel, VALUE operation)
 {
 #ifndef __CHECKER__
+    rb_io_t *io;
     int op[2], op1;
 
     rb_secure(2);
     op[1] = op1 = NUM2INT(operation);
-    rb_io_t *io = ExtractIOStruct(obj);
+    GetOpenFile(obj, io);
     op[0] = io->fd;
 
 //    if (io->mode & FMODE_WRITABLE) {
