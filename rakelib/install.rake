@@ -24,7 +24,12 @@ namespace :install do
     @xcode_dir ||= `xcode-select -print-path`.chomp
   end
 
-  task :all => [:ext, :nibtool]
+  task :all => [:info_plist, :ext, :nibtool]
+
+  desc 'Install the MacRuby.framework Info.plist file'
+  task :info_plist => 'framework:info_plist' do
+    # copy it to its place
+  end
 
   desc 'Install the C extensions'
   task :ext => :extensions do
@@ -44,7 +49,7 @@ namespace :install do
     puts 'installing IB support'
     ib_dest = "#{xcode_dir}/usr/bin"
     mkdir_p ib_dest
-    ln_sfh File.join('../../..', CONFIG['bindir'], 'rb_nibtool'), ib_dest
+    ln_sfh File.join('../../..', FRAMEWORK_USR_BIN, 'rb_nibtool'), ib_dest
   end
 
   task :xcode_templates do
