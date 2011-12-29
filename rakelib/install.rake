@@ -36,13 +36,16 @@ module Installer
     end
   end
 
-  @made_dirs = []
+  def made_dirs
+    @made_dirs ||= []
+  end
+
   def makedirs dirs
     dirs = fu_list(dirs)
     dirs.collect! do |dir|
       realdir = with_destdir(dir)
-      realdir unless @made_dirs.include?(dir) do
-        @made_dirs << dir
+      realdir unless made_dirs.include?(dir) do
+        made_dirs << dir
         puts File.join(dir, '')
         File.directory?(realdir)
       end
@@ -87,18 +90,18 @@ module Installer
     install_recursive from, to, :mode => mode
   end
 
-  extend self
 end
 
 
 namespace :install do
+  extend Installer
 
   task :all => [:info_plist, :ext, :nibtool]
 
   desc 'Install the MacRuby.framework Info.plist file'
   task :resources => 'framework:info_plist' do
-    FileUtils.mkdir_p FRAMEWORK_RESOURCES, :mode => 0755
-    FileUtils.install File.join('framework/Info.plist'), FRAMEWORK_RESOURCES, :mode => 0644
+    mkdir_p FRAMEWORK_RESOURCES, :mode => 0755
+    install File.join('framework/Info.plist'), FRAMEWORK_RESOURCES, :mode => 0644
   end
 
   desc 'Install the C extensions'
@@ -116,7 +119,7 @@ namespace :install do
 
   desc 'Install MacRuby support for Interface Builder'
   task :nibtool do
-    puts 'installing IB support'
+    puts 'Installing IB support'
     ib_dest = "#{xcode_dir}/usr/bin"
     mkdir_p ib_dest
     ln_sfh File.join('../../..', FRAMEWORK_USR_BIN, 'rb_nibtool'), ib_dest
