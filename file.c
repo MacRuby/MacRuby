@@ -4057,10 +4057,11 @@ VALUE rb_get_load_path(void);
 int
 rb_find_file_ext(VALUE *filep, const char *const *ext)
 {
-    const char *path, *found;
     const char *f = RSTRING_PTR(*filep);
-    VALUE fname, load_path;
+    VALUE fname, load_path, tmp;
     long i, j, fnlen;
+
+    if (!ext[0]) return 0;
 
     if (f[0] == '~') {
 	fname = rb_file_expand_path(*filep, Qnil);
@@ -4091,23 +4092,25 @@ rb_find_file_ext(VALUE *filep, const char *const *ext)
     load_path = rb_get_load_path();
     if (!load_path) return 0;
 
+    fname = rb_str_dup(*filep);
+    RBASIC(fname)->klass = 0;
+    fnlen = RSTRING_LEN(fname);
     for (j=0; ext[j]; j++) {
-	fname = rb_str_dup(*filep);
 	rb_str_cat2(fname, ext[j]);
-	OBJ_FREEZE(fname);
 	for (i = 0; i < RARRAY_LEN(load_path); i++) {
 	    VALUE str = RARRAY_AT(load_path, i);
-	    char fbuf[MAXPATHLEN];
 
 	    FilePathValue(str);
 	    if (RSTRING_LEN(str) == 0) continue;
-	    path = RSTRING_PTR(str);
-	    found = dln_find_file_r(StringValueCStr(fname), path, fbuf, sizeof(fbuf));
-	    if (found && file_load_ok(found)) {
-		*filep = rb_str_new2(found);
+	    tmp = rb_file_expand_path(fname, str);
+	    if (file_load_ok(RSTRING_PTR(tmp))) {
+		RBASIC(tmp)->klass = RBASIC(*filep)->klass;
+		OBJ_FREEZE(tmp);
+		*filep = tmp;
 		return j+1;
 	    }
 	}
+	rb_str_set_len(fname, fnlen);
     }
     RB_GC_GUARD(load_path);
     return 0;
@@ -4117,9 +4120,7 @@ VALUE
 rb_find_file(VALUE path)
 {
     VALUE tmp, load_path;
-    char *f = StringValueCStr(path);
-    const char *lpath;
-    char fbuf[MAXPATHLEN];
+    const char *f = StringValueCStr(path);
 
     if (f[0] == '~') {
 	path = rb_file_expand_path(path, Qnil);
@@ -4147,41 +4148,29 @@ rb_find_file(VALUE path)
     if (load_path) {
 	long i, count;
 
-	tmp = rb_ary_new();
 	for (i=0, count=RARRAY_LEN(load_path);i < count;i++) {
 	    VALUE str = RARRAY_AT(load_path, i);
 	    FilePathValue(str);
 	    if (RSTRING_LEN(str) > 0) {
-		rb_ary_push(tmp, str);
+		tmp = rb_file_expand_path(path, str);
+		f = RSTRING_PTR(tmp);
+		if (file_load_ok(f)) goto found;
 	    }
 	}
-	tmp = rb_ary_join(tmp, rb_str_new2(PATH_SEP));
-	if (RSTRING_LEN(tmp) == 0) {
-	    lpath = 0;
-	}
-	else {
-	    lpath = RSTRING_PTR(tmp);
-	}
+	return 0;
+      found:
+	RBASIC(tmp)->klass = RBASIC(path)->klass;
+	OBJ_FREEZE(tmp);
     }
     else {
-	lpath = 0;
-    }
-
-    if (!lpath) {
 	return 0;		/* no path, no load */
     }
-    if (!(f = dln_find_file_r(f, lpath, fbuf, sizeof(fbuf)))) {
-	return 0;
-    }
+
     if (rb_safe_level() >= 1 && !fpath_check(f)) {
 	rb_raise(rb_eSecurityError, "loading from unsafe file %s", f);
     }
-    if (file_load_ok(f)) {
-	tmp = rb_str_new2(f);
-	OBJ_FREEZE(tmp);
-	return tmp;
-    }
-    return 0;
+
+    return tmp;
 }
 
 static void
