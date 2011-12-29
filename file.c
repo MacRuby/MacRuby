@@ -757,7 +757,7 @@ rb_file_s_stat(VALUE klass, SEL sel, VALUE fname)
     rb_secure(4);
     FilePathValue(fname);
     if (rb_stat(fname, &st) < 0) {
-	rb_sys_fail(StringValueCStr(fname));
+	rb_sys_fail(RSTRING_PTR(fname));
     }
     return stat_new(&st);
 }
@@ -1543,8 +1543,10 @@ rb_file_s_size(VALUE klass, SEL sel, VALUE fname)
 {
     struct stat st;
 
-    if (rb_stat(fname, &st) < 0)
-	rb_sys_fail(StringValueCStr(fname));
+    if (rb_stat(fname, &st) < 0) {
+	FilePathValue(fname);
+	rb_sys_fail(RSTRING_PTR(fname));
+    }
     return OFFT2NUM(st.st_size);
 }
 
@@ -1634,8 +1636,10 @@ rb_file_s_atime(VALUE klass, SEL sel, VALUE fname)
 {
     struct stat st;
 
-    if (rb_stat(fname, &st) < 0)
-	rb_sys_fail(StringValueCStr(fname));
+    if (rb_stat(fname, &st) < 0) {
+	FilePathValue(fname);
+	rb_sys_fail(RSTRING_PTR(fname));
+    }
     return stat_atime(&st);
 }
 
@@ -1678,8 +1682,10 @@ rb_file_s_mtime(VALUE klass, SEL sel, VALUE fname)
 {
     struct stat st;
 
-    if (rb_stat(fname, &st) < 0)
+    if (rb_stat(fname, &st) < 0) {
+	FilePathValue(fname);
 	rb_sys_fail(RSTRING_PTR(fname));
+    }
     return stat_mtime(&st);
 }
 
@@ -1723,8 +1729,10 @@ rb_file_s_ctime(VALUE klass, SEL sel, VALUE fname)
 {
     struct stat st;
 
-    if (rb_stat(fname, &st) < 0)
+    if (rb_stat(fname, &st) < 0) {
+	FilePathValue(fname);
 	rb_sys_fail(RSTRING_PTR(fname));
+    }
     return stat_ctime(&st);
 }
 
@@ -2516,7 +2524,7 @@ realpath_rec(long *prefixlenp, VALUE *resolvedp, char *unresolved, VALUE loopche
             if (!NIL_P(checkval)) {
                 if (checkval == ID2SYM(resolving)) {
                     errno = ELOOP;
-                    rb_sys_fail((char *)RSTRING_PTR(testpath));
+                    rb_sys_fail(RSTRING_PTR(testpath));
                 }
                 else {
                     *resolvedp = rb_str_dup(checkval);
@@ -2535,7 +2543,7 @@ realpath_rec(long *prefixlenp, VALUE *resolvedp, char *unresolved, VALUE loopche
                         break;
                     }
                     else {
-                        rb_sys_fail((char *)RSTRING_PTR(testpath));
+                        rb_sys_fail(RSTRING_PTR(testpath));
                     }
                 }
 #ifdef HAVE_READLINK
@@ -3327,10 +3335,12 @@ rb_f_test(VALUE rcv, SEL sel, int argc, VALUE *argv)
 
     if (strchr("MAC", cmd)) {
 	struct stat st;
+	VALUE fname = argv[1];
 
 	CHECK(1);
-	if (rb_stat(argv[1], &st) == -1) {
-	    rb_sys_fail(RSTRING_PTR(argv[1]));
+	if (rb_stat(fname, &st) == -1) {
+	    FilePathValue(fname);
+	    rb_sys_fail(RSTRING_PTR(fname));
 	}
 
 	switch (cmd) {
