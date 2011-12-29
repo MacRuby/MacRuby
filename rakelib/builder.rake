@@ -198,11 +198,6 @@ namespace :framework do
       sh "/usr/bin/install -c -m 0755 #{path} #{File.join(dest_site, sub_dir)}"
     end
   end
-
-  desc "Install the framework"
-  task :install => [:info_plist, :install_ext] do
-    sh "./miniruby instruby.rb #{INSTRUBY_ARGS}"
-  end
 end
 
 namespace :clean do
