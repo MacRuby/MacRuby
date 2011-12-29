@@ -231,6 +231,8 @@ rb_stat_cmp(VALUE self, SEL sel, VALUE other)
     return Qnil;
 }
 
+#define ST2UINT(val) ((val) & ~(~1UL << (sizeof(val) * CHAR_BIT - 1)))
+
 /*
  *  call-seq:
  *     stat.dev    -> fixnum
@@ -328,11 +330,7 @@ rb_stat_ino(VALUE self, SEL sel)
 static VALUE
 rb_stat_mode(VALUE self, SEL sel)
 {
-#ifdef __BORLANDC__
-    return UINT2NUM((unsigned short)(get_stat(self)->st_mode));
-#else
-    return UINT2NUM(get_stat(self)->st_mode);
-#endif
+    return UINT2NUM(ST2UINT(get_stat(self)->st_mode));
 }
 
 /*
