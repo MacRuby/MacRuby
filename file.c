@@ -2712,6 +2712,12 @@ rb_file_s_basename(VALUE rcv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_file_s_dirname(VALUE klass, SEL sel, VALUE fname)
 {
+    return rb_file_dirname(fname);
+}
+
+VALUE
+rb_file_dirname(VALUE fname)
+{
     const char *name, *root, *p;
     VALUE dirname;
 
