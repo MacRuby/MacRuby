@@ -6,6 +6,20 @@ require 'fileutils'
 
 namespace :install do
 
+  def with_destdir dir
+    return dir if !DESTDIR or DESTDIR.empty?
+    DESTDIR + dir
+  end
+
+  def ln_sf src, dest
+    FileUtils.ln_sf(src, with_destdir(dest))
+    puts dest
+  end
+
+  def ln_sfh src, dest
+    ln_sf(src, dest) unless File.symlink?(with_destdir(dest))
+  end
+
   def xcode_dir
     @xcode_dir ||= `xcode-select -print-path`.chomp
   end

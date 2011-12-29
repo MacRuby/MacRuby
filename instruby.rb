@@ -143,11 +143,6 @@ def install(src, dest, options = {})
   end
 end
 
-def ln_sf(src, dest)
-  super(src, with_destdir(dest))
-  $installed_list.puts dest if $installed_list
-end
-
 $made_dirs = {}
 def makedirs(dirs)
   dirs = fu_list(dirs)
@@ -199,12 +194,6 @@ def open_for_install(path, mode)
     File.chmod(mode, realpath)
   end
   $installed_list.puts path if $installed_list
-end
-
-def with_destdir(dir)
-  return dir if !$destdir or $destdir.empty?
-  dir = dir.sub(/\A\w:/, '') if File::PATH_SEPARATOR == ';'
-  $destdir + dir
 end
 
 exeext = CONFIG["EXEEXT"]
@@ -404,7 +393,7 @@ install?(:local, :data) do
   Config.expand(destination_dir)
   makedirs [destination_dir]
   install_recursive("data", destination_dir, :mode => $data_mode)
-end  
+end
 
 $install << :local << :ext if $install.empty?
 $install.each do |inst|
@@ -419,10 +408,6 @@ $install.each do |inst|
       Dir.chdir(dir)
     end
   end
-end
-
-def ln_sfh(source, target)
-  ln_sf(source, target) unless File.symlink?(with_destdir(target))
 end
 
 def mkdir_p(target, *flags)
