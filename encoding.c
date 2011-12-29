@@ -593,3 +593,9 @@ rb_enc_associate_index(VALUE obj, int idx)
     }
     rb_raise(rb_eArgError, "cannot set encoding on non-string object");
 }
+
+void
+rb_enc_copy(VALUE obj1, VALUE obj2)
+{
+    rb_enc_associate_index(obj1, rb_enc_get_index(obj2));
+}

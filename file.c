@@ -2692,6 +2692,7 @@ rb_file_s_basename(VALUE rcv, SEL sel, int argc, VALUE *argv)
 	if (f == RSTRING_LEN(fname)) return fname;
     }
     basename = rb_str_new(p, f);
+    rb_enc_copy(basename, fname);
     OBJ_INFECT(basename, fname);
     return basename;
 }
@@ -2727,6 +2728,7 @@ rb_file_s_dirname(VALUE klass, SEL sel, VALUE fname)
     if (p == name)
 	return rb_usascii_str_new2(".");
     dirname = rb_str_new(name, p - name);
+    rb_enc_copy(dirname, fname);
     OBJ_INFECT(dirname, fname);
     return dirname;
 }
@@ -2813,6 +2815,7 @@ rb_file_s_extname(VALUE klass, SEL sel, VALUE fname)
 	return rb_str_new(0, 0);
     }
     extname = rb_str_new(e, len);	/* keep the dot, too! */
+    rb_enc_copy(extname, fname);
     OBJ_INFECT(extname, fname);
     return extname;
 }

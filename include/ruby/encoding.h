@@ -34,6 +34,7 @@ rb_encoding* rb_to_encoding(VALUE);
 rb_encoding* rb_enc_get(VALUE);
 VALUE rb_enc_associate_index(VALUE, int);
 VALUE rb_enc_associate(VALUE, rb_encoding*);
+void rb_enc_copy(VALUE dst, VALUE src);
 VALUE rb_str_export_to_enc(VALUE str, rb_encoding *enc);
 
 VALUE rb_enc_str_new(const char*, long, rb_encoding*);
