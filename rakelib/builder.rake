@@ -120,7 +120,6 @@ DESTDIR = (ENV['DESTDIR'] or "")
 EXTOUT = (ENV['EXTOUT'] or ".ext")
 INSTALLED_LIST = '.installed.list'
 SCRIPT_ARGS = "--make=\"/usr/bin/make\" --dest-dir=\"#{DESTDIR}\" --extout=\"#{EXTOUT}\" --mflags=\"\" --make-flags=\"\""
-INSTRUBY_ARGS = "#{SCRIPT_ARGS} --data-mode=0644 --prog-mode=0755 --installed-list #{INSTALLED_LIST} --mantype=\"doc\" --sym-dest-dir=\"#{SYM_INSTDIR}\" --rdoc-output=\"doc\""
 
 desc "Build extensions"
 task :extensions => [:miniruby, "macruby:static"] do
