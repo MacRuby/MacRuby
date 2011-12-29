@@ -1549,19 +1549,6 @@ rb_file_s_size(VALUE klass, SEL sel, VALUE fname)
 }
 
 static VALUE
-rb_file_size(VALUE obj, SEL sel)
-{
-    struct rb_io_t *io;
-    struct stat st;
-
-    GetOpenFile(obj, io);
-    if (fstat(io->fd, &st) == -1) {
-	rb_sys_fail(RSTRING_PTR(io->path));
-    }
-    return OFFT2NUM(st.st_size);
-}
-
-static VALUE
 rb_file_ftype(const struct stat *st)
 {
     const char *t;
@@ -1763,6 +1750,29 @@ rb_file_ctime(VALUE obj, SEL sel)
 	rb_sys_fail(RSTRING_PTR(io->path));
     }
     return stat_ctime(&st);
+}
+
+/*
+ *  call-seq:
+ *     file.size    -> integer
+ *
+ *  Returns the size of <i>file</i> in bytes.
+ *
+ *     File.new("testfile").size   #=> 66
+ *
+ */
+
+static VALUE
+rb_file_size(VALUE obj, SEL sel)
+{
+    struct rb_io_t *io;
+    struct stat st;
+
+    GetOpenFile(obj, io);
+    if (fstat(io->fd, &st) == -1) {
+	rb_sys_fail(RSTRING_PTR(io->path));
+    }
+    return OFFT2NUM(st.st_size);
 }
 
 static void
