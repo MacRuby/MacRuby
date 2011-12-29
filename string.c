@@ -6394,6 +6394,12 @@ rb_str_new5(VALUE source, const char *cstr, long len)
 }
 
 VALUE
+rb_str_tmp_new(long len)
+{
+    return rb_str_new(NULL, len);
+}
+
+VALUE
 rb_tainted_str_new(const char *cstr, long len)
 {
     VALUE str = rb_str_new(cstr, len);
