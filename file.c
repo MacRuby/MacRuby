@@ -166,7 +166,10 @@ rb_file_path(VALUE obj, SEL sel)
 {
     rb_io_t *io = ExtractIOStruct(obj);
     rb_io_check_initialized(io);
-    return io->path == 0 ? Qnil : io->path;
+    if (io->path == 0) {
+	return Qnil;
+    }
+    return rb_obj_taint(rb_str_dup(io->path));
 }
 
 static VALUE
