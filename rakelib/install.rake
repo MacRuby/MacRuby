@@ -10,7 +10,20 @@ namespace :install do
     @xcode_dir ||= `xcode-select -print-path`.chomp
   end
 
-  task :all => [:nibtool]
+  task :all => [:ext, :nibtool]
+
+  desc 'Install the C extensions'
+  task :ext => :extensions do
+    Builder::Ext.install
+    # Install the extensions rbo.
+    dest_site = File.join(DESTDIR, RUBY_SITE_LIB2)
+    Dir.glob('ext/**/lib/**/*.rbo').each do |path|
+      ext_name, sub_path = path.scan(/^ext\/(.+)\/lib\/(.+)$/)[0]
+      next unless EXTENSIONS.include?(ext_name)
+      sub_dir = File.dirname(sub_path)
+      sh "/usr/bin/install -c -m 0755 #{path} #{File.join(dest_site, sub_dir)}"
+    end
+  end
 
   desc 'Install MacRuby support for Interface Builder'
   task :nibtool do
