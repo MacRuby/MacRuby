@@ -2272,7 +2272,24 @@ rb_file_s_umask(VALUE rcv, SEL sel, int argc, VALUE *argv)
     return INT2FIX(omask);
 }
 
+#ifdef __CYGWIN__
+#undef DOSISH
+#endif
+#if defined __CYGWIN__ || defined DOSISH
+#define DOSISH_UNC
+#define DOSISH_DRIVE_LETTER
+#define isdirsep(x) ((x) == '/' || (x) == '\\')
+#else
 #define isdirsep(x) ((x) == '/')
+#endif
+
+#ifndef CharNext		/* defined as CharNext[AW] on Windows. */
+# if defined(DJGPP)
+#   define CharNext(p) ((p) + mblen(p, RUBY_MBCHAR_MAXSIZE))
+# else
+#   define CharNext(p) ((p) + 1)
+# endif
+#endif
 
 #define istrailinggabage(x) 0
 
