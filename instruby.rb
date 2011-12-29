@@ -421,7 +421,6 @@ def install_stuff(what, from, to, mode)
   Dir.glob(File.join(to, '**', '.svn')).each { |x| rm_rf(x) }
 end
 
-xcode_dir = `xcode-select -print-path`.chomp
 install_stuff('Xcode 4.x templates', 'misc/xcode4-templates',
   "#{xcode_dir}/Library/Xcode/Templates", 0755)
 install_stuff('Xcode 3.x templates', 'misc/xcode-templates',
@@ -483,11 +482,6 @@ if RUBY_FRAMEWORK
     end
   end
 end
-
-puts "installing IB support"
-ib_dest = "#{xcode_dir}/usr/bin"
-mkdir_p ib_dest
-ln_sfh File.join("../../..", CONFIG['bindir'], 'rb_nibtool'), ib_dest
 
 puts "installing LLVM tools"
 llc_dest = File.join(CONFIG['bindir'], 'llc')
