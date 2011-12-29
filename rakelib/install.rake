@@ -8,7 +8,7 @@ module Installer
   include FileUtils
 
   # Hard coded
-  PROG_MODE = '0775'
+  PROG_MODE = 0775
   DIR_MODE  = PROG_MODE
 
   def with_destdir dir

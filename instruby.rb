@@ -26,8 +26,6 @@ def parse_args(argv = ARGV)
   $dryrun = false
   $rdocdir = nil
   $data_mode = 0644
-  $prog_mode = 0755
-  $dir_mode = nil
   $script_mode = nil
   $cmdtype = nil
   mflags = []
@@ -50,12 +48,6 @@ def parse_args(argv = ARGV)
   end
   opt.on('--data-mode=OCTAL-MODE', OptionParser::OctalInteger) do |mode|
     $data_mode = mode
-  end
-  opt.on('--prog-mode=OCTAL-MODE', OptionParser::OctalInteger) do |mode|
-    $prog_mode = mode
-  end
-  opt.on('--dir-mode=OCTAL-MODE', OptionParser::OctalInteger) do |mode|
-    $dir_mode = mode
   end
   opt.on('--script-mode=OCTAL-MODE', OptionParser::OctalInteger) do |mode|
     $script_mode = mode
@@ -110,8 +102,6 @@ def parse_args(argv = ARGV)
   end
 
   $rdocdir ||= $mflags.defined?('RDOCOUT')
-
-  $dir_mode ||= $prog_mode | 0700
   $script_mode ||= $prog_mode
 end
 
