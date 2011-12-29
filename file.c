@@ -116,6 +116,7 @@ rb_get_path_check(VALUE obj, int level)
 	    tmp = obj;
 	}
     }
+    StringValue(tmp);
 
     StringValueCStr(tmp);
     if (obj != tmp && insecure_obj_p(tmp, level)) {
