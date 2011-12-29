@@ -4,7 +4,9 @@ require 'fileutils'
 # --installed-list #{INSTALLED_LIST} --mantype=\"doc\" --sym-dest-dir=\"#{SYM_INSTDIR}\"
 # --rdoc-output=\"doc\""
 
-namespace :install do
+module Installer
+  include FileUtils
+
 
   def with_destdir dir
     return dir if !DESTDIR or DESTDIR.empty?
@@ -12,7 +14,7 @@ namespace :install do
   end
 
   def ln_sf src, dest
-    FileUtils.ln_sf(src, with_destdir(dest))
+    super(src, with_destdir(dest))
     puts dest
   end
 
@@ -24,11 +26,18 @@ namespace :install do
     @xcode_dir ||= `xcode-select -print-path`.chomp
   end
 
+  extend self
+end
+
+
+namespace :install do
+
   task :all => [:info_plist, :ext, :nibtool]
 
   desc 'Install the MacRuby.framework Info.plist file'
-  task :info_plist => 'framework:info_plist' do
-    # copy it to its place
+  task :resources => 'framework:info_plist' do
+    FileUtils.mkdir_p FRAMEWORK_RESOURCES, :mode => 0755
+    FileUtils.install File.join('framework/Info.plist'), FRAMEWORK_RESOURCES, :mode => 0644
   end
 
   desc 'Install the C extensions'
