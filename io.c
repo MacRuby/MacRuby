@@ -2228,6 +2228,7 @@ static VALUE
 rb_io_closed(VALUE io, SEL sel)
 {
     rb_io_t *ios = ExtractIOStruct(io);
+    rb_io_check_initialized(ios);
     return rb_io_is_closed_for_writing(ios) && rb_io_is_closed_for_reading(ios)
 	? Qtrue : Qfalse;
 }
