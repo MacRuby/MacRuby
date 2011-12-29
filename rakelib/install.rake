@@ -25,8 +25,66 @@ module Installer
     ln_sf(src, dest) unless File.symlink?(with_destdir(dest))
   end
 
+  def install src, dest, opts = {}
+    strip = opts.delete :strip
+    opts[:preserve] = true
+    install(src, with_destdir(dest), opts)
+    dest = File.join(dest, File.basename(src)) if $made_dirs[dest]
+    puts dest
+    if strip
+      system("/usr/bin/strip -x \"#{with_destdir(dest)}\"")
+    end
+  end
+
+  @made_dirs = []
+  def makedirs dirs
+    dirs = fu_list(dirs)
+    dirs.collect! do |dir|
+      realdir = with_destdir(dir)
+      realdir unless @made_dirs.include?(dir) do
+        @made_dirs << dir
+        puts File.join(dir, '')
+        File.directory?(realdir)
+      end
+    end.compact!
+    super(dirs, :mode => DIR_MODE) unless dirs.empty?
+  end
+
+  def install_recursive srcdir, dest, options = {}
+    opts = options.clone
+    noinst = opts.delete(:no_install)
+    glob = opts.delete(:glob) || '*'
+    subpath = srcdir.size..-1
+    Dir.glob("#{srcdir}/**/#{glob}") do |src|
+      case base = File.basename(src)
+      when /\A\#.*\#\z/, /~\z/
+        next
+      end
+      if noinst
+        if Array === noinst
+          next if noinst.any? {|n| File.fnmatch?(n, base)}
+        else
+          next if File.fnmatch?(noinst, base)
+        end
+      end
+      d = dest + src[subpath]
+      if File.directory?(src)
+        makedirs(d)
+      else
+        makedirs(File.dirname(d))
+        install src, d, opts
+      end
+    end
+  end
+
   def xcode_dir
     @xcode_dir ||= `xcode-select -print-path`.chomp
+  end
+
+  def install_stuff what, from, to, mode
+    puts "installing #{what}"
+    mkdir_p to, :mode => mode
+    install_recursive from, to, :mode => mode
   end
 
   extend self

@@ -130,60 +130,6 @@ def install?(*types, &block)
   end
 end
 
-def install(src, dest, options = {})
-  strip = options.delete(:strip)
-  options[:preserve] = true
-  super(src, with_destdir(dest), options)
-  dest = File.join(dest, File.basename(src)) if $made_dirs[dest]
-  if $installed_list
-    $installed_list.puts dest
-  end
-  if strip
-    system("/usr/bin/strip -x \"#{with_destdir(dest)}\"")
-  end
-end
-
-$made_dirs = {}
-def makedirs(dirs)
-  dirs = fu_list(dirs)
-  dirs.collect! do |dir|
-    realdir = with_destdir(dir)
-    realdir unless $made_dirs.fetch(dir) do
-      $made_dirs[dir] = true
-      $installed_list.puts(File.join(dir, "")) if $installed_list
-      File.directory?(realdir)
-    end
-  end.compact!
-  super(dirs, :mode => $dir_mode) unless dirs.empty?
-end
-
-def install_recursive(srcdir, dest, options = {})
-  opts = options.clone
-  noinst = opts.delete(:no_install)
-  glob = opts.delete(:glob) || "*"
-  subpath = srcdir.size..-1
-  Dir.glob("#{srcdir}/**/#{glob}") do |src|
-    case base = File.basename(src)
-    when /\A\#.*\#\z/, /~\z/
-      next
-    end
-    if noinst
-      if Array === noinst
-        next if noinst.any? {|n| File.fnmatch?(n, base)}
-      else
-        next if File.fnmatch?(noinst, base)
-      end
-    end
-    d = dest + src[subpath]
-    if File.directory?(src)
-      makedirs(d)
-    else
-      makedirs(File.dirname(d))
-      install src, d, opts
-    end
-  end
-end
-
 def open_for_install(path, mode)
   data = open(realpath = with_destdir(path), "rb") {|f| f.read} rescue nil
   newdata = yield
@@ -412,13 +358,6 @@ end
 
 def mkdir_p(target, *flags)
   super(with_destdir(target), *flags)
-end
-
-def install_stuff(what, from, to, mode)
-  puts "installing #{what}"
-  mkdir_p to, :mode => mode
-  install_recursive from, to, :mode => mode
-  Dir.glob(File.join(to, '**', '.svn')).each { |x| rm_rf(x) }
 end
 
 install_stuff('Xcode 4.x templates', 'misc/xcode4-templates',
