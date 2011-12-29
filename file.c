@@ -3659,10 +3659,10 @@ rb_stat_wr(VALUE obj, SEL sel)
 {
 #ifdef S_IROTH
     if ((get_stat(obj)->st_mode & (S_IROTH)) == S_IROTH) {
-      return UINT2NUM(get_stat(obj)->st_mode & (S_IRUGO|S_IWUGO|S_IXUGO));
+	return UINT2NUM(get_stat(obj)->st_mode & (S_IRUGO|S_IWUGO|S_IXUGO));
     }
     else {
-      return Qnil;
+	return Qnil;
     }
 #endif
 }
@@ -3735,7 +3735,7 @@ rb_stat_W(VALUE obj, SEL sel)
 
 /*
  * call-seq:
- *    stat.world_writable? => fixnum or nil
+ *    stat.world_writable?  ->  fixnum or nil
  *
  * If <i>stat</i> is writable by others, returns an integer
  * representing the file permission bits of <i>stat</i>. Returns
@@ -3751,10 +3751,10 @@ rb_stat_ww(VALUE obj, SEL sel)
 {
 #ifdef S_IROTH
     if ((get_stat(obj)->st_mode & (S_IWOTH)) == S_IWOTH) {
-      return UINT2NUM(get_stat(obj)->st_mode & (S_IRUGO|S_IWUGO|S_IXUGO));
+	return UINT2NUM(get_stat(obj)->st_mode & (S_IRUGO|S_IWUGO|S_IXUGO));
     }
     else {
-      return Qnil;
+	return Qnil;
     }
 #endif
 }
@@ -4037,7 +4037,19 @@ rb_path_check(const char *path)
 static int
 file_load_ok(const char *path)
 {
-    return eaccess(path, R_OK) == 0;
+    int ret = 1;
+    int fd = open(path, O_RDONLY);
+    if (fd == -1) return 0;
+#if !defined DOSISH
+    {
+	struct stat st;
+	if (fstat(fd, &st) || !S_ISREG(st.st_mode)) {
+	    ret = 0;
+	}
+    }
+#endif
+    (void)close(fd);
+    return ret;
 }
 
 int
