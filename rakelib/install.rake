@@ -115,9 +115,8 @@ namespace :install do
   end
 
   desc 'Install all Xcode related things'
-  task :xcode => [:nibtool, :xcode_templates, :xcode_samples]
+  task :xcode_support => [:nibtool, :xcode_templates, :xcode_samples]
 
-  desc 'Install MacRuby support for Interface Builder'
   task :nibtool do
     puts 'Installing IB support'
     ib_dest = "#{xcode_dir}/usr/bin"
@@ -125,7 +124,6 @@ namespace :install do
     ln_sfh File.join('../../..', FRAMEWORK_USR_BIN, 'rb_nibtool'), ib_dest
   end
 
-  desc 'Install the Xcode templates'
   task :xcode_templates do
     # TODO only install templates for installed Xcodes
     install_misc 'Xcode 4.x templates', 'misc/xcode4-templates',
@@ -134,7 +132,6 @@ namespace :install do
                  '/Library/Application Support/Developer/3.0/Xcode'
   end
 
-  desc 'Install MacRuby sample projects'
   task :xcode_samples do
     install_misc 'MacRuby sample projects', 'sample-macruby',
                  "#{xcode_dir}/Examples/Ruby/MacRuby"
