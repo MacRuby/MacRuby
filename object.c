@@ -330,12 +330,9 @@ rb_obj_dup(VALUE obj)
     }
     dup = rb_obj_alloc(rb_obj_class(obj));
     init_copy(dup, obj);
-    if (OBJ_TAINTED(obj)) {
-	OBJ_TAINT(dup);
-    }
-    if (OBJ_UNTRUSTED(obj)) {
-	OBJ_UNTRUST(dup);
-    }
+    rb_vm_call(dup, selInitializeDup, 1, &obj);
+    OBJ_INFECT(dup, obj);
+
     return dup;
 }
 

@@ -66,6 +66,7 @@ Init_id(void)
     selInitialize = sel_registerName("initialize");
     selInitialize2 = sel_registerName("initialize:");
     selInitializeCopy = sel_registerName("initialize_copy:");
+    selInitializeDup = sel_registerName("initialize_dup:");
     selDescription = sel_registerName("description");
     selInspect = sel_registerName("inspect");
     selNew = sel_registerName("new");
