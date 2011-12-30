@@ -783,9 +783,10 @@ rb_io_stat(VALUE obj, SEL sel)
     struct rb_io_t *io;
     struct stat st;
 
+#define rb_sys_fail_path(path) rb_sys_fail(path == 0 ? NULL : RSTRING_PTR(path))
     GetOpenFile(obj, io);
     if (fstat(io->fd, &st) == -1) {
-	rb_sys_fail(RSTRING_PTR(io->path));
+	rb_sys_fail_path(io->path);
     }
     return stat_new(&st);
 }
@@ -840,18 +841,18 @@ rb_file_s_lstat(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_file_lstat(VALUE obj, SEL sel)
 {
-    rb_io_t *fptr;
+    rb_io_t *io;
     struct stat st;
     VALUE path;
 
     rb_secure(2);
-    GetOpenFile(obj, fptr);
-    if (fptr->path == 0) {
+    GetOpenFile(obj, io);
+    if (io->path == 0) {
 	return Qnil;
     }
-    path = rb_str_encode_ospath(fptr->path);
+    path = rb_str_encode_ospath(io->path);
     if (lstat(RSTRING_PTR(path), &st) == -1) {
-	rb_sys_fail(RSTRING_PTR(fptr->path));
+	rb_sys_fail_path(io->path);
     }
     return stat_new(&st);
 }
@@ -1662,7 +1663,7 @@ rb_file_atime(VALUE obj, SEL sel)
 
     GetOpenFile(obj, io);
     if (fstat(io->fd, &st) == -1) {
-	rb_sys_fail(RSTRING_PTR(io->path));
+	rb_sys_fail_path(io->path);
     }
     return stat_atime(&st);
 }
@@ -1707,7 +1708,7 @@ rb_file_mtime(VALUE obj, SEL sel)
 
     GetOpenFile(obj, io);
     if (fstat(io->fd, &st) == -1) {
-	rb_sys_fail(RSTRING_PTR(io->path));
+	rb_sys_fail_path(io->path);
     }
     return stat_mtime(&st);
 }
@@ -1755,7 +1756,7 @@ rb_file_ctime(VALUE obj, SEL sel)
 
     GetOpenFile(obj, io);
     if (fstat(io->fd, &st) == -1) {
-	rb_sys_fail(RSTRING_PTR(io->path));
+	rb_sys_fail_path(io->path);
     }
     return stat_ctime(&st);
 }
@@ -1778,7 +1779,7 @@ rb_file_size(VALUE obj, SEL sel)
 
     GetOpenFile(obj, io);
     if (fstat(io->fd, &st) == -1) {
-	rb_sys_fail(RSTRING_PTR(io->path));
+	rb_sys_fail_path(io->path);
     }
     return OFFT2NUM(st.st_size);
 }
@@ -1970,7 +1971,7 @@ rb_file_chown(VALUE obj, SEL sel, VALUE owner, VALUE group)
     GetOpenFile(obj, io);
 
     if (fchown(io->fd, o, g) == -1) {
-	rb_sys_fail(RSTRING_PTR(io->path));
+	rb_sys_fail_path(io->path);
     }
 
     return INT2FIX(0);
@@ -2248,7 +2249,7 @@ rb_file_s_readlink(VALUE klass, SEL sel, VALUE path)
     }
     if (rv < 0) {
 	xfree(buf);
-	rb_sys_fail(RSTRING_PTR(path));
+	rb_sys_fail_path(path);
     }
     v = rb_tainted_str_new(buf, rv);
     xfree(buf);
@@ -3062,7 +3063,7 @@ rb_file_truncate(VALUE obj, SEL sel, VALUE len)
     GetOpenFile(obj, io);
     rb_io_assert_writable(io);
     if (ftruncate(io->fd, pos) < 0) {
-	rb_sys_fail(RSTRING_PTR(io->path));
+	rb_sys_fail_path(io->path);
     }
     return INT2FIX(0);
 }
@@ -3164,7 +3165,7 @@ rb_file_flock(VALUE obj, SEL sel, VALUE operation)
 		break;
 
 	    default:
-		rb_sys_fail(RSTRING_PTR(io->path));
+		rb_sys_fail_path(io->path);
 	}
     }
 #endif
