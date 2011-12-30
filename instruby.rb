@@ -384,9 +384,3 @@ if RUBY_FRAMEWORK
     end
   end
 end
-
-puts "installing LLVM tools"
-llc_dest = File.join(CONFIG['bindir'], 'llc')
-install(File.join(CONFIG['LLVM_PATH'], 'bin/llc'), llc_dest, :mode => $prog_mode)
-
-# vi:set sw=2:

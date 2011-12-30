@@ -97,12 +97,20 @@ end
 namespace :install do
   extend Installer
 
-  task :all => [:resources, :ext, :doc, :xcode_support]
+  task :all => [:resources, :bin, :ext, :doc, :xcode_support]
 
   desc 'Install the MacRuby.framework Info.plist file'
   task :resources => 'framework:info_plist' do
     mkdir_p FRAMEWORK_RESOURCES, :mode => 0755
     install File.join('framework/Info.plist'), FRAMEWORK_RESOURCES, :mode => 0644
+  end
+
+  desc 'Install MacRuby binaries'
+  task :bin do
+    puts 'Installing LLVM tools'
+    llc_dest = File.join(FRAMEWORK_USR_BIN, 'llc')
+    llc_src  = File.join(LLVM_PATH, 'bin/llc')
+    install(llc_src, llc_dest, :mode => prog_mode)
   end
 
   desc 'Install the C extensions'
