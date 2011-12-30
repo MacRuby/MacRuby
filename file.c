@@ -2958,7 +2958,7 @@ rb_file_join(VALUE ary, VALUE sep)
     assert(rb_str_chars_len(sep) == 1);
     UChar sep_char = rb_str_get_uchar(sep, 0);
     VALUE res = rb_str_new(NULL, 0);
-
+    OBJ_INFECT(res, ary);
     for (long i = 0, count = RARRAY_LEN(ary); i < count; i++) {
 	VALUE tmp = RARRAY_AT(ary, i);
 	switch (TYPE(tmp)) {
