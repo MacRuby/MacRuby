@@ -28,8 +28,10 @@ module Installer
   def install src, dest, opts = {}
     strip = opts.delete :strip
     opts[:preserve] = true
-    install(src, with_destdir(dest), opts)
-    dest = File.join(dest, File.basename(src)) if $made_dirs[dest]
+    super(src, with_destdir(dest), opts)
+    if made_dirs.include? dest
+      dest = File.join(dest, File.basename(src))
+    end
     puts dest
     if strip
       system("/usr/bin/strip -x \"#{with_destdir(dest)}\"")
@@ -54,21 +56,15 @@ module Installer
   end
 
   def install_recursive srcdir, dest, options = {}
-    opts = options.clone
-    noinst = opts.delete(:no_install)
-    glob = opts.delete(:glob) || '*'
+    opts    = options.clone
+    noinst  = Array(opts.delete(:no_install))
+    glob    = opts.delete(:glob) || '*'
     subpath = srcdir.size..-1
     Dir.glob("#{srcdir}/**/#{glob}") do |src|
-      case base = File.basename(src)
-      when /\A\#.*\#\z/, /~\z/
-        next
-      end
+      base  = File.basename(src)
+      next if base.match(/\A\#.*\#\z/) or base.match(/~\z/)
       if noinst
-        if Array === noinst
-          next if noinst.any? {|n| File.fnmatch?(n, base)}
-        else
-          next if File.fnmatch?(noinst, base)
-        end
+        next if noinst.any? { |n| File.fnmatch?(n, base) }
       end
       d = dest + src[subpath]
       if File.directory?(src)
@@ -84,10 +80,10 @@ module Installer
     @xcode_dir ||= `xcode-select -print-path`.chomp
   end
 
-  def install_stuff what, from, to, mode
-    puts "installing #{what}"
-    mkdir_p to, :mode => mode
-    install_recursive from, to, :mode => mode
+  def install_misc what, from, to
+    puts "Installing #{what}"
+    mkdir_p to, :mode => DIR_MODE
+    install_recursive from, to, :mode => DIR_MODE
   end
 
 end
@@ -117,6 +113,9 @@ namespace :install do
     end
   end
 
+  desc 'Install all Xcode related things'
+  task :xcode => [:nibtool, :xcode_templates, :xcode_samples]
+
   desc 'Install MacRuby support for Interface Builder'
   task :nibtool do
     puts 'Installing IB support'
@@ -125,7 +124,19 @@ namespace :install do
     ln_sfh File.join('../../..', FRAMEWORK_USR_BIN, 'rb_nibtool'), ib_dest
   end
 
+  desc 'Install the Xcode templates'
   task :xcode_templates do
+    # TODO only install templates for installed Xcodes
+    install_misc 'Xcode 4.x templates', 'misc/xcode4-templates',
+                 "#{xcode_dir}/Library/Xcode/Templates"
+    install_misc 'Xcode 3.x templates', 'misc/xcode-templates',
+                 '/Library/Application Support/Developer/3.0/Xcode'
+  end
+
+  desc 'Install MacRuby sample projects'
+  task :xcode_samples do
+    install_misc 'MacRuby sample projects', 'sample-macruby',
+                 "#{xcode_dir}/Examples/Ruby/MacRuby"
   end
 
 end

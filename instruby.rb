@@ -350,15 +350,6 @@ def mkdir_p(target, *flags)
   super(with_destdir(target), *flags)
 end
 
-install_stuff('Xcode 4.x templates', 'misc/xcode4-templates',
-  "#{xcode_dir}/Library/Xcode/Templates", 0755)
-install_stuff('Xcode 3.x templates', 'misc/xcode-templates',
-  '/Library/Application Support/Developer/3.0/Xcode', 0755)
-install_stuff('Xcode 2.x templates', 'misc/xcode-templates', 
-  '/Library/Application Support/Developer/Shared/Xcode', 0755)
-install_stuff('samples', 'sample-macruby',
-  "#{xcode_dir}/Examples/Ruby/MacRuby", 0775)
-
 if RUBY_FRAMEWORK
   puts "installing framework"
   # Creating framework infrastructure.
