@@ -97,7 +97,7 @@ end
 namespace :install do
   extend Installer
 
-  task :all => [:resources, :ext, :xcode_support]
+  task :all => [:resources, :ext, :doc, :xcode_support]
 
   desc 'Install the MacRuby.framework Info.plist file'
   task :resources => 'framework:info_plist' do
@@ -116,6 +116,14 @@ namespace :install do
       sub_dir = File.dirname(sub_path)
       sh "/usr/bin/install -c -m 0755 #{path} #{File.join(dest_site, sub_dir)}"
     end
+  end
+
+  desc 'Install RDoc and RI documentation'
+  task :doc => 'rake:doc' do
+    puts 'Installing RDoc and RI'
+    ridatadir = File.join(FRAMEWORK_USR_SHARE, "ri/#{NEW_RUBY_VERSION}/system")
+    makedirs [ridatadir]
+    install_recursive(rdoc_dir, ridatadir, :mode => data_mode)
   end
 
   desc 'Install all Xcode related things'

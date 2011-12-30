@@ -309,17 +309,6 @@ install?(:local, :comm, :man) do
   end
 end
 
-#install?(:rdoc) do
-  if $rdocdir
-    puts "installing rdoc"
-
-    ridatadir = File.join(CONFIG['datadir'], 'ri/$(MAJOR).$(MINOR).$(TEENY)/system')
-    Config.expand(ridatadir)
-    makedirs [ridatadir]
-    install_recursive($rdocdir, ridatadir, :mode => $data_mode)
-  end
-#end
-
 install?(:local, :data) do
   puts "installing data files"
   destination_dir = datadir.clone
