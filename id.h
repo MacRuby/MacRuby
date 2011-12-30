@@ -75,6 +75,7 @@ extern SEL selInit;
 extern SEL selInitialize;
 extern SEL selInitialize2;
 extern SEL selInitializeCopy;
+extern SEL selInitializeClone;
 extern SEL selInitializeDup;
 extern SEL selDescription;
 extern SEL selInspect;

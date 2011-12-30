@@ -282,14 +282,10 @@ rb_obj_clone_imp(VALUE obj, SEL sel)
 
     // #initialize_copy
     init_copy(clone, obj);
+    rb_vm_call(clone, selInitializeClone, 1, &obj);
 
     // Copy flags.
-    if (OBJ_TAINTED(obj)) {
-	OBJ_TAINT(clone);
-    }
-    if (OBJ_UNTRUSTED(obj)) {
-	OBJ_UNTRUST(clone);
-    }
+    OBJ_INFECT(clone, obj);
     if (OBJ_FROZEN(obj)) {
 	OBJ_FREEZE(clone);
     }
