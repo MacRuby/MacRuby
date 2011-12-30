@@ -2,7 +2,6 @@ require 'fileutils'
 
 # INSTRUBY_ARGS = "#{SCRIPT_ARGS}
 # --installed-list #{INSTALLED_LIST} --mantype=\"doc\" --sym-dest-dir=\"#{SYM_INSTDIR}\"
-# --rdoc-output=\"doc\""
 
 module Installer
   include FileUtils
@@ -11,6 +10,7 @@ module Installer
   PROG_MODE = 0775
   DIR_MODE  = PROG_MODE
   DATA_MODE = 0644
+  RDOC_DIR  = 'doc/'
 
   def with_destdir dir
     return dir if !DESTDIR or DESTDIR.empty?

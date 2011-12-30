@@ -24,7 +24,6 @@ def parse_args(argv = ARGV)
   $install = []
   $installed_list = nil
   $dryrun = false
-  $rdocdir = nil
   $data_mode = 0644
   $script_mode = nil
   $cmdtype = nil
@@ -53,7 +52,6 @@ def parse_args(argv = ARGV)
     $script_mode = mode
   end
   opt.on('--installed-list [FILENAME]') {|name| $installed_list = name}
-  opt.on('--rdoc-output [DIR]') {|dir| $rdocdir = dir}
   opt.on('--cmd-type=TYPE', %w[cmd plain]) {|cmd| $cmdtype = (cmd unless cmd == 'plain')}
 
   opt.order!(argv) do |v|
@@ -101,7 +99,6 @@ def parse_args(argv = ARGV)
     $installed_list.sync = true
   end
 
-  $rdocdir ||= $mflags.defined?('RDOCOUT')
   $script_mode ||= $prog_mode
 end
 
