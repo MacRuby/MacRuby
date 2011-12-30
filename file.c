@@ -1288,6 +1288,7 @@ rb_file_writable_real_p(VALUE obj, SEL sel, VALUE fname)
 static VALUE
 rb_file_world_writable_p(VALUE obj, SEL sel, VALUE fname)
 {
+#ifdef S_IWOTH
     struct stat st;
 
     if (rb_stat(fname, &st) < 0) {
@@ -1296,6 +1297,7 @@ rb_file_world_writable_p(VALUE obj, SEL sel, VALUE fname)
     if ((st.st_mode & (S_IWOTH)) == S_IWOTH) {
 	return UINT2NUM(st.st_mode & (S_IRUGO | S_IWUGO | S_IXUGO));
     }
+#endif
     return Qnil;
 }
 
