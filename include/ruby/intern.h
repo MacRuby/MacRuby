@@ -282,6 +282,7 @@ VALUE rb_find_file(VALUE);
 #define rb_path_skip_prefix(path) (path)
 char *rb_path_end(const char *);
 VALUE rb_str_encode_ospath(VALUE);
+int rb_is_absolute_path(const char *);
 
 /* gc.c */
 void ruby_set_stack_size(size_t);

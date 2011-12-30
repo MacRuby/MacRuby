@@ -2445,8 +2445,6 @@ rb_path_end(const char *path)
     return chompdirsep(path);
 }
 
-static int is_absolute_path(const char*);
-
 /*
  *  call-seq:
  *     File.expand_path(file_name [, dir_string] )  ->  abs_file_name
@@ -4048,10 +4046,13 @@ rb_file_const(const char *name, VALUE value)
     rb_define_const(rb_mFConst, name, value);
 }
 
-static int
-is_absolute_path(const char *path)
+int
+rb_is_absolute_path(const char *path)
 {
-    return path[0] == '/';
+    if (path[0] == '/') {
+	return 1;
+    }
+    return 0;
 }
 
 #ifndef ENABLE_PATH_CHECK
@@ -4066,7 +4067,7 @@ path_check_0(VALUE path, int execpath)
     const char *p0 = StringValueCStr(path);
     char *p = 0, *s;
 
-    if (!is_absolute_path(p0)) {
+    if (!rb_is_absolute_path(p0)) {
 	VALUE newpath = ruby_getcwd();
 	rb_str_cat2(newpath, "/");
 	rb_str_cat2(newpath, p0);
@@ -4197,7 +4198,7 @@ rb_find_file_ext_safe(VALUE *filep, const char *const *ext, int safe_level)
 	expanded = 1;
     }
 
-    if (expanded || is_absolute_path(f) || is_explicit_relative(f)) {
+    if (expanded || rb_is_absolute_path(f) || is_explicit_relative(f)) {
 	if (safe_level >= 1 && !fpath_check(fname)) {
 	    rb_raise(rb_eSecurityError, "loading from unsafe path %s", f);
 	}
@@ -4267,7 +4268,7 @@ rb_find_file_safe(VALUE path, int safe_level)
 	expanded = 1;
     }
 
-    if (expanded || is_absolute_path(f) || is_explicit_relative(f)) {
+    if (expanded || rb_is_absolute_path(f) || is_explicit_relative(f)) {
 	if (safe_level >= 1 && !fpath_check(path)) {
 	    rb_raise(rb_eSecurityError, "loading from unsafe path %s", f);
 	}
