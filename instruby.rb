@@ -343,10 +343,6 @@ $install.each do |inst|
   end
 end
 
-def mkdir_p(target, *flags)
-  super(with_destdir(target), *flags)
-end
-
 if RUBY_FRAMEWORK
   puts "installing framework"
   # Creating framework infrastructure.

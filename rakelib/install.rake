@@ -77,6 +77,10 @@ module Installer
     end
   end
 
+  def mkdir_p target, *flags
+    super(with_destdir(target), *flags)
+  end
+
   def xcode_dir
     @xcode_dir ||= `xcode-select -print-path`.chomp
   end
