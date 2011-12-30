@@ -6394,6 +6394,15 @@ rb_str_new5(VALUE source, const char *cstr, long len)
 }
 
 VALUE
+rb_str_new_frozen(VALUE orig)
+{
+    if (OBJ_FROZEN(orig)) {
+	return orig;
+    }
+    return rb_str_new4(orig);
+}
+
+VALUE
 rb_str_tmp_new(long len)
 {
     return rb_str_new(NULL, len);
@@ -6919,6 +6928,12 @@ VALUE
 rb_str_freeze(VALUE str)
 {
     return rb_obj_freeze(str);
+}
+
+VALUE
+rb_str_dup_frozen(VALUE orig)
+{
+    return rb_str_new_frozen(orig);
 }
 
 VALUE
