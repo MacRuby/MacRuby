@@ -2354,7 +2354,7 @@ rb_file_s_umask(VALUE rcv, SEL sel, int argc, VALUE *argv)
 	omask = umask(NUM2INT(argv[0]));
     }
     else {
-	rb_raise(rb_eArgError, "wrong number of arguments");
+	rb_raise(rb_eArgError, "wrong number of arguments (%d for 0..1)", argc);
     }
     return INT2FIX(omask);
 }
@@ -2497,6 +2497,7 @@ rb_file_s_absolute_path(VALUE rcv, SEL sel, int argc, VALUE *argv)
 	return rb_file_absolute_path(argv[0], Qnil);
     }
     rb_scan_args(argc, argv, "11", &fname, &dname);
+
     return rb_file_absolute_path(fname, dname);
 }
 
@@ -3266,7 +3267,7 @@ rb_f_test(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     int cmd;
 
-    if (argc == 0) rb_raise(rb_eArgError, "wrong number of arguments");
+    if (argc == 0) rb_raise(rb_eArgError, "wrong number of arguments (0 for 2..3)");
     cmd = NUM2CHR(argv[0]);
     if (cmd == 0) goto unknown;
     if (strchr("bcdefgGkloOprRsSuwWxXz", cmd)) {
@@ -3390,10 +3391,10 @@ rb_f_test(VALUE rcv, SEL sel, int argc, VALUE *argv)
   unknown:
     /* unknown command */
     if (ISPRINT(cmd)) {
-	rb_raise(rb_eArgError, "unknown command ?%c", cmd);
+	rb_raise(rb_eArgError, "unknown command '%s%c'", cmd == '\'' || cmd == '\\' ? "\\" : "", cmd);
     }
     else {
-	rb_raise(rb_eArgError, "unknown command ?\\x%02X", cmd);
+	rb_raise(rb_eArgError, "unknown command \"\\x%02X\"", cmd);
     }
     return Qnil;		/* not reached */
 }
@@ -4262,7 +4263,7 @@ rb_find_file_safe(VALUE path, int safe_level)
     if (f[0] == '~') {
 	tmp = rb_file_expand_path(path, Qnil);
 	if (safe_level >= 1 && OBJ_TAINTED(tmp)) {
-	    rb_raise(rb_eSecurityError, "loading from unsafe path %s", f);
+	    rb_raise(rb_eSecurityError, "loading from unsafe file %s", f);
 	}
 	path = copy_path_class(tmp, path);
 	f = RSTRING_PTR(path);
