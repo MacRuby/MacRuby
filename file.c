@@ -67,11 +67,11 @@ int flock(int, int);
 static int
 be_chown(const char *path, uid_t owner, gid_t group)
 {
-    if (owner == -1 || group == -1) {
+    if (owner == (uid_t)-1 || group == (gid_t)-1) {
 	struct stat st;
 	if (stat(path, &st) < 0) return -1;
-	if (owner == -1) owner = st.st_uid;
-	if (group == -1) group = st.st_gid;
+	if (owner == (uid_t)-1) owner = st.st_uid;
+	if (group == (gid_t)-1) group = st.st_gid;
     }
     return chown(path, owner, group);
 }
@@ -79,11 +79,11 @@ be_chown(const char *path, uid_t owner, gid_t group)
 static int
 be_fchown(int fd, uid_t owner, gid_t group)
 {
-    if (owner == -1 || group == -1) {
+    if (owner == (uid_t)-1 || group == (gid_t)-1) {
 	struct stat st;
 	if (fstat(fd, &st) < 0) return -1;
-	if (owner == -1) owner = st.st_uid;
-	if (group == -1) group = st.st_gid;
+	if (owner == (uid_t)-1) owner = st.st_uid;
+	if (group == (gid_t)-1) group = st.st_gid;
     }
     return fchown(fd, owner, group);
 }
@@ -780,7 +780,7 @@ rb_file_s_stat(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_io_stat(VALUE obj, SEL sel)
 {
-    struct rb_io_t *io;
+    rb_io_t *io;
     struct stat st;
 
 #define rb_sys_fail_path(path) rb_sys_fail(path == 0 ? NULL : RSTRING_PTR(path))
@@ -935,7 +935,7 @@ eaccess(const char *path, int mode)
 	mode <<= 3;
     }
 
-    if ((st.st_mode & mode) == mode) {
+    if ((int)(st.st_mode & mode) == mode) {
 	return 0;
     }
 
@@ -1666,7 +1666,7 @@ rb_file_s_atime(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_file_atime(VALUE obj, SEL sel)
 {
-    struct rb_io_t *io;
+    rb_io_t *io;
     struct stat st;
 
     GetOpenFile(obj, io);
@@ -1711,7 +1711,7 @@ rb_file_s_mtime(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_file_mtime(VALUE obj, SEL sel)
 {
-    struct rb_io_t *io;
+    rb_io_t *io;
     struct stat st;
 
     GetOpenFile(obj, io);
@@ -1759,7 +1759,7 @@ rb_file_s_ctime(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_file_ctime(VALUE obj, SEL sel)
 {
-    struct rb_io_t *io;
+    rb_io_t *io;
     struct stat st;
 
     GetOpenFile(obj, io);
@@ -1782,7 +1782,7 @@ rb_file_ctime(VALUE obj, SEL sel)
 static VALUE
 rb_file_size(VALUE obj, SEL sel)
 {
-    struct rb_io_t *io;
+    rb_io_t *io;
     struct stat st;
 
     GetOpenFile(obj, io);
@@ -2064,9 +2064,9 @@ no_utimensat:
 
     if (tsp) {
         tvbuf[0].tv_sec = tsp[0].tv_sec;
-        tvbuf[0].tv_usec = tsp[0].tv_nsec / 1000;
+        tvbuf[0].tv_usec = (int)(tsp[0].tv_nsec / 1000);
         tvbuf[1].tv_sec = tsp[1].tv_sec;
-        tvbuf[1].tv_usec = tsp[1].tv_nsec / 1000;
+        tvbuf[1].tv_usec = (int)(tsp[1].tv_nsec / 1000);
         tvp = tvbuf;
     }
     if (utimes(path, tvp) < 0)
@@ -2140,7 +2140,7 @@ sys_fail2(VALUE s1, VALUE s2)
 #endif
     const char *e1, *e2;
     int len = 5;
-    int l1 = RSTRING_LEN(s1), l2 = RSTRING_LEN(s2);
+    long l1 = RSTRING_LEN(s1), l2 = RSTRING_LEN(s2);
 
     e1 = e2 = "";
     if (l1 > max_pathlen) {
@@ -2153,11 +2153,11 @@ sys_fail2(VALUE s1, VALUE s2)
 	e2 = "...";
 	len += 3;
     }
-    len += l1 + l2;
+    len += (int)l1 + (int)l2;
     buf = ALLOCA_N(char, len);
     snprintf(buf, len, "(%.*s%s, %.*s%s)",
-	     l1, RSTRING_PTR(s1), e1,
-	     l2, RSTRING_PTR(s2), e2);
+	     (int)l1, RSTRING_PTR(s1), e1,
+	     (int)l2, RSTRING_PTR(s2), e2);
     rb_sys_fail(buf);
 }
 
@@ -2697,10 +2697,10 @@ rb_file_s_realdirpath(VALUE klass, SEL sel, int argc, VALUE *argv)
     return rb_realpath_internal(basedir, path, 0);
 }
 
-static int
-rmext(const char *p, int l1, const char *e)
+static size_t
+rmext(const char *p, long l1, const char *e)
 {
-    int l0, l2;
+    long l0, l2;
 
     if (!e) return 0;
 
@@ -2748,7 +2748,7 @@ rb_file_s_basename(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     VALUE fname, fext, basename;
     const char *name, *p;
-    int f, n;
+    long f, n;
 
     if (rb_scan_args(argc, argv, "11", &fname, &fext) == 2) {
 	StringValue(fext);
@@ -2777,6 +2777,7 @@ rb_file_s_basename(VALUE rcv, SEL sel, int argc, VALUE *argv)
 	}
 	if (f == RSTRING_LEN(fname)) return fname;
     }
+
     basename = rb_str_new(p, f);
     rb_enc_copy(basename, fname);
     OBJ_INFECT(basename, fname);
