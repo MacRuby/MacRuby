@@ -42,7 +42,7 @@ range_init(VALUE range, VALUE beg, VALUE end, int exclude_end)
 
     args[0] = beg;
     args[1] = end;
-    
+
     if (!FIXNUM_P(beg) || !FIXNUM_P(end)) {
 	VALUE v;
 
@@ -77,8 +77,8 @@ rb_range_new2(VALUE beg, VALUE end, int exclude_end, int retain)
 
 /*
  *  call-seq:
- *     Range.new(start, end, exclusive=false)    => range
- *  
+ *     Range.new(start, end, exclusive=false)    -> range
+ *
  *  Constructs a range using the given <i>start</i> and <i>end</i>. If the third
  *  parameter is omitted or is <code>false</code>, the <i>range</i> will include
  *  the end object; otherwise, it will be excluded.
@@ -88,7 +88,7 @@ static VALUE
 range_initialize(VALUE range, SEL sel ,int argc, VALUE *argv)
 {
     VALUE beg, end, flags;
-    
+
     rb_scan_args(argc, argv, "21", &beg, &end, &flags);
     /* Ranges are immutable, so that they should be initialized only once. */
     if (RANGE_EXCL(range) != Qnil) {
@@ -101,8 +101,8 @@ range_initialize(VALUE range, SEL sel ,int argc, VALUE *argv)
 
 /*
  *  call-seq:
- *     rng.exclude_end?    => true or false
- *  
+ *     rng.exclude_end?    -> true or false
+ *
  *  Returns <code>true</code> if <i>rng</i> excludes its end value.
  */
 
@@ -115,16 +115,16 @@ range_exclude_end_p(VALUE range, SEL sel)
 
 /*
  *  call-seq:
- *     rng == obj    => true or false
- *  
+ *     rng == obj    -> true or false
+ *
  *  Returns <code>true</code> only if <i>obj</i> is a Range, has equivalent
  *  beginning and end items (by comparing them with <code>==</code>), and has
- *  the same #exclude_end? setting as <i>rng</t>.
- *     
+ *  the same <code>exclude_end?</code> setting as <i>rng</i>.
+ *
  *    (0..2) == (0..2)            #=> true
  *    (0..2) == Range.new(0,2)    #=> true
  *    (0..2) == (0...2)           #=> false
- *     
+ *
  */
 
 static VALUE
@@ -182,16 +182,16 @@ r_le(VALUE a, VALUE b)
 
 /*
  *  call-seq:
- *     rng.eql?(obj)    => true or false
- *  
+ *     rng.eql?(obj)    -> true or false
+ *
  *  Returns <code>true</code> only if <i>obj</i> is a Range, has equivalent
  *  beginning and end items (by comparing them with #eql?), and has the same
  *  #exclude_end? setting as <i>rng</i>.
- *     
- *    (0..2) == (0..2)            #=> true
- *    (0..2) == Range.new(0,2)    #=> true
- *    (0..2) == (0...2)           #=> false
- *     
+ *
+ *    (0..2).eql?(0..2)            #=> true
+ *    (0..2).eql?(Range.new(0,2))  #=> true
+ *    (0..2).eql?(0...2)           #=> false
+ *
  */
 
 static VALUE
@@ -220,7 +220,7 @@ range_eql(VALUE range, SEL sel, VALUE obj)
 
 /*
  * call-seq:
- *   rng.hash    => fixnum
+ *   rng.hash    -> fixnum
  *
  * Generate a hash value such that two ranges with the same start and
  * end points, and the same value for the "exclude end" flag, generate
@@ -309,20 +309,23 @@ sym_step_i(VALUE i, void *arg)
 
 /*
  *  call-seq:
- *     rng.step(n=1) {| obj | block }    => rng
- *  
+ *     rng.step(n=1) {| obj | block }    -> rng
+ *     rng.step(n=1)                     -> an_enumerator
+ *
  *  Iterates over <i>rng</i>, passing each <i>n</i>th element to the block. If
  *  the range contains numbers, <i>n</i> is added for each iteration.  Otherwise
  *  <code>step</code> invokes <code>succ</code> to iterate through range
  *  elements. The following code uses class <code>Xs</code>, which is defined
  *  in the class-level documentation.
- *     
+ *
+ *  If no block is given, an enumerator is returned instead.
+ *
  *     range = Xs.new(1)..Xs.new(10)
  *     range.step(2) {|x| puts x}
  *     range.step(3) {|x| puts x}
- *     
+ *
  *  <em>produces:</em>
- *     
+ *
  *      1 x
  *      3 xxx
  *      5 xxxxx
@@ -441,19 +444,22 @@ sym_each_i(VALUE v, void *arg)
 
 /*
  *  call-seq:
- *     rng.each {| i | block } => rng
- *  
+ *     rng.each {| i | block } -> rng
+ *     rng.each                -> an_enumerator
+ *
  *  Iterates over the elements <i>rng</i>, passing each in turn to the
  *  block. You can only iterate if the start object of the range
  *  supports the +succ+ method (which means that you can't iterate over
  *  ranges of +Float+ objects).
- *     
+ *
+ *  If no block is given, an enumerator is returned instead.
+ *
  *     (10..15).each do |n|
  *        print n, ' '
  *     end
- *     
+ *
  *  <em>produces:</em>
- *     
+ *
  *     10 11 12 13 14 15
  */
 
@@ -504,8 +510,8 @@ range_each(VALUE range, SEL sel)
 
 /*
  *  call-seq:
- *     rng.begin    => obj
- *  
+ *     rng.begin    -> obj
+ *
  *  Returns the first object in <i>rng</i>.
  */
 
@@ -518,10 +524,10 @@ range_begin(VALUE range, SEL sel)
 
 /*
  *  call-seq:
- *     rng.end    => obj
- *  
+ *     rng.end    -> obj
+ *
  *  Returns the object that defines the end of <i>rng</i>.
- *     
+ *
  *     (1..10).end    #=> 10
  *     (1...10).end   #=> 10
  */
@@ -550,9 +556,9 @@ first_i(VALUE i, VALUE *ary)
 
 /*
  *  call-seq:
- *     rng.first    => obj
- *     rng.first(n) => an_array
- *  
+ *     rng.first    -> obj
+ *     rng.first(n) -> an_array
+ *
  *  Returns the first object in <i>rng</i>, or the first +n+ elements.
  */
 
@@ -574,9 +580,9 @@ range_first(VALUE range, SEL sel, int argc, VALUE *argv)
 
 /*
  *  call-seq:
- *     rng.last    => obj
- *     rng.last(n) => an_array
- *  
+ *     rng.last    -> obj
+ *     rng.last(n) -> an_array
+ *
  *  Returns the last object in <i>rng</i>, or the last +n+ elements.
  */
 
@@ -592,13 +598,13 @@ range_last(VALUE range, SEL sel, int argc, VALUE *argv)
 
 /*
  *  call-seq:
- *     rng.min                    => obj
- *     rng.min {| a,b | block }   => obj
- *  
+ *     rng.min                    -> obj
+ *     rng.min {| a,b | block }   -> obj
+ *
  *  Returns the minimum value in <i>rng</i>. The second uses
  *  the block to compare values.  Returns nil if the first
  *  value in range is larger than the last value.
- *     
+ *
  */
 
 
@@ -624,15 +630,14 @@ range_min(VALUE range, SEL sel)
 
 /*
  *  call-seq:
- *     rng.max                    => obj
- *     rng.max {| a,b | block }   => obj
- *  
+ *     rng.max                    -> obj
+ *     rng.max {| a,b | block }   -> obj
+ *
  *  Returns the maximum value in <i>rng</i>. The second uses
  *  the block to compare values.  Returns nil if the first
  *  value in range is larger than the last value.
- *     
+ *
  */
-
 
 static VALUE
 range_max(VALUE range, SEL sel)
@@ -764,7 +769,7 @@ rb_range_beg_len(VALUE range, long *begp, long *lenp, long len, int err)
 
 /*
  * call-seq:
- *   rng.to_s   => string
+ *   rng.to_s   -> string
  *
  * Convert this range object to a printable form.
  */
@@ -786,9 +791,9 @@ range_to_s(VALUE range, SEL sel)
 
 /*
  * call-seq:
- *   rng.inspect  => string
+ *   rng.inspect  -> string
  *
- * Convert this range object to a printable form (using 
+ * Convert this range object to a printable form (using
  * <code>inspect</code> to convert the start and end
  * objects).
  */
@@ -811,21 +816,21 @@ range_inspect(VALUE range, SEL sel)
 
 /*
  *  call-seq:
- *     rng === obj       =>  true or false
- *  
+ *     rng === obj       ->  true or false
+ *
  *  Returns <code>true</code> if <i>obj</i> is an element of
  *  <i>rng</i>, <code>false</code> otherwise. Conveniently,
  *  <code>===</code> is the comparison operator used by
  *  <code>case</code> statements.
- *     
+ *
  *     case 79
  *     when 1..50   then   print "low\n"
  *     when 51..75  then   print "medium\n"
  *     when 76..100 then   print "high\n"
  *     end
- *     
+ *
  *  <em>produces:</em>
- *     
+ *
  *     high
  */
 
@@ -837,15 +842,15 @@ range_eqq(VALUE range, SEL sel, VALUE val)
 
 /*
  *  call-seq:
- *     rng.member?(val)  =>  true or false
- *     rng.include?(val) =>  true or false
- *  
+ *     rng.member?(val)  ->  true or false
+ *     rng.include?(val) ->  true or false
+ *
  *  Returns <code>true</code> if <i>obj</i> is an element of
  *  <i>rng</i>, <code>false</code> otherwise.  If beg and end are
  *  numeric, comparison is done according magnitude of values.
- *     
- *     ("a".."z").include?("g")  # => true
- *     ("a".."z").include?("A")  # => false
+ *
+ *     ("a".."z").include?("g")  # -> true
+ *     ("a".."z").include?("A")  # -> false
  */
 
 static VALUE
@@ -900,12 +905,12 @@ range_include(VALUE range, SEL sel, VALUE val)
 
 /*
  *  call-seq:
- *     rng.cover?(val)  =>  true or false
- *  
+ *     rng.cover?(val)  ->  true or false
+ *
  *  Returns <code>true</code> if <i>obj</i> is between beg and end,
  *  i.e <code>beg <= obj <= end</code> (or <i>end</i> exclusive when
  *  <code>exclude_end?</code> is true).
- *     
+ *
  *     ("a".."z").cover?("c")    #=> true
  *     ("a".."z").cover?("5")    #=> false
  */
@@ -998,17 +1003,17 @@ range_alloc(VALUE klass)
  *  run from the start to the end inclusively. Those created using
  *  <code>...</code> exclude the end value. When used as an iterator,
  *  ranges return each value in the sequence.
- *     
+ *
  *     (-1..-5).to_a      #=> []
  *     (-5..-1).to_a      #=> [-5, -4, -3, -2, -1]
  *     ('a'..'e').to_a    #=> ["a", "b", "c", "d", "e"]
  *     ('a'...'e').to_a   #=> ["a", "b", "c", "d"]
- *     
+ *
  *  Ranges can be constructed using objects of any type, as long as the
  *  objects can be compared using their <code><=></code> operator and
  *  they support the <code>succ</code> method to return the next object
  *  in sequence.
- *     
+ *
  *     class Xs                # represent a string of 'x's
  *       include Comparable
  *       attr :length
@@ -1028,18 +1033,18 @@ range_alloc(VALUE klass)
  *         'x' * @length
  *       end
  *     end
- *     
+ *
  *     r = Xs.new(3)..Xs.new(6)   #=> xxx..xxxxxx
  *     r.to_a                     #=> [xxx, xxxx, xxxxx, xxxxxx]
  *     r.member?(Xs.new(5))       #=> true
- *     
+ *
  *  In the previous code example, class <code>Xs</code> includes the
  *  <code>Comparable</code> module. This is because
  *  <code>Enumerable#member?</code> checks for equality using
  *  <code>==</code>. Including <code>Comparable</code> ensures that the
  *  <code>==</code> method is defined in terms of the <code><=></code>
  *  method implemented in <code>Xs</code>.
- *     
+ *
  */
 
 void
