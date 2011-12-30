@@ -2571,12 +2571,12 @@ realpath_rec(long *prefixlenp, VALUE *resolvedp, char *unresolved, VALUE loopche
                         *prefixlenp = link_prefixlen;
                         realpath_rec(prefixlenp, resolvedp, link_names, loopcheck, strict, *unresolved_firstsep == '\0');
                     }
-                    rb_hash_aset(loopcheck, testpath, rb_str_dup(*resolvedp));
+                    rb_hash_aset(loopcheck, testpath, rb_str_dup_frozen(*resolvedp));
                 }
                 else
 #endif
                 {
-                    VALUE s = rb_str_dup(testpath);
+                    VALUE s = rb_str_dup_frozen(testpath);
                     rb_hash_aset(loopcheck, s, s);
                     *resolvedp = testpath;
                 }
@@ -2600,11 +2600,11 @@ rb_realpath_internal(VALUE basedir, VALUE path, int strict)
     rb_secure(2);
 
     FilePathValue(path);
-    unresolved_path = rb_str_dup(path);
+    unresolved_path = rb_str_dup_frozen(path);
 
     if (!NIL_P(basedir)) {
         FilePathValue(basedir);
-        basedir = rb_str_dup(basedir);
+        basedir = rb_str_dup_frozen(basedir);
     }
 
     ptr = (char *)RSTRING_PTR(unresolved_path);
