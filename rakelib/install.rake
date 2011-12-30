@@ -7,10 +7,10 @@ module Installer
   include FileUtils
 
   # Hard coded
-  PROG_MODE = 0775
-  DIR_MODE  = PROG_MODE
-  DATA_MODE = 0644
-  RDOC_DIR  = 'doc/'
+  def prog_mode; 0775;   end
+  def dir_mode;  0755;   end
+  def data_mode; 0644;   end
+  def rdoc_dir;  'doc/'; end
 
   def with_destdir dir
     return dir if !DESTDIR or DESTDIR.empty?
@@ -53,7 +53,7 @@ module Installer
         File.directory?(realdir)
       end
     end.compact!
-    super(dirs, :mode => DIR_MODE) unless dirs.empty?
+    super(dirs, :mode => dir_mode) unless dirs.empty?
   end
 
   def install_recursive srcdir, dest, options = {}
@@ -87,8 +87,8 @@ module Installer
 
   def install_misc what, from, to
     puts "Installing #{what}"
-    mkdir_p to, :mode => DIR_MODE
-    install_recursive from, to, :mode => DIR_MODE
+    mkdir_p to, :mode => dir_mode
+    install_recursive from, to, :mode => dir_mode
   end
 
 end
