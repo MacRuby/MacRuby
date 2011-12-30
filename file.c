@@ -840,7 +840,7 @@ rb_file_s_lstat(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_file_lstat(VALUE obj, SEL sel)
 {
-#if HAVE_LSTAT
+#ifdef HAVE_LSTAT
     rb_io_t *io;
     struct stat st;
     VALUE path;
@@ -4239,6 +4239,7 @@ rb_find_file_ext_safe(VALUE *filep, const char *const *ext, int safe_level)
 		*filep = copy_path_class(tmp, *filep);
 		return (int)(j+1);
 	    }
+	    FL_UNSET(tmp, FL_TAINT | FL_UNTRUSTED);
 	}
 	rb_str_set_len(fname, fnlen);
     }
