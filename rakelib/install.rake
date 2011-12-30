@@ -7,10 +7,10 @@ module Installer
   include FileUtils
 
   # Hard coded
-  def prog_mode; 0775;   end
   def dir_mode;  0755;   end
   def data_mode; 0644;   end
   def rdoc_dir;  'doc/'; end
+  def prog_mode;   0755;   end
 
   def with_destdir dir
     return dir if !DESTDIR or DESTDIR.empty?
