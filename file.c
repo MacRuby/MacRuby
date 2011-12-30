@@ -837,10 +837,10 @@ rb_file_s_lstat(VALUE klass, SEL sel, VALUE fname)
  *     f.stat.size                             #=> 66
  */
 
-#if HAVE_LSTAT
 static VALUE
 rb_file_lstat(VALUE obj, SEL sel)
 {
+#if HAVE_LSTAT
     rb_io_t *io;
     struct stat st;
     VALUE path;
@@ -855,10 +855,10 @@ rb_file_lstat(VALUE obj, SEL sel)
 	rb_sys_fail_path(io->path);
     }
     return stat_new(&st);
-}
 #else
-# define rb_file_lstat rb_f_notimplement
+    return rb_io_stat(obj);
 #endif
+}
 
 #ifndef HAVE_GROUP_MEMBER
 static int
@@ -1022,7 +1022,7 @@ rb_file_pipe_p(VALUE obj, SEL sel, VALUE fname)
 
 /*
  * call-seq:
- *   File.symlink?(file_name)   =>  true or false
+ *   File.symlink?(file_name)   ->  true or false
  *
  * Returns <code>true</code> if the named file is a symbolic link.
  */
