@@ -4204,7 +4204,6 @@ rb_find_file_ext_safe(VALUE *filep, const char *const *ext, int safe_level)
 	    rb_raise(rb_eSecurityError, "loading from unsafe path %s", f);
 	}
 	if (!expanded) fname = rb_file_expand_path(fname, Qnil);
-	fname = rb_str_dup(*filep);
 	fnlen = RSTRING_LEN(fname);
 	for (i=0; ext[i]; i++) {
 	    rb_str_cat2(fname, ext[i]);
