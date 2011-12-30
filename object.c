@@ -360,6 +360,14 @@ rb_obj_init_copy(VALUE obj, SEL sel, VALUE orig)
     return obj;
 }
 
+/* :nodoc: */
+VALUE
+rb_obj_init_dup_clone(VALUE obj, SEL sel, VALUE orig)
+{
+    rb_vm_call(obj, selInitializeCopy, 1, &orig);
+    return obj;
+}
+
 static VALUE
 rb_nsobj_dup(VALUE obj, VALUE sel)
 {
@@ -3077,6 +3085,9 @@ Init_Object(void)
     rb_objc_define_method(rb_cNSObject, "__type__", rb_obj_type, 0);
 
     rb_objc_define_method(rb_mKernel, "initialize_copy", rb_obj_init_copy, 1);
+    rb_objc_define_method(rb_mKernel, "initialize_dup", rb_obj_init_dup_clone, 1);
+    rb_objc_define_method(rb_mKernel, "initialize_clone", rb_obj_init_dup_clone, 1);
+
     rb_objc_define_method(rb_mKernel, "taint", rb_obj_taint_m, 0);
     rb_objc_define_method(rb_mKernel, "tainted?", rb_obj_tainted_p, 0);
     rb_objc_define_method(rb_mKernel, "untaint", rb_obj_untaint_m, 0);
