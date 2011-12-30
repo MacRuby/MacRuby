@@ -15,6 +15,8 @@
 VALUE rb_cRange;
 static SEL selUpto, selBeg, selEnd, selExcludeEnd, selInclude; 
 
+extern VALUE rb_struct_init_copy(VALUE copy, VALUE s);
+
 #define RANGE_BEG(r) (RSTRUCT(r)->as.ary[0])
 #define RANGE_END(r) (RSTRUCT(r)->as.ary[1])
 #define RANGE_EXCL(r) (RSTRUCT(r)->as.ary[2])
@@ -98,6 +100,7 @@ range_initialize(VALUE range, SEL sel ,int argc, VALUE *argv)
     return Qnil;
 }
 
+#define range_initialize_copy rb_struct_init_copy /* :nodoc: */
 
 /*
  *  call-seq:
@@ -1057,6 +1060,7 @@ Init_Range(void)
     rb_include_module(rb_cRange, rb_mEnumerable);
     //rb_marshal_define_compat(rb_cRange, rb_cObject, range_dumper, range_loader);
     rb_objc_define_method(rb_cRange, "initialize", range_initialize, -1);
+    rb_objc_define_method(rb_cRange, "initialize_copy", range_initialize_copy, 1);
     rb_objc_define_method(rb_cRange, "==", range_eq, 1);
     rb_objc_define_method(rb_cRange, "===", range_eqq, 1);
     rb_objc_define_method(rb_cRange, "eql?", range_eql, 1);

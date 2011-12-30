@@ -576,7 +576,7 @@ rb_struct_to_a(VALUE s, SEL sel)
 }
 
 /* :nodoc: */
-static VALUE
+VALUE
 rb_struct_init_copy(VALUE copy, SEL sel, VALUE s)
 {
     if (copy == s) return copy;
