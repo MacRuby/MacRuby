@@ -125,7 +125,7 @@ EXPORTED_SYMBOLS_LIST = "./exported_symbols_list"
 
 # Full list of objects to build.
 OBJS = %w{
-  array bignum class compar complex enum enumerator error eval file load proc 
+  array bignum class compar complex enum enumerator error eval file load proc
   gc hash env inits io math numeric object pack parse prec dir process
   random range rational re ruby signal sprintf st string struct time
   util variable version thread id objc bs ucnv encoding main dln dmyext marshal
@@ -136,7 +136,7 @@ OBJS = %w{
 
 # Static MacRuby builds less objects.
 STATIC_OBJS = OBJS - %w{
-  bs compiler debugger interpreter MacRubyDebuggerConnector parse 
+  bs compiler debugger interpreter MacRubyDebuggerConnector parse
 }
 
 # Additional compilation flags for certain objects.
@@ -207,9 +207,9 @@ module Rake
         "        #{name.ljust(30)} \"#{default}\""
       end.join("\n")
     end
-    
+
     alias_method :display_tasks_and_comments_without_macruby_options, :display_tasks_and_comments
-    
+
     def display_tasks_and_comments
       display_tasks_and_comments_without_macruby_options
       puts %{
