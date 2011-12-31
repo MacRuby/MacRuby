@@ -46,7 +46,7 @@ module Installer
   end
 
   def makedirs dirs
-    dirs = fu_list(dirs)
+    dirs = fu_list(Array(dirs))
     dirs.collect! do |dir|
       realdir = with_destdir(dir)
       realdir unless made_dirs.include?(dir) do
@@ -66,9 +66,7 @@ module Installer
     Dir.glob("#{srcdir}/**/#{glob}") do |src|
       base  = File.basename(src)
       next if base.match(/\A\#.*\#\z/) or base.match(/~\z/)
-      if noinst
-        next if noinst.any? { |n| File.fnmatch?(n, base) }
-      end
+      next if noinst.any? { |n| File.fnmatch?(n, base) }
       d = dest + src[subpath]
       if File.directory?(src)
         makedirs(d)
@@ -132,7 +130,7 @@ namespace :install do
   task :doc => 'rake:doc' do
     puts 'Installing RDoc and RI'
     ridatadir = File.join(FRAMEWORK_USR_SHARE, "ri/#{NEW_RUBY_VERSION}/system")
-    makedirs [ridatadir]
+    makedirs ridatadir
     install_recursive(rdoc_dir, ridatadir, :mode => data_mode)
   end
 
