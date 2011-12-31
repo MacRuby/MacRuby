@@ -268,15 +268,6 @@ install?(:local, :comm, :lib) do
   end
 end
 
-install?(:local, :arch, :lib) do
-  puts "installing headers"
-
-  Dir.chdir(srcdir)
-  makedirs [rubyhdrdir]
-  noinst = nil
-  install_recursive("include", rubyhdrdir, :no_install => noinst, :glob => "*.h", :mode => $data_mode)
-end
-
 install?(:local, :comm, :man) do
   puts "installing manpages"
 

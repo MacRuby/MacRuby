@@ -97,7 +97,7 @@ end
 namespace :install do
   extend Installer
 
-  task :all => [:resources, :bin, :ext, :doc, :xcode_support]
+  task :all => [:resources, :bin, :ext, :headers, :doc, :xcode_support]
 
   desc 'Install the MacRuby.framework Info.plist file'
   task :resources => 'framework:info_plist' do
@@ -124,6 +124,14 @@ namespace :install do
       sub_dir = File.dirname(sub_path)
       sh "/usr/bin/install -c -m 0755 #{path} #{File.join(dest_site, sub_dir)}"
     end
+  end
+
+  desc 'Install the MacRuby headers'
+  task :headers do
+    puts 'Installing headers'
+    header_dir = "#{FRAMEWORK_USR}/include/ruby-#{NEW_RUBY_VERSION}"
+    makedirs header_dir
+    install_recursive('include', header_dir, :glob => "*.h", :mode => data_mode)
   end
 
   desc 'Install RDoc and RI documentation'
