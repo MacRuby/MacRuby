@@ -24,7 +24,6 @@ def parse_args(argv = ARGV)
   $install = []
   $installed_list = nil
   $dryrun = false
-  $data_mode = 0644
   $script_mode = nil
   $cmdtype = nil
   mflags = []
@@ -99,7 +98,6 @@ def parse_args(argv = ARGV)
     $installed_list.sync = true
   end
 
-  $script_mode ||= $prog_mode
 end
 
 parse_args()
