@@ -75,105 +75,116 @@ TOKEN_PASTE(swap,x)(xtype z)		\
 }
 
 #ifndef swap16
-#define swap16(x)	((((x)&0xFF)<<8) | (((x)>>8)&0xFF))
-#endif
-#if SIZEOF_SHORT == 2
-#define swaps(x)	swap16(x)
-#else
-#if SIZEOF_SHORT == 4
-#define swaps(x)	((((x)&0xFF)<<24)	\
-			|(((x)>>24)&0xFF)	\
-			|(((x)&0x0000FF00)<<8)	\
-			|(((x)&0x00FF0000)>>8)	)
-#else
-define_swapx(s,short)
-#endif
+# define swap16(x)	((((x)&0xFF)<<8) | (((x)>>8)&0xFF))
 #endif
 
 #ifndef swap32
-#define swap32(x)	((((x)&0xFF)<<24)	\
+# define swap32(x)	((((x)&0xFF)<<24)	\
 			|(((x)>>24)&0xFF)	\
 			|(((x)&0x0000FF00)<<8)	\
 			|(((x)&0x00FF0000)>>8)	)
 #endif
-#if SIZEOF_LONG == 4
-#define swapl(x)	swap32(x)
-#else
-#if SIZEOF_LONG == 8
-#define swapl(x)        ((((x)&0x00000000000000FF)<<56)	\
-			|(((x)&0xFF00000000000000)>>56)	\
-			|(((x)&0x000000000000FF00)<<40)	\
-			|(((x)&0x00FF000000000000)>>40)	\
-			|(((x)&0x0000000000FF0000)<<24)	\
-			|(((x)&0x0000FF0000000000)>>24)	\
-			|(((x)&0x00000000FF000000)<<8)	\
-			|(((x)&0x000000FF00000000)>>8))
-#else
-define_swapx(l,long)
+
+#ifndef swap64
+# ifdef HAVE_INT64_T
+#  define byte_in_64bit(n) ((uint64_t)0xff << (n))
+#  define swap64(x)       ((((x)&byte_in_64bit(0))<<56) 	\
+			   |(((x)>>56)&0xFF)	                \
+			   |(((x)&byte_in_64bit(8))<<40)	\
+			   |(((x)&byte_in_64bit(48))>>40)	\
+			   |(((x)&byte_in_64bit(16))<<24)	\
+			   |(((x)&byte_in_64bit(40))>>24)	\
+			   |(((x)&byte_in_64bit(24))<<8)	\
+			   |(((x)&byte_in_64bit(32))>>8))
+# endif
 #endif
+
+#if SIZEOF_SHORT == 2
+# define swaps(x)	swap16(x)
+#elif SIZEOF_SHORT == 4
+# define swaps(x)	swap32(x)
+#else
+  define_swapx(s,short)
+#endif
+
+#if SIZEOF_INT == 2
+# define swapi(x)	swap16(x)
+#elif SIZEOF_INT == 4
+# define swapi(x)	swap32(x)
+#else
+  define_swapx(i,int)
+#endif
+
+#if SIZEOF_LONG == 4
+# define swapl(x)	swap32(x)
+#elif SIZEOF_LONG == 8
+# define swapl(x)        swap64(x)
+#else
+  define_swapx(l,long)
+#endif
+
+#ifdef HAVE_LONG_LONG
+# if SIZEOF_LONG_LONG == 8
+#  define swapll(x)        swap64(x)
+# else
+   define_swapx(ll,LONG_LONG)
+# endif
 #endif
 
 #if SIZEOF_FLOAT == 4
-#if SIZEOF_LONG == 4	/* SIZEOF_FLOAT == 4 == SIZEOF_LONG */
-#define swapf(x)	swapl(x)
-#define FLOAT_SWAPPER	unsigned long
-#else
-#if SIZEOF_SHORT == 4	/* SIZEOF_FLOAT == 4 == SIZEOF_SHORT */
-#define swapf(x)	swaps(x)
-#define FLOAT_SWAPPER	unsigned short
-#else	/* SIZEOF_FLOAT == 4 but undivide by known size of int */
-define_swapx(f,float)
-#endif	/* #if SIZEOF_SHORT == 4 */
-#endif	/* #if SIZEOF_LONG == 4 */
+# ifdef HAVE_UINT32_T
+#  define swapf(x)	swap32(x)
+#  define FLOAT_SWAPPER	uint32_t
+# else	/* SIZEOF_FLOAT == 4 but undivide by known size of int */
+   define_swapx(f,float)
+# endif
 #else	/* SIZEOF_FLOAT != 4 */
-define_swapx(f,float)
+  define_swapx(f,float)
 #endif	/* #if SIZEOF_FLOAT == 4 */
 
 #if SIZEOF_DOUBLE == 8
-#if SIZEOF_LONG == 8	/* SIZEOF_DOUBLE == 8 == SIZEOF_LONG */
-#define swapd(x)	swapl(x)
-#define DOUBLE_SWAPPER	unsigned long
-#else
-#if SIZEOF_LONG == 4	/* SIZEOF_DOUBLE == 8 && 4 == SIZEOF_LONG */
-static double
-swapd(const double d)
-{
-    double dtmp = d;
-    unsigned long utmp[2];
-    unsigned long utmp0;
+# ifdef HAVE_UINT64_T	/* SIZEOF_DOUBLE == 8 == SIZEOF_UINT64_T */
+#  define swapd(x)	swap64(x)
+#  define DOUBLE_SWAPPER	uint64_t
+# else
+#  if SIZEOF_LONG == 4	/* SIZEOF_DOUBLE == 8 && 4 == SIZEOF_LONG */
+    static double
+    swapd(const double d)
+    {
+	double dtmp = d;
+	unsigned long utmp[2];
+	unsigned long utmp0;
 
-    utmp[0] = 0; utmp[1] = 0;
-    memcpy(utmp,&dtmp,sizeof(double));
-    utmp0 = utmp[0];
-    utmp[0] = swapl(utmp[1]);
-    utmp[1] = swapl(utmp0);
-    memcpy(&dtmp,utmp,sizeof(double));
-    return dtmp;
-}
-#else
-#if SIZEOF_SHORT == 4	/* SIZEOF_DOUBLE == 8 && 4 == SIZEOF_SHORT */
-static double
-swapd(const double d)
-{
-    double dtmp = d;
-    unsigned short utmp[2];
-    unsigned short utmp0;
+	utmp[0] = 0; utmp[1] = 0;
+	memcpy(utmp,&dtmp,sizeof(double));
+	utmp0 = utmp[0];
+	utmp[0] = swapl(utmp[1]);
+	utmp[1] = swapl(utmp0);
+	memcpy(&dtmp,utmp,sizeof(double));
+	return dtmp;
+    }
+#  elif SIZEOF_SHORT == 4	/* SIZEOF_DOUBLE == 8 && 4 == SIZEOF_SHORT */
+    static double
+    swapd(const double d)
+    {
+	double dtmp = d;
+	unsigned short utmp[2];
+	unsigned short utmp0;
 
-    utmp[0] = 0; utmp[1] = 0;
-    memcpy(utmp,&dtmp,sizeof(double));
-    utmp0 = utmp[0];
-    utmp[0] = swaps(utmp[1]);
-    utmp[1] = swaps(utmp0);
-    memcpy(&dtmp,utmp,sizeof(double));
-    return dtmp;
-}
-#else	/* SIZEOF_DOUBLE == 8 but undivied by known size of int */
-define_swapx(d, double)
-#endif	/* #if SIZEOF_SHORT == 4 */
-#endif	/* #if SIZEOF_LONG == 4 */
-#endif	/* #if SIZEOF_LONG == 8 */
+	utmp[0] = 0; utmp[1] = 0;
+	memcpy(utmp,&dtmp,sizeof(double));
+	utmp0 = utmp[0];
+	utmp[0] = swaps(utmp[1]);
+	utmp[1] = swaps(utmp0);
+	memcpy(&dtmp,utmp,sizeof(double));
+	return dtmp;
+    }
+#  else	/* SIZEOF_DOUBLE == 8 but undivide by known size of int */
+    define_swapx(d, double)
+#  endif
+# endif	/* #if SIZEOF_LONG == 8 */
 #else	/* SIZEOF_DOUBLE != 8 */
-define_swapx(d, double)
+  define_swapx(d, double)
 #endif	/* #if SIZEOF_DOUBLE == 8 */
 
 #undef define_swapx
