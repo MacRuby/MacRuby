@@ -2087,9 +2087,6 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 			rb_raise(rb_eArgError, "non associated pointer");
 		    }
 		}
-		else {
-		    tmp = Qnil;
-		}
 		UNPACK_PUSH(tmp);
 	    }
 	    break;
@@ -2125,9 +2122,6 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 			if (i == count) {
 			    rb_raise(rb_eArgError, "non associated pointer");
 			}
-		    }
-		    else {
-			tmp = Qnil;
 		    }
 		    UNPACK_PUSH(tmp);
 		}
