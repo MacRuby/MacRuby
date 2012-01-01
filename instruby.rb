@@ -183,19 +183,6 @@ EOH
   end
 end
 
-install?(:local, :comm, :lib) do
-  puts "installing library scripts"
-
-  Dir.chdir srcdir
-  makedirs [rubylibdir]
-
-  for f in Dir["lib/**/*{.rb,.rbo,help-message}"]
-    dir = File.dirname(f).sub!(/\Alib/, rubylibdir) || rubylibdir
-    makedirs dir
-    install f, dir, :mode => $data_mode
-  end
-end
-
 install?(:local, :comm, :man) do
   puts "installing manpages"
 

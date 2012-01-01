@@ -97,7 +97,7 @@ end
 namespace :install do
   extend Installer
 
-  task :all => [:resources, :bin, :ext, :headers, :doc, :xcode_support]
+  task :all => [:resources, :bin, :lib, :ext, :headers, :doc, :xcode_support]
 
   desc 'Install the MacRuby.framework Info.plist file'
   task :resources => 'framework:info_plist' do
@@ -130,6 +130,19 @@ namespace :install do
     llc_dest = File.join(FRAMEWORK_USR_BIN, 'llc')
     llc_src  = File.join(LLVM_PATH, 'bin/llc')
     install(llc_src, llc_dest, :mode => prog_mode)
+  end
+
+  desc 'Install the standard library'
+  task :lib => 'stdlib:build' do
+    lib_dir = File.join(FRAMEWORK_USR_LIB, 'ruby', NEW_RUBY_VERSION)
+
+    makedirs lib_dir
+
+    for file in Dir['lib/**/*{.rb,.rbo,help-message}']
+      dir = File.dirname(file).sub!(/\Alib/, lib_dir) || lib_dir
+      makedirs dir
+      install file, dir, :mode => data_mode
+    end
   end
 
   desc 'Install the C extensions'
