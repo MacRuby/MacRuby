@@ -506,19 +506,23 @@ range_each(VALUE range, SEL sel)
 	args[1] = EXCL(range) ? Qtrue : Qfalse;
 	rb_objc_block_call(rb_sym_to_s(beg), selUpto, 2, args, sym_each_i, 0);
     }
-    else if (TYPE(beg) == T_STRING) {
-	VALUE args[2];
-
-	args[0] = end;
-	args[1] = EXCL(range) ? Qtrue : Qfalse;
-	rb_objc_block_call(beg, selUpto, 2, args, rb_yield, 0);
-    }
     else {
-	if (!discrete_object_p(beg)) {
-	    rb_raise(rb_eTypeError, "can't iterate from %s",
-		     rb_obj_classname(beg));
+	VALUE tmp = rb_check_string_type(beg);
+
+	if (!NIL_P(tmp)) {
+	    VALUE args[2];
+
+	    args[0] = end;
+	    args[1] = EXCL(range) ? Qtrue : Qfalse;
+	    rb_objc_block_call(beg, selUpto, 2, args, rb_yield, 0);
 	}
-	return range_each_func(range, each_i, NULL);
+	else {
+	    if (!discrete_object_p(beg)) {
+		rb_raise(rb_eTypeError, "can't iterate from %s",
+			 rb_obj_classname(beg));
+	    }
+	    range_each_func(range, each_i, NULL);
+	}
     }
     return range;
 }
