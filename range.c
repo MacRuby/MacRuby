@@ -310,6 +310,14 @@ sym_step_i(VALUE i, void *arg)
     return Qnil;
 }
 
+static int
+discrete_object_p(VALUE obj)
+{
+    if (rb_obj_is_kind_of(obj, rb_cTime)) return FALSE; /* until Time#succ removed */
+    return rb_vm_respond_to(obj, selSucc, true);
+}
+
+
 /*
  *  call-seq:
  *     rng.step(n=1) {| obj | block }    -> rng
@@ -423,7 +431,7 @@ range_step(VALUE range, SEL sel, int argc, VALUE *argv)
 	else {
 	    VALUE args[2];
 
-	    if (!rb_vm_respond_to(b, selSucc, true)) {
+	    if (!discrete_object_p(b)) {
 		rb_raise(rb_eTypeError, "can't iterate from %s",
 			 rb_obj_classname(b));
 	    }
@@ -480,10 +488,6 @@ range_each(VALUE range, SEL sel)
     beg = RANGE_BEG(range);
     end = RANGE_END(range);
 
-    if (!rb_vm_respond_to(beg, selSucc, false)) {
-	rb_raise(rb_eTypeError, "can't iterate from %s",
-		 rb_obj_classname(beg));
-    }
     if (FIXNUM_P(beg) && FIXNUM_P(end)) { /* fixnums are special */
 	long lim = FIX2LONG(end);
 	long i;
@@ -510,6 +514,10 @@ range_each(VALUE range, SEL sel)
 	rb_objc_block_call(beg, selUpto, 2, args, rb_yield, 0);
     }
     else {
+	if (!discrete_object_p(beg)) {
+	    rb_raise(rb_eTypeError, "can't iterate from %s",
+		     rb_obj_classname(beg));
+	}
 	return range_each_func(range, each_i, NULL);
     }
     return range;
