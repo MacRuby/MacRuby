@@ -1,18 +1,7 @@
-#!./miniruby
-
-load "./rbconfig.rb"
-include RbConfig
-
-srcdir = File.dirname(__FILE__)
 $:.clear
 $:.unshift File.expand_path("lib", srcdir)
-require 'fileutils'
-require 'shellwords'
-require 'optparse'
-require 'optparse/shellwords'
 require 'tempfile'
 
-STDOUT.sync = true
 File.umask(0)
 
 def parse_args(argv = ARGV)
@@ -23,32 +12,15 @@ def parse_args(argv = ARGV)
   $mflags = []
   $install = []
   $installed_list = nil
-  $dryrun = false
   $script_mode = nil
   $cmdtype = nil
   mflags = []
   opt = OptionParser.new
-  opt.on('-n') {$dryrun = true}
   opt.on('--dest-dir=DIR') {|dir| $destdir = dir}
   opt.on('--sym-dest-dir=DIR') {|dir| $sym_destdir = dir}
-  opt.on('--extout=DIR') {|dir| $extout = (dir unless dir.empty?)}
-  opt.on('--make=COMMAND') {|make| $make = make}
-  opt.on('--mantype=MAN') {|man| $mantype = man}
-  opt.on('--make-flags=FLAGS', '--mflags', Shellwords) do |v|
-    if arg = v.first
-      arg.insert(0, '-') if /\A[^-][^=]*\Z/ =~ arg
-    end
-    $mflags.concat(v)
-  end
   opt.on('-i', '--install=TYPE',
          [:local, :bin, :"bin-arch", :"bin-comm", :lib, :man, :ext, :"ext-arch", :"ext-comm", :rdoc, :data]) do |ins|
     $install << ins
-  end
-  opt.on('--data-mode=OCTAL-MODE', OptionParser::OctalInteger) do |mode|
-    $data_mode = mode
-  end
-  opt.on('--script-mode=OCTAL-MODE', OptionParser::OctalInteger) do |mode|
-    $script_mode = mode
   end
   opt.on('--installed-list [FILENAME]') {|name| $installed_list = name}
   opt.on('--cmd-type=TYPE', %w[cmd plain]) {|cmd| $cmdtype = (cmd unless cmd == 'plain')}
@@ -102,7 +74,6 @@ end
 
 parse_args()
 
-include FileUtils
 include FileUtils::NoWrite if $dryrun
 @fileutils_output = STDOUT
 @fileutils_label = ''
@@ -288,7 +259,7 @@ if RUBY_FRAMEWORK
   mkdir_p File.join(resources, 'English.lproj'), :mode => 0755
   install File.join('framework/InfoPlist.strings'),
     File.join(resources, 'English.lproj'), :mode => 0644
-  rm_f File.join(base, '..', 'Current') if 
+  rm_f File.join(base, '..', 'Current') if
     File.symlink?(with_destdir(File.join(base, '..', 'Current')))
   ln_sfh install_version.to_s, File.join(base, '..', 'Current')
   ln_sfh 'Versions/Current/Headers', File.join(base, '../../Headers')
@@ -296,7 +267,7 @@ if RUBY_FRAMEWORK
   ln_sfh 'Versions/Current/Resources', File.join(base, '../../Resources')
   ln_sfh "usr/lib/#{CONFIG['LIBRUBY_SO']}", File.join(base, 'MacRuby')
   ln_sfh "usr/include/ruby-#{RUBY_VERSION}", File.join(base, 'Headers')
-  ln_sfh "../#{CONFIG['arch']}/ruby/config.h", 
+  ln_sfh "../#{CONFIG['arch']}/ruby/config.h",
     File.join(base, "usr/include/ruby-#{RUBY_VERSION}/ruby/config.h")
   # Installing executable links.
   dest_bin = File.join($sym_destdir, 'bin')
@@ -320,7 +291,7 @@ if RUBY_FRAMEWORK
         next if man[0] == '.'
         link = File.join("../../../../../", CONFIG['mandir'], mandir, man)
         link.sub!(/#{install_version}/, 'Current')
-        ln_sfh link, File.join(dest_man, File.basename(mandir), 
+        ln_sfh link, File.join(dest_man, File.basename(mandir),
 	  File.basename(man))
       end
     else
