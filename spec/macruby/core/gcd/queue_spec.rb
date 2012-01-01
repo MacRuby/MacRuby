@@ -70,7 +70,7 @@ if MACOSX_VERSION >= 10.6
     describe :main do
       it "returns an instance of Queue" do
         o = Dispatch::Queue.main
-        @q.should be_kind_of(Dispatch::Queue)
+        o.should be_kind_of(Dispatch::Queue)
       end
     end
 
