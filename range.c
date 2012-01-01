@@ -396,11 +396,15 @@ range_step(VALUE range, SEL sel, int argc, VALUE *argv)
 	     !NIL_P(rb_check_to_integer(b, "to_int")) ||
 	     !NIL_P(rb_check_to_integer(e, "to_int"))) {
 	SEL op = EXCL(range) ? selLT : selLE;
+	VALUE v = b;
+	int i = 0;
 
-	while (RTEST(rb_vm_call(b, op, 1, &e))) {
-	    rb_yield(b);
+	while (RTEST(rb_vm_call(v, op, 1, &e))) {
+	    rb_yield(v);
 	    RETURN_IF_BROKEN();
-	    b = rb_vm_call(b, selPLUS, 1, &step);
+	    i++;
+	    VALUE tmp = rb_vm_call(INT2NUM(i), selMULT, 1, &step);
+	    v = rb_vm_call(b, selPLUS, 1, &tmp);
 	}
     }
     else {
