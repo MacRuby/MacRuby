@@ -46,7 +46,7 @@ module Installer
   end
 
   def makedirs *dirs
-    dirs = fu_list(dirs.flatten!)
+    dirs = fu_list(dirs.flatten)
     dirs.collect! do |dir|
       realdir = with_destdir(dir)
       realdir unless made_dirs.include?(dir) do
