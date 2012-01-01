@@ -1975,31 +1975,62 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 			b64_xtable[(unsigned char)b64_table[i]] = i;
 		    }
 		}
-		while (s < send) {
-		    a = b = c = d = -1;
-		    while ((a = b64_xtable[(unsigned char)*s]) == -1 && s < send) {s++;}
-		    if (s >= send) break;
-		    s++;
-		    while ((b = b64_xtable[(unsigned char)*s]) == -1 && s < send) {s++;}
-		    if (s >= send) break;
-		    s++;
-		    while ((c = b64_xtable[(unsigned char)*s]) == -1 && s < send) {if (*s == '=') break; s++;}
-		    if (*s == '=' || s >= send) break;
-		    s++;
-		    while ((d = b64_xtable[(unsigned char)*s]) == -1 && s < send) {if (*s == '=') break; s++;}
-		    if (*s == '=' || s >= send) break;
-		    s++;
-		    *ptr++ = a << 2 | b >> 4;
-		    *ptr++ = b << 4 | c >> 2;
-		    *ptr++ = c << 6 | d;
-		}
-		if (a != -1 && b != -1) {
-		    if (c == -1 && *s == '=') {
-			*ptr++ = a << 2 | b >> 4;
-		    }
-		    else if (c != -1 && *s == '=') {
+		if (len == 0) {
+		    while (s < send) {
+			a = b = c = d = -1;
+			a = b64_xtable[(unsigned char)*s++];
+			if (s >= send || a == -1) rb_raise(rb_eArgError, "invalid base64");
+			b = b64_xtable[(unsigned char)*s++];
+			if (s >= send || b == -1) rb_raise(rb_eArgError, "invalid base64");
+			if (*s == '=') {
+			    if (s + 2 == send && *(s + 1) == '=') break;
+			    rb_raise(rb_eArgError, "invalid base64");
+			}
+			c = b64_xtable[(unsigned char)*s++];
+			if (s >= send || c == -1) rb_raise(rb_eArgError, "invalid base64");
+			if (s + 1 == send && *s == '=') break;
+			d = b64_xtable[(unsigned char)*s++];
+			if (d == -1) rb_raise(rb_eArgError, "invalid base64");
 			*ptr++ = a << 2 | b >> 4;
 			*ptr++ = b << 4 | c >> 2;
+			*ptr++ = c << 6 | d;
+		    }
+		    if (c == -1) {
+			*ptr++ = a << 2 | b >> 4;
+			if (b & 0xf) rb_raise(rb_eArgError, "invalid base64");
+		    }
+		    else if (d == -1) {
+			*ptr++ = a << 2 | b >> 4;
+			*ptr++ = b << 4 | c >> 2;
+			if (c & 0x3) rb_raise(rb_eArgError, "invalid base64");
+		    }
+		}
+		else {
+		    while (s < send) {
+			a = b = c = d = -1;
+			while ((a = b64_xtable[(unsigned char)*s]) == -1 && s < send) {s++;}
+			if (s >= send) break;
+			s++;
+			while ((b = b64_xtable[(unsigned char)*s]) == -1 && s < send) {s++;}
+			if (s >= send) break;
+			s++;
+			while ((c = b64_xtable[(unsigned char)*s]) == -1 && s < send) {if (*s == '=') break; s++;}
+			if (*s == '=' || s >= send) break;
+			s++;
+			while ((d = b64_xtable[(unsigned char)*s]) == -1 && s < send) {if (*s == '=') break; s++;}
+			if (*s == '=' || s >= send) break;
+			s++;
+			*ptr++ = a << 2 | b >> 4;
+			*ptr++ = b << 4 | c >> 2;
+			*ptr++ = c << 6 | d;
+		    }
+		    if (a != -1 && b != -1) {
+			if (c == -1 && *s == '=')
+			    *ptr++ = a << 2 | b >> 4;
+			else if (c != -1 && *s == '=') {
+			    *ptr++ = a << 2 | b >> 4;
+			    *ptr++ = b << 4 | c >> 2;
+			}
 		    }
 		}
 		rb_bstr_resize(buf, ptr - ptr_beg);
