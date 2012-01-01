@@ -729,28 +729,17 @@ rb_range_values(VALUE range, VALUE *begp, VALUE *endp, int *exclp)
 VALUE
 rb_range_beg_len(VALUE range, long *begp, long *lenp, long len, int err)
 {
+    long beg, end, origbeg, origend;
     VALUE b, e;
-    long beg, end, excl;
+    int excl;
 
-    if (rb_obj_is_kind_of(range, rb_cRange)) {
-	b = RANGE_BEG(range);
-	e = RANGE_END(range);
-	excl = EXCL(range);
-    }
-    else {
-	if (!rb_vm_respond_to(range, selBeg, false)) {
-	    return Qfalse;
-	}
-	if (!rb_vm_respond_to(range, selEnd, false)) {
-	    return Qfalse;
-	}
-	b = rb_vm_call(range, selBeg, 0, NULL);
-	e = rb_vm_call(range, selEnd, 0, NULL);
-	excl = RTEST(rb_vm_call(range, selExcludeEnd, 0, NULL));
+    if (!rb_range_values(range, &b, &e, &excl)) {
+	return Qfalse;
     }
     beg = NUM2LONG(b);
     end = NUM2LONG(e);
-
+    origbeg = beg;
+    origend = end;
     if (beg < 0) {
 	beg += len;
 	if (beg < 0)
@@ -777,7 +766,7 @@ rb_range_beg_len(VALUE range, long *begp, long *lenp, long len, int err)
   out_of_range:
     if (err) {
 	rb_raise(rb_eRangeError, "%ld..%s%ld out of range",
-		 b, excl ? "." : "", e);
+		 origbeg, excl ? "." : "", origend);
     }
     return Qnil;
 }
