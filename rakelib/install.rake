@@ -35,7 +35,7 @@ module Installer
     if made_dirs.include? dest
       dest = File.join(dest, File.basename(src))
     end
-    puts dest
+    #puts dest
     if strip
       system("/usr/bin/strip -x \"#{with_destdir(dest)}\"")
     end
