@@ -1243,7 +1243,8 @@ hex2num(char c)
 static VALUE
 infected_str_new(const char *ptr, long len, VALUE str)
 {
-    VALUE s = rb_str_new(ptr, len);
+    VALUE s = rb_bstr_new_with_data((const UInt8 *)ptr, len);
+    rb_bstr_resize(s, len);
 
     OBJ_INFECT(s, str);
     return s;
