@@ -93,6 +93,8 @@ end
 
 version_h = File.read('version.h')
 NEW_RUBY_VERSION = version_h.scan(/#\s*define\s+RUBY_VERSION\s+\"([^"]+)\"/)[0][0]
+NEW_RUBY_MAJOR_VERSION = NEW_RUBY_VERSION.to_i
+NEW_RUBY_MINOR_VERSION = NEW_RUBY_VERSION.match(/\d+\.(\d+)\./)[1]
 unless defined?(MACRUBY_VERSION)
   MACRUBY_VERSION = version_h.scan(/#\s*define\s+MACRUBY_VERSION\s+\"(.*)\"/)[0][0]
 end
@@ -119,8 +121,9 @@ RUBY_VENDOR_LIB = File.join(FRAMEWORK_USR_LIB_RUBY, 'vendor_ruby')
 RUBY_VENDOR_LIB2 = File.join(RUBY_VENDOR_LIB, NEW_RUBY_VERSION)
 RUBY_VENDOR_ARCHLIB = File.join(RUBY_VENDOR_LIB2, NEW_RUBY_PLATFORM)
 
-INSTALL_NAME = File.join(FRAMEWORK_USR_LIB, 'lib' + RUBY_SO_NAME + '.dylib')
-LLVM_MODULES = "core jit nativecodegen bitwriter bitreader ipo"
+INSTALL_NAME  = File.join(FRAMEWORK_USR_LIB, 'lib' + RUBY_SO_NAME + '.dylib')
+DYLIB_ALIASES = "lib#{RUBY_SO_NAME}.#{NEW_RUBY_MAJOR_VERSION}.#{NEW_RUBY_MINOR_VERSION}.dylib lib#{RUBY_SO_NAME}.dylib"
+LLVM_MODULES  = "core jit nativecodegen bitwriter bitreader ipo"
 EXPORTED_SYMBOLS_LIST = "./exported_symbols_list"
 
 # Full list of objects to build.

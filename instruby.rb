@@ -127,11 +127,7 @@ def open_for_install(path, mode)
   $installed_list.puts path if $installed_list
 end
 
-exeext = CONFIG["EXEEXT"]
-
 ruby_install_name = CONFIG["ruby_install_name"]
-rubyw_install_name = CONFIG["rubyw_install_name"]
-goruby_install_name = "go" + ruby_install_name
 
 version = CONFIG["ruby_version"]
 bindir = CONFIG["bindir"]
@@ -147,46 +143,7 @@ vendorlibdir = CONFIG["vendorlibdir"]
 vendorarchlibdir = CONFIG["vendorarchdir"]
 mandir = File.join(CONFIG["mandir"], "man")
 configure_args = Shellwords.shellwords(CONFIG["configure_args"])
-enable_shared = CONFIG["ENABLE_SHARED"] == 'yes'
-enable_static = CONFIG["ENABLE_STATIC"] == 'yes'
-dll = CONFIG["LIBRUBY_SO"]
-lib = CONFIG["LIBRUBY"]
-arc = CONFIG["LIBRUBY_A"]
 install_version = CONFIG['INSTALL_VERSION']
-
-install?(:local, :arch, :bin, :'bin-arch') do
-  puts "installing binary commands"
-
-  makedirs [bindir, libdir, archlibdir]
-
-  install ruby_install_name+exeext, bindir, :mode => $prog_mode, :strip => true
-  if rubyw_install_name and !rubyw_install_name.empty?
-    install rubyw_install_name+exeext, bindir, :mode => $prog_mode
-  end
-  if File.exist? goruby_install_name+exeext
-    install goruby_install_name+exeext, bindir, :mode => $prog_mode
-  end
-  if enable_shared and dll != lib
-    install dll, bindir, :mode => $prog_mode
-  end
-  install lib, libdir, :mode => $prog_mode, :strip => true
-  if enable_static
-    install arc, libdir, :mode => $data_mode, :strip => true
-  end
-  install "rbconfig.rb", archlibdir, :mode => $data_mode
-  install "rbconfig.rbo", archlibdir, :mode => $data_mode
-  if CONFIG["ARCHFILE"]
-    for file in CONFIG["ARCHFILE"].split
-      install file, archlibdir, :mode => $data_mode
-    end
-  end
-
-  if dll == lib and dll != arc
-    for link in CONFIG["LIBRUBY_ALIASES"].split
-      ln_sf(dll, File.join(libdir, link))
-    end
-  end
-end
 
 if $extout
   extout = "#$extout"

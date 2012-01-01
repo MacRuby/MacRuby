@@ -107,6 +107,25 @@ namespace :install do
 
   desc 'Install MacRuby binaries'
   task :bin do
+    puts 'Installing the macruby binary command'
+
+    arch_lib_dir = File.join(FRAMEWORK_USR_LIB, 'ruby', NEW_RUBY_VERSION, NEW_RUBY_PLATFORM)
+    dylib        = "lib#{RUBY_SO_NAME}.#{NEW_RUBY_VERSION}.dylib"
+    static       = "lib#{RUBY_SO_NAME}-static.a"
+
+    makedirs FRAMEWORK_USR_BIN, FRAMEWORK_USR_LIB, arch_lib_dir
+
+    install RUBY_INSTALL_NAME, FRAMEWORK_USR_BIN, :mode => prog_mode, :strip => true
+    install 'rbconfig.rb',  arch_lib_dir,         :mode => data_mode
+    install 'rbconfig.rbo', arch_lib_dir,         :mode => data_mode
+    install dylib,          FRAMEWORK_USR_LIB,    :mode => prog_mode, :strip => true
+    if File.exists?(static)
+      install static,       FRAMEWORK_USR_LIB,    :mode => data_mode, :strip => true
+    end
+    for link in DYLIB_ALIASES.split
+      ln_sf(dylib, File.join(FRAMEWORK_USR_LIB, link))
+    end
+
     puts 'Installing LLVM tools'
     llc_dest = File.join(FRAMEWORK_USR_BIN, 'llc')
     llc_src  = File.join(LLVM_PATH, 'bin/llc')
