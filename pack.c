@@ -1890,8 +1890,7 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 
 	  case 'u':
 	    {
-		VALUE buf = rb_bstr_new();
-		rb_bstr_resize(buf, (send - s)*3/4);
+		VALUE buf = infected_str_new(0, (send - s)*3/4, str);
 		char *ptr = (char *)rb_bstr_bytes(buf);
 		long total = 0;
 		const long buflen = rb_bstr_length(buf);
@@ -1960,8 +1959,7 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 
 	  case 'm':
 	    {
-		VALUE buf = rb_bstr_new();
-		rb_bstr_resize(buf, (send - s)*3/4);
+		VALUE buf = infected_str_new(0, (send - s)*3/4, str);
 		char *ptr = (char *)rb_bstr_bytes(buf);
 		char *ptr_beg = ptr;
 		int a = -1,b = -1,c = 0,d;
@@ -2013,8 +2011,7 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 
 	  case 'M':
 	    {
-		VALUE buf = rb_bstr_new();
-		rb_bstr_resize(buf, send - s);
+		VALUE buf = infected_str_new(0, send - s, str);
 		char *ptr = (char *)rb_bstr_bytes(buf);
 		char *ptr_beg = ptr;
 		int c1, c2;
