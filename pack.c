@@ -1243,7 +1243,10 @@ hex2num(char c)
 static VALUE
 infected_str_new(const char *ptr, long len, VALUE str)
 {
-    return rb_str_new(ptr, len);
+    VALUE s = rb_str_new(ptr, len);
+
+    OBJ_INFECT(s, str);
+    return s;
 }
 
 /*
