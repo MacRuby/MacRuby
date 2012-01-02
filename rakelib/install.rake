@@ -11,7 +11,7 @@ module Installer
   def dir_mode;    0755;   end
   def data_mode;   0644;   end
   def script_mode; 0775;   end
-  def man_type;    'doc'; end
+  def man_type;    'doc';  end
   def rdoc_dir;    'doc/'; end
 
   def with_destdir dir
