@@ -82,7 +82,8 @@ module Installer
   end
 
   def xcode_dir
-    @xcode_dir ||= `xcode-select -print-path`.chomp
+    `xcode-select -print-path`.chomp
+  end
 
   def dylib
     "lib#{RUBY_SO_NAME}.#{NEW_RUBY_VERSION}.dylib"
