@@ -83,6 +83,11 @@ module Installer
 
   def xcode_dir
     @xcode_dir ||= `xcode-select -print-path`.chomp
+
+  def dylib
+    "lib#{RUBY_SO_NAME}.#{NEW_RUBY_VERSION}.dylib"
+  end
+
   end
 
   def install_misc what, from, to
@@ -110,7 +115,6 @@ namespace :install do
     puts 'Installing the macruby binary command'
 
     arch_lib_dir = File.join(FRAMEWORK_USR_LIB, 'ruby', NEW_RUBY_VERSION, NEW_RUBY_PLATFORM)
-    dylib        = "lib#{RUBY_SO_NAME}.#{NEW_RUBY_VERSION}.dylib"
     static       = "lib#{RUBY_SO_NAME}-static.a"
 
     makedirs FRAMEWORK_USR_BIN, FRAMEWORK_USR_LIB, arch_lib_dir
