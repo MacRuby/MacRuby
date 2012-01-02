@@ -647,7 +647,22 @@ void
 st_cleanup_safe(st_table *table, st_data_t never)
 {
     st_table_entry *ptr, **last, *tmp;
-    int i;
+    st_index_t i;
+
+    if (table->entries_packed) {
+	st_index_t i = 0, j = 0;
+	while ((st_data_t)table->bins[i*2] != never) {
+	    if (i++ == table->num_entries) return;
+	}
+	for (j = i; ++i < table->num_entries;) {
+	    if ((st_data_t)table->bins[i*2] == never) continue;
+	    GC_WB(&table->bins[j*2], table->bins[i*2]);
+	    GC_WB(&table->bins[j*2+1], table->bins[i*2+1]);
+	    j++;
+	}
+	table->num_entries = j;
+	return;
+    }
 
     for (i = 0; i < table->num_bins; i++) {
 	ptr = *(last = &table->bins[i]);
@@ -673,7 +688,7 @@ st_foreach(st_table *table, int (*func)(ANYARGS), st_data_t arg)
 
     if (table->entries_packed) {
         for (i = 0; i < table->num_entries; i++) {
-            //int j;
+            //st_index_t j;
             st_data_t key, val;
             key = (st_data_t)table->bins[i*2];
             val = (st_data_t)table->bins[i*2+1];
