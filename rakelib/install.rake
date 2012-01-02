@@ -77,8 +77,9 @@ module Installer
     end
   end
 
-  def mkdir_p target, *flags
-    super(with_destdir(target), *flags)
+  def mkdir_p target, flags = {}
+    flags[:mode] = dir_mode
+    super(with_destdir(target), flags)
   end
 
   def xcode_dir
@@ -93,7 +94,7 @@ module Installer
 
   def install_misc what, from, to
     puts "Installing #{what}"
-    mkdir_p to, :mode => dir_mode
+    mkdir_p to
     install_recursive from, to, :mode => dir_mode
   end
 
