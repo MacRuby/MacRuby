@@ -724,11 +724,11 @@ st_foreach(st_table *table, int (*func)(ANYARGS), st_data_t arg)
 
     if ((ptr = table->head) != 0) {
 	do {
+	    //i = ptr->hash % table->num_bins;
 	    retval = (*func)(ptr->key, ptr->record, arg);
 	    switch (retval) {
 	      case ST_CHECK:	/* check if hash is modified during iteration */
 #if 0 // XXX disabled because unused and causes clang errors
-		i = ptr->hash % table->num_bins;
 		for (tmp = table->bins[i]; tmp != ptr; tmp = tmp->next) {
 		    if (!tmp) {
 			/* call func with error notice */
