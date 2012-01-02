@@ -165,36 +165,6 @@ EOH
   end
 end
 
-install?(:local, :comm, :man) do
-  puts "installing manpages"
-
-  Dir.chdir(srcdir)
-  for mdoc in Dir["*.[1-9]"]
-    next unless File.file?(mdoc) and open(mdoc){|fh| fh.read(1) == '.'}
-
-    destdir = mandir + mdoc[/(\d+)$/]
-    destfile = File.join(destdir, mdoc.sub(/ruby/, ruby_install_name))
-
-    makedirs destdir
-
-    if $mantype == "doc"
-      install mdoc, destfile, :mode => $data_mode
-    else
-      require 'mdoc2man.rb'
-
-      w = Tempfile.open(mdoc)
-
-      open(mdoc) { |r|
-        Mdoc2Man.mdoc2man(r, w)
-      }
-
-      w.close
-
-      install w.path, destfile, :mode => $data_mode
-    end
-  end
-end
-
 install?(:local, :data) do
   puts "installing data files"
   destination_dir = datadir.clone

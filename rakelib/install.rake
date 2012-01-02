@@ -176,6 +176,22 @@ namespace :install do
     install_recursive(rdoc_dir, ridatadir, :mode => data_mode)
   end
 
+  desc 'Install the MacRuby manpages'
+  task :man do
+    puts 'Installing manpages'
+
+    for mdoc in Dir['*.[1-9]']
+      # TODO is this check really needed?
+      next unless File.file?(mdoc) and open(mdoc){ |fh| fh.read(1) == '.' }
+
+      destdir = man_dir + mdoc[/(\d+)$/]
+      destfile = File.join(destdir, mdoc.sub(/ruby/, RUBY_INSTALL_NAME))
+
+      makedirs destdir
+      install mdoc, destfile, :mode => data_mode
+    end
+  end
+
   desc 'Install all Xcode related things'
   task :xcode_support => [:nibtool, :xcode_templates, :xcode_samples]
 
