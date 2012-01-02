@@ -114,7 +114,7 @@ rb_any_cmp(VALUE a, VALUE b)
     return !rb_eql(a, b);
 }
 
-static int
+static st_index_t
 rb_any_hash(VALUE a)
 {
     return (int)rb_hash_code(a);
