@@ -92,10 +92,6 @@ module Installer
 
   end
 
-  def install_misc what, from, to
-    puts "Installing #{what}"
-    mkdir_p to
-    install_recursive from, to, :mode => dir_mode
   end
 
 end
@@ -192,15 +188,22 @@ namespace :install do
 
   task :xcode_templates do
     # TODO only install templates for installed Xcodes
-    install_misc 'Xcode 4.x templates', 'misc/xcode4-templates',
-                 "#{xcode_dir}/Library/Xcode/Templates"
-    install_misc 'Xcode 3.x templates', 'misc/xcode-templates',
-                 '/Library/Application Support/Developer/3.0/Xcode'
+    puts 'Installing XCode templates'
+
+    xcode4 = "#{xcode_dir}/Library/Xcode/Templates"
+    mkdir_p xcode4
+    install_recursive 'misc/xcode4-templates', xcode4, :mode => prog_mode
+
+    xcode3 = '/Library/Application Support/Developer/3.0/Xcode'
+    mkdir_p xcode3
+    install_recursive 'misc/xcode-templates', xcode3, :mode => prog_mode
   end
 
   task :xcode_samples do
-    install_misc 'MacRuby sample projects', 'sample-macruby',
-                 "#{xcode_dir}/Examples/Ruby/MacRuby"
+    puts 'Installing MacRuby sample projects'
+    dir = "#{xcode_dir}/Examples/Ruby/MacRuby"
+    mkdir_p dir
+    install_recursive 'sample-macruby', dir, :mode => script_mode
   end
 
 end
