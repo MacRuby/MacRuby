@@ -5,11 +5,7 @@ require 'tempfile'
 File.umask(0)
 
 def parse_args(argv = ARGV)
-  $mantype = 'doc'
   $destdir = $sym_destdir = nil
-  $extout = nil
-  $make = 'make'
-  $mflags = []
   $install = []
   $installed_list = nil
   $script_mode = nil
@@ -72,12 +68,6 @@ def parse_args(argv = ARGV)
 
 end
 
-parse_args()
-
-include FileUtils::NoWrite if $dryrun
-@fileutils_output = STDOUT
-@fileutils_label = ''
-
 $install_procs = Hash.new {[]}
 def install?(*types, &block)
   $install_procs[:all] <<= block
@@ -98,23 +88,15 @@ def open_for_install(path, mode)
   $installed_list.puts path if $installed_list
 end
 
-ruby_install_name = CONFIG["ruby_install_name"]
-
 version = CONFIG["ruby_version"]
-bindir = CONFIG["bindir"]
-libdir = CONFIG["libdir"]
 datadir = CONFIG['datadir']
 archhdrdir = rubyhdrdir = CONFIG["rubyhdrdir"]
 archhdrdir += "/" + CONFIG["arch"]
-rubylibdir = CONFIG["rubylibdir"]
-archlibdir = CONFIG["archdir"]
 sitelibdir = CONFIG["sitelibdir"]
 sitearchlibdir = CONFIG["sitearchdir"]
 vendorlibdir = CONFIG["vendorlibdir"]
 vendorarchlibdir = CONFIG["vendorarchdir"]
-mandir = File.join(CONFIG["mandir"], "man")
 configure_args = Shellwords.shellwords(CONFIG["configure_args"])
-install_version = CONFIG['INSTALL_VERSION']
 
 if $extout
   extout = "#$extout"
