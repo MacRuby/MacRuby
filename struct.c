@@ -210,7 +210,6 @@ make_struct(VALUE name, VALUE members, VALUE klass)
 	}
 	nstr = rb_define_class_under(klass, rb_id2name(id), klass);
     }
-    rb_iv_set(nstr, "__size__", LONG2NUM(RARRAY_LEN(members)));
     rb_iv_set(nstr, "__members__", members);
 
     rb_objc_define_method(*(VALUE *)nstr, "alloc", struct_alloc, 0);
@@ -268,7 +267,6 @@ rb_struct_define_without_accessor(const char *class_name, VALUE super, rb_alloc_
 	rb_class_inherited(super, klass);
     }
 
-    rb_iv_set(klass, "__size__", LONG2NUM(RARRAY_LEN(members)));
     rb_iv_set(klass, "__members__", members);
 
     rb_objc_define_method(*(VALUE *)klass, "alloc",
@@ -360,6 +358,17 @@ rb_struct_s_def(VALUE klass, SEL sel, int argc, VALUE *argv)
     return st;
 }
 
+static long
+num_members(VALUE klass)
+{
+    VALUE members;
+    members = rb_struct_iv_get(klass, "__members__");
+    if (TYPE(members) != T_ARRAY) {
+	rb_raise(rb_eTypeError, "broken members");
+    }
+    return RARRAY_LEN(members);
+}
+
 /*
  */
 
@@ -367,12 +376,10 @@ VALUE
 rb_struct_initialize(VALUE self, SEL sel, VALUE values)
 {
     VALUE klass = rb_obj_class(self);
-    VALUE size;
     long n;
 
     rb_struct_modify(self);
-    size = rb_struct_iv_get(klass, "__size__");
-    n = FIX2LONG(size);
+    n = num_members(klass);
     if (n < RARRAY_LEN(values)) {
 	rb_raise(rb_eArgError, "struct size differs");
     }
@@ -390,13 +397,11 @@ rb_struct_initialize(VALUE self, SEL sel, VALUE values)
 static VALUE
 struct_alloc(VALUE klass)
 {
-    VALUE size;
     long n;
     NEWOBJ(st, struct RStruct);
     OBJSETUP(st, klass, T_STRUCT);
 
-    size = rb_struct_iv_get(klass, "__size__");
-    n = FIX2LONG(size);
+    n = num_members(klass);
 
     if (0 < n && n <= RSTRUCT_EMBED_LEN_MAX) {
         RBASIC(st)->flags &= ~RSTRUCT_EMBED_LEN_MASK;
@@ -426,12 +431,11 @@ rb_struct_alloc(VALUE klass, VALUE values)
 VALUE
 rb_struct_new(VALUE klass, ...)
 {
-    VALUE sz, *mem;
+    VALUE *mem;
     long size, i;
     va_list args;
 
-    sz = rb_struct_iv_get(klass, "__size__");
-    size = FIX2LONG(sz); 
+    size = num_members(klass);
     mem = ALLOCA_N(VALUE, size);
     va_start(args, klass);
     for (i=0; i<size; i++) {
