@@ -884,7 +884,7 @@ rb_struct_hash_r(VALUE s, VALUE s2, int recur)
 	ptr = RSTRUCT_PTR(s);
 	len = RSTRUCT_LEN(s);
 	for (i = 0; i < len; i++) {
-	    h = (h << 1) | (h < 0 ? 1 : 0);
+	    h = (h << 1);
 	    n = rb_hash(ptr[i]);
 	    h ^= NUM2LONG(n);
 	}
