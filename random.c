@@ -837,6 +837,8 @@ zero_arg:
     return r;
 }
 
+static st_index_t hashseed;
+
 static void
 Init_RandomSeed(void)
 {
@@ -845,7 +847,28 @@ Init_RandomSeed(void)
     fill_random_seed(initial);
     GC_WB(&get_rnd(random)->seed, make_seed_value(initial));
     rb_vm_set_default_random(random);
+
+    hashseed = rb_genrand_int32();
+#if SIZEOF_ST_INDEX_T*CHAR_BIT > 4*8
+    hashseed <<= 32;
+    hashseed |= rb_genrand_int32();
+#endif
+#if SIZEOF_ST_INDEX_T*CHAR_BIT > 8*8
+    hashseed <<= 32;
+    hashseed |= rb_genrand_int32();
+#endif
+#if SIZEOF_ST_INDEX_T*CHAR_BIT > 12*8
+    hashseed <<= 32;
+    hashseed |= rb_genrand_int32();
+#endif
 }
+
+st_index_t
+rb_hash_start(st_index_t h)
+{
+    return st_hash_start(hashseed + h);
+}
+
 
 void
 rb_reset_random_seed(void)
