@@ -14,6 +14,7 @@ module Installer
   def man_type;    'doc';  end
   def rdoc_dir;    'doc/'; end
 
+  # TODO I think this might be useless, even if DESTDIR is set
   def with_destdir dir
     return dir if !DESTDIR or DESTDIR.empty?
     DESTDIR + dir
