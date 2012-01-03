@@ -103,12 +103,6 @@ namespace :install do
 
   task :all => [:bin, :lib, :ext, :headers, :doc, :man, :resources, :xcode_support]
 
-  desc 'Install the MacRuby.framework Info.plist file'
-  task :resources => 'framework:info_plist' do
-    mkdir_p FRAMEWORK_RESOURCES, :mode => 0755
-    install File.join('framework/Info.plist'), FRAMEWORK_RESOURCES, :mode => 0644
-  end
-
   desc 'Install MacRuby binaries'
   task :bin do
     puts 'Installing the macruby binary command'
@@ -190,6 +184,68 @@ namespace :install do
 
       makedirs destdir
       install mdoc, destfile, :mode => data_mode
+    end
+  end
+
+  desc 'Install the MacRuby.framework Info.plist file'
+  task :resources => 'framework:info_plist' do
+    puts 'Installing framework' # TODO Make this sound like a natural sentence...
+
+    mkdir_p FRAMEWORK_RESOURCES
+    install File.join('framework/Info.plist'), FRAMEWORK_RESOURCES, :mode => data_mode
+
+    resources = File.join(FRAMEWORK_RESOURCES, 'English.lproj')
+    mkdir_p resources
+    install File.join('framework/InfoPlist.strings'), resources, :mode => data_mode
+    if File.symlink?(with_destdir(File.join(FRAMEWORK_VERSION, '..', 'Current')))
+      rm_f File.join(FRAMEWORK_VERSION, '..', 'Current')
+    end
+
+    ln_sfh INSTALL_VERSION.to_s,                   File.join(FRAMEWORK_VERSION, '..', 'Current')
+    ln_sfh 'Versions/Current/Headers',             File.join(FRAMEWORK_VERSION, '../../Headers')
+    ln_sfh 'Versions/Current/MacRuby',             File.join(FRAMEWORK_VERSION, '../../MacRuby')
+    ln_sfh 'Versions/Current/Resources',           File.join(FRAMEWORK_VERSION, '../../Resources')
+    ln_sfh "usr/lib/#{dylib}",                     File.join(FRAMEWORK_VERSION, 'MacRuby')
+    ln_sfh "usr/include/ruby-#{NEW_RUBY_VERSION}", File.join(FRAMEWORK_VERSION, 'Headers')
+    ln_sfh "../#{NEW_RUBY_PLATFORM}/ruby/config.h",
+      File.join(FRAMEWORK_VERSION, "usr/include/ruby-#{NEW_RUBY_VERSION}/ruby/config.h")
+
+    puts 'Installing executable links'
+    dest_bin = File.join(SYM_INSTDIR, 'bin')
+    mkdir_p dest_bin
+    Dir.entries(with_destdir(FRAMEWORK_USR_BIN)).each do |file|
+      next if file.match(/^./)
+      # Except rb_nibtool & llc!
+      next if file == 'rb_nibtool' or file == 'llc'
+      link = File.join('../../../', FRAMEWORK_USR_BIN, file)
+      link.sub!(/#{INSTALL_VERSION}/, 'Current')
+      link_dest = File.join(dest_bin, File.basename(file))
+      unless File.exists?(link_dest)
+        ln_sfh link, link_dest
+      end
+    end
+
+    puts 'Installing man page links'
+    dest_man = File.join(SYM_INSTDIR, 'share', 'man')
+    mkdir_p dest_man
+    Dir.entries(with_destdir(man_dir)).each do |man_set|
+      next if man_set.match(/^./)
+      if File.stat(File.join(with_destdir(man_dir), man_set)).directory?
+        mkdir_p File.join(dest_man, File.basename(man_set))
+        Dir.entries(File.join(with_destdir(man_dir), man_set)).each do |man_file|
+          next if man_file.match(/^./)
+          link = File.join('../../../../../', man_dir, man_set, man_file)
+          link.sub!(/#{INSTALL_VERSION}/, 'Current')
+          link_dest = File.join(dest_man, File.basename(man_set), File.basename(man_file))
+          unless File.exists?(link_dest)
+            ln_sfh link, link_dest
+          end
+        end
+      else
+        link = File.join('../../../../', man_dir, man_set)
+        link.sub!(/#{INSTALL_VERSION}/, 'Current')
+        ln_sfh link, File.join(dest_man, File.basename(man_set))
+      end
     end
   end
 
