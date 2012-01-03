@@ -799,6 +799,20 @@ rb_struct_select(VALUE s, SEL sel, int argc, VALUE *argv)
     return result;
 }
 
+static VALUE
+rb_struct_equal_r(VALUE s, VALUE s2, int recur)
+{
+    if (recur) {
+	return Qtrue;
+    }
+    for (int i = 0; i < RSTRUCT_LEN(s); i++) {
+	if (!rb_equal(RSTRUCT_PTR(s)[i], RSTRUCT_PTR(s2)[i])) {
+	    return Qfalse;
+	}
+    }
+    return Qtrue;
+}
+
 /*
  *  call-seq:
  *     struct == other_struct     -> true or false
@@ -815,20 +829,6 @@ rb_struct_select(VALUE s, SEL sel, int argc, VALUE *argv)
  *     joe == joejr   #=> true
  *     joe == jane    #=> false
  */
-
-static VALUE
-rb_struct_equal_r(VALUE s, VALUE s2, int recur)
-{
-    if (recur) {
-	return Qtrue;
-    }
-    for (int i = 0; i < RSTRUCT_LEN(s); i++) {
-	if (!rb_equal(RSTRUCT_PTR(s)[i], RSTRUCT_PTR(s2)[i])) {
-	    return Qfalse;
-	}
-    }
-    return Qtrue;
-}
 
 static VALUE
 rb_struct_equal(VALUE s, SEL sel, VALUE s2)
@@ -848,13 +848,6 @@ rb_struct_equal(VALUE s, SEL sel, VALUE s2)
     return rb_exec_recursive(rb_struct_equal_r, s, s2);
 }
 
-/*
- * call-seq:
- *   struct.hash   -> fixnum
- *
- * Return a hash value based on this struct's contents.
- */
-
 static VALUE
 rb_struct_hash_r(VALUE s, VALUE s2, int recur)
 {
@@ -869,19 +862,18 @@ rb_struct_hash_r(VALUE s, VALUE s2, int recur)
     return LONG2FIX(h);
 }
 
+/*
+ * call-seq:
+ *   struct.hash   -> fixnum
+ *
+ * Return a hash value based on this struct's contents.
+ */
+
 static VALUE
 rb_struct_hash(VALUE s, SEL sel)
 {
     return rb_exec_recursive(rb_struct_hash_r, s, Qnil);
 }
-
-/*
- * code-seq:
- *   struct.eql?(other)   -> true or false
- *
- * Two structures are equal if they are the same object, or if all their
- * fields are equal (using <code>eql?</code>).
- */
 
 static VALUE
 rb_struct_eql_r(VALUE s, VALUE s2, int recur)
@@ -896,6 +888,14 @@ rb_struct_eql_r(VALUE s, VALUE s2, int recur)
     }
     return Qtrue;
 }
+
+/*
+ * code-seq:
+ *   struct.eql?(other)   -> true or false
+ *
+ * Two structures are equal if they are the same object, or if all their
+ * fields are equal (using <code>eql?</code>).
+ */
 
 static VALUE
 rb_struct_eql(VALUE s, SEL sel, VALUE s2)
