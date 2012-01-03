@@ -100,7 +100,7 @@ end
 namespace :install do
   extend Installer
 
-  task :all => [:bin, :lib, :ext, :headers, :doc, :resources, :xcode_support]
+  task :all => [:bin, :lib, :ext, :headers, :doc, :man, :resources, :xcode_support]
 
   desc 'Install the MacRuby.framework Info.plist file'
   task :resources => 'framework:info_plist' do
