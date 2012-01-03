@@ -11,15 +11,13 @@
 #include "class.h"
 
 VALUE rb_cStruct;
+static ID id_members;
 
 static VALUE struct_alloc(VALUE);
 
-VALUE
-rb_struct_iv_get(VALUE c, const char *name)
+static inline VALUE
+struct_ivar_get(VALUE c, ID id)
 {
-    ID id;
-
-    id = rb_intern(name);
     for (;;) {
 	if (rb_ivar_defined(c, id))
 	    return rb_ivar_get(c, id);
@@ -30,9 +28,15 @@ rb_struct_iv_get(VALUE c, const char *name)
 }
 
 VALUE
+rb_struct_iv_get(VALUE c, const char *name)
+{
+    return struct_ivar_get(c, rb_intern(name));
+}
+
+VALUE
 rb_struct_s_members(VALUE klass)
 {
-    VALUE members = rb_struct_iv_get(klass, "__members__");
+    VALUE members = struct_ivar_get(klass, id_members);
 
     if (NIL_P(members)) {
 	rb_raise(rb_eTypeError, "uninitialized struct");
@@ -210,7 +214,7 @@ make_struct(VALUE name, VALUE members, VALUE klass)
 	}
 	nstr = rb_define_class_under(klass, rb_id2name(id), klass);
     }
-    rb_iv_set(nstr, "__members__", members);
+    rb_ivar_set(nstr, id_members, members);
 
     rb_objc_define_method(*(VALUE *)nstr, "alloc", struct_alloc, 0);
     rb_objc_define_method(*(VALUE *)nstr, "new", rb_class_new_instance_imp, -1);
@@ -267,7 +271,7 @@ rb_struct_define_without_accessor(const char *class_name, VALUE super, rb_alloc_
 	rb_class_inherited(super, klass);
     }
 
-    rb_iv_set(klass, "__members__", members);
+    rb_ivar_set(klass, id_members, members);
 
     rb_objc_define_method(*(VALUE *)klass, "alloc",
 	    alloc != NULL ? alloc : struct_alloc,
@@ -362,7 +366,7 @@ static long
 num_members(VALUE klass)
 {
     VALUE members;
-    members = rb_struct_iv_get(klass, "__members__");
+    members = struct_ivar_get(klass, id_members);
     if (TYPE(members) != T_ARRAY) {
 	rb_raise(rb_eTypeError, "broken members");
     }
@@ -1011,4 +1015,5 @@ Init_Struct(void)
     rb_objc_define_method(rb_cStruct, "values_at", rb_struct_values_at, -1);
 
     rb_objc_define_method(rb_cStruct, "members", rb_struct_members_m, 0);
+    id_members = rb_intern("__members__");
 }
