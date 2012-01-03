@@ -176,9 +176,9 @@ namespace :install do
     install_recursive(rdoc_dir, ridatadir, :mode => data_mode)
   end
 
-  desc 'Install the MacRuby manpages'
+  desc 'Install the MacRuby man pages'
   task :man do
-    puts 'Installing manpages'
+    puts 'Installing man pages'
 
     for mdoc in Dir['*.[1-9]']
       # TODO is this check really needed?
