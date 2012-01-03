@@ -1,7 +1,7 @@
 require 'fileutils'
 
 # INSTRUBY_ARGS = "#{SCRIPT_ARGS}
-# --installed-list #{INSTALLED_LIST} --mantype=\"doc\" --sym-dest-dir=\"#{SYM_INSTDIR}\"
+# --installed-list #{INSTALLED_LIST} --sym-dest-dir=\"#{SYM_INSTDIR}\"
 
 module Installer
   include FileUtils
@@ -86,12 +86,12 @@ module Installer
     `xcode-select -print-path`.chomp
   end
 
+  def man_dir
+    File.join(FRAMEWORK_USR_SHARE, 'man')
+  end
+
   def dylib
     "lib#{RUBY_SO_NAME}.#{NEW_RUBY_VERSION}.dylib"
-  end
-
-  end
-
   end
 
 end
@@ -184,7 +184,7 @@ namespace :install do
       # TODO is this check really needed?
       next unless File.file?(mdoc) and open(mdoc){ |fh| fh.read(1) == '.' }
 
-      destdir = man_dir + mdoc[/(\d+)$/]
+      destdir  = File.join(man_dir, "man#{mdoc[/(\d+)$/]}")
       destfile = File.join(destdir, mdoc.sub(/ruby/, RUBY_INSTALL_NAME))
 
       makedirs destdir
