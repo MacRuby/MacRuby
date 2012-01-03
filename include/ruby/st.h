@@ -9,6 +9,27 @@
 extern "C" {
 #endif
 
+#ifndef RUBY_LIB_PREFIX
+#include "ruby/config.h"
+#include "ruby/defines.h"
+#ifdef RUBY_EXTCONF_H
+#include RUBY_EXTCONF_H
+#endif
+#endif
+
+#if   defined STDC_HEADERS
+#include <stddef.h>
+#elif defined HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#ifdef HAVE_STDINT_H
+# include <stdint.h>
+#endif
+#ifdef HAVE_INTTYPES_H
+# include <inttypes.h>
+#endif
+
 #if SIZEOF_LONG == SIZEOF_VOIDP
 typedef unsigned long st_data_t;
 #elif SIZEOF_LONG_LONG == SIZEOF_VOIDP
@@ -38,6 +59,9 @@ typedef struct st_table st_table;
 typedef st_data_t st_index_t;
 typedef int st_compare_func(st_data_t, st_data_t);
 typedef st_index_t st_hash_func(st_data_t);
+
+typedef char st_check_for_sizeof_st_index_t[SIZEOF_VOIDP == (int)sizeof(st_index_t) ? 1 : -1];
+#define SIZEOF_ST_INDEX_T SIZEOF_VOIDP
 
 struct st_hash_type {
     int (*compare)(ANYARGS /*st_data_t, st_data_t*/); /* st_compare_func* */
@@ -83,6 +107,12 @@ int st_numcmp(st_data_t, st_data_t);
 st_index_t st_numhash(st_data_t);
 int st_strcasecmp(const char *s1, const char *s2);
 int st_strncasecmp(const char *s1, const char *s2, size_t n);
+st_index_t st_hash(const void *ptr, size_t len, st_index_t h);
+st_index_t st_hash_uint32(st_index_t h, uint32_t i);
+st_index_t st_hash_uint(st_index_t h, st_index_t i);
+st_index_t st_hash_end(st_index_t h);
+st_index_t st_hash_start(st_index_t h);
+#define st_hash_start(h) ((st_index_t)(h))
 
 #if defined(__cplusplus)
 }  // extern "C" {
