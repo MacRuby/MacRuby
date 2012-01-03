@@ -21,7 +21,7 @@ module Installer
 
   def ln_sf src, dest
     super(src, with_destdir(dest))
-    puts dest
+    # puts dest
   end
 
   def ln_sfh src, dest
