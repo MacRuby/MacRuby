@@ -1962,7 +1962,7 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 		VALUE buf = infected_str_new(0, (send - s)*3/4, str);
 		char *ptr = (char *)rb_bstr_bytes(buf);
 		char *ptr_beg = ptr;
-		int a = -1,b = -1,c = 0,d;
+		int a = -1,b = -1,c = 0,d = 0;
 		static signed char b64_xtable[256];
 
 		if (b64_xtable['/'] <= 0) {
