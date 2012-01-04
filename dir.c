@@ -1111,15 +1111,16 @@ static char *
 join_path(const char *path, int dirsep, const char *name)
 {
     long len = strlen(path);
-    char *buf = GLOB_ALLOC_N(char, len+strlen(name)+(dirsep?1:0)+1);
+    long len2 = strlen(name)+(dirsep?1:0)+1;
+    char *buf = GLOB_ALLOC_N(char, len+len2);
 
     if (!buf) return 0;
     memcpy(buf, path, len);
     if (dirsep) {
-	strcpy(buf+len, "/");
-	len++;
+	buf[len++] = '/';
     }
-    strcpy(buf+len, name);
+    buf[len] = '\0';
+    strlcat(buf+len, name, len2);
     return buf;
 }
 
