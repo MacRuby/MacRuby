@@ -1342,7 +1342,7 @@ ruby_glob0(const char *path, int flags, ruby_glob_func *func, VALUE arg)
     struct glob_pattern *list;
     const char *root, *start;
     char *buf;
-    int n;
+    size_t n;
     int status;
 
     start = root = path;
