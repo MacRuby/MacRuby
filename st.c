@@ -398,8 +398,8 @@ do {\
 	table->tail = entry;\
     }\
     else {\
-	GC_WB(&table->head, entry);\
-	GC_WB(&table->tail, entry);\
+	table->head = entry;\
+	table->tail = entry;\
 	entry->fore = entry->back = 0;\
     }\
     GC_WB(&table->bins[bin_pos], entry); \
@@ -470,10 +470,10 @@ st_add_direct(st_table *table, st_data_t key, st_data_t value)
     if (table->entries_packed) {
         int i;
         if (MORE_PACKABLE_P(table)) {
-            i = table->num_entries++;
-            table->bins[i*2] = (struct st_table_entry*)key;
+	    i = table->num_entries++;
+	    GC_WB(&table->bins[i*2], (struct st_table_entry*)key);
 	    GC_WB(&table->bins[i*2+1], (struct st_table_entry*)value);
-            return;
+	    return;
         }
         else {
             unpack_entries(table);
@@ -546,7 +546,7 @@ st_copy(st_table *old_table)
 	    *tail = entry;
 	    tail = &entry->fore;
 	} while ((ptr = ptr->fore) != 0);
-	GC_WB(&new_table->tail, prev);
+	new_table->tail = prev;
     }
 
     return new_table;
@@ -562,8 +562,8 @@ st_copy(st_table *old_table)
 	    st_table_entry *fore = ptr->fore, *back = ptr->back;	\
 	    if (fore) fore->back = back;				\
 	    if (back) back->fore = fore;				\
-	    if (ptr == table->head) GC_WB(&table->head, fore);		\
-	    if (ptr == table->tail) GC_WB(&table->tail, back);		\
+	    if (ptr == table->head) table->head = fore;			\
+	    if (ptr == table->tail) table->tail = back;			\
 	}								\
 	table->num_entries--;						\
     } while (0)
