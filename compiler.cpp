@@ -5043,7 +5043,7 @@ RoxorCompiler::set_fname(const char *_fname)
 	    // Compute complete path.
 	    char path[PATH_MAX];
 	    if (*_fname == '/') {
-		strncpy(path, _fname, sizeof path);
+		strlcpy(path, _fname, sizeof path);
 	    }
 	    else {
 		char cwd[PATH_MAX];

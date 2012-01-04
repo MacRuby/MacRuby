@@ -725,16 +725,16 @@ RoxorCore::symbolize_call_address(void *addr, char *path, size_t path_len,
 	    }
 	}
 	if (path != NULL) {
-	    strncpy(path, f->path.c_str(), path_len);
+	    strlcpy(path, f->path.c_str(), path_len);
 	}
 	if (name != NULL) {
 	    std::map<IMP, rb_vm_method_node_t *>::iterator iter = 
 		ruby_imps.find((IMP)f->imp);
 	    if (iter == ruby_imps.end()) {
-		strncpy(name, "block", name_len);
+		strlcpy(name, "block", name_len);
 	    }
 	    else {
-		strncpy(name, sel_getName(iter->second->sel), name_len);
+		strlcpy(name, sel_getName(iter->second->sel), name_len);
 	    }
 	}
     }
@@ -743,7 +743,7 @@ RoxorCore::symbolize_call_address(void *addr, char *path, size_t path_len,
 	    *ln = 0;
 	}
 	if (path != NULL) {
-	    strncpy(path, "core", path_len);
+	    strlcpy(path, "core", path_len);
 	}
 	if (name != NULL) {
 	    name[0] = '\0';
@@ -767,7 +767,7 @@ RoxorCore::symbolize_backtrace_entry(int index, char *path, size_t path_len,
 	    || !GET_CORE()->symbolize_call_address(callstack[index], path,
 		path_len, ln, name, name_len, NULL)) {
 	if (path != NULL) {
-	    strncpy(path, "core", path_len);
+	    strlcpy(path, "core", path_len);
 	}
 	if (ln != NULL) {
 	    *ln = 0;
@@ -946,7 +946,7 @@ sanitize_mid(SEL sel)
 	    return 0;
 	}
 	char buf[100];
-	strncpy(buf, selname, sellen);
+	strncpy(buf, selname, sizeof buf);
 	buf[sellen - 1] = '\0';
 	return rb_intern(buf);
     }
@@ -1787,7 +1787,7 @@ resolve_method_type(char *buf, const size_t buflen, Class klass, Method m,
 	    // Get the signature from the BridgeSupport database as an
 	    // informal protocol method.
 	    const char *informal_type_str = informal_type->c_str();
-	    strncpy(buf, informal_type_str, buflen);
+	    strlcpy(buf, informal_type_str, buflen);
 	    for (unsigned int i = TypeArity(informal_type_str);
 		    i < types_count; i++) {
 		strlcat(buf, "@", buflen);
@@ -1802,22 +1802,22 @@ resolve_method_type(char *buf, const size_t buflen, Class klass, Method m,
 	    const size_t selsize = strlen(selname);
 
 	    if (kvo_sel(klass, selname, selsize, "countOf", "")) {
-		strncpy(buf, "i@:", buflen);
+		strlcpy(buf, "i@:", buflen);
 	    }
 	    else if (kvo_sel(klass, selname, selsize, "objectIn", "AtIndex:")) {
-		strncpy(buf, "@@:i", buflen);
+		strlcpy(buf, "@@:i", buflen);
 	    }
 	    else if (kvo_sel(klass, selname, selsize, "insertObject:in",
 			"AtIndex:")) {
-		strncpy(buf, "v@:@i", buflen);
+		strlcpy(buf, "v@:@i", buflen);
 	    }
 	    else if (kvo_sel(klass, selname, selsize, "removeObjectFrom",
 			"AtIndex:")) {
-		strncpy(buf, "v@:i", buflen);
+		strlcpy(buf, "v@:i", buflen);
 	    }
 	    else if (kvo_sel(klass, selname, selsize, "replaceObjectIn",
 			"AtIndex:withObject:")) {
-		strncpy(buf, "v@:i@", buflen);
+		strlcpy(buf, "v@:i@", buflen);
 	    }
 #if 0 // TODO
 	    else if (kvo_sel(klass, selname, selsize, "get", ":range:")) {
@@ -5162,7 +5162,7 @@ rb_vm_generate_objc_class_name(const char *name, char *buf, size_t buflen)
 	    }
 	}
 	else {
-	    strncpy(buf, name, buflen);
+	    strlcpy(buf, name, buflen);
 	}
     }
     return true;
