@@ -68,14 +68,6 @@ def parse_args(argv = ARGV)
 
 end
 
-$install_procs = Hash.new {[]}
-def install?(*types, &block)
-  $install_procs[:all] <<= block
-  types.each do |type|
-    $install_procs[type] <<= block
-  end
-end
-
 def open_for_install(path, mode)
   data = open(realpath = with_destdir(path), "rb") {|f| f.read} rescue nil
   newdata = yield
@@ -161,20 +153,6 @@ EOH
       else
         shebang + body
       end
-    end
-  end
-end
-$install << :local << :ext if $install.empty?
-$install.each do |inst|
-  if !(procs = $install_procs[inst]) || procs.empty?
-    next warn("unknown install target - #{inst}")
-  end
-  procs.each do |block|
-    dir = Dir.pwd
-    begin
-      block.call
-    ensure
-      Dir.chdir(dir)
     end
   end
 end
