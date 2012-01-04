@@ -883,15 +883,16 @@ dir_s_rmdir(VALUE obj, SEL sel, VALUE dir)
     return INT2FIX(0);
 }
 
-static void
-sys_warning_1(const char* mesg)
+static VALUE
+sys_warning_1(VALUE mesg)
 {
-    rb_sys_warning("%s", mesg);
+    rb_sys_warning("%s", (const char *)mesg);
+    return Qnil;
 }
 
-#define GLOB_VERBOSE	(1UL << (sizeof(int) * CHAR_BIT - 1))
+#define GLOB_VERBOSE	(1U << (sizeof(int) * CHAR_BIT - 1))
 #define sys_warning(val) \
-    (void)((flags & GLOB_VERBOSE) && rb_protect((VALUE (*)(VALUE))sys_warning_1, (VALUE)(val), 0))
+    (void)((flags & GLOB_VERBOSE) && rb_protect(sys_warning_1, (VALUE)(val), 0))
 
 #define GLOB_ALLOC(type) (type *)malloc(sizeof(type))
 #define GLOB_ALLOC_N(type, n) (type *)malloc(sizeof(type) * (n))
