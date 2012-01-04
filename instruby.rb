@@ -164,15 +164,6 @@ EOH
     end
   end
 end
-
-install?(:local, :data) do
-  puts "installing data files"
-  destination_dir = datadir.clone
-  Config.expand(destination_dir)
-  makedirs [destination_dir]
-  install_recursive("data", destination_dir, :mode => $data_mode)
-end
-
 $install << :local << :ext if $install.empty?
 $install.each do |inst|
   if !(procs = $install_procs[inst]) || procs.empty?
