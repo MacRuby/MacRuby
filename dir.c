@@ -662,9 +662,9 @@ dir_close(VALUE dir, SEL sel)
 static void
 dir_chdir(VALUE path)
 {
-    const char *cpath = RSTRING_PTR(path);
-    if (chdir(cpath) < 0)
-	rb_sys_fail(cpath);
+    path = rb_str_encode_ospath(path);
+    if (chdir(RSTRING_PTR(path)) < 0)
+	rb_sys_fail(RSTRING_PTR(path));
 }
 
 static int chdir_blocking = 0;
@@ -822,9 +822,9 @@ dir_s_chroot(VALUE dir, SEL sel, VALUE path)
 {
     check_dirname(&path);
 
-    const char *path_cstr = RSTRING_PTR(path);
-    if (chroot(path_cstr) == -1)
-	rb_sys_fail(path_cstr);
+    path = rb_str_encode_ospath(path);
+    if (chroot(RSTRING_PTR(path)) == -1)
+	rb_sys_fail(RSTRING_PTR(path));
 
     return INT2FIX(0);
 }
@@ -847,7 +847,6 @@ dir_s_mkdir(VALUE Obj, SEL sel, int argc, VALUE *argv)
 {
     VALUE path, vmode;
     int mode;
-    const char *path_cstr;
 
     if (rb_scan_args(argc, argv, "11", &path, &vmode) == 2) {
 	mode = NUM2INT(vmode);
@@ -857,9 +856,9 @@ dir_s_mkdir(VALUE Obj, SEL sel, int argc, VALUE *argv)
     }
 
     check_dirname(&path);
-    path_cstr = RSTRING_PTR(path);
-    if (mkdir(path_cstr, mode) == -1)
-	rb_sys_fail(path_cstr);
+    path = rb_str_encode_ospath(path);
+    if (mkdir(RSTRING_PTR(path), mode) == -1)
+	rb_sys_fail(RSTRING_PTR(path));
 
     return INT2FIX(0);
 }
@@ -876,12 +875,10 @@ dir_s_mkdir(VALUE Obj, SEL sel, int argc, VALUE *argv)
 static VALUE
 dir_s_rmdir(VALUE obj, SEL sel, VALUE dir)
 {
-    const char *dir_cstr;
-
     check_dirname(&dir);
-    dir_cstr = RSTRING_PTR(dir);
-    if (rmdir(dir_cstr) < 0)
-	rb_sys_fail(dir_cstr);
+    dir = rb_str_encode_ospath(dir);
+    if (rmdir(RSTRING_PTR(dir)) < 0)
+	rb_sys_fail(RSTRING_PTR(dir));
 
     return INT2FIX(0);
 }
