@@ -299,7 +299,7 @@ VALUE rb_cDir;
 
 struct dir_data {
     DIR *dir;
-    char *path;
+    VALUE path;
 };
 
 static void
@@ -338,7 +338,7 @@ dir_s_alloc(VALUE klass, SEL sel)
     VALUE obj = Data_Make_Struct(klass, struct dir_data, 0, free_dir, dirp);
 
     dirp->dir = NULL;
-    dirp->path = NULL;
+    dirp->path = 0;
 
     return obj;
 }
@@ -361,7 +361,7 @@ dir_initialize(VALUE dir, SEL sel, VALUE dirname)
 	closedir(dp->dir);
     }
     dp->dir = NULL;
-    dp->path = NULL;
+    dp->path = 0;
     dirname_cstr = RSTRING_PTR(dirname);
     dp->dir = opendir(dirname_cstr);
     if (dp->dir == NULL) {
@@ -373,7 +373,7 @@ dir_initialize(VALUE dir, SEL sel, VALUE dirname)
 	    rb_sys_fail(dirname_cstr);
 	}
     }
-    GC_WB(&dp->path, ruby_strdup(dirname_cstr));
+    GC_WB(&dp->path, rb_str_dup_frozen(dirname));
 
     return dir;
 }
@@ -437,10 +437,10 @@ dir_inspect(VALUE dir, SEL sel)
     Data_Get_Struct(dir, struct dir_data, dirp);
     if (dirp->path) {
 	const char *c = rb_obj_classname(dir);
-	int len = strlen(c) + strlen(dirp->path) + 4;
+	int len = strlen(c) + RSTRING_LEN(dirp->path) + 4;
 	
 	char *buf = (char *)alloca(len);
-	snprintf(buf, len,  "#<%s:%s>", c, dirp->path);
+	snprintf(buf, len,  "#<%s:%s>", c, RSTRING_PTR(dirp->path));
 	return rb_str_new2(buf);
     }
     return rb_funcall(dir, rb_intern("to_s"), 0, 0);
@@ -462,7 +462,7 @@ dir_path(VALUE dir, SEL sel)
 
     Data_Get_Struct(dir, struct dir_data, dirp);
     if (!dirp->path) return Qnil;
-    return rb_str_new2(dirp->path);
+    return rb_str_dup(dirp->path);
 }
 
 /*
