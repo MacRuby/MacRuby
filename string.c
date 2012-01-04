@@ -1733,7 +1733,7 @@ str_transcode(rb_str_t *self, rb_encoding_t *src_encoding, rb_encoding_t *dst_en
 			char *bytes_list = xmalloc(invalid_bytes_length * 4);
 			char *bytes_list_pos = bytes_list;
 			for (long i = 0; i < invalid_bytes_length; ++i) {
-			    sprintf(bytes_list_pos, "\\x%02X", (unsigned char)self->bytes[pos_in_src+i]);
+			    snprintf(bytes_list_pos, (invalid_bytes_length * 4), "\\x%02X", (unsigned char)self->bytes[pos_in_src+i]);
 			    bytes_list_pos += 4;
 			}
 			rb_raise(rb_eInvalidByteSequenceError, "\"%s\" on %s", bytes_list, src_encoding->public_name);

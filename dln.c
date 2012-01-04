@@ -24,12 +24,12 @@
 // In file.c
 int eaccess(const char *path, int mode);
 
-static int
+static size_t
 init_funcname_len(char **buf, const char *file)
 {
     char *p;
     const char *slash;
-    int len;
+    size_t len;
 
     /* Load the file as an object one */
     for (slash = file-1; *file; file++) /* Find position of last '/' */
@@ -53,13 +53,13 @@ init_funcname_len(char **buf, const char *file)
 }
 
 #define init_funcname(buf, file) do {\
-    int len = init_funcname_len(buf, file);\
+    size_t len = init_funcname_len(buf, file);\
     char *tmp = ALLOCA_N(char, len+1);\
     if (tmp == NULL) {\
 	xfree(*buf);\
 	rb_memerror();\
     }\
-    strcpy(tmp, *buf);\
+    strlcpy(tmp, *buf, len + 1);\
     xfree(*buf);\
     *buf = tmp;\
 } while (0)
