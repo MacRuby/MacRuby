@@ -1293,12 +1293,13 @@ glob_helper(
 	    if (*cur) {
 		char *buf;
 		char *name;
-		name = GLOB_ALLOC_N(char, strlen((*cur)->str) + 1);
+		size_t len = strlen((*cur)->str) + 1;
+		name = GLOB_ALLOC_N(char, len);
 		if (!name) {
 		    status = -1;
 		    break;
 		}
-		strcpy(name, (*cur)->str);
+		memcpy(name, (*cur)->str, len);
 		if (escape) remove_backslashes(name);
 
 		new_beg = new_end = GLOB_ALLOC_N(struct glob_pattern *, end - beg);
