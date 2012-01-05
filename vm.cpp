@@ -1554,6 +1554,10 @@ vm_alias_method(Class klass, Method method, ID name, bool noargs)
 static void
 vm_alias(VALUE outer, ID name, ID def)
 {
+    if (NIL_P(outer)) {
+	rb_raise(rb_eTypeError, "no class to make alias");
+    }
+
     rb_frozen_class_p(outer);
     if (outer == rb_cObject) {
         rb_secure(4);
