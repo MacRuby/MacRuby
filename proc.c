@@ -1213,12 +1213,12 @@ umethod_bind(VALUE method, SEL sel, VALUE recv)
     rb_vm_method_t *data, *bound;
 
     Data_Get_Struct(method, rb_vm_method_t, data);
-    if (data->rclass != CLASS_OF(recv)) {
+    if (data->rclass != CLASS_OF(recv) && !rb_obj_is_kind_of(recv, data->rclass)) {
 	if (RCLASS_SINGLETON(data->rclass)) {
 	    rb_raise(rb_eTypeError,
 		     "singleton method called for a different object");
 	}
-	if (!rb_obj_is_kind_of(recv, data->rclass)) {
+	else {
 	    rb_raise(rb_eTypeError, "bind argument must be an instance of %s",
 		     rb_class2name(data->rclass));
 	}
