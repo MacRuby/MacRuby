@@ -96,6 +96,10 @@ module Installer
     "lib#{RUBY_SO_NAME}.#{NEW_RUBY_VERSION}.dylib"
   end
 
+  def lib_dir
+    File.join(FRAMEWORK_USR_LIB, 'ruby', NEW_RUBY_VERSION)
+  end
+
 end
 
 
@@ -132,8 +136,6 @@ namespace :install do
 
   desc 'Install the standard library'
   task :lib => 'stdlib:build' do
-    lib_dir = File.join(FRAMEWORK_USR_LIB, 'ruby', NEW_RUBY_VERSION)
-
     makedirs lib_dir
 
     for file in Dir['lib/**/*{.rb,.rbo,help-message}']
