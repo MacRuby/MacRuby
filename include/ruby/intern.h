@@ -239,6 +239,7 @@ VALUE rb_obj_is_proc(VALUE);
 VALUE rb_proc_call(VALUE, VALUE);
 VALUE rb_proc_call2(VALUE self, int argc, VALUE *argv);
 int rb_proc_arity(VALUE);
+VALUE rb_proc_lambda_p(VALUE);
 VALUE rb_binding_new(void);
 VALUE rb_protect(VALUE (*)(VALUE), VALUE, int*);
 void rb_mark_end_proc(void);

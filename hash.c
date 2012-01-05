@@ -196,6 +196,19 @@ rb_hash_tbl(VALUE hash)
 	    "rb_hash_tbl() won't work on pure NSDictionaries");
 }
 
+static void
+default_proc_arity_check(VALUE proc)
+{
+    int arity = rb_proc_arity(proc);
+    if (rb_proc_lambda_p(proc) && arity != 2 && (arity >= 0 || arity < -3)) {
+	if (arity < 0) {
+	    arity = -arity - 1;
+	}
+	rb_raise(rb_eTypeError, "default_proc takes two arguments (2 for %d)",
+		arity);
+    }
+}
+
 /*
  *  call-seq:
  *     Hash.new                          => hash
@@ -234,16 +247,19 @@ rb_hash_tbl(VALUE hash)
 static VALUE
 rhash_initialize(VALUE hash, SEL sel, int argc, const VALUE *argv)
 {
+    VALUE ifnone;
+
     rhash_modify(hash);
     if (rb_block_given_p()) {
 	if (argc > 0) {
 	    rb_raise(rb_eArgError, "wrong number of arguments");
 	}
+	ifnone = rb_block_proc();
+	default_proc_arity_check(ifnone);
 	GC_WB(&RHASH(hash)->ifnone, rb_block_proc());
 	RHASH(hash)->has_proc_default = true;
     }
     else {
-	VALUE ifnone;
 	rb_scan_args(argc, argv, "01", &ifnone);
 	if (ifnone != Qnil) {
 	    GC_WB(&RHASH(hash)->ifnone, ifnone);
@@ -573,16 +589,6 @@ rhash_default_proc(VALUE hash, SEL sel)
  *     h[2]       #=> 4
  *     h["cat"]   #=> "catcat"
  */
-
-static void
-default_proc_arity_check(VALUE proc)
-{
-    const int arity = rb_proc_arity(proc);
-    if (arity != 0 && arity != 2) {
-	rb_raise(rb_eTypeError, "expected Proc with 2 arguments (but got %d)",
-		arity);
-    }
-}
 
 static VALUE
 rhash_set_default_proc(VALUE hash, SEL sel, VALUE proc)

@@ -198,6 +198,12 @@ proc_lambda_p(VALUE procval, SEL sel)
 	? Qtrue : Qfalse;
 }
 
+VALUE
+rb_proc_lambda_p(VALUE procval)
+{
+    return proc_lambda_p(procval, 0);
+}
+
 /* Binding */
 
 static VALUE
