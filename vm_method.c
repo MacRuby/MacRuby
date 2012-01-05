@@ -142,6 +142,9 @@ rb_attr(VALUE klass, ID id, int read, int write, int ex)
 void
 rb_undef(VALUE klass, ID id)
 {
+    if (NIL_P(klass)) {
+	rb_raise(rb_eTypeError, "no class to undef method");
+    }
     if (klass == rb_cObject) {
 	rb_secure(4);
     }
