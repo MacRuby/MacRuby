@@ -50,6 +50,12 @@ rb_memerror(void)
     rb_exc_raise(nomem_error);
 }
 
+static void
+negative_size_allocation_error(const char *msg)
+{
+    rb_raise(rb_eNoMemError, "%s", msg);
+}
+
 /*
  *  call-seq:
  *    GC.stress                 => true or false
@@ -104,7 +110,13 @@ rb_objc_no_gc_error(void)
 static inline void *
 ruby_xmalloc_memory(size_t size, int type)
 {
-    assert(size > 0);
+    if ((ssize_t)size < 0) {
+	negative_size_allocation_error("negative allocation size (or too big)");
+    }
+    if (size == 0) {
+	size = 1;
+    }
+
     if (__auto_zone == NULL) {
 	rb_objc_no_gc_error();
     }
@@ -158,6 +170,9 @@ ruby_xcalloc(size_t n, size_t size)
 void *
 ruby_xrealloc(void *ptr, size_t size)
 {
+    if ((ssize_t)size < 0) {
+	negative_size_allocation_error("negative re-allocation size");
+    }
     if (ptr == NULL) {
 	return ruby_xmalloc(size);
     }
