@@ -1,7 +1,5 @@
 require 'fileutils'
 
-# INSTRUBY_ARGS = "#{SCRIPT_ARGS}
-# --installed-list #{INSTALLED_LIST} --sym-dest-dir=\"#{SYM_INSTDIR}\"
 # TODO Centralize most, if not all, the directory creation
 
 module Installer
