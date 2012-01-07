@@ -104,7 +104,7 @@ end
 namespace :install do
   extend Installer
 
-  task :all => [:bin, :lib, :ext, :headers, :doc, :man, :resources, :xcode_support]
+  task :all => [:bin, :scripts, :lib, :ext, :headers, :doc, :man, :resources, :xcode_support]
 
   desc 'Install MacRuby binaries'
   task :bin do
@@ -130,6 +130,44 @@ namespace :install do
     llc_dest = File.join(FRAMEWORK_USR_BIN, 'llc')
     llc_src  = File.join(LLVM_PATH, 'bin/llc')
     install(llc_src, llc_dest, :mode => prog_mode)
+  end
+
+  desc 'Install command scripts (e.g. macirb)'
+  task :scripts do
+    puts 'Installing command scripts'
+
+    makedirs FRAMEWORK_USR_BIN, lib_dir
+
+    ruby_shebang = File.join(FRAMEWORK_USR_BIN, RUBY_INSTALL_NAME)
+    for src in Dir['bin/*']
+      next unless File.file?(src)
+      next if /\/[.#]|(\.(old|bak|orig|rej|diff|patch|core)|~|\/core)$/i =~ src
+
+      bname = File.basename(src)
+      name  = case bname
+              when 'rb_nibtool'
+                bname
+              else
+                RUBY_INSTALL_NAME.sub(/ruby/, bname)
+              end
+
+      shebang = ''
+      body = ''
+      open(src, 'rb') do |f|
+        shebang = f.gets
+        body = f.read
+      end
+      shebang.sub!(/^\#!.*?ruby\b/) { '#!' + ruby_shebang }
+      shebang.sub!(/\r$/, '')
+      body.gsub!(/\r$/, '')
+
+      cmd = File.join(FRAMEWORK_USR_BIN, name)
+      open_for_install(cmd, script_mode) do
+        shebang + body
+      end
+    end
+  end
+
   end
 
   desc 'Install the standard library'
