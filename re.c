@@ -822,11 +822,7 @@ rb_reg_matcher_search_find(VALUE re, VALUE matcher, int pos, bool reverse,
 
     if (re_matcher->frozen_str == 0) {
 	// To reduce memory usage, the Match string is a singleton object.
-	GC_WB(&re_matcher->frozen_str, rb_str_new5(re_matcher->orig_str, 0, 0));
-	rb_str_force_encoding(re_matcher->frozen_str, rb_enc_get(re_matcher->orig_str));
-	rb_str_append_uchars(re_matcher->frozen_str, chars, chars_len);
-	OBJ_INFECT(re_matcher->frozen_str, re_matcher->orig_str);
-	OBJ_FREEZE(re_matcher->frozen_str);
+	GC_WB(&re_matcher->frozen_str, rb_str_dup_frozen(re_matcher->orig_str));
     }
     GC_WB(&RMATCH(match)->str, re_matcher->frozen_str);
 
