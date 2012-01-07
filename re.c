@@ -665,6 +665,7 @@ static void
 reg_matcher_cleanup(rb_regexp_matcher_t *m)
 {
     if (m->pattern != NULL) {
+	GC_RELEASE(m->orig_str);
 	uregex_close(m->pattern);
 	m->pattern = NULL;
     }
@@ -718,7 +719,8 @@ rb_reg_matcher_new(VALUE re, VALUE str)
 
     matcher->pattern = match_pattern;
     matcher->frozen_str = 0; // set lazily
-    GC_WB(&matcher->orig_str, str);
+    matcher->orig_str = str;
+    GC_RETAIN(matcher->orig_str);
 
     // Apparently uregex_setText doesn't copy the given string, so we need
     // to keep it around until we finally destroy the matcher object.
