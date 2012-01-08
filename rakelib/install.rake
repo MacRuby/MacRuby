@@ -150,7 +150,7 @@ namespace :install do
   task :scripts do
     puts 'Installing command scripts'
 
-    makedirs FRAMEWORK_USR_BIN, lib_dir
+    mkdir_p FRAMEWORK_USR_BIN
 
     ruby_shebang = File.join(FRAMEWORK_USR_BIN, RUBY_INSTALL_NAME)
     for src in Dir['bin/*']
