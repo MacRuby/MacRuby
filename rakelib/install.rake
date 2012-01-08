@@ -77,6 +77,20 @@ module Installer
     end
   end
 
+  def open_for_install path, mode
+    data = begin
+             open(realpath = with_destdir(path), 'rb') { |f| f.read }
+           rescue
+             nil
+           end
+    newdata = yield
+    unless newdata == data
+      open(realpath, 'wb', mode) { |f| f.write newdata }
+    end
+    File.chmod(mode, realpath)
+    puts path
+  end
+
   def mkdir_p target, flags = {}
     flags[:mode] = dir_mode
     super(with_destdir(target), flags)
