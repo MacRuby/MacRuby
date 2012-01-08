@@ -37,7 +37,7 @@ module Installer
     end
     #puts dest
     if strip
-      system("/usr/bin/strip -x \"#{with_destdir(dest)}\"")
+      system("/usr/bin/strip -x '#{File.join(with_destdir(dest), File.basename(src))}'")
     end
   end
 
