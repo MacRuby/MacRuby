@@ -168,8 +168,6 @@ namespace :install do
     end
   end
 
-  end
-
   desc 'Install the standard library'
   task :lib => 'stdlib:build' do
     makedirs lib_dir
