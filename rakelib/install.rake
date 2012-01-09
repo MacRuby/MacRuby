@@ -118,6 +118,14 @@ module Installer
     File.join(FRAMEWORK_USR_LIB, 'ruby', NEW_RUBY_VERSION)
   end
 
+  def arch_lib_dir
+    File.join(FRAMEWORK_USR_LIB, 'ruby', NEW_RUBY_VERSION, NEW_RUBY_PLATFORM)
+  end
+
+  def header_dir
+    "#{FRAMEWORK_USR}/include/ruby-#{NEW_RUBY_VERSION}"
+  end
+
 end
 
 
@@ -130,7 +138,6 @@ namespace :install do
   task :bin do
     puts 'Installing the macruby binary command'
 
-    arch_lib_dir = File.join(FRAMEWORK_USR_LIB, 'ruby', NEW_RUBY_VERSION, NEW_RUBY_PLATFORM)
     static       = "lib#{RUBY_SO_NAME}-static.a"
 
     makedirs FRAMEWORK_USR_BIN, FRAMEWORK_USR_LIB, arch_lib_dir
@@ -215,7 +222,6 @@ namespace :install do
   desc 'Install the MacRuby headers'
   task :headers do
     puts 'Installing headers'
-    header_dir = "#{FRAMEWORK_USR}/include/ruby-#{NEW_RUBY_VERSION}"
     makedirs header_dir
     install_recursive('include', header_dir, :glob => "*.h", :mode => data_mode)
   end
