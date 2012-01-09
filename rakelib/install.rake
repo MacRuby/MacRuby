@@ -88,7 +88,7 @@ module Installer
       open(realpath, 'wb', mode) { |f| f.write newdata }
     end
     File.chmod(mode, realpath)
-    puts path
+    puts 'Wrote ' + path
   end
 
   def mkdir_p target, flags = {}
