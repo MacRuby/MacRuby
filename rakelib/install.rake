@@ -217,13 +217,26 @@ namespace :install do
       sub_dir = File.dirname(sub_path)
       sh "/usr/bin/install -c -m 0755 #{path} #{File.join(dest_site, sub_dir)}"
     end
+
+    arch_header_dir = File.join(header_dir, NEW_RUBY_PLATFORM)
+    hdr_dir         = File.join(header_dir, 'ruby')
+
+    puts 'Installing Extension Objects'
+    makedirs arch_lib_dir, RUBY_SITE_LIB2, RUBY_VENDOR_LIB2, arch_header_dir
+    install_recursive "#{EXTOUT}/#{NEW_RUBY_PLATFORM}", arch_lib_dir, :mode => prog_mode
+    install_recursive "#{EXTOUT}/include/#{NEW_RUBY_PLATFORM}", arch_header_dir, :glob => '*.h', :mode => data_mode
+
+    puts 'Installing extensions scripts'
+    makedirs lib_dir, RUBY_SITE_LIB2, RUBY_VENDOR_LIB2, hdr_dir
+    install_recursive "#{EXTOUT}/common", lib_dir, :mode => data_mode
+    install_recursive "#{EXTOUT}/include/ruby", hdr_dir, :glob => '*.h', :mode => data_mode
   end
 
   desc 'Install the MacRuby headers'
   task :headers do
     puts 'Installing headers'
     makedirs header_dir
-    install_recursive('include', header_dir, :glob => "*.h", :mode => data_mode)
+    install_recursive('include', header_dir, :glob => '*.h', :mode => data_mode)
   end
 
   desc 'Install RDoc and RI documentation'
