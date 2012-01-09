@@ -2,6 +2,12 @@ require 'fileutils'
 
 # TODO Centralize most, if not all, the directory creation
 
+# TODO Should tasks set dependencies to make sure things are built?
+#      Currently some do, but in cases where things need to be built
+#      they will end up being built with root permissions since you
+#      are likely to say `sudo rake install` which can show confusing
+#      errors later when you try to rebuild MacRuby.
+
 module Installer
   include FileUtils
 
