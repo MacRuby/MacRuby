@@ -74,6 +74,7 @@ rand_init(struct MT *mt, VALUE vseed)
 {
     VALUE seed;
     long blen = 0;
+    long fixnum_seed;
     int i, j, len;
     unsigned int buf0[SIZEOF_LONG / SIZEOF_INT32 * 4], *buf = buf0;
 
@@ -81,9 +82,12 @@ rand_init(struct MT *mt, VALUE vseed)
     switch (TYPE(seed)) {
       case T_FIXNUM:
 	len = 1;
-	buf[0] = (unsigned int)(FIX2ULONG(seed) & 0xffffffff);
+	fixnum_seed = FIX2LONG(seed);
+	buf[0] = (unsigned int)(fixnum_seed & 0xffffffff);
 #if SIZEOF_LONG > SIZEOF_INT32
-	if ((buf[1] = (unsigned int)(FIX2ULONG(seed) >> 32)) != 0) ++len;
+	if ((long)(int)fixnum_seed != fixnum_seed) {
+	    if ((buf[1] = (unsigned int)(fixnum_seed >> 32)) != 0) ++len;
+	}
 #endif
 	break;
       case T_BIGNUM:
