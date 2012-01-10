@@ -151,7 +151,6 @@ rb_define_object_special_methods(VALUE klass)
     rb_objc_define_private_method(klass, "initialize", rb_objc_init, -1);
     rb_objc_define_private_method(klass, "initialize_copy",
 	    rb_obj_init_copy, 1);
-    rb_objc_define_method(klass, "hash", rb_obj_id, 0);
 
     // To make sure singleton classes will be filtered.
     rb_objc_define_method(*(VALUE *)klass, "superclass", rb_obj_superclass, 0);

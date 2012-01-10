@@ -142,6 +142,14 @@ rb_nsobj_equal(VALUE obj1, SEL sel, VALUE obj2)
     return rb_objc_isEqual(obj1, obj2) ? Qtrue : Qfalse;
 }
 
+static VALUE
+rb_obj_hash(VALUE obj, SEL sel)
+{
+    VALUE oid = rb_obj_id(obj, sel);
+    st_index_t h = rb_hash_end(rb_hash_start(NUM2LONG(oid)));
+    return LONG2FIX(h);
+}
+
 /*
  *  call-seq:
  *     !obj    => true or false
@@ -3070,6 +3078,7 @@ Init_Object(void)
     rb_objc_define_method(rb_mKernel, "!~", rb_obj_not_match, 1);
     rb_objc_define_method(rb_mKernel, "eql?", rb_obj_equal, 1);
     rb_objc_define_method(rb_cNSObject, "eql?", rb_nsobj_equal, 1);
+    rb_objc_define_method(rb_mKernel, "hash", rb_obj_hash, 0);
     rb_objc_define_method(rb_mKernel, "<=>", rb_obj_cmp, 1);
 
     rb_objc_define_method(rb_cNSObject, "clone", rb_obj_clone_imp, 0);
