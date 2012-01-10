@@ -572,7 +572,7 @@ random_bytes(VALUE obj, SEL sel, VALUE len)
 {
     long n = NUM2LONG(rb_to_int(len));
     if (n <= 0) {
-	return rb_str_new2("");
+	return rb_bstr_new();
     } 
     rb_random_t *rnd = get_rnd(obj);
     UInt8 *ptr = (UInt8 *)malloc(n);
