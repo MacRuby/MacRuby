@@ -47,7 +47,7 @@ rb_hash_code(VALUE obj)
 	case T_NIL:
 	case T_FALSE:
 	case T_TRUE:
-	    return (unsigned long)obj;
+	    return rb_hash_end(rb_hash_start((unsigned int)obj));
 
 	case T_STRING:
 	    return rb_str_hash(obj);
