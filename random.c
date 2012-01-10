@@ -683,7 +683,6 @@ random_rand(VALUE obj, SEL sel, int argc, VALUE *argv)
     int excl = 0;
 
     if (argc == 0) {
-zero_arg:
 	return rb_float_new(genrand_real(&rnd->mt));
     }
     else if (argc != 1) {
@@ -691,7 +690,7 @@ zero_arg:
     }
     VALUE vmax = argv[0];
     if (NIL_P(vmax)) {
-	goto zero_arg;
+	v = Qnil;
     }
     else if (TYPE(vmax) != T_FLOAT
 	    && (v = rb_check_to_integer(vmax, "to_int"), !NIL_P(v))) {
