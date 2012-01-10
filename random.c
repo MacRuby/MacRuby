@@ -860,6 +860,11 @@ Init_RandomSeed(void)
     GC_WB(&get_rnd(random)->seed, make_seed_value(initial));
     rb_vm_set_default_random(random);
 
+    struct MT *mt = &default_rnd()->mt;
+    if (!genrand_initialized(mt)) {
+	rand_init(mt, random_seed(0, 0));
+    }
+
     hashseed = rb_genrand_int32();
 #if SIZEOF_ST_INDEX_T*CHAR_BIT > 4*8
     hashseed <<= 32;
