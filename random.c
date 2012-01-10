@@ -571,19 +571,30 @@ static VALUE
 random_bytes(VALUE obj, SEL sel, VALUE len)
 {
     long n = NUM2LONG(rb_to_int(len));
+    VALUE bytes = rb_bstr_new();
     if (n <= 0) {
-	return rb_bstr_new();
+	return bytes;
     } 
+    rb_bstr_resize(bytes, n);
     rb_random_t *rnd = get_rnd(obj);
-    UInt8 *ptr = (UInt8 *)malloc(n);
-    assert(ptr != NULL);
-    unsigned int r = genrand_int32(&rnd->mt);
-    for (long i = 0; i < n; i++) {
-	ptr[i] = (char)r;
-	r >>= CHAR_BIT;
+    uint8_t *ptr = rb_bstr_bytes(bytes);
+    unsigned int r, i;
+
+    for (; n >= SIZEOF_INT32; n -= SIZEOF_INT32) {
+	r = genrand_int32(&rnd->mt);
+	i = SIZEOF_INT32;
+	do {
+	    *ptr++ = (uint8_t)r;
+	    r >>= CHAR_BIT;
+        } while (--i);
     }
-    VALUE bytes = rb_bstr_new_with_data(ptr, n);
-    free(ptr);
+    if (n > 0) {
+	r = genrand_int32(&rnd->mt);
+	do {
+	    *ptr++ = (uint8_t)r;
+	    r >>= CHAR_BIT;
+	} while (--n);
+    }
     return bytes;
 }
 
