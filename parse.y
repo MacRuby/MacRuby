@@ -2333,6 +2333,7 @@ opt_call_args	: none
 call_args	: command
 		    {
 		    /*%%%*/
+			value_expr($1);
 			$$ = NEW_LIST($1);
 		    /*%
 			$$ = arg_add(arg_new(), $1);
