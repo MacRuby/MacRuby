@@ -1250,6 +1250,7 @@ rb_scan_args(int argc, const VALUE *argv, const char *fmt, ...)
 	p++;
     }
     else {
+	va_end(vargs);
 	goto error;
     }
 
