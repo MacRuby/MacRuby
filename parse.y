@@ -1147,7 +1147,7 @@ stmt		: keyword_alias fitem {lex_state = EXPR_FNAME;} fitem
 			GC_WB(&$1->nd_value, $3);
 			$$ = $1;
 		    /*%
-			dispatch2(massign, $1, $3);
+			$$ = dispatch2(massign, $1, $3);
 		    %*/
 		    }
 		| mlhs '=' mrhs
