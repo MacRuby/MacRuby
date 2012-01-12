@@ -222,7 +222,7 @@ namespace :install do
     hdr_dir         = File.join(header_dir, 'ruby')
 
     puts 'Installing Extension Objects'
-    makedirs arch_lib_dir, RUBY_SITE_LIB2, RUBY_VENDOR_LIB2, arch_header_dir
+    makedirs arch_lib_dir, RUBY_SITE_LIB2, RUBY_VENDOR_ARCHLIB, arch_header_dir
     install_recursive "#{EXTOUT}/#{NEW_RUBY_PLATFORM}", arch_lib_dir, :mode => prog_mode
     install_recursive "#{EXTOUT}/include/#{NEW_RUBY_PLATFORM}", arch_header_dir, :glob => '*.h', :mode => data_mode
 
