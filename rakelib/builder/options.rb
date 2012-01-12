@@ -122,6 +122,7 @@ RUBY_VENDOR_LIB2 = File.join(RUBY_VENDOR_LIB, NEW_RUBY_VERSION)
 RUBY_VENDOR_ARCHLIB = File.join(RUBY_VENDOR_LIB2, NEW_RUBY_PLATFORM)
 
 INSTALL_NAME  = File.join(FRAMEWORK_USR_LIB, 'lib' + RUBY_SO_NAME + '.dylib')
+# NOTE This gets expanded here instead of in rbconfig.rb
 DYLIB_ALIASES = "lib#{RUBY_SO_NAME}.#{NEW_RUBY_MAJOR_VERSION}.#{NEW_RUBY_MINOR_VERSION}.dylib lib#{RUBY_SO_NAME}.dylib"
 LLVM_MODULES  = "core jit nativecodegen bitwriter bitreader ipo"
 EXPORTED_SYMBOLS_LIST = "./exported_symbols_list"
