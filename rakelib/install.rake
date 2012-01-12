@@ -256,7 +256,7 @@ namespace :install do
       next unless File.file?(mdoc) and open(mdoc){ |fh| fh.read(1) == '.' }
 
       destdir  = File.join(man_dir, "man#{mdoc[/(\d+)$/]}")
-      destfile = File.join(destdir, mdoc.sub(/ruby/, RUBY_INSTALL_NAME))
+      destfile = File.join(destdir, mdoc.sub(/^/, 'mac'))
 
       makedirs destdir
       install mdoc, destfile, :mode => data_mode
