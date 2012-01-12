@@ -286,11 +286,11 @@ namespace :install do
     ln_sfh "../#{NEW_RUBY_PLATFORM}/ruby/config.h",
       File.join(FRAMEWORK_VERSION, "usr/include/ruby-#{NEW_RUBY_VERSION}/ruby/config.h")
 
-    puts 'Installing executable links'
+    puts 'Installing executable symlinks'
     dest_bin = File.join(SYM_INSTDIR, 'bin')
     mkdir_p dest_bin
     Dir.entries(with_destdir(FRAMEWORK_USR_BIN)).each do |file|
-      next if file.match(/^./)
+      next if file.match(/^\./)
       # Except rb_nibtool & llc!
       next if file == 'rb_nibtool' or file == 'llc'
       link = File.join('../../../', FRAMEWORK_USR_BIN, file)
@@ -301,15 +301,15 @@ namespace :install do
       end
     end
 
-    puts 'Installing man page links'
+    puts 'Installing man page symlinks'
     dest_man = File.join(SYM_INSTDIR, 'share', 'man')
     mkdir_p dest_man
     Dir.entries(with_destdir(man_dir)).each do |man_set|
-      next if man_set.match(/^./)
+      next if man_set.match(/^\./)
       if File.stat(File.join(with_destdir(man_dir), man_set)).directory?
         mkdir_p File.join(dest_man, File.basename(man_set))
         Dir.entries(File.join(with_destdir(man_dir), man_set)).each do |man_file|
-          next if man_file.match(/^./)
+          next if man_file.match(/^\./)
           link = File.join('../../../../../', man_dir, man_set, man_file)
           link.sub!(/#{INSTALL_VERSION}/, 'Current')
           link_dest = File.join(dest_man, File.basename(man_set), File.basename(man_file))
