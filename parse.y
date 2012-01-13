@@ -2560,8 +2560,7 @@ args		: arg_value
 		    {
 		    /*%%%*/
 			NODE *n1;
-			if (nd_type($4) == NODE_ARRAY &&
-			    (n1 = splat_array($1)) != 0) {
+			if ((nd_type($4) == NODE_ARRAY) && (n1 = splat_array($1)) != 0) {
 			    $$ = list_concat(n1, $4);
 			}
 			else {
@@ -8181,7 +8180,8 @@ arg_concat_gen(struct parser_params *parser, NODE *node1, NODE *node2)
 	nd_set_type(node1, NODE_ARGSCAT);
 	return node1;
       case NODE_ARGSCAT:
-	if (nd_type(node2) != NODE_ARRAY) break;
+	if (nd_type(node2) != NODE_ARRAY ||
+	    nd_type(node1->nd_body) != NODE_ARRAY) break;
 	GC_WB(&node1->nd_body, list_concat(node1->nd_body, node2));
 	return node1;
     }
