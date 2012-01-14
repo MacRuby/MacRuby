@@ -683,8 +683,8 @@ static void ripper_compile_error(struct parser_params*, const char *fmt, ...);
 %type <node> bodystmt compstmt stmts stmt expr arg primary command command_call method_call
 %type <node> expr_value arg_value primary_value
 %type <node> if_tail opt_else case_body cases opt_rescue exc_list exc_var opt_ensure
-%type <node> args call_args opt_call_args
-%type <node> paren_args opt_paren_args
+%type <node> args call_args call_args2 opt_call_args
+%type <node> open_args paren_args opt_paren_args
 %type <node> command_args aref_args opt_block_arg block_arg var_ref var_lhs
 %type <node> mrhs superclass block_call block_command
 %type <node> f_block_optarg f_block_opt
@@ -2419,15 +2419,85 @@ call_args	: command
 		    %*/
 		;
 
+call_args2	: arg_value ',' args opt_block_arg
+		    {
+		    /*%%%*/
+			$$ = arg_blk_pass(list_concat(NEW_LIST($1),$3), $4);
+		    /*%
+			$$ = arg_add_optblock(arg_prepend($3, $1), $4);
+		    %*/
+		    }
+		| arg_value ',' block_arg
+		    {
+		    /*%%%*/
+			$$ = arg_blk_pass(NEW_LIST($1), $3);
+		    /*%
+			$$ = arg_add_block(arg_add(arg_new(), $1), $3);
+		    %*/
+		    }
+		| assocs opt_block_arg
+		    {
+		    /*%%%*/
+			$$ = NEW_LIST(NEW_HASH($1));
+			$$ = arg_blk_pass($$, $2);
+		    /*%
+			$$ = arg_add_assocs(arg_new(), $1);
+			$$ = arg_add_optblock($$, $2);
+		    %*/
+		    }
+		| arg_value ',' assocs opt_block_arg
+		    {
+		    /*%%%*/
+			$$ = arg_append(NEW_LIST($1), NEW_HASH($3));
+			$$ = arg_blk_pass($$, $4);
+		    /*%
+			$$ = arg_add_assocs(arg_add(arg_new(), $1), $3);
+			$$ = arg_add_optblock($$, $4);
+		    %*/
+		    }
+		| arg_value ',' args ',' assocs opt_block_arg
+		    {
+		    /*%%%*/
+			$$ = arg_append(list_concat(NEW_LIST($1),$3), NEW_HASH($5));
+			$$ = arg_blk_pass($$, $6);
+		    /*%
+			$$ = arg_add_assocs(arg_prepend($3, $1), $5);
+			$$ = arg_add_optblock($$, $6);
+		    %*/
+		    }
+		| block_arg
+		;
+
 command_args	:  {
 			$<val>$ = cmdarg_stack;
 			CMDARG_PUSH(1);
 		    }
-		  call_args
+		  open_args
 		    {
 			/* CMDARG_POP() */
 			cmdarg_stack = $<val>1;
 			$$ = $2;
+		    }
+		;
+
+open_args	: call_args
+		| tLPAREN_ARG  {lex_state = EXPR_ENDARG;} rparen
+		    {
+		    /*%%%*/
+			rb_warning0("don't put space before argument parentheses");
+			$$ = 0;
+		    /*%
+			$$ = dispatch1(space, dispatch1(arg_paren, arg_new()));
+		    %*/
+		    }
+		| tLPAREN_ARG call_args2 {lex_state = EXPR_ENDARG;} rparen
+		    {
+		    /*%%%*/
+			rb_warning0("don't put space before argument parentheses");
+			$$ = $2;
+		    /*%
+			$$ = dispatch1(space, dispatch1(arg_paren, $2));
+		    %*/
 		    }
 		;
 
@@ -7129,8 +7199,12 @@ parser_yylex(struct parser_params *parser)
 	    c = tLPAREN;
 	}
 	else if (space_seen) {
-	    if (IS_ARG()) {
+	    if (lex_state == EXPR_CMDARG) {
 		c = tLPAREN_ARG;
+	    }
+	    else if (lex_state == EXPR_ARG) {
+		rb_warning0("don't put space before argument parentheses");
+		c = '(';
 	    }
 	}
 	paren_nest++;
