@@ -5115,6 +5115,7 @@ rb_parser_compile_file(volatile VALUE vparser, const char *f, VALUE file,
     lex_gets = lex_io_gets;
     GC_WB(&lex_input, file);
     lex_pbeg = lex_p = lex_pend = 0;
+    compile_for_eval = rb_parse_in_eval();
 
     return yycompile(parser, f, start);
 }
