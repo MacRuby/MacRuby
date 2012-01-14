@@ -7788,6 +7788,9 @@ literal_concat_gen(struct parser_params *parser, NODE *head, NODE *tail)
 	    rb_gc_force_recycle((VALUE)head);
 	    head = tail;
 	}
+	else if (NIL_P(tail->nd_lit)) {
+	    list_concat(head, tail->nd_next);
+	}
 	else {
 	    nd_set_type(tail, NODE_ARRAY);
 	    GC_WB(&tail->nd_head, NEW_STR(tail->nd_lit));
