@@ -94,6 +94,10 @@ module Installer
     super(with_destdir(target), flags)
   end
 
+  def static
+    "lib#{RUBY_SO_NAME}-static.a"
+  end
+
   def xcode_dir
     `xcode-select -print-path`.chomp
   end
@@ -169,8 +173,6 @@ namespace :install do
   desc 'Install MacRuby binaries'
   task :bin do
     puts 'Installing the macruby binary command'
-
-    static       = "lib#{RUBY_SO_NAME}-static.a"
 
     makedirs FRAMEWORK_USR_BIN, FRAMEWORK_USR_LIB, arch_lib_dir
 
