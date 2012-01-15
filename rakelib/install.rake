@@ -188,9 +188,7 @@ namespace :install do
     end
 
     puts 'Installing LLVM tools'
-    llc_dest = File.join(FRAMEWORK_USR_BIN, 'llc')
-    llc_src  = File.join(LLVM_PATH, 'bin/llc')
-    install(llc_src, llc_dest, :mode => prog_mode)
+    install "#{LLVM_PATH}/bin/llc", "#{FRAMEWORK_USR_BIN}/llc", :mode => prog_mode
   end
 
   desc 'Install command scripts (e.g. macirb)'
