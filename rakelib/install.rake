@@ -49,7 +49,7 @@ module Installer
       realdir = with_destdir(dir)
       realdir unless made_dirs.include?(dir) do
         made_dirs << dir
-        puts File.join(dir, '')
+        # puts File.join(dir, '')
         File.directory?(realdir)
       end
     end.compact!
