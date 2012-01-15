@@ -94,36 +94,28 @@ module Installer
     super(with_destdir(target), flags)
   end
 
-  def static
-    "lib#{RUBY_SO_NAME}-static.a"
-  end
-
-  def xcode_dir
-    `xcode-select -print-path`.chomp
-  end
-
-  def man_dir
-    File.join(FRAMEWORK_USR_SHARE, 'man')
-  end
-
-  def ri_dir
-    File.join(FRAMEWORK_USR_SHARE, "ri/#{NEW_RUBY_VERSION}/system")
-  end
-
   def dylib
     "lib#{RUBY_SO_NAME}.#{NEW_RUBY_VERSION}.dylib"
   end
 
+  def static
+    "lib#{RUBY_SO_NAME}-static.a"
+  end
+
+  def man_dir
+    "#{FRAMEWORK_USR_SHARE}/man"
+  end
+
+  def ri_dir
+    "#{FRAMEWORK_USR_SHARE}/ri/#{NEW_RUBY_VERSION}/system"
+  end
+
   def lib_dir
-    File.join(FRAMEWORK_USR_LIB, 'ruby', NEW_RUBY_VERSION)
+    "#{FRAMEWORK_USR_LIB}/ruby/#{NEW_RUBY_VERSION}"
   end
 
   def arch_lib_dir
-    File.join(FRAMEWORK_USR_LIB, 'ruby', NEW_RUBY_VERSION, NEW_RUBY_PLATFORM)
-  end
-
-  def site_lib_dir
-    "#{DESTDIR}/#{RUBY_SITE_LIB2}"
+    "#{lib_dir}/#{NEW_RUBY_PLATFORM}"
   end
 
   def header_dir
@@ -131,11 +123,15 @@ module Installer
   end
 
   def ruby_header_dir
-    File.join(header_dir, 'ruby')
+    "#{header_dir}/ruby"
   end
 
   def arch_header_dir
-    File.join(header_dir, NEW_RUBY_PLATFORM)
+    "#{header_dir}/#{NEW_RUBY_PLATFORM}"
+  end
+
+  def xcode_dir
+    `xcode-select -print-path`.chomp
   end
 
   def xcode_example_dir
@@ -155,11 +151,11 @@ module Installer
   end
 
   def dest_bin
-     File.join(SYM_INSTDIR, 'bin')
+    "#{SYM_INSTDIR}/bin"
   end
 
   def dest_man
-    File.join(SYM_INSTDIR, 'share', 'man')
+    "#{SYM_INSTDIR}/share/man"
   end
 
 end
@@ -248,7 +244,7 @@ namespace :install do
       ext_name, sub_path = path.scan(/^ext\/(.+)\/lib\/(.+)$/)[0]
       next unless EXTENSIONS.include?(ext_name)
       sub_dir = File.dirname(sub_path)
-      sh "/usr/bin/install -c -m 0755 #{path} #{File.join(site_lib_dir, sub_dir)}"
+      sh "/usr/bin/install -c -m 0755 #{path} #{File.join(RUBY_SITE_LIB2, sub_dir)}"
     end
 
     puts 'Installing Extension Objects'
