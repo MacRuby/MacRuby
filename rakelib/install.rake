@@ -102,6 +102,10 @@ module Installer
     "lib#{RUBY_SO_NAME}-static.a"
   end
 
+  def ruby_shebang
+    "#{FRAMEWORK_USR_BIN}/#{RUBY_INSTALL_NAME}"
+  end
+
   def man_dir
     "#{FRAMEWORK_USR_SHARE}/man"
   end
@@ -195,7 +199,6 @@ namespace :install do
 
     mkdir_p FRAMEWORK_USR_BIN
 
-    ruby_shebang = File.join(FRAMEWORK_USR_BIN, RUBY_INSTALL_NAME)
     for src in Dir['bin/*']
       next unless File.file?(src)
       next if /\/[.#]|(\.(old|bak|orig|rej|diff|patch|core)|~|\/core)$/i =~ src
