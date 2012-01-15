@@ -118,6 +118,10 @@ module Installer
     File.join(FRAMEWORK_USR_LIB, 'ruby', NEW_RUBY_VERSION, NEW_RUBY_PLATFORM)
   end
 
+  def site_lib_dir
+    "#{DESTDIR}/#{RUBY_SITE_LIB2}"
+  end
+
   def header_dir
     "#{FRAMEWORK_USR}/include/ruby-#{NEW_RUBY_VERSION}"
   end
@@ -238,12 +242,11 @@ namespace :install do
   task :ext do
     Builder::Ext.install
     # Install the extensions rbo.
-    dest_site = File.join(DESTDIR, RUBY_SITE_LIB2)
     Dir.glob('ext/**/lib/**/*.rbo').each do |path|
       ext_name, sub_path = path.scan(/^ext\/(.+)\/lib\/(.+)$/)[0]
       next unless EXTENSIONS.include?(ext_name)
       sub_dir = File.dirname(sub_path)
-      sh "/usr/bin/install -c -m 0755 #{path} #{File.join(dest_site, sub_dir)}"
+      sh "/usr/bin/install -c -m 0755 #{path} #{File.join(site_lib_dir, sub_dir)}"
     end
 
     puts 'Installing Extension Objects'
