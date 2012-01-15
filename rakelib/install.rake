@@ -2,12 +2,6 @@ require 'fileutils'
 
 # TODO Centralize most, if not all, the directory creation
 
-# TODO Should tasks set dependencies to make sure things are built?
-#      Currently some do, but in cases where things need to be built
-#      they will end up being built with root permissions since you
-#      are likely to say `sudo rake install` which can show confusing
-#      errors later when you try to rebuild MacRuby.
-
 module Installer
   include FileUtils
 
@@ -230,7 +224,7 @@ namespace :install do
   end
 
   desc 'Install the standard library'
-  task :lib => 'stdlib:build' do
+  task :lib do
     makedirs lib_dir
 
     for file in Dir['lib/**/*{.rb,.rbo,help-message}']
@@ -241,7 +235,7 @@ namespace :install do
   end
 
   desc 'Install the C extensions'
-  task :ext => :extensions do
+  task :ext do
     Builder::Ext.install
     # Install the extensions rbo.
     dest_site = File.join(DESTDIR, RUBY_SITE_LIB2)
@@ -293,7 +287,7 @@ namespace :install do
   end
 
   desc 'Install the MacRuby.framework Info.plist file'
-  task :resources => 'framework:info_plist' do
+  task :resources do
     puts 'Installing framework' # TODO Make this sound like a natural sentence...
 
     mkdir_p FRAMEWORK_RESOURCES
