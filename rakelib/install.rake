@@ -16,7 +16,6 @@ module Installer
   def dir_mode;    0755;   end
   def data_mode;   0644;   end
   def script_mode; 0775;   end
-  def rdoc_dir;    'doc/'; end
 
   # TODO I think this might be useless, even if DESTDIR is set
   def with_destdir dir
@@ -109,6 +108,10 @@ module Installer
     File.join(FRAMEWORK_USR_SHARE, 'man')
   end
 
+  def ri_dir
+    File.join(FRAMEWORK_USR_SHARE, "ri/#{NEW_RUBY_VERSION}/system")
+  end
+
   def dylib
     "lib#{RUBY_SO_NAME}.#{NEW_RUBY_VERSION}.dylib"
   end
@@ -123,6 +126,38 @@ module Installer
 
   def header_dir
     "#{FRAMEWORK_USR}/include/ruby-#{NEW_RUBY_VERSION}"
+  end
+
+  def ruby_header_dir
+    File.join(header_dir, 'ruby')
+  end
+
+  def arch_header_dir
+    File.join(header_dir, NEW_RUBY_PLATFORM)
+  end
+
+  def xcode_example_dir
+    "#{xcode_dir}/Examples/Ruby/MacRuby"
+  end
+
+  def xcode3_template_dir
+    '/Library/Application Support/Developer/3.0/Xcode'
+  end
+
+  def xcode4_template_dir
+    "#{xcode_dir}/Library/Xcode/Templates"
+  end
+
+  def xcode_usr_bin
+    "#{xcode_dir}/usr/bin"
+  end
+
+  def dest_bin
+     File.join(SYM_INSTDIR, 'bin')
+  end
+
+  def dest_man
+    File.join(SYM_INSTDIR, 'share', 'man')
   end
 
 end
@@ -217,18 +252,15 @@ namespace :install do
       sh "/usr/bin/install -c -m 0755 #{path} #{File.join(dest_site, sub_dir)}"
     end
 
-    arch_header_dir = File.join(header_dir, NEW_RUBY_PLATFORM)
-    hdr_dir         = File.join(header_dir, 'ruby')
-
     puts 'Installing Extension Objects'
     makedirs arch_lib_dir, RUBY_SITE_LIB2, RUBY_VENDOR_ARCHLIB, arch_header_dir
     install_recursive "#{EXTOUT}/#{NEW_RUBY_PLATFORM}", arch_lib_dir, :mode => prog_mode
     install_recursive "#{EXTOUT}/include/#{NEW_RUBY_PLATFORM}", arch_header_dir, :glob => '*.h', :mode => data_mode
 
     puts 'Installing extensions scripts'
-    makedirs lib_dir, RUBY_SITE_LIB2, RUBY_VENDOR_LIB2, hdr_dir
+    makedirs lib_dir, RUBY_SITE_LIB2, RUBY_VENDOR_LIB2, ruby_header_dir
     install_recursive "#{EXTOUT}/common", lib_dir, :mode => data_mode
-    install_recursive "#{EXTOUT}/include/ruby", hdr_dir, :glob => '*.h', :mode => data_mode
+    install_recursive "#{EXTOUT}/include/ruby", ruby_header_dir, :glob => '*.h', :mode => data_mode
   end
 
   desc 'Install the MacRuby headers'
@@ -239,17 +271,15 @@ namespace :install do
   end
 
   desc 'Install RDoc and RI documentation'
-  task :doc => 'rake:doc' do
-    puts 'Installing RDoc and RI'
-    ridatadir = File.join(FRAMEWORK_USR_SHARE, "ri/#{NEW_RUBY_VERSION}/system")
-    makedirs ridatadir
-    install_recursive(rdoc_dir, ridatadir, :mode => data_mode)
+  task :doc do
+    puts 'Installing RI data'
+    makedirs ri_dir
+    install_recursive 'doc/', ri_dir, :mode => data_mode
   end
 
   desc 'Install the MacRuby man pages'
   task :man do
     puts 'Installing man pages'
-
     for mdoc in Dir['*.[1-9]']
       # TODO is this check really needed?
       next unless File.file?(mdoc) and open(mdoc){ |fh| fh.read(1) == '.' }
@@ -286,7 +316,6 @@ namespace :install do
       File.join(FRAMEWORK_VERSION, "usr/include/ruby-#{NEW_RUBY_VERSION}/ruby/config.h")
 
     puts 'Installing executable symlinks'
-    dest_bin = File.join(SYM_INSTDIR, 'bin')
     mkdir_p dest_bin
     Dir.entries(with_destdir(FRAMEWORK_USR_BIN)).each do |file|
       next if file.match(/^\./)
@@ -301,7 +330,6 @@ namespace :install do
     end
 
     puts 'Installing man page symlinks'
-    dest_man = File.join(SYM_INSTDIR, 'share', 'man')
     mkdir_p dest_man
     Dir.entries(with_destdir(man_dir)).each do |man_set|
       next if man_set.match(/^\./)
@@ -329,29 +357,25 @@ namespace :install do
 
   task :nibtool do
     puts 'Installing IB support'
-    ib_dest = "#{xcode_dir}/usr/bin"
-    mkdir_p ib_dest
-    ln_sfh File.join('../../..', FRAMEWORK_USR_BIN, 'rb_nibtool'), ib_dest
+    mkdir_p xcode_usr_bin
+    ln_sfh File.join('../../..', FRAMEWORK_USR_BIN, 'rb_nibtool'), xcode_usr_bin
   end
 
   task :xcode_templates do
     # TODO only install templates for installed Xcodes
     puts 'Installing XCode templates'
 
-    xcode4 = "#{xcode_dir}/Library/Xcode/Templates"
-    mkdir_p xcode4
-    install_recursive 'misc/xcode4-templates', xcode4, :mode => prog_mode
+    mkdir_p xcode4_template_dir
+    install_recursive 'misc/xcode4-templates', xcode4_template_dir, :mode => prog_mode
 
-    xcode3 = '/Library/Application Support/Developer/3.0/Xcode'
-    mkdir_p xcode3
-    install_recursive 'misc/xcode-templates', xcode3, :mode => prog_mode
+    mkdir_p xcode3_template_dir
+    install_recursive 'misc/xcode-templates', xcode3_template_dir, :mode => prog_mode
   end
 
   task :xcode_samples do
     puts 'Installing MacRuby sample projects'
-    dir = "#{xcode_dir}/Examples/Ruby/MacRuby"
-    mkdir_p dir
-    install_recursive 'sample-macruby', dir, :mode => script_mode
+    mkdir_p xcode_example_dir
+    install_recursive 'sample-macruby', xcode_example_dir, :mode => script_mode
   end
 
 end
