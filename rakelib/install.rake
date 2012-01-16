@@ -44,7 +44,6 @@ module Installer
   end
 
   def makedirs *dirs
-    dirs = fu_list(dirs.flatten)
     dirs.collect! do |dir|
       realdir = with_destdir(dir)
       realdir unless made_dirs.include?(dir) do
@@ -87,11 +86,6 @@ module Installer
     end
     File.chmod(mode, realpath)
     puts 'Wrote ' + path
-  end
-
-  def mkdir_p target, flags = {}
-    flags[:mode] = dir_mode
-    super(with_destdir(target), flags)
   end
 
   def dylib
@@ -195,7 +189,7 @@ namespace :install do
   task :scripts do
     puts 'Installing command scripts'
 
-    mkdir_p FRAMEWORK_USR_BIN
+    makedirs FRAMEWORK_USR_BIN
 
     for src in Dir['bin/*']
       next unless File.file?(src)
@@ -263,7 +257,7 @@ namespace :install do
   task :headers do
     puts 'Installing headers'
     makedirs header_dir
-    install_recursive('include', header_dir, :glob => '*.h', :mode => data_mode)
+    install_recursive 'include', header_dir, :glob => '*.h', :mode => data_mode
   end
 
   desc 'Install RDoc and RI documentation'
@@ -292,11 +286,11 @@ namespace :install do
   task :resources do
     puts 'Installing framework' # TODO Make this sound like a natural sentence...
 
-    mkdir_p FRAMEWORK_RESOURCES
+    makedirs FRAMEWORK_RESOURCES
     install File.join('framework/Info.plist'), FRAMEWORK_RESOURCES, :mode => data_mode
 
     resources = File.join(FRAMEWORK_RESOURCES, 'English.lproj')
-    mkdir_p resources
+    makedirs resources
     install File.join('framework/InfoPlist.strings'), resources, :mode => data_mode
     if File.symlink?(with_destdir(File.join(FRAMEWORK_VERSION, '..', 'Current')))
       rm_f File.join(FRAMEWORK_VERSION, '..', 'Current')
@@ -312,7 +306,7 @@ namespace :install do
       File.join(FRAMEWORK_VERSION, "usr/include/ruby-#{NEW_RUBY_VERSION}/ruby/config.h")
 
     puts 'Installing executable symlinks'
-    mkdir_p dest_bin
+    makedirs dest_bin
     Dir.entries(with_destdir(FRAMEWORK_USR_BIN)).each do |file|
       next if file.match(/^\./)
       # Except rb_nibtool & llc!
@@ -326,11 +320,11 @@ namespace :install do
     end
 
     puts 'Installing man page symlinks'
-    mkdir_p dest_man
+    makedirs dest_man
     Dir.entries(with_destdir(man_dir)).each do |man_set|
       next if man_set.match(/^\./)
       if File.stat(File.join(with_destdir(man_dir), man_set)).directory?
-        mkdir_p File.join(dest_man, File.basename(man_set))
+        makedirs File.join(dest_man, File.basename(man_set))
         Dir.entries(File.join(with_destdir(man_dir), man_set)).each do |man_file|
           next if man_file.match(/^\./)
           link = File.join('../../../../../', man_dir, man_set, man_file)
@@ -353,7 +347,7 @@ namespace :install do
 
   task :nibtool do
     puts 'Installing IB support'
-    mkdir_p xcode_usr_bin
+    makedirs xcode_usr_bin
     ln_sfh File.join('../../..', FRAMEWORK_USR_BIN, 'rb_nibtool'), xcode_usr_bin
   end
 
@@ -361,16 +355,16 @@ namespace :install do
     # TODO only install templates for installed Xcodes
     puts 'Installing XCode templates'
 
-    mkdir_p xcode4_template_dir
+    makedirs xcode4_template_dir
     install_recursive 'misc/xcode4-templates', xcode4_template_dir, :mode => prog_mode
 
-    mkdir_p xcode3_template_dir
+    makedirs xcode3_template_dir
     install_recursive 'misc/xcode-templates', xcode3_template_dir, :mode => prog_mode
   end
 
   task :xcode_samples do
     puts 'Installing MacRuby sample projects'
-    mkdir_p xcode_example_dir
+    makedirs xcode_example_dir
     install_recursive 'sample-macruby', xcode_example_dir, :mode => script_mode
   end
 
