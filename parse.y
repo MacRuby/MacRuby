@@ -8474,6 +8474,7 @@ assign_in_cond(struct parser_params *parser, NODE *node)
 
       case NODE_LASGN:
       case NODE_DASGN:
+      case NODE_DASGN_CURR:
       case NODE_GASGN:
       case NODE_IASGN:
 	break;
