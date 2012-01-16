@@ -7853,7 +7853,9 @@ literal_concat_gen(struct parser_params *parser, NODE *head, NODE *tail)
 	    head = tail;
 	}
 	else if (NIL_P(tail->nd_lit)) {
-	    list_concat(head, tail->nd_next);
+	    head->nd_alen += tail->nd_alen - 1;
+	    GC_WB(&head->nd_next->nd_end->nd_next, tail->nd_next);
+	    GC_WB(&head->nd_next->nd_end, tail->nd_next->nd_end);
 	}
 	else {
 	    nd_set_type(tail, NODE_ARRAY);
