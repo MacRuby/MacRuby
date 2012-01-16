@@ -1710,11 +1710,7 @@ fname		: tIDENTIFIER
 		| op
 		    {
 			lex_state = EXPR_END;
-		    /*%%%*/
 			$$ = $1;
-		    /*%
-			$$ = $1;
-		    %*/
 		    }
 		| reswords
 		    {
