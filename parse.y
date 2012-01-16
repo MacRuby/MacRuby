@@ -26,6 +26,8 @@
 #include <errno.h>
 #include <ctype.h>
 
+#define numberof(array) (int)(sizeof(array) / sizeof((array)[0]))
+
 #define YYMALLOC(size)		rb_parser_malloc(parser, size)
 #define YYREALLOC(ptr, size)	rb_parser_realloc(parser, ptr, size)
 #define YYCALLOC(nelem, size)	rb_parser_calloc(parser, nelem, size)
@@ -3415,7 +3417,7 @@ block_param	: f_arg ',' f_block_optarg ',' f_rest_arg opt_f_block_arg
 opt_block_param	: none
 		| block_param_def
 		    {
-			command_start = Qtrue;
+			command_start = TRUE;
 		    }
 		;
 
@@ -4230,7 +4232,7 @@ f_arglist	: '(' f_args rparen
 			$$ = dispatch1(paren, $2);
 		    %*/
 			lex_state = EXPR_BEG;
-			command_start = Qtrue;
+			command_start = TRUE;
 		    }
 		| f_args term
 		    {
@@ -5786,7 +5788,7 @@ parser_tokadd_string(struct parser_params *parser,
 static int
 parser_parse_string(struct parser_params *parser, NODE *quote)
 {
-    int func = quote->nd_func;
+    int func = (int)quote->nd_func;
     int term = nd_term(quote);
     int paren = nd_paren(quote);
     int c, space = 0;
@@ -5847,7 +5849,8 @@ parser_parse_string(struct parser_params *parser, NODE *quote)
 static int
 parser_heredoc_identifier(struct parser_params *parser)
 {
-    int c = nextc(), term, func = 0, len;
+    int c = nextc(), term, func = 0;
+    long len;
 
     if (c == '-') {
 	c = nextc();
@@ -5935,18 +5938,17 @@ parser_heredoc_restore(struct parser_params *parser, NODE *here)
 
 static int
 parser_whole_match_p(struct parser_params *parser,
-    const char *eos, int len, int indent)
+    const char *eos, long len, int indent)
 {
     const char *p = lex_pbeg;
-    int n;
+    long n;
 
     if (indent) {
 	while (*p && ISSPACE(*p)) p++;
     }
-    n= lex_pend - (p + len);
-    if (n < 0 || (n > 0 && p[len] != '\n' && p[len] != '\r')) return Qfalse;
-    if (strncmp(eos, p, len) == 0) return Qtrue;
-    return Qfalse;
+    n = lex_pend - (p + len);
+    if (n < 0 || (n > 0 && p[len] != '\n' && p[len] != '\r')) return FALSE;
+    return strncmp(eos, p, len) == 0;
 }
 
 static int
@@ -6066,11 +6068,11 @@ lvar_defined_gen(struct parser_params *parser, ID id)
 }
 
 /* emacsen -*- hack */
-static int
-parser_encode_length(struct parser_params *parser, const char *name, int len)
+static long
+parser_encode_length(struct parser_params *parser, const char *name, long len)
 {
 #if 0
-    int nlen;
+    long nlen;
 
     if (len > 5 && name[nlen = len - 5] == '-') {
 	if (rb_memcicmp(name + nlen + 1, "unix", 4) == 0)
@@ -6115,7 +6117,7 @@ parser_set_encode(struct parser_params *parser, const char *name)
 }
 
 #ifndef RIPPER
-typedef int (*rb_magic_comment_length_t)(struct parser_params *parser, const char *name, int len);
+typedef long (*rb_magic_comment_length_t)(struct parser_params *parser, const char *name, long len);
 typedef void (*rb_magic_comment_setter_t)(struct parser_params *parser, const char *name, const char *val);
 
 static void
@@ -6139,9 +6141,9 @@ static const struct magic_comment magic_comments[] = {
 #endif
 
 static const char *
-magic_comment_marker(const char *str, int len)
+magic_comment_marker(const char *str, long len)
 {
-    int i = 2;
+    long i = 2;
 
     while (i < len) {
 	switch (str[i]) {
@@ -6172,14 +6174,14 @@ magic_comment_marker(const char *str, int len)
 }
 
 static int
-parser_magic_comment(struct parser_params *parser, const char *str, int len)
+parser_magic_comment(struct parser_params *parser, const char *str, long len)
 {
     VALUE name = 0, val = 0;
     const char *beg, *end, *vbeg, *vend;
 
-    if (len <= 7) return Qfalse;
-    if (!(beg = magic_comment_marker(str, len))) return Qfalse;
-    if (!(end = magic_comment_marker(beg, str + len - beg))) return Qfalse;
+    if (len <= 7) return FALSE;
+    if (!(beg = magic_comment_marker(str, len))) return FALSE;
+    if (!(end = magic_comment_marker(beg, str + len - beg))) return FALSE;
     str = beg;
     len = end - beg - 3;
 
@@ -6188,7 +6190,7 @@ parser_magic_comment(struct parser_params *parser, const char *str, int len)
 #ifndef RIPPER
 	const struct magic_comment *p = magic_comments;
 #endif
-	int n = 0;
+	long n = 0;
 
 	for (; len > 0 && *str; str++, --len) {
 	    switch (*str) {
@@ -6245,13 +6247,13 @@ parser_magic_comment(struct parser_params *parser, const char *str, int len)
 		(*p->func)(parser, RSTRING_PTR(name), RSTRING_PTR(val));
 		break;
 	    }
-	} while (++p < magic_comments + sizeof(magic_comments) / sizeof(*p));
+	} while (++p < magic_comments + numberof(magic_comments));
 #else
 	dispatch2(magic_comment, name, val);
 #endif
     }
 
-    return Qtrue;
+    return TRUE;
 }
 
 static void
@@ -6366,7 +6368,7 @@ parser_yylex(struct parser_params *parser)
 	return token;
     }
     cmd_state = command_start;
-    command_start = Qfalse;
+    command_start = FALSE;
   retry:
     switch (c = nextc()) {
       case '\0':		/* NUL */
@@ -6454,7 +6456,7 @@ parser_yylex(struct parser_params *parser)
 	    }
 	}
       normal_newline:
-	command_start = Qtrue;
+	command_start = TRUE;
 	lex_state = EXPR_BEG;
 	return '\n';
 
@@ -6905,7 +6907,7 @@ parser_yylex(struct parser_params *parser)
 			yyerror("numeric literal without digits");
 		    }
 		    else if (nondigit) goto trailing_uc;
-                    set_yylval_literal(rb_cstr_to_inum(tok(), 16, Qfalse));
+		    set_yylval_literal(rb_cstr_to_inum(tok(), 16, FALSE));
 		    return tINTEGER;
 		}
 		if (c == 'b' || c == 'B') {
@@ -6929,7 +6931,7 @@ parser_yylex(struct parser_params *parser)
 			yyerror("numeric literal without digits");
 		    }
 		    else if (nondigit) goto trailing_uc;
-                    set_yylval_literal(rb_cstr_to_inum(tok(), 2, Qfalse));
+		    set_yylval_literal(rb_cstr_to_inum(tok(), 2, FALSE));
 		    return tINTEGER;
 		}
 		if (c == 'd' || c == 'D') {
@@ -6953,7 +6955,7 @@ parser_yylex(struct parser_params *parser)
 			yyerror("numeric literal without digits");
 		    }
 		    else if (nondigit) goto trailing_uc;
-                    set_yylval_literal(rb_cstr_to_inum(tok(), 10, Qfalse));
+		    set_yylval_literal(rb_cstr_to_inum(tok(), 10, FALSE));
 		    return tINTEGER;
 		}
 		if (c == '_') {
@@ -6984,7 +6986,7 @@ parser_yylex(struct parser_params *parser)
 			pushback(c);
 			tokfix();
 			if (nondigit) goto trailing_uc;
-                        set_yylval_literal(rb_cstr_to_inum(tok(), 8, Qfalse));
+			set_yylval_literal(rb_cstr_to_inum(tok(), 8, FALSE));
 			return tINTEGER;
 		    }
 		    if (nondigit) {
@@ -7082,7 +7084,7 @@ parser_yylex(struct parser_params *parser)
                 set_yylval_literal(DOUBLE2NUM(d));
 		return tFLOAT;
 	    }
-            set_yylval_literal(rb_cstr_to_inum(tok(), 10, Qfalse));
+	    set_yylval_literal(rb_cstr_to_inum(tok(), 10, FALSE));
 	    return tINTEGER;
 	}
 
@@ -7171,7 +7173,7 @@ parser_yylex(struct parser_params *parser)
 
       case ';':
 	lex_state = EXPR_BEG;
-	command_start = Qtrue;
+	command_start = TRUE;
 	return ';';
 
       case ',':
@@ -7250,7 +7252,7 @@ parser_yylex(struct parser_params *parser)
 	COND_PUSH(0);
 	CMDARG_PUSH(0);
 	lex_state = EXPR_BEG;
-	if (c != tLBRACE) command_start = Qtrue;
+	if (c != tLBRACE) command_start = TRUE;
 	return c;
 
       case '\\':
@@ -7579,7 +7581,7 @@ parser_yylex(struct parser_params *parser)
 			return kw->id[0];
 		    }
 		    if (kw->id[0] == keyword_do) {
-			command_start = Qtrue;
+			command_start = TRUE;
 			if (lpar_beg && lpar_beg == paren_nest) {
 			    lpar_beg = 0;
 			    --paren_nest;
@@ -8243,7 +8245,7 @@ value_expr_gen(struct parser_params *parser, NODE *node)
 	  case NODE_DEFN:
 	  case NODE_DEFS:
 	    parser_warning(node, "void value expression");
-	    return Qfalse;
+	    return FALSE;
 
 	  case NODE_RETURN:
 	  case NODE_BREAK:
@@ -8252,7 +8254,7 @@ value_expr_gen(struct parser_params *parser, NODE *node)
 	  case NODE_RETRY:
 	    if (!cond) yyerror("void value expression");
 	    /* or "control never reach"? */
-	    return Qfalse;
+	    return FALSE;
 
 	  case NODE_BLOCK:
 	    while (node->nd_next) {
@@ -8274,7 +8276,7 @@ value_expr_gen(struct parser_params *parser, NODE *node)
 		node = node->nd_body;
 		break;
 	    }
-	    if (!value_expr(node->nd_body)) return Qfalse;
+	    if (!value_expr(node->nd_body)) return FALSE;
 	    node = node->nd_else;
 	    break;
 
@@ -8285,11 +8287,11 @@ value_expr_gen(struct parser_params *parser, NODE *node)
 	    break;
 
 	  default:
-	    return Qtrue;
+	    return TRUE;
 	}
     }
 
-    return Qtrue;
+    return TRUE;
 }
 
 static void
@@ -8504,9 +8506,7 @@ assign_in_cond(struct parser_params *parser, NODE *node)
 static int
 e_option_supplied(struct parser_params *parser)
 {
-    if (strcmp(ruby_sourcefile, "-e") == 0)
-	return Qtrue;
-    return Qfalse;
+    return strcmp(ruby_sourcefile, "-e") == 0;
 }
 
 static void
@@ -8630,9 +8630,9 @@ static NODE*
 logop_gen(struct parser_params *parser, enum node_type type, NODE *left, NODE *right)
 {
     value_expr(left);
-    if (left && nd_type(left) == type) {
+    if (left && (enum node_type)nd_type(left) == type) {
 	NODE *node = left, *second;
-	while ((second = node->nd_2nd) != 0 && nd_type(second) == type) {
+	while ((second = node->nd_2nd) != 0 && (enum node_type)nd_type(second) == type) {
 	    node = second;
 	}
 	GC_WB(&node->nd_2nd, NEW_NODE(type, second, right, 0));
@@ -9070,7 +9070,7 @@ reg_named_capture_assign_iter(const OnigUChar *name, const OnigUChar *name_end,
     reg_named_capture_assign_t *arg = (reg_named_capture_assign_t*)arg0;
     struct parser_params* parser = arg->parser;
     rb_encoding *enc = arg->enc;
-    int len = name_end - name;
+    long len = name_end - name;
     const char *s = (const char *)name;
     ID var;
 
@@ -9082,7 +9082,8 @@ reg_named_capture_assign_iter(const OnigUChar *name, const OnigUChar *name_end,
     }
 
     if (!len || (*name != '_' && ISASCII(*name) && !rb_enc_islower(*name, enc)) ||
-	rb_reserved_word(s, len) || !rb_enc_symname2_p(s, len, enc)) {
+	(len < MAX_WORD_LENGTH && rb_reserved_word(s, (int)len)) ||
+	!rb_enc_symname2_p(s, len, enc)) {
         return ST_CONTINUE;
     }
     var = rb_intern3(s, len, enc);
@@ -9323,7 +9324,7 @@ parser_initialize(struct parser_params *parser)
     parser->parser_tokidx = 0;
     parser->parser_toksiz = 0;
     parser->parser_heredoc_end = 0;
-    parser->parser_command_start = Qtrue;
+    parser->parser_command_start = TRUE;
     parser->parser_lex_pbeg = 0;
     parser->parser_lex_p = 0;
     parser->parser_lex_pend = 0;
