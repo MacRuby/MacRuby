@@ -6,15 +6,18 @@ module Installer
   include FileUtils
 
   # Hard coded
-  def prog_mode;   0755;   end
-  def dir_mode;    0755;   end
-  def data_mode;   0644;   end
-  def script_mode; 0775;   end
+  def prog_mode;   0755; end
+  def dir_mode;    0755; end
+  def data_mode;   0644; end
+  def script_mode; 0775; end
 
-  # TODO I think this might be useless, even if DESTDIR is set
+  def made_dirs
+    @made_dirs ||= []
+  end
+
   def with_destdir dir
     return dir if !DESTDIR or DESTDIR.empty?
-    DESTDIR + dir
+    return DESTDIR + dir
   end
 
   def ln_sf src, dest
@@ -37,10 +40,6 @@ module Installer
     if strip
       system("/usr/bin/strip -x '#{File.join(with_destdir(dest), File.basename(src))}'")
     end
-  end
-
-  def made_dirs
-    @made_dirs ||= []
   end
 
   def makedirs *dirs
