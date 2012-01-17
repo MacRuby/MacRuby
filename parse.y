@@ -5206,7 +5206,7 @@ parser_nextc(struct parser_params *parser)
 		    rb_str_buf_cat(parser->delayed,
 				   parser->tokp, lex_pend - parser->tokp);
 		    parser->delayed_line = ruby_sourceline;
-		    parser->delayed_col = parser->tokp - lex_pbeg;
+		    parser->delayed_col = (int)(parser->tokp - lex_pbeg);
 		}
 		else {
 		    rb_str_buf_cat(parser->delayed,
@@ -6361,7 +6361,7 @@ parser_yylex(struct parser_params *parser)
     int mb;
 #endif
 #ifdef RIPPER
-    int fallthru = Qfalse;
+    int fallthru = FALSE;
 #endif
 
     if (lex_strterm) {
@@ -6425,7 +6425,7 @@ parser_yylex(struct parser_params *parser)
 	lex_p = lex_pend;
 #ifdef RIPPER
         ripper_dispatch_scan_event(parser, tCOMMENT);
-        fallthru = Qtrue;
+        fallthru = TRUE;
 #endif
 	/* fall through */
       case '\n':
@@ -6439,7 +6439,7 @@ parser_yylex(struct parser_params *parser)
             if (!fallthru) {
                 ripper_dispatch_scan_event(parser, tIGNORED_NL);
             }
-            fallthru = Qfalse;
+            fallthru = FALSE;
 #endif
 	    goto retry;
 	  default:
@@ -6537,7 +6537,7 @@ parser_yylex(struct parser_params *parser)
 	    /* skip embedded rd document */
 	    if (strncmp(lex_p, "begin", 5) == 0 && ISSPACE(lex_p[5])) {
 #ifdef RIPPER
-                int first_p = Qtrue;
+                int first_p = TRUE;
 
                 lex_goto_eol(parser);
                 ripper_dispatch_scan_event(parser, tEMBDOC_BEG);
@@ -6548,7 +6548,7 @@ parser_yylex(struct parser_params *parser)
                     if (!first_p) {
                         ripper_dispatch_scan_event(parser, tEMBDOC);
                     }
-                    first_p = Qfalse;
+                    first_p = FALSE;
 #endif
 		    c = nextc();
 		    if (c == -1) {
@@ -8032,9 +8032,7 @@ assignable_gen(struct parser_params *parser, ID id, NODE *val)
 #ifdef RIPPER
     ID id = get_id(lhs);
 # define assignable_result(x) get_value(lhs)
-#if !WITH_OBJC
-# define parser_yyerror(x) dispatch1(assign_error, lhs)
-#endif
+# define parser_yyerror(parser, x) dispatch1(assign_error, lhs)
 #else
 # define assignable_result(x) x
 #endif
@@ -8110,9 +8108,7 @@ assignable_gen(struct parser_params *parser, ID id, NODE *val)
     }
     return assignable_result(0);
 #undef assignable_result
-#if !WITH_OBJC
 #undef parser_yyerror
-#endif
 }
 
 static ID
@@ -9432,7 +9428,7 @@ parser_initialize(struct parser_params *parser)
 
     parser->result = Qnil;
     parser->parsing_thread = Qnil;
-    parser->toplevel_p = Qtrue;
+    parser->toplevel_p = TRUE;
 #endif
 #ifdef YYMALLOC
     parser->heap = NULL;
