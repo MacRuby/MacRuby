@@ -332,6 +332,15 @@ enum ruby_value_type {
 
 #define TYPE(x) rb_type((VALUE)(x))
 
+#define RB_TYPE_P(obj, type) ( \
+        ((type) == T_FIXNUM) ? FIXNUM_P(obj) : \
+        ((type) == T_TRUE) ? ((obj) == Qtrue) : \
+        ((type) == T_FALSE) ? ((obj) == Qfalse) : \
+        ((type) == T_NIL) ? ((obj) == Qnil) : \
+        ((type) == T_UNDEF) ? ((obj) == Qundef) : \
+        ((type) == T_SYMBOL) ? SYMBOL_P(obj) : \
+        (!SPECIAL_CONST_P(obj) && BUILTIN_TYPE(obj) == (type)))
+
 #define RB_GC_GUARD(v) (*(volatile VALUE *)&(v))
 
 void rb_check_type(VALUE,int);
