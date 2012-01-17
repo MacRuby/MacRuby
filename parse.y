@@ -6060,11 +6060,7 @@ arg_ambiguous_gen(struct parser_params *parser)
 static int
 lvar_defined_gen(struct parser_params *parser, ID id)
 {
-#ifndef RIPPER
     return (dyna_in_block() && dvar_defined(id)) || local_id(id);
-#else
-    return 0;
-#endif
 }
 
 /* emacsen -*- hack */
@@ -8004,30 +8000,43 @@ gettable_gen(struct parser_params *parser, ID id)
 
 int rb_local_define(ID id);
 
+#ifdef RIPPER
+static VALUE
+assignable_gen(struct parser_params *parser, VALUE lhs)
+#else
 static NODE*
 assignable_gen(struct parser_params *parser, ID id, NODE *val)
+#endif
 {
-    if (!id) return 0;
+#ifdef RIPPER
+    ID id = get_id(lhs);
+# define RETURN(x) return get_value(lhs)
+# define ERROR(x) dispatch1(assign_error, lhs)
+#else
+# define RETURN(x) return x
+# define ERROR(x) yyerror(x)
+#endif
+    if (!id) RETURN(0);
     if (id == keyword_self) {
-	yyerror("Can't change the value of self");
+	ERROR("Can't change the value of self");
     }
     else if (id == keyword_nil) {
-	yyerror("Can't assign to nil");
+	ERROR("Can't assign to nil");
     }
     else if (id == keyword_true) {
-	yyerror("Can't assign to true");
+	ERROR("Can't assign to true");
     }
     else if (id == keyword_false) {
-	yyerror("Can't assign to false");
+	ERROR("Can't assign to false");
     }
     else if (id == keyword__FILE__) {
-	yyerror("Can't assign to __FILE__");
+	ERROR("Can't assign to __FILE__");
     }
     else if (id == keyword__LINE__) {
-	yyerror("Can't assign to __LINE__");
+	ERROR("Can't assign to __LINE__");
     }
     else if (id == keyword__ENCODING__) {
-	yyerror("Can't assign to __ENCODING__");
+	ERROR("Can't assign to __ENCODING__");
     }
     else if (is_local_id(id)) {
 	if (dyna_in_block()) {
@@ -8035,49 +8044,51 @@ assignable_gen(struct parser_params *parser, ID id, NODE *val)
 #if WITH_OBJC
 		dyna_var(id);
 #endif
-		return NEW_DASGN_CURR(id, val);
+		RETURN(NEW_DASGN_CURR(id, val));
 	    }
 	    else if (dvar_defined(id)) {
 #if WITH_OBJC
 		dyna_var(id);
 #endif
-		return NEW_DASGN(id, val);
+		RETURN(NEW_DASGN(id, val));
 	    }
 	    else if (local_id(id)) {
-		return NEW_LASGN(id, val);
+		RETURN(NEW_LASGN(id, val));
 	    }
 	    else {
 		if (in_def > 0 || in_single > 0 || !rb_local_define(id)) {
 		    dyna_var(id);
 		}
-		return NEW_DASGN_CURR(id, val);
+		RETURN(NEW_DASGN_CURR(id, val));
 	    }
 	}
 	else {
 	    if (!local_id(id)) {
 		local_var(id);
 	    }
-	    return NEW_LASGN(id, val);
+	    RETURN(NEW_LASGN(id, val));
 	}
     }
     else if (is_global_id(id)) {
-	return NEW_GASGN(id, val);
+	RETURN(NEW_GASGN(id, val));
     }
     else if (is_instance_id(id)) {
-	return NEW_IASGN(id, val);
+	RETURN(NEW_IASGN(id, val));
     }
     else if (is_const_id(id)) {
-	if (in_def || in_single)
-	    yyerror("dynamic constant assignment");
-	return NEW_CDECL(id, val, 0);
+	if (!in_def && !in_single)
+	    RETURN(NEW_CDECL(id, val, 0));
+	ERROR("dynamic constant assignment");
     }
     else if (is_class_id(id)) {
-	return NEW_CVASGN(id, val);
+	RETURN(NEW_CVASGN(id, val));
     }
     else {
 	compile_error(PARSER_ARG "identifier %s is not valid to set", rb_id2name(id));
     }
-    return 0;
+    RETURN(0);
+#undef RETURN
+#undef ERROR
 }
 
 static void
