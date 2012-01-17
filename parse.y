@@ -9595,7 +9595,10 @@ ripper_validate_object(VALUE self, VALUE x)
       case T_FLOAT:
         return x;
       case T_NODE:
-        rb_raise(rb_eArgError, "NODE given: %p", x);
+	if (nd_type(x) != NODE_LASGN) {
+	    rb_raise(rb_eArgError, "NODE given: %p", x);
+	}
+	return ((NODE *)x)->nd_rval;
       default:
         rb_raise(rb_eArgError, "wrong type of ruby object: %p (%s)",
                  x, rb_obj_classname(x));
@@ -9604,7 +9607,7 @@ ripper_validate_object(VALUE self, VALUE x)
 }
 #endif
 
-#define validate(x)
+#define validate(x) (x = get_value(x))
 
 static VALUE
 ripper_dispatch0(struct parser_params *parser, ID mid)
