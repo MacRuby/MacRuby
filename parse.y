@@ -3480,7 +3480,7 @@ bv_decls	: bvar
 		    /*%c%*/
 		    /*%c
 		    {
-			$$ = rb_ary_new2($1);
+			$$ = rb_ary_new3(1, $1);
 		    }
 		    %*/
 		| bv_decls ',' bvar
@@ -3494,10 +3494,10 @@ bv_decls	: bvar
 
 bvar		: tIDENTIFIER
 		    {
-			new_bv($1);
+			new_bv(get_id($1));
 		    /*%%%*/
 		    /*%
-			$$ = $1;
+			$$ = get_value($1);
 		    %*/
 		    }
 		| f_bad_arg
