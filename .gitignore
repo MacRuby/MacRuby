@@ -51,9 +51,8 @@ rubyspec_temp
 spec/frozen/optional/ffi/fixtures/build
 spec/frozen/upstream_patches
 spec/ruby
-test/test-mri/result
-test/test-mri/test/csv/temp.gz
-test/test-mri/pstore.*
 y.tab.c
 test-mri/result
+test-mri/test/csv/temp.gz
+test-mri/pstore.*
 test_vm/zzz.rb
