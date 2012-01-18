@@ -33,7 +33,7 @@ ruby_scan_oct(const char *start, size_t len, size_t *retlen)
 	retval <<= 3;
 	retval |= *s++ - '0';
     }
-    *retlen = s - start;
+    *retlen = (int)(s - start);	/* less than len */
     return retval;
 }
 
@@ -43,14 +43,14 @@ ruby_scan_hex(const char *start, size_t len, size_t *retlen)
     static const char hexdigit[] = "0123456789abcdef0123456789ABCDEF";
     register const char *s = start;
     register unsigned long retval = 0;
-    char *tmp;
+    const char *tmp;
 
     while (len-- && *s && (tmp = strchr(hexdigit, *s))) {
 	retval <<= 4;
 	retval |= (tmp - hexdigit) & 15;
 	s++;
     }
-    *retlen = s - start;
+    *retlen = (int)(s - start);	/* less than len */
     return retval;
 }
 
@@ -730,7 +730,7 @@ char *
 ruby_strdup(const char *str)
 {
     char *tmp;
-    int len = strlen(str) + 1;
+    size_t len = strlen(str) + 1;
 
     tmp = xmalloc(len);
     memcpy(tmp, str, len);
@@ -1240,7 +1240,7 @@ Balloc(int k)
     int x;
     Bigint *rv;
 #ifndef Omit_Private_Memory
-    unsigned int len;
+    size_t len;
 #endif
 
     ACQUIRE_DTOA_LOCK(0);
@@ -3224,7 +3224,7 @@ rv_alloc(int i)
 #endif
 
 static char *
-nrv_alloc(const char *s, char **rve, int n)
+nrv_alloc(const char *s, char **rve, size_t n)
 {
     char *rv, *t;
 
