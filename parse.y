@@ -5179,6 +5179,7 @@ parser_str_new(const char *p, long n, rb_encoding *enc, int func, rb_encoding *e
 #endif
 
 #define lex_goto_eol(parser) (parser->parser_lex_p = parser->parser_lex_pend)
+#define peek(c) (lex_p < lex_pend && (c) == *lex_p)
 
 static inline int
 parser_nextc(struct parser_params *parser)
@@ -5229,7 +5230,7 @@ parser_nextc(struct parser_params *parser)
 	}
     }
     c = (unsigned char)*lex_p++;
-    if (c == '\r' && lex_p < lex_pend && *lex_p == '\n') {
+    if (c == '\r' && peek('\n')) {
 	lex_p++;
 	c = '\n';
     }
@@ -5248,7 +5249,6 @@ parser_pushback(struct parser_params *parser, int c)
 }
 
 #define was_bol() (lex_p == lex_pbeg + 1)
-#define peek(c) (lex_p != lex_pend && (c) == *lex_p)
 
 #define tokfix() (tokenbuf[tokidx]='\0')
 #define tok() tokenbuf
