@@ -3234,6 +3234,7 @@ nrv_alloc(const char *s, char **rve, int n)
     return rv;
 }
 
+#ifndef MULTIPLE_THREADS
 /* freedtoa(s) must be used to free values s returned by dtoa
  * when MULTIPLE_THREADS is #defined.  It should be used in all cases,
  * but for consistency with earlier versions of dtoa, it is optional
@@ -3246,11 +3247,8 @@ freedtoa(char *s)
     Bigint *b = (Bigint *)((int *)s - 1);
     b->maxwds = 1 << (b->k = *(int*)b);
     Bfree(b);
-#ifndef MULTIPLE_THREADS
-    if (s == dtoa_result)
-        dtoa_result = 0;
-#endif
 }
+#endif
 
 /* dtoa for IEEE arithmetic (dmg): convert double to ASCII string.
  *
