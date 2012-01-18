@@ -3123,7 +3123,7 @@ nrv_alloc(const char *s, char **rve, size_t n)
  * when MULTIPLE_THREADS is not defined.
  */
 
-void
+static void
 freedtoa(char *s)
 {
     xfree(s);
