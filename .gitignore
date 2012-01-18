@@ -53,6 +53,7 @@ spec/frozen/upstream_patches
 spec/ruby
 test/test-mri/result
 test/test-mri/test/csv/temp.gz
+test/test-mri/pstore.*
 y.tab.c
 test-mri/result
 test_vm/zzz.rb
