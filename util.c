@@ -3165,7 +3165,7 @@ freedtoa(char *s)
  */
 
 char *
-dtoa(double d_, int mode, int ndigits, int *decpt, int *sign, char **rve)
+ruby_dtoa(double d_, int mode, int ndigits, int *decpt, int *sign, char **rve)
 {
  /* Arguments ndigits, decpt, sign are similar to those
     of ecvt and fcvt; trailing zeros are suppressed from
