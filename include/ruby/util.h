@@ -12,8 +12,8 @@
 extern "C" {
 #endif
 
-unsigned long ruby_scan_oct(const char *, int, int *);
-unsigned long ruby_scan_hex(const char *, int, int *);
+unsigned long ruby_scan_oct(const char *, size_t, size_t *);
+unsigned long ruby_scan_hex(const char *, size_t, size_t *);
 #define scan_oct ruby_scan_oct
 #define scan_hex ruby_scan_hex
 

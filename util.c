@@ -24,7 +24,7 @@
 #include "ruby/util.h"
 
 unsigned long
-ruby_scan_oct(const char *start, int len, int *retlen)
+ruby_scan_oct(const char *start, size_t len, size_t *retlen)
 {
     register const char *s = start;
     register unsigned long retval = 0;
@@ -38,7 +38,7 @@ ruby_scan_oct(const char *start, int len, int *retlen)
 }
 
 unsigned long
-ruby_scan_hex(const char *start, int len, int *retlen)
+ruby_scan_hex(const char *start, size_t len, size_t *retlen)
 {
     static const char hexdigit[] = "0123456789abcdef0123456789ABCDEF";
     register const char *s = start;
@@ -578,7 +578,7 @@ ruby_qsort(void* base, const int nel, const int size,
   register int  t, eq_l, eq_r;       	/* eq_l: all items in left group are equal to S */
   char *L = base;                    	/* left end of curren region */
   char *R = (char*)base + size*(nel-1); /* right end of current region */
-  int  chklim = 63;                     /* threshold of ordering element check */
+  size_t  chklim = 63;                     /* threshold of ordering element check */
   stack_node stack[32], *top = stack;   /* 32 is enough for 32bit CPU */
   int mmkind, high, low;
 

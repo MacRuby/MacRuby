@@ -450,7 +450,7 @@ proc_options(int argc, char **argv, struct cmdline_options *opt)
 
 	  case 'W':
 	    {
-		int numlen;
+		size_t numlen;
 		int v = 2;	/* -W as -W2 */
 
 		if (*++s) {
@@ -598,7 +598,7 @@ proc_options(int argc, char **argv, struct cmdline_options *opt)
 
 	  case 'T':
 	    {
-		int numlen;
+		size_t numlen;
 		int v = 1;
 
 		if (*++s) {
@@ -623,7 +623,7 @@ proc_options(int argc, char **argv, struct cmdline_options *opt)
 
 	  case '0':
 	    {
-		int numlen;
+		size_t numlen;
 		int v;
 		char c;
 
@@ -822,7 +822,7 @@ process_options(VALUE arg)
 	while (ISSPACE(*s))
 	    s++;
 	if (*s == 'T' || (*s == '-' && *(s + 1) == 'T')) {
-	    int numlen;
+	    size_t numlen;
 	    int v = 1;
 
 	    if (*s != 'T')
