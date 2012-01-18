@@ -322,7 +322,7 @@ ruby_add_suffix(VALUE str, const char *suffix)
 	    buf[7] = *suffix;
 	}
 	else goto fallback;
-	strcpy(p, ext, bufend - p);
+	strlcpy(p, ext, bufend - p);
     }
     else { /* Style 3:  Panic */
 fallback:
