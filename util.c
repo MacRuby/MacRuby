@@ -511,7 +511,7 @@ __crt0_glob_function(char *path)
 
 #define mmarg mmkind, size, high, low
 
-static void mmswap_(register char *a, register char *b, int mmkind, int size, int high, int low)
+static void mmswap_(register char *a, register char *b, int mmkind, size_t size, size_t high, size_t low)
 {
  register int s;
  if (a == b) return;
@@ -536,7 +536,7 @@ static void mmswap_(register char *a, register char *b, int mmkind, int size, in
 }
 #define mmswap(a,b) mmswap_((a),(b),mmarg)
 
-static void mmrot3_(register char *a, register char *b, register char *c, int mmkind, int size, int high, int low)
+static void mmrot3_(register char *a, register char *b, register char *c, int mmkind, size_t size, size_t high, size_t low)
 {
  register int s;
  if (mmkind >= 0) {
@@ -587,7 +587,8 @@ ruby_qsort(void* base, const int nel, const int size,
   char *R = (char*)base + size*(nel-1); /* right end of current region */
   size_t  chklim = 63;                     /* threshold of ordering element check */
   stack_node stack[32], *top = stack;   /* 32 is enough for 32bit CPU */
-  int mmkind, high, low;
+  int mmkind;
+  size_t high, low, n;
 
   if (nel <= 1) return;        /* need not to sort */
   mmprepare(base, size);
@@ -604,29 +605,29 @@ ruby_qsort(void* base, const int nel, const int size,
     }
 
     l = L; r = R;
-    t = (r - l + size) / size;  /* number of elements */
-    m = l + size * (t >> 1);    /* calculate median value */
+    n = (r - l + size) / size;  /* number of elements */
+    m = l + size * (n >> 1);    /* calculate median value */
 
-    if (t >= 60) {
+    if (n >= 60) {
       register char *m1;
       register char *m3;
-      if (t >= 200) {
-	t = size*(t>>3); /* number of bytes in splitting 8 */
+      if (n >= 200) {
+	n = size*(n>>3); /* number of bytes in splitting 8 */
 	{
-	  register char *p1 = l  + t;
-	  register char *p2 = p1 + t;
-	  register char *p3 = p2 + t;
+	  register char *p1 = l  + n;
+	  register char *p2 = p1 + n;
+	  register char *p3 = p2 + n;
 	  m1 = med3(p1, p2, p3);
-	  p1 = m  + t;
-	  p2 = p1 + t;
-	  p3 = p2 + t;
+	  p1 = m  + n;
+	  p2 = p1 + n;
+	  p3 = p2 + n;
 	  m3 = med3(p1, p2, p3);
 	}
       }
       else {
-	t = size*(t>>2); /* number of bytes in splitting 4 */
-	m1 = l + t;
-	m3 = m + t;
+	n = size*(n>>2); /* number of bytes in splitting 4 */
+	m1 = l + n;
+	m3 = m + n;
       }
       m = med3(m1, m, m3);
     }
