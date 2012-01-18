@@ -578,7 +578,7 @@ typedef struct { char *LL, *RR; } stack_node; /* Stack structure for L,l,R,r */
                        ((*cmp)(b,c,d)>0 ? b : ((*cmp)(a,c,d)<0 ? a : c)))
 
 void
-ruby_qsort(void* base, const int nel, const int size,
+ruby_qsort(void* base, const size_t nel, const size_t size,
 	   int (*cmp)(const void*, const void*, void*), void *d)
 {
   register char *l, *r, *m;          	/* l,r:left,right group   m:median point */

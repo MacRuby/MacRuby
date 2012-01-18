@@ -17,7 +17,7 @@ unsigned long ruby_scan_hex(const char *, size_t, size_t *);
 #define scan_oct ruby_scan_oct
 #define scan_hex ruby_scan_hex
 
-void ruby_qsort(void *, const int, const int,
+void ruby_qsort(void *, const size_t, const size_t,
 	int (*)(const void *, const void *, void *), void *);
 
 void ruby_setenv(const char *, const char *);
