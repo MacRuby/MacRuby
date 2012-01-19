@@ -536,7 +536,7 @@ static VALUE ripper_dispatch5(struct parser_params*,ID,VALUE,VALUE,VALUE,VALUE,V
 
 #define yyparse ripper_yyparse
 
-static VALUE ripper_intern(const char*);
+#define ripper_intern(s) ID2SYM(rb_intern(s))
 static VALUE ripper_id2sym(ID);
 
 #define arg_new() dispatch0(args_new)
@@ -9888,12 +9888,6 @@ ripper_get_value(VALUE v)
     nd = (NODE *)v;
     if (nd_type(nd) != NODE_LASGN) return Qnil;
     return nd->nd_rval;
-}
-
-static VALUE
-ripper_intern(const char *s)
-{
-    return ID2SYM(rb_intern(s));
 }
 
 static void
