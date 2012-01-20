@@ -6511,7 +6511,10 @@ parser_prepare(struct parser_params *parser)
 #else
 #define ambiguous_operator(op, syn) dispatch2(operator_ambiguous, ripper_intern(op), rb_str_new_cstr(syn))
 #endif
-#define warn_balanced(op, syn) (space_seen && !ISSPACE(c) && (ambiguous_operator(op, syn), 0))
+#define warn_balanced(op, syn) \
+    (lex_state != EXPR_DOT && lex_state != EXPR_FNAME && \
+     space_seen && !ISSPACE(c) && \
+     (ambiguous_operator(op, syn), 0))
 
 static int
 parser_yylex(struct parser_params *parser)
