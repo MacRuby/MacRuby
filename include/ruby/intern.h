@@ -489,6 +489,7 @@ VALUE rb_str_format(int, const VALUE *, VALUE);
 
 /* string.c */
 VALUE rb_str_new(const char*, long);
+VALUE rb_str_new_cstr(const char*);
 VALUE rb_str_new2(const char*);
 VALUE rb_str_new3(VALUE);
 VALUE rb_str_new_frozen(VALUE);

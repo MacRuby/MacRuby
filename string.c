@@ -6448,6 +6448,16 @@ rb_usascii_str_new_cstr(const char *cstr)
     return rb_usascii_str_new(cstr, strlen(cstr));
 }
 
+VALUE
+rb_str_new_cstr(const char *ptr)
+{
+    if (!ptr) {
+	rb_raise(rb_eArgError, "NULL pointer given");
+    }
+    return rb_str_new(ptr, strlen(ptr));
+}
+
+
 const char *
 rb_str_cstr(VALUE str)
 {
