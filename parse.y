@@ -6440,7 +6440,9 @@ parser_prepare(struct parser_params *parser)
 }
 
 #define IS_ARG() (lex_state == EXPR_ARG || lex_state == EXPR_CMDARG)
+#define IS_END() (lex_state == EXPR_END || lex_state == EXPR_ENDARG)
 #define IS_BEG() (lex_state == EXPR_BEG || lex_state == EXPR_MID || lex_state == EXPR_VALUE || lex_state == EXPR_CLASS)
+#define IS_SPCARG(c) (IS_ARG() && space_seen && !ISSPACE(c))
 
 static int
 parser_yylex(struct parser_params *parser)
@@ -6586,7 +6588,7 @@ parser_yylex(struct parser_params *parser)
 		return tOP_ASGN;
 	    }
 	    pushback(c);
-	    if (IS_ARG() && space_seen && !ISSPACE(c)) {
+	    if (IS_SPCARG(c)) {
 		rb_warning0("`*' interpreted as argument prefix");
 		c = tSTAR;
 	    }
@@ -6857,7 +6859,7 @@ parser_yylex(struct parser_params *parser)
 	    return tOP_ASGN;
 	}
 	pushback(c);
-	if (IS_ARG() && space_seen && !ISSPACE(c)) {
+	if (IS_SPCARG(c)) {
 	    rb_warning0("`&' interpreted as argument prefix");
 	    c = tAMPER;
 	}
@@ -6915,9 +6917,8 @@ parser_yylex(struct parser_params *parser)
 	    lex_state = EXPR_BEG;
 	    return tOP_ASGN;
 	}
-	if (IS_BEG() ||
-	    (IS_ARG() && space_seen && !ISSPACE(c))) {
-	    if (IS_ARG()) arg_ambiguous();
+	if (IS_BEG() || IS_SPCARG(c)) {
+	    if (!IS_BEG()) arg_ambiguous();
 	    lex_state = EXPR_BEG;
 	    pushback(c);
 	    if (c != -1 && ISDIGIT(c)) {
@@ -6949,9 +6950,8 @@ parser_yylex(struct parser_params *parser)
 	    lex_state = EXPR_ARG;
 	    return tLAMBDA;
 	}
-	if (IS_BEG() ||
-	    (IS_ARG() && space_seen && !ISSPACE(c))) {
-	    if (IS_ARG()) arg_ambiguous();
+	if (IS_BEG() || IS_SPCARG(c)) {
+	    if (!IS_BEG()) arg_ambiguous();
 	    lex_state = EXPR_BEG;
 	    pushback(c);
 	    if (c != -1 && ISDIGIT(c)) {
@@ -7215,16 +7215,14 @@ parser_yylex(struct parser_params *parser)
       case ':':
 	c = nextc();
 	if (c == ':') {
-	    if (IS_BEG() ||
-		lex_state == EXPR_CLASS || (IS_ARG() && space_seen)) {
+	    if (IS_BEG() || lex_state == EXPR_CLASS || IS_SPCARG(-1)) {
 		lex_state = EXPR_BEG;
 		return tCOLON3;
 	    }
 	    lex_state = EXPR_DOT;
 	    return tCOLON2;
 	}
-	if ((!space_seen && (lex_state == EXPR_END || lex_state == EXPR_ENDARG)) ||
-	    (c != -1 && ISSPACE(c))) {
+	if ((IS_END() && !space_seen) || ISSPACE(c)) {
 	    pushback(c);
 	    lex_state = EXPR_BEG;
 	    return ':';
@@ -7254,12 +7252,10 @@ parser_yylex(struct parser_params *parser)
 	    return tOP_ASGN;
 	}
 	pushback(c);
-	if (IS_ARG() && space_seen) {
-	    if (!ISSPACE(c)) {
-		arg_ambiguous();
-		GC_WB(&lex_strterm, NEW_STRTERM(str_regexp, '/', 0));
-		return tREGEXP_BEG;
-	    }
+	if (IS_SPCARG(c)) {
+	    arg_ambiguous();
+	    GC_WB(&lex_strterm, NEW_STRTERM(str_regexp, '/', 0));
+	    return tREGEXP_BEG;
 	}
 	switch (lex_state) {
 	  case EXPR_FNAME: case EXPR_DOT:
@@ -7455,7 +7451,7 @@ parser_yylex(struct parser_params *parser)
 	    lex_state = EXPR_BEG;
 	    return tOP_ASGN;
 	}
-	if (IS_ARG() && space_seen && !ISSPACE(c)) {
+	if (IS_SPCARG(c)) {
 	    goto quotation;
 	}
 	switch (lex_state) {
