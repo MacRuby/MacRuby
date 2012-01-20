@@ -4023,11 +4023,16 @@ words		: tWORDS_BEG ' ' tSTRING_END
 			$$ = NEW_ZARRAY();
 		    /*%
 			$$ = dispatch0(words_new);
+			$$ = dispatch1(array, $$);
 		    %*/
 		    }
 		| tWORDS_BEG word_list tSTRING_END
 		    {
+		    /*%%%*/
 			$$ = $2;
+		    /*%
+			$$ = dispatch1(array, $2);
+		    %*/
 		    }
 		;
 
@@ -4073,11 +4078,16 @@ qwords		: tQWORDS_BEG ' ' tSTRING_END
 			$$ = NEW_ZARRAY();
 		    /*%
 			$$ = dispatch0(qwords_new);
+			$$ = dispatch1(array, $$);
 		    %*/
 		    }
 		| tQWORDS_BEG qword_list tSTRING_END
 		    {
+		    /*%%%*/
 			$$ = $2;
+		    /*%
+			$$ = dispatch1(array, $2);
+		    %*/
 		    }
 		;
 
