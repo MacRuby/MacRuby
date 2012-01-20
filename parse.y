@@ -370,6 +370,7 @@ static NODE *arg_concat_gen(struct parser_params*,NODE*,NODE*);
 #define arg_concat(h,t) arg_concat_gen(parser,h,t)
 static NODE *literal_concat_gen(struct parser_params*,NODE*,NODE*);
 #define literal_concat(h,t) literal_concat_gen(parser,h,t)
+static int literal_concat0(struct parser_params *, VALUE, VALUE);
 static NODE *new_evstr_gen(struct parser_params*,NODE*);
 #define new_evstr(n) new_evstr_gen(parser,n)
 static NODE *evstr2dstr_gen(struct parser_params*,NODE*);
@@ -423,7 +424,7 @@ static VALUE reg_compile_gen(struct parser_params*, VALUE, int);
 #define reg_compile(str,options) reg_compile_gen(parser, str, options)
 static void reg_fragment_setenc_gen(struct parser_params*, VALUE, int);
 #define reg_fragment_setenc(str,options) reg_fragment_setenc_gen(parser, str, options)
-static void reg_fragment_check_gen(struct parser_params*, VALUE, int);
+static int reg_fragment_check_gen(struct parser_params*, VALUE, int);
 #define reg_fragment_check(str,options) reg_fragment_check_gen(parser, str, options)
 static NODE *reg_named_capture_assign_gen(struct parser_params* parser, VALUE regexp, NODE *match);
 #define reg_named_capture_assign(regexp,match) reg_named_capture_assign_gen(parser,regexp,match)
@@ -692,7 +693,7 @@ static void ripper_compile_error(struct parser_params*, const char *fmt, ...);
 %token <num>  tREGEXP_END
 
 %type <node> singleton strings string string1 xstring regexp
-%type <node> string_contents xstring_contents string_content
+%type <node> string_contents xstring_contents regexp_contents string_content
 %type <node> words qwords word_list qword_list word
 %type <node> literal numeric dsym cpath
 %type <node> top_compstmt top_stmts top_stmt
@@ -3944,12 +3945,12 @@ xstring		: tXSTRING_BEG xstring_contents tSTRING_END
 		    }
 		;
 
-regexp		: tREGEXP_BEG xstring_contents tREGEXP_END
+regexp		: tREGEXP_BEG regexp_contents tREGEXP_END
 		    {
 		    /*%%%*/
 			int options = $3;
 			NODE *node = $2;
-                        NODE *list;
+			NODE *list, *prev;
 			if (!node) {
 			    node = NEW_LIT(reg_compile(STR_NEW0(), options));
 			}
@@ -3971,11 +3972,33 @@ regexp		: tREGEXP_BEG xstring_contents tREGEXP_END
 				nd_set_type(node, NODE_DREGX);
 			    }
 			    node->nd_cflag = options & RE_OPTION_MASK;
-                            reg_fragment_check(node->nd_lit, options);
-                            for (list = node->nd_next; list; list = list->nd_next) {
+			    if (!NIL_P(node->nd_lit)) reg_fragment_check(node->nd_lit, options);
+			    for (list = (prev = node)->nd_next; list; list = list->nd_next) {
                                 if (nd_type(list->nd_head) == NODE_STR) {
-                                    reg_fragment_check(list->nd_head->nd_lit, options);
+				    VALUE tail = list->nd_head->nd_lit;
+				    if (reg_fragment_check(tail, options) && prev && !NIL_P(prev->nd_lit)) {
+					if (!literal_concat0(parser, prev->nd_lit, tail)) {
+					    node = 0;
+					    break;
+					}
+					rb_str_resize(tail, 0);
+					GC_WB(&prev->nd_next, list->nd_next);
+					rb_gc_force_recycle((VALUE)list->nd_head);
+					rb_gc_force_recycle((VALUE)list);
+					list = prev;
                                 }
+				    else {
+					prev = list;
+				    }
+                                }
+				else {
+				    prev = 0;
+				}
+                            }
+			    if (!node->nd_next) {
+				VALUE src = node->nd_lit;
+				nd_set_type(node, NODE_LIT);
+				GC_WB(&node->nd_lit, reg_compile(src, options));
                             }
 			    break;
 			}
@@ -4100,6 +4123,43 @@ xstring_contents: /* none */
 			$$ = literal_concat($1, $2);
 		    /*%
 			$$ = dispatch2(xstring_add, $1, $2);
+		    %*/
+		    }
+		;
+
+regexp_contents: /* none */
+		    {
+		    /*%%%*/
+			$$ = 0;
+		    /*%
+			$$ = dispatch0(regexp_new);
+		    %*/
+		    }
+		| regexp_contents string_content
+		    {
+		    /*%%%*/
+			NODE *head = $1, *tail = $2;
+			if (!head) {
+			    $$ = tail;
+			}
+			else if (!tail) {
+			    $$ = head;
+			}
+			else {
+			    switch (nd_type(head)) {
+			      case NODE_STR:
+				nd_set_type(head, NODE_DSTR);
+				break;
+			      case NODE_DSTR:
+				break;
+			      default:
+				head = list_append(NEW_DSTR(Qnil), head);
+				break;
+			    }
+			    $$ = list_append(head, tail);
+			}
+		    /*%
+			$$ = dispatch2(regexp_add, $1, $2);
 		    %*/
 		    }
 		;
@@ -9243,7 +9303,7 @@ reg_fragment_setenc_gen(struct parser_params* parser, VALUE str, int options)
 #endif
 }
 
-static void
+static int
 reg_fragment_check_gen(struct parser_params* parser, VALUE str, int options)
 {
     VALUE err;
@@ -9253,7 +9313,9 @@ reg_fragment_check_gen(struct parser_params* parser, VALUE str, int options)
         err = rb_obj_as_string(err);
         compile_error(PARSER_ARG "%s", RSTRING_PTR(err));
 	RB_GC_GUARD(err);
+	return 0;
     }
+    return 1;
 }
 
 #if 0
