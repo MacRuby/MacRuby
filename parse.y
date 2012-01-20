@@ -8688,6 +8688,7 @@ assign_in_cond(struct parser_params *parser, NODE *node)
 	return 0;
     }
 
+    if (!node->nd_value) return 1;
     switch (nd_type(node->nd_value)) {
       case NODE_LIT:
       case NODE_STR:
