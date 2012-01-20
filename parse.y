@@ -6517,6 +6517,7 @@ parser_prepare(struct parser_params *parser)
 #define warn_balanced(op, syn) \
     (last_state != EXPR_CLASS && last_state != EXPR_DOT && \
      last_state != EXPR_FNAME && last_state != EXPR_ENDFN && \
+     last_state != EXPR_ENDARG && \
      space_seen && !ISSPACE(c) && \
      (ambiguous_operator(op, syn), 0))
 
@@ -7287,7 +7288,7 @@ parser_yylex(struct parser_params *parser)
 	COND_LEXPOP();
 	CMDARG_LEXPOP();
 	if (c == ')')
-	    lex_state = EXPR_END;
+	    lex_state = EXPR_ENDFN;
 	else
 	    lex_state = EXPR_ENDARG;
 	return c;
