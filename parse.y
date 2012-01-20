@@ -7739,6 +7739,11 @@ parser_yylex(struct parser_params *parser)
 		}
 	    }
 
+	    if (lex_state == EXPR_FNAME) {
+		const char *p = lex_p, *pe = lex_pend;
+		while (p < pe && (*p == ' ' || *p == '\t')) p++;
+		if (p < pe && *p != '(') lex_p = p;
+	    }
 	    if ((lex_state == EXPR_BEG && !cmd_state) ||
 		IS_ARG()) {
 		if (peek(':') && !(lex_p + 1 < lex_pend && lex_p[1] == ':')) {
