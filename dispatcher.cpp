@@ -699,7 +699,7 @@ recache2:
 	    if (argc > 1) {
 		const char *p = strchr(selname, ':');
 		if (p != NULL && p + 1 != '\0') {
-		    char *tmp = (char *)malloc(selname_len);
+		    char *tmp = (char *)malloc(selname_len + 1);
 		    assert(tmp != NULL);
 		    strncpy(tmp, selname, p - selname + 1);
 		    tmp[p - selname + 1] = '\0';
