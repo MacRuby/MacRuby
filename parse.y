@@ -7351,7 +7351,7 @@ parser_yylex(struct parser_params *parser)
 	}
 	pushback(c);
 	if (IS_SPCARG(c)) {
-	    arg_ambiguous();
+	    (void)arg_ambiguous();
 	    GC_WB(&lex_strterm, NEW_STRTERM(str_regexp, '/', 0));
 	    return tREGEXP_BEG;
 	}
