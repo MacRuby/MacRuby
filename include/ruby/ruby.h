@@ -425,11 +425,6 @@ __num2ll(VALUE obj)
 double rb_num2dbl(VALUE);
 #define NUM2DBL(x) rb_num2dbl((VALUE)(x))
 
-/* obsolete API - use StringValue() */
-const char *rb_str2cstr(VALUE,long*);
-/* obsolete API - use StringValuePtr() */
-#define STR2CSTR(x) rb_str2cstr((VALUE)(x),0)
-
 #define NUM2CHR(x) (((TYPE(x) == T_STRING)&&(RSTRING_LEN(x)>=1))?\
                      RSTRING_PTR(x)[0]:(char)(NUM2INT(x)&0xff))
 #define CHR2FIX(x) INT2FIX((long)((x)&0xff))
