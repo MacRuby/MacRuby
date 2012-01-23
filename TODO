@@ -62,7 +62,7 @@ Historical:
 [ ] vectorize bignums
 [ ] block inlining
 [ ] fast regexp =~
-[ ] rakefile-ize instruby.rb
+[X] rakefile-ize instruby.rb
 [ ] multithreaded JIT
 [ ] debugger interface
 [ ] fully implement FFI API

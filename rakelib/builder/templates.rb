@@ -38,7 +38,7 @@ EOS
   def self.create_rbconfig
     archflags = ARCHS.map { |x| "-arch #{x}" }.join(' ')
     rbconfig = <<EOS
-# This file was created when MacRuby was built.  Any changes made to this file 
+# This file was created when MacRuby was built.  Any changes made to this file
 # will be lost the next time MacRuby is built.
 
 module RbConfig
@@ -47,7 +47,7 @@ module RbConfig
 
   TOPDIR = File.dirname(__FILE__).chomp!("/lib/ruby/#{NEW_RUBY_VERSION}/#{NEW_RUBY_PLATFORM}")
   DESTDIR = '' unless defined? DESTDIR
-  ARCHFLAGS = 
+  ARCHFLAGS =
     if e = ENV['ARCHFLAGS']
       e.dup
     else
@@ -182,7 +182,7 @@ module RbConfig
   CONFIG["RUBYW_INSTALL_NAME"] = ""
   CONFIG["LIBRUBY_A"] = "lib$(RUBY_SO_NAME)-static.a"
   CONFIG["LIBRUBY_SO"] = "lib$(RUBY_SO_NAME).$(MAJOR).$(MINOR).$(TEENY).dylib"
-  CONFIG["LIBRUBY_ALIASES"] = "lib$(RUBY_SO_NAME).$(MAJOR).$(MINOR).dylib lib$(RUBY_SO_NAME).dylib"
+  CONFIG["LIBRUBY_ALIASES"] = "#{DYLIB_ALIASES}"
   CONFIG["LIBRUBY"] = "$(LIBRUBY_SO)"
   CONFIG["LIBRUBYARG"] = "$(LIBRUBYARG_SHARED)"
   CONFIG["LIBRUBYARG_STATIC_REALLY"] = "-l$(RUBY_SO_NAME)-static"

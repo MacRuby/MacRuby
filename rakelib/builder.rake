@@ -119,8 +119,6 @@ end
 DESTDIR = (ENV['DESTDIR'] or "")
 EXTOUT = (ENV['EXTOUT'] or ".ext")
 INSTALLED_LIST = '.installed.list'
-SCRIPT_ARGS = "--make=\"/usr/bin/make\" --dest-dir=\"#{DESTDIR}\" --extout=\"#{EXTOUT}\" --mflags=\"\" --make-flags=\"\""
-INSTRUBY_ARGS = "#{SCRIPT_ARGS} --data-mode=0644 --prog-mode=0755 --installed-list #{INSTALLED_LIST} --mantype=\"doc\" --sym-dest-dir=\"#{SYM_INSTDIR}\" --rdoc-output=\"doc\""
 
 desc "Build extensions"
 task :extensions => [:miniruby, "macruby:static"] do
@@ -184,24 +182,6 @@ namespace :framework do
   task :info_plist do
     require File.expand_path('../builder/templates', __FILE__)
     Builder.create_framework_info_plist
-  end
-
-  desc "Install the extensions"
-  task :install_ext do
-    Builder::Ext.install
-    # Install the extensions rbo.
-    dest_site = File.join(DESTDIR, RUBY_SITE_LIB2)
-    Dir.glob('ext/**/lib/**/*.rbo').each do |path|
-      ext_name, sub_path = path.scan(/^ext\/(.+)\/lib\/(.+)$/)[0]
-      next unless EXTENSIONS.include?(ext_name)
-      sub_dir = File.dirname(sub_path)
-      sh "/usr/bin/install -c -m 0755 #{path} #{File.join(dest_site, sub_dir)}"
-    end
-  end
-
-  desc "Install the framework"
-  task :install => [:info_plist, :install_ext] do
-    sh "./miniruby instruby.rb #{INSTRUBY_ARGS}"
   end
 end
 
