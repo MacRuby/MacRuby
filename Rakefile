@@ -7,8 +7,8 @@ ENV['RUBYOPT'] = '' # no RUBYOPT for spawned MacRuby processes
 desc "Same as all"
 task :default => :all
 
-desc "Same as framework:install"
-task :install => 'framework:install'
+desc "Same as install:all"
+task :install => 'install:all'
 
 desc "Same as macruby:build"
 task :macruby => 'macruby:build'

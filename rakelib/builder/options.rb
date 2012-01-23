@@ -93,6 +93,8 @@ end
 
 version_h = File.read('version.h')
 NEW_RUBY_VERSION = version_h.scan(/#\s*define\s+RUBY_VERSION\s+\"([^"]+)\"/)[0][0]
+NEW_RUBY_MAJOR_VERSION = NEW_RUBY_VERSION.to_i
+NEW_RUBY_MINOR_VERSION = NEW_RUBY_VERSION.match(/\d+\.(\d+)\./)[1]
 unless defined?(MACRUBY_VERSION)
   MACRUBY_VERSION = version_h.scan(/#\s*define\s+MACRUBY_VERSION\s+\"(.*)\"/)[0][0]
 end
@@ -104,8 +106,11 @@ NEW_RUBY_PLATFORM = 'universal-darwin' + uname_release_number
 FRAMEWORK_PATH = File.join(FRAMEWORK_INSTDIR, FRAMEWORK_NAME + '.framework')
 FRAMEWORK_VERSION = File.join(FRAMEWORK_PATH, 'Versions', INSTALL_VERSION)
 FRAMEWORK_USR = File.join(FRAMEWORK_VERSION, 'usr')
+FRAMEWORK_USR_BIN = File.join(FRAMEWORK_USR, 'bin')
 FRAMEWORK_USR_LIB = File.join(FRAMEWORK_USR, 'lib')
+FRAMEWORK_USR_SHARE = File.join(FRAMEWORK_USR, 'share')
 FRAMEWORK_USR_LIB_RUBY = File.join(FRAMEWORK_USR_LIB, 'ruby')
+FRAMEWORK_RESOURCES = File.join(FRAMEWORK_VERSION, 'Resources')
 
 RUBY_LIB = File.join(FRAMEWORK_USR_LIB_RUBY, NEW_RUBY_VERSION)
 RUBY_ARCHLIB = File.join(RUBY_LIB, NEW_RUBY_PLATFORM)
@@ -116,13 +121,15 @@ RUBY_VENDOR_LIB = File.join(FRAMEWORK_USR_LIB_RUBY, 'vendor_ruby')
 RUBY_VENDOR_LIB2 = File.join(RUBY_VENDOR_LIB, NEW_RUBY_VERSION)
 RUBY_VENDOR_ARCHLIB = File.join(RUBY_VENDOR_LIB2, NEW_RUBY_PLATFORM)
 
-INSTALL_NAME = File.join(FRAMEWORK_USR_LIB, 'lib' + RUBY_SO_NAME + '.dylib')
-LLVM_MODULES = "core jit nativecodegen bitwriter bitreader ipo"
+INSTALL_NAME  = File.join(FRAMEWORK_USR_LIB, 'lib' + RUBY_SO_NAME + '.dylib')
+# NOTE This gets expanded here instead of in rbconfig.rb
+DYLIB_ALIASES = "lib#{RUBY_SO_NAME}.#{NEW_RUBY_MAJOR_VERSION}.#{NEW_RUBY_MINOR_VERSION}.dylib lib#{RUBY_SO_NAME}.dylib"
+LLVM_MODULES  = "core jit nativecodegen bitwriter bitreader ipo"
 EXPORTED_SYMBOLS_LIST = "./exported_symbols_list"
 
 # Full list of objects to build.
 OBJS = %w{
-  array bignum class compar complex enum enumerator error eval file load proc 
+  array bignum class compar complex enum enumerator error eval file load proc
   gc hash env inits io math numeric object pack parse prec dir process
   random range rational re ruby signal sprintf st string struct time
   util variable version thread id objc bs ucnv encoding main dln dmyext marshal
@@ -133,7 +140,7 @@ OBJS = %w{
 
 # Static MacRuby builds less objects.
 STATIC_OBJS = OBJS - %w{
-  bs compiler debugger interpreter MacRubyDebuggerConnector parse 
+  bs compiler debugger interpreter MacRubyDebuggerConnector parse
 }
 
 # Additional compilation flags for certain objects.
@@ -204,9 +211,9 @@ module Rake
         "        #{name.ljust(30)} \"#{default}\""
       end.join("\n")
     end
-    
+
     alias_method :display_tasks_and_comments_without_macruby_options, :display_tasks_and_comments
-    
+
     def display_tasks_and_comments
       display_tasks_and_comments_without_macruby_options
       puts %{
