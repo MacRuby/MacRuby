@@ -5118,8 +5118,8 @@ static void parser_prepare(struct parser_params *parser);
 static VALUE
 debug_lines(const char *f)
 {
-    ID script_lines;
-    script_lines = rb_intern("SCRIPT_LINES__");
+    static ID script_lines;
+    if (!script_lines) script_lines = rb_intern("SCRIPT_LINES__");
     if (rb_const_defined_at(rb_cObject, script_lines)) {
 	VALUE hash = rb_const_get_at(rb_cObject, script_lines);
 	if (TYPE(hash) == T_HASH) {
