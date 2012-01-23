@@ -312,6 +312,8 @@ sym_step_i(VALUE i, void *arg)
     return Qnil;
 }
 
+extern int ruby_float_step(VALUE from, VALUE to, VALUE step, int excl);
+
 static int
 discrete_object_p(VALUE obj)
 {
@@ -401,6 +403,9 @@ range_step(VALUE range, SEL sel, int argc, VALUE *argv)
 	iter[0] = INT2FIX(1);
 	iter[1] = step;
 	rb_objc_block_call(rb_sym_to_s(b), selUpto, 2, args, sym_step_i, (VALUE)iter);
+    }
+    else if (ruby_float_step(b, e, step, EXCL(range))) {
+	/* done */
     }
     else if (rb_obj_is_kind_of(b, rb_cNumeric) ||
 	     !NIL_P(rb_check_to_integer(b, "to_int")) ||
