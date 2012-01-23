@@ -43,6 +43,7 @@ auto_zone_t *__auto_zone = NULL;
 static VALUE nomem_error;
 
 static bool dont_gc = false;
+static bool stress_gc = false;
 
 void
 rb_memerror(void)
@@ -63,15 +64,11 @@ negative_size_allocation_error(const char *msg)
  *  returns current status of GC stress mode.
  */
 
-#if 0
 static VALUE
 gc_stress_get(VALUE self, SEL sel)
 {
-    return Qnil;
+    return stress_gc ? Qtrue : Qfalse;
 }
-#else
-# define gc_stress_get rb_f_notimplement
-#endif
 
 /*
  *  call-seq:
@@ -85,15 +82,13 @@ gc_stress_get(VALUE self, SEL sel)
  *  Since it makes Ruby very slow, it is only for debugging.
  */
 
-#if 0
 static VALUE
 gc_stress_set(VALUE self, SEL sel, VALUE flag)
 {
-    return Qnil;
+    rb_secure(2);
+    stress_gc = RTEST(flag);
+    return flag;
 }
-#else
-# define gc_stress_set rb_f_notimplement
-#endif
 
 static int garbage_collect(void);
 
@@ -119,6 +114,10 @@ ruby_xmalloc_memory(size_t size, int type)
 
     if (__auto_zone == NULL) {
 	rb_objc_no_gc_error();
+    }
+
+    if (stress_gc && !dont_gc) {
+	garbage_collect();
     }
 
     void *mem = auto_zone_allocate_object(__auto_zone, size, type, 0, 0);
@@ -179,6 +178,11 @@ ruby_xrealloc(void *ptr, size_t size)
     if (size == 0) {
 	size = 1;
     }
+
+    if (stress_gc && !dont_gc) {
+	garbage_collect();
+    }
+
     void *mem = malloc_zone_realloc(__auto_zone, ptr, size);
     if (mem == NULL) {
 	rb_memerror();
@@ -300,6 +304,10 @@ void *
 rb_objc_newobj(size_t size)
 {
     void *obj;
+
+    if (stress_gc && !dont_gc) {
+	garbage_collect();
+    }
 
     obj = auto_zone_allocate_object(__auto_zone, size, AUTO_OBJECT_SCANNED,
 	    0, 0);
