@@ -184,7 +184,7 @@ apply2files(void (*func)(const char *, void *), long argc, VALUE *argv,
 static VALUE
 rb_file_path(VALUE obj, SEL sel)
 {
-    rb_io_t *io = ExtractIOStruct(obj);
+    rb_io_t *io = ExtractIOStruct(rb_io_taint_check(obj));
     rb_io_check_initialized(io);
     if (io->path == 0) {
 	return Qnil;
