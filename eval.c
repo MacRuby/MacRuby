@@ -287,6 +287,9 @@ VALUE rb_make_backtrace(void);
 void
 rb_exc_raise(VALUE mesg)
 {
+    if (!NIL_P(mesg)) {
+	mesg = rb_make_exception(1, &mesg);
+    }
     rb_vm_raise(mesg);
     abort();
 }
@@ -294,6 +297,9 @@ rb_exc_raise(VALUE mesg)
 void
 rb_exc_fatal(VALUE mesg)
 {
+    if (!NIL_P(mesg)) {
+	mesg = rb_make_exception(1, &mesg);
+    }
     rb_vm_raise(mesg);
     abort();
 }
