@@ -1,7 +1,5 @@
 require 'fileutils'
 
-# TODO Centralize most, if not all, the directory creation
-
 module Installer
   include FileUtils
 
@@ -283,7 +281,7 @@ namespace :install do
 
   desc 'Install the MacRuby.framework Info.plist file'
   task :resources do
-    puts 'Installing framework' # TODO Make this sound like a natural sentence...
+    puts 'Installing framework resources'
 
     makedirs FRAMEWORK_RESOURCES
     install File.join('framework/Info.plist'), FRAMEWORK_RESOURCES, :mode => data_mode
