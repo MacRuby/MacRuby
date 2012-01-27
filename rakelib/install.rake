@@ -236,7 +236,7 @@ namespace :install do
       ext_name, sub_path = path.scan(/^ext\/(.+)\/lib\/(.+)$/)[0]
       next unless EXTENSIONS.include?(ext_name)
       sub_dir = File.dirname(sub_path)
-      sh "/usr/bin/install -c -m 0755 #{path} #{File.join(with_destdir(RUBY_SITE_LIB2), sub_dir)}"
+      install path, "#{RUBY_SITE_LIB2}/#{sub_dir}", :mode => prog_mode
     end
 
     puts 'Installing Extension Objects'
