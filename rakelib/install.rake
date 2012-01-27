@@ -1,5 +1,8 @@
 require 'fileutils'
 
+# TODO abstract usage of with_destdir out of the rake tasks
+#      so that they only appear in helper methods
+
 module Installer
   include FileUtils
 
@@ -73,7 +76,8 @@ module Installer
 
   def open_for_install path, mode
     data = begin
-             open(realpath = with_destdir(path), 'rb') { |f| f.read }
+             realpath = with_destdir(path)
+             open(realpath, 'rb') { |f| f.read }
            rescue
              nil
            end
