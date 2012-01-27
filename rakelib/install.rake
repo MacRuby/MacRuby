@@ -179,7 +179,7 @@ namespace :install do
       install static,       FRAMEWORK_USR_LIB,    :mode => data_mode, :strip => true
     end
     for link in DYLIB_ALIASES.split
-      ln_sf(dylib, File.join(FRAMEWORK_USR_LIB, link))
+      ln_sf dylib, "#{FRAMEWORK_USR_LIB}/#{link}"
     end
 
     puts 'Installing LLVM tools'
@@ -214,7 +214,7 @@ namespace :install do
       shebang.sub!(/\r$/, '')
       body.gsub!(/\r$/, '')
 
-      cmd = File.join(FRAMEWORK_USR_BIN, name)
+      cmd = "#{FRAMEWORK_USR_BIN}/#{name}"
       open_for_install(cmd, script_mode) do
         shebang + body
       end
@@ -275,8 +275,8 @@ namespace :install do
       # TODO is this check really needed?
       next unless File.file?(mdoc) and open(mdoc){ |fh| fh.read(1) == '.' }
 
-      destdir  = File.join(man_dir, "man#{mdoc[/(\d+)$/]}")
-      destfile = File.join(destdir, mdoc.sub(/^/, 'mac'))
+      destdir  = "#{man_dir}/man#{mdoc[/(\d+)$/]}"
+      destfile = "#{destdir}/#{mdoc.sub(/^/, 'mac')}"
 
       makedirs destdir
       install mdoc, destfile, :mode => data_mode
@@ -288,23 +288,23 @@ namespace :install do
     puts 'Installing framework resources'
 
     makedirs FRAMEWORK_RESOURCES
-    install File.join('framework/Info.plist'), FRAMEWORK_RESOURCES, :mode => data_mode
+    install 'framework/Info.plist', FRAMEWORK_RESOURCES, :mode => data_mode
 
-    resources = File.join(FRAMEWORK_RESOURCES, 'English.lproj')
+    resources = "#{FRAMEWORK_RESOURCES}/English.lproj"
     makedirs resources
-    install File.join('framework/InfoPlist.strings'), resources, :mode => data_mode
-    if File.symlink?(with_destdir(File.join(FRAMEWORK_VERSION, '..', 'Current')))
-      rm_f File.join(FRAMEWORK_VERSION, '..', 'Current')
+    install 'framework/InfoPlist.strings', resources, :mode => data_mode
+    if File.symlink?(with_destdir("#{FRAMEWORK_VERSION}/../Current"))
+      rm_f "#{FRAMEWORK_VERSION}/../Current"
     end
 
-    ln_sfh INSTALL_VERSION.to_s,                   File.join(FRAMEWORK_VERSION, '..', 'Current')
-    ln_sfh 'Versions/Current/Headers',             File.join(FRAMEWORK_VERSION, '../../Headers')
-    ln_sfh 'Versions/Current/MacRuby',             File.join(FRAMEWORK_VERSION, '../../MacRuby')
-    ln_sfh 'Versions/Current/Resources',           File.join(FRAMEWORK_VERSION, '../../Resources')
-    ln_sfh "usr/lib/#{dylib}",                     File.join(FRAMEWORK_VERSION, 'MacRuby')
-    ln_sfh "usr/include/ruby-#{NEW_RUBY_VERSION}", File.join(FRAMEWORK_VERSION, 'Headers')
+    ln_sfh INSTALL_VERSION.to_s,                   "#{FRAMEWORK_VERSION}/../Current"
+    ln_sfh 'Versions/Current/Headers',             "#{FRAMEWORK_VERSION}/../../Headers"
+    ln_sfh 'Versions/Current/MacRuby',             "#{FRAMEWORK_VERSION}/../../MacRuby"
+    ln_sfh 'Versions/Current/Resources',           "#{FRAMEWORK_VERSION}/../../Resources"
+    ln_sfh "usr/lib/#{dylib}",                     "#{FRAMEWORK_VERSION}/MacRuby"
+    ln_sfh "usr/include/ruby-#{NEW_RUBY_VERSION}", "#{FRAMEWORK_VERSION}/Headers"
     ln_sfh "../#{NEW_RUBY_PLATFORM}/ruby/config.h",
-      File.join(FRAMEWORK_VERSION, "usr/include/ruby-#{NEW_RUBY_VERSION}/ruby/config.h")
+      "#{FRAMEWORK_VERSION}/usr/include/ruby-#{NEW_RUBY_VERSION}/ruby/config.h"
 
     puts 'Installing executable symlinks'
     makedirs dest_bin
@@ -312,9 +312,9 @@ namespace :install do
       next if file.match(/^\./)
       # Except rb_nibtool & llc!
       next if file == 'rb_nibtool' or file == 'llc'
-      link = File.join('../../../', FRAMEWORK_USR_BIN, file)
+      link = "../../../#{FRAMEWORK_USR_BIN}/#{file}"
       link.sub!(/#{INSTALL_VERSION}/, 'Current')
-      link_dest = File.join(dest_bin, File.basename(file))
+      link_dest = "#{dest_bin}/#{File.basename(file)}"
       unless File.exists?(link_dest)
         ln_sfh link, link_dest
       end
@@ -324,21 +324,21 @@ namespace :install do
     makedirs dest_man
     Dir.entries(with_destdir(man_dir)).each do |man_set|
       next if man_set.match(/^\./)
-      if File.stat(File.join(with_destdir(man_dir), man_set)).directory?
-        makedirs File.join(dest_man, File.basename(man_set))
-        Dir.entries(File.join(with_destdir(man_dir), man_set)).each do |man_file|
+      if File.stat("#{with_destdir(man_dir)}/#{man_set}").directory?
+        makedirs "#{dest_man}/#{File.basename(man_set)}"
+        Dir.entries("#{with_destdir(man_dir)}/#{man_set}").each do |man_file|
           next if man_file.match(/^\./)
-          link = File.join('../../../../../', man_dir, man_set, man_file)
+          link = "../../../../../#{man_dir}/#{man_set}/#{man_file}"
           link.sub!(/#{INSTALL_VERSION}/, 'Current')
-          link_dest = File.join(dest_man, File.basename(man_set), File.basename(man_file))
+          link_dest = "#{dest_man}/#{File.basename(man_set)}/#{File.basename(man_file)}"
           unless File.exists?(link_dest)
             ln_sfh link, link_dest
           end
         end
       else
-        link = File.join('../../../../', man_dir, man_set)
+        link = "../../../../#{man_dir}/#{man_set}"
         link.sub!(/#{INSTALL_VERSION}/, 'Current')
-        ln_sfh link, File.join(dest_man, File.basename(man_set))
+        ln_sfh link, "#{dest_man}/#{File.basename(man_set)}"
       end
     end
   end
@@ -349,7 +349,7 @@ namespace :install do
   task :nibtool do
     puts 'Installing IB support'
     makedirs xcode_usr_bin
-    ln_sfh File.join('../../..', FRAMEWORK_USR_BIN, 'rb_nibtool'), xcode_usr_bin
+    ln_sfh "../../../#{FRAMEWORK_USR_BIN}/rb_nibtool", xcode_usr_bin
   end
 
   task :xcode_templates do
