@@ -1225,8 +1225,6 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 	{
 	    bs_element_class_t *bs_class = (bs_element_class_t *)value;
 	    register_bs_class(bs_class);
-	    free(bs_class);
-	    do_not_free = true;
 
 	    if (bs_vers < BS_VERSION_1_0) {
 		static bool R7281806_fixed = false;
@@ -1252,6 +1250,9 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 		    }
 		}
 	    }
+
+	    free(bs_class);
+	    do_not_free = true;
 	    break;
 	}
 
