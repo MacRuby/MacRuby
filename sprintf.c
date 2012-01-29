@@ -878,6 +878,9 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		    i - start + 1, arg);
 	    format_len += num;
 	    i += num;
+	    if (ref_type == NAMED_REF) {
+		SET_REF_TYPE(0);
+	    }
 	    break;
 	}
     }
