@@ -437,6 +437,13 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
     if (precision_flag) {					\
 	rb_raise(rb_eArgError, "width after precision");	\
     }
+#define CHECK_FOR_FLAGS()					\
+    if (width_flag) {						\
+	rb_raise(rb_eArgError, "flag after width");		\
+    }								\
+    if (precision_flag) {					\
+	rb_raise(rb_eArgError, "flag after precision");		\
+    }
 
     for (long i = 0; i < format_len; i++) {
 	if (format_str[i] != '%') {
@@ -468,6 +475,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 	while (i++ < format_len) {
 	    switch (format_str[i]) {
 		case '#':
+		    CHECK_FOR_FLAGS();
 		    sharp_flag = true;
 		    break;
 
@@ -507,22 +515,26 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		    break;
 
 		case ' ':
+		    CHECK_FOR_FLAGS();
 		    if (!plus_flag) {
 			space_flag = true;
 		    }
 		    break;
 
 		case '+':
+		    CHECK_FOR_FLAGS();
 		    plus_flag = true;
 		    space_flag = false;
 		    break;
 
 		case '-':
+		    CHECK_FOR_FLAGS();
 		    zero_flag = false;
 		    minus_flag = true;
 		    break;
 
 		case '0':
+		    CHECK_FOR_FLAGS();
 		    if (!precision_flag && !minus_flag) {
 			zero_flag = true;
 		    }
@@ -600,7 +612,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 			i = pos - 1;
 		    }
 		    else {
-			rb_raise(rb_eArgError, "invalid precision");
+			i--;
 		    }
 
 		    if (precision < 0) {
