@@ -430,6 +430,14 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
     int ref_type = 0;
     long format_str_capa = format_len;
 
+#define CHECK_FOR_WIDTH()					\
+    if (width_flag) {						\
+	rb_raise(rb_eArgError, "width given twice");		\
+    }								\
+    if (precision_flag) {					\
+	rb_raise(rb_eArgError, "width after precision");	\
+    }
+
     for (long i = 0; i < format_len; i++) {
 	if (format_str[i] != '%') {
 	    continue;
@@ -456,11 +464,6 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 	VALUE negative_pad = 0;
 	VALUE sharp_pad = rb_str_new2("");
 	const long start = i;
-
-#define CHECK_FOR_WIDTH()				 \
-	if (width_flag) {				 \
-	    rb_raise(rb_eArgError, "width given twice"); \
-	}
 
 	while (i++ < format_len) {
 	    switch (format_str[i]) {
