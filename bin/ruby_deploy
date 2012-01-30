@@ -327,10 +327,11 @@ class Deployer
   def sign
     log "Using codesign to sign files with #{@certificate}"
     files = []
-    #get the .bundle, .rbo, .rb, and .framework
+    #get the .bundle, .rbo, .rb, .dylib, and .framework
     files << Dir.glob(File.join(@app_bundle, '**', '*.bundle'))
     files << Dir.glob(File.join(@app_bundle, '**', '*.rbo'))
     files << Dir.glob(File.join(@app_bundle, '**', '*.rb'))
+    files << Dir.glob(File.join(@app_bundle, '**', '*.dylib'))
     files << Dir.glob(File.join(@app_bundle, '**', '*.framework'))
     files << @app_bundle
 
