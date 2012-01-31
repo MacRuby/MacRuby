@@ -22,15 +22,15 @@ class Deployer
 
     OptionParser.new do |opts|
       opts.banner = "Usage: #{NAME} [options] application-bundle"
-      opts.on('--compile',       'Compile the bundle source code') { @compile = true }
-      opts.on('--embed',         'Embed MacRuby inside the bundle') { @embed = true }
-      opts.on('--no-stdlib',     'Do not embed the standard library') { @no_stdlib = true }
-      opts.on('--stdlib [LIB]',  'Embed only LIB from the standard library') { |lib| @stdlib << lib }
-      opts.on('--gem [GEM]',     'Embed GEM and its dependencies') { |gem| @gems << gem }
-      opts.on('--bs',            'Embed the system BridgeSupport files') { @embed_bs = true }
-      opts.on('--verbose',       'Log all commands to standard out') { @verbose = true }
-      opts.on('--codesign',      'Sign the files with the specified certificate') { |cert| @certificate = cert }
-      opts.on('-v', '--version', 'Display the version') do
+      opts.on('--compile',                    'Compile the bundle source code') { @compile = true }
+      opts.on('--embed',                      'Embed MacRuby inside the bundle') { @embed = true }
+      opts.on('--no-stdlib',                  'Do not embed the standard library') { @no_stdlib = true }
+      opts.on('--stdlib [LIB]',               'Embed only LIB from the standard library') { |lib| @stdlib << lib }
+      opts.on('--gem [GEM]',                  'Embed GEM and its dependencies') { |gem| @gems << gem }
+      opts.on('--bs',                         'Embed the system BridgeSupport files') { @embed_bs = true }
+      opts.on('--verbose',                    'Log all commands to standard out') { @verbose = true }
+      opts.on('--codesign [CERT]', String,    'Sign the files with the specified certificate') { |cert| @certificate = cert }
+      opts.on('-v', '--version',              'Display the version') do
         puts RUBY_DESCRIPTION
         exit 1
       end
@@ -328,17 +328,16 @@ class Deployer
     log "Using codesign to sign files with #{@certificate}"
     files = []
     #get the .bundle, .rbo, .rb, .dylib, and .framework
-    files << Dir.glob(File.join(@app_bundle, '**', '*.bundle'))
-    files << Dir.glob(File.join(@app_bundle, '**', '*.rbo'))
-    files << Dir.glob(File.join(@app_bundle, '**', '*.rb'))
-    files << Dir.glob(File.join(@app_bundle, '**', '*.dylib'))
-    files << Dir.glob(File.join(@app_bundle, '**', '*.framework'))
+    files += Dir.glob(File.join(@app_bundle, '**', '*.bundle'))
+    files += Dir.glob(File.join(@app_bundle, '**', '*.rbo'))
+    files += Dir.glob(File.join(@app_bundle, '**', '*.rb'))
+    files += Dir.glob(File.join(@app_bundle, '**', '*.dylib'))
+    files += Dir.glob(File.join(@app_bundle, '**', '*.framework'))
     files << @app_bundle
 
-    #loop through the files found, codesign them
-    files.each do |file|
-      execute("/usr/bin/codesign -f -s #{@certificate}")
-    end
+    #loop through the files found, codesign them, with fource and replace switches
+
+    execute("/usr/bin/codesign -f -s \"#{@certificate}\" #{files.join(' ')}")
   end
 end
 
