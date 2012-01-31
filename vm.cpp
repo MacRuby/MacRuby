@@ -4982,13 +4982,14 @@ rb_vm_thread_pre_init(rb_vm_thread_t *t, rb_vm_block_t *body, int argc,
     }
 
     t->vm  = vm;
-    t->value = Qundef;
+    t->value = Qnil;
     t->locals = Qnil;
     t->exception = Qnil;
     t->status = THREAD_ALIVE;
     t->in_cond_wait = false;
     t->abort_on_exception = false;
     t->joined_on_exception = false;
+    t->wait_for_mutex_lock = false;
     t->group = Qnil; // will be set right after
     t->mutexes = Qnil;
 

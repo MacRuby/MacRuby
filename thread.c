@@ -195,6 +195,9 @@ thread_join_m(VALUE self, SEL sel, int argc, VALUE *argv)
 	    while (t->status != THREAD_DEAD) {
 		nanosleep(&ts, NULL);
 		pthread_yield_np();
+		if (t->status == THREAD_KILLED && t->wait_for_mutex_lock) {
+		    goto dead;
+		}
 	    }
 	}
 	else {
@@ -227,6 +230,9 @@ again:
 		}
 		nanosleep(&its, NULL);
 		if (t->status == THREAD_DEAD) {
+		    goto dead;
+		}
+		if (t->status == THREAD_KILLED && t->wait_for_mutex_lock) {
 		    goto dead;
 		}
 	    }
@@ -1458,13 +1464,19 @@ rb_mutex_lock(VALUE self, SEL sel)
 {
     rb_vm_thread_t *current = GetThreadPtr(rb_vm_current_thread());
     rb_vm_mutex_t *m = GetMutexPtr(self);
+    rb_vm_thread_status_t prev_status;
     if (m->thread == current) {
 	rb_raise(rb_eThreadError, "deadlock; recursive locking");
     }
 
-    current->status = THREAD_SLEEP;
+    prev_status = current->status;
+    if (current->status == THREAD_ALIVE) {
+	current->status = THREAD_SLEEP;
+    }
+    current->wait_for_mutex_lock = true;
     pthread_assert(pthread_mutex_lock(&m->mutex));
-    current->status = THREAD_ALIVE;
+    current->wait_for_mutex_lock = false;
+    current->status = prev_status;
     m->thread = current;
     if (current->mutexes == Qnil) {
 	GC_WB(&current->mutexes, rb_ary_new());

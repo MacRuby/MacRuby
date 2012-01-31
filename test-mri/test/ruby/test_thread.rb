@@ -521,8 +521,6 @@ class TestThread < Test::Unit::TestCase
   end
 
   def test_mutex_interrupt
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
-
     m = Mutex.new
     m.lock
     t = Thread.new do
