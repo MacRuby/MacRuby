@@ -628,10 +628,11 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		    if (named_flag) {
 			rb_raise(rb_eArgError, "named given twice");
 		    }
-		    if (ref_type != 0) {
+		    if (ref_type == ABS_REF) {
 			rb_raise(rb_eArgError, "named after numbered");
 		    }
 		    named_flag = true;
+		    ref_type = 0;
 		    SET_REF_TYPE(NAMED_REF);
 		    arg = get_named_arg(format_str, format_len, &i,
 			    GETNTHARG(0));
@@ -893,9 +894,6 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		    i - start + 1, arg);
 	    format_len += num;
 	    i += num;
-	    if (ref_type == NAMED_REF) {
-		SET_REF_TYPE(0);
-	    }
 	    break;
 	}
     }
