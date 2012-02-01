@@ -577,6 +577,7 @@ rb_thread_s_abort_exc(VALUE rcv, SEL sel)
 static VALUE
 rb_thread_s_abort_exc_set(VALUE self, SEL sel, VALUE val)
 {
+    rb_secure(4);
     rb_vm_set_abort_on_exception(RTEST(val));
     return val;
 }
@@ -608,6 +609,7 @@ rb_thread_abort_exc(VALUE thread, SEL sel)
 static VALUE
 rb_thread_abort_exc_set(VALUE thread, SEL sel, VALUE val)
 {
+    rb_secure(4);
     GetThreadPtr(thread)->abort_on_exception = RTEST(val);
     return val;
 }
