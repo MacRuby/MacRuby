@@ -3597,6 +3597,22 @@ RoxorVM::pop_current_exception(int pos)
 	return;
     }
 
+    if (!((size_t)pos < current_exceptions.size()))
+    {
+        fprintf(stderr,
+                "RoxorVM::pop_current_exception (%s:%d) - "
+                "Warning: Assertion about to fail: "
+                "((size_t)pos < current_exceptions.size()); pos = %d; "
+                "current_exceptions.size() = %d\n",
+                __FILE__, __LINE__, pos, (int)current_exceptions.size());
+        for (std::vector<VALUE>::iterator iter = current_exceptions.begin(); iter != current_exceptions.end(); iter++)
+        {
+            VALUE exc = *iter;
+            fprintf(stderr,
+                    "current_exceptions[%d]: \"%s\"\n",
+                    pos, RSTRING_PTR(rb_inspect(exc)));
+        }
+    }
     assert((size_t)pos < current_exceptions.size());
 
     std::vector<VALUE>::iterator iter = current_exceptions.end() - (pos + 1);
