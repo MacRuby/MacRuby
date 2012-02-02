@@ -287,8 +287,8 @@ namespace :install do
     end
   end
 
-  desc 'Install the MacRuby.framework Info.plist file'
   task :resources do
+  desc 'Install the MacRuby framework and related resources'
     puts 'Installing framework resources'
 
     makedirs FRAMEWORK_RESOURCES
