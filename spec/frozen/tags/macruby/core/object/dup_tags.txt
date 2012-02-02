@@ -1,0 +1,1 @@
+fails:Object#dup raises a TypeError for Symbol

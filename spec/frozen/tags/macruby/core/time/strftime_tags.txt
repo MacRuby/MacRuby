@@ -1,0 +1,2 @@
+fails:Time#strftime returns the fractional seconds digits, default is 9 digits (nanosecond) with %N
+fails:Time#strftime supports the '-' modifier to drop leading zeros

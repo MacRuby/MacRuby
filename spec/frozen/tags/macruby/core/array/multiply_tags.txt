@@ -1,1 +1,3 @@
 fails:Array#* with a string returns a string formed by concatenating each element.to_str separated by separator without trailing separator
+fails:Array#* with a string with a tainted separator does not taint the result if the array has only one element
+fails:Array#* with a string with an untrusted separator does not untrust the result if the array has only one element

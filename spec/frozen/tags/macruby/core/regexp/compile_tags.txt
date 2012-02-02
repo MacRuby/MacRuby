@@ -1,1 +1,13 @@
 fails:Regexp.compile given a Regexp enables multibyte support if given in the literal
+fails:Regexp.compile given a String with escaped characters returns a Regexp with US-ASCII encoding if only 7-bit ASCII characters are present regardless of the input String's encoding
+fails:Regexp.compile given a String with escaped characters returns a Regexp with source String having US-ASCII encoding if only 7-bit ASCII characters are present regardless of the input String's encoding
+fails:Regexp.compile given a String with escaped characters returns a Regexp with US-ASCII encoding if UTF-8 escape sequences using only 7-bit ASCII are present
+fails:Regexp.compile given a String with escaped characters returns a Regexp with source String having US-ASCII encoding if UTF-8 escape sequences using only 7-bit ASCII are present
+fails:Regexp.compile given a String with escaped characters returns a Regexp with UTF-8 encoding if any UTF-8 escape sequences outside 7-bit ASCII are present
+fails:Regexp.compile given a String with escaped characters returns a Regexp with the input String's encoding
+fails:Regexp.compile given a String with escaped characters returns a Regexp with source String having the input String's encoding
+fails:Regexp.compile given a Regexp sets the encoding to UTF-8 if the Regexp literal has the 'u' option
+fails:Regexp.compile given a Regexp sets the encoding to EUC-JP if the Regexp literal has the 'e' option
+fails:Regexp.compile given a Regexp sets the encoding to Windows-31J if the Regexp literal has the 's' option
+fails:Regexp.compile given a Regexp sets the encoding to US-ASCII if the Regexp literal has the 'n' option and the source String is ASCII only
+fails:Regexp.compile given a Regexp sets the encoding to source String's encoding if the Regexp literal has the 'n' option and the source String is not ASCII only

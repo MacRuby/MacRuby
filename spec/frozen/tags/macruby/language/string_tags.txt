@@ -1,0 +1,3 @@
+fails:Ruby character strings Unicode escaping can be done with \u{} and one to six hex digits
+fails:Ruby character strings Unicode escaping with US-ASCII source encoding produces an ASCII string when escaping ASCII characters via \u
+fails:Ruby character strings Unicode escaping with US-ASCII source encoding produces an ASCII string when escaping ASCII characters via \u{}

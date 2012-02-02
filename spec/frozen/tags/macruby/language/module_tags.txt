@@ -1,1 +1,3 @@
 fails:module raises a TypeError if the constant is a class
+fails:An anonymous module takes on the name of the first constant it is assigned to
+fails:An anonymous module forces named nested modules to be anonymous

@@ -1,0 +1,2 @@
+fails:URI::Parser#join accepts URI objects
+fails:URI::Parser#join accepts string-like arguments with to_str

@@ -1,0 +1,5 @@
+fails:Object#copyWithZone: raises a TypeError for NilClass
+fails:Object#copyWithZone: raises a TypeError for TrueClass
+fails:Object#copyWithZone: raises a TypeError for FalseClass
+fails:Object#copyWithZone: raises a TypeError for Fixnum
+fails:Object#copyWithZone: raises a TypeError for Symbol

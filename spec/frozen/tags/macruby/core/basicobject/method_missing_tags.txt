@@ -1,0 +1,1 @@
+fails:BasicObject#method_missing for a Class raises a NoMethodError when an undefined method is called

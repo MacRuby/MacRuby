@@ -5,3 +5,6 @@ fails:Encoding.default_internal uses the encoding specified when ruby is invoked
 fails:Encoding.default_internal uses the encoding specified when ruby is invoked with an '-E external:internal' argument
 fails:Encoding.default_internal= calls #to_s on arguments that are neither Strings nor Encodings
 fails:Encoding.default_internal= accepts an argument of nil to unset the default internal encoding
+fails:Encoding.default_internal with command line options returns Encoding::UTF_8 if ruby was invoked with -U
+fails:Encoding.default_internal with command line options uses the encoding specified when ruby is invoked with an '-E :internal' argument
+fails:Encoding.default_internal with command line options uses the encoding specified when ruby is invoked with an '-E external:internal' argument

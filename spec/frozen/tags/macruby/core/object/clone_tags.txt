@@ -1,0 +1,1 @@
+fails:Object#clone raises a TypeError for Symbol

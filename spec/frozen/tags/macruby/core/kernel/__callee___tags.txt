@@ -4,3 +4,4 @@ fails:Kernel.__callee__ returns the caller from blocks too
 fails:Kernel.__callee__ returns the caller from block inside define_method too
 fails:Kernel.__callee__ returns the caller from a define_method called from the same class
 fails:Kernel.__callee__ returns method name even from eval
+fails:Kernel.__callee__ returns the caller when sent as a string

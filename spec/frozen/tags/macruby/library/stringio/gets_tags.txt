@@ -1,0 +1,2 @@
+fails:StringIO#gets when passed [separator] and [limit] returns the data read until the limit is consumed or the separator is met
+fails:StringIO#gets when passed [separator] and [limit] sets $_ to the read content
