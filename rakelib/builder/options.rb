@@ -69,7 +69,7 @@ if ENV['build_as_embeddable']
   exit 1
 end
 
-verbose(true)
+#verbose(true)
 
 if `sw_vers -productVersion`.strip < '10.5.6'
   $stderr.puts "Sorry, your environment is not supported. MacRuby requires Mac OS X 10.5.6 or higher."
