@@ -26,6 +26,42 @@ describe :io_new, :shared => true do
   end
 
   ruby_version_is "1.9" do
+    it "accepts a :mode option" do
+      @io = IO.send(@method, @fd, :mode => "w")
+      @io.write("foo").should == 3
+    end
+
+    it "accepts a mode argument set to nil with a valid :mode option" do
+      @io = IO.send(@method, @fd, nil, :mode => "w")
+      @io.write("foo").should == 3
+    end
+
+    it "accepts a mode argument with a :mode option set to nil" do
+      @io = IO.send(@method, @fd, "w", :mode => nil)
+      @io.write("foo").should == 3
+    end
+
+    it "raises an error when trying to set both binmode and textmode" do
+      lambda {
+        @io = IO.send(@method, @fd, "wb", :textmode => true)
+      }.should raise_error(ArgumentError)
+      lambda {
+        @io = IO.send(@method, @fd, "wt", :binmode => true)
+      }.should raise_error(ArgumentError)
+      lambda {
+        @io = IO.send(@method, @fd, "w", :textmode => true, :binmode => true)
+      }.should raise_error(ArgumentError)
+      lambda {
+        @io = IO.send(@method, @fd, File::Constants::WRONLY, :textmode => true, :binmode => true)
+      }.should raise_error(ArgumentError)
+    end
+
+    it "raises an error if passed modes two ways" do
+      lambda {
+        IO.send(@method, @fd, "w", :mode => "w")
+      }.should raise_error(ArgumentError)
+    end
+
     it "uses the external encoding specified in the mode argument" do
       @io = IO.send(@method, @fd, 'w:utf-8')
       @io.external_encoding.to_s.should == 'UTF-8'
@@ -73,6 +109,68 @@ describe :io_new, :shared => true do
       @io = IO.send(@method, @fd, 'w', {:external_encoding => 'utf-8', :internal_encoding => 'utf-8'})
       @io.external_encoding.to_s.should == 'UTF-8'
       @io.internal_encoding.to_s.should == ''
+    end
+
+    it "sets internal encoding to nil when passed '-'" do
+      @io = IO.send(@method, @fd, 'w', {:external_encoding => 'utf-8', :internal_encoding => '-'})
+      @io.external_encoding.to_s.should == 'UTF-8'
+      @io.internal_encoding.to_s.should == ''
+    end
+
+    it "raises an error if passed encodings two ways" do
+      lambda {
+        @io = IO.send(@method, @fd, 'w:ISO-8859-1', {:encoding => 'ISO-8859-1'})
+      }.should raise_error(ArgumentError)
+      lambda {
+        @io = IO.send(@method, @fd, 'w:ISO-8859-1', {:external_encoding => 'ISO-8859-1'})
+      }.should raise_error(ArgumentError)
+      lambda {
+        @io = IO.send(@method, @fd, 'w:ISO-8859-1:UTF-8', {:internal_encoding => 'ISO-8859-1'})
+      }.should raise_error(ArgumentError)
+    end
+
+    it "sets binmode from mode string" do
+      @io = IO.send(@method, @fd, 'wb')
+      @io.binmode?.should == true
+    end
+
+    it "does not set binmode without being asked" do
+      @io = IO.send(@method, @fd, 'w')
+      @io.binmode?.should == false
+    end
+
+    it "sets binmode from :binmode option" do
+      @io = IO.send(@method, @fd, 'w', {:binmode => true})
+      @io.binmode?.should == true
+    end
+
+    it "does not set binmode from false :binmode" do
+      @io = IO.send(@method, @fd, 'w', {:binmode => false})
+      @io.binmode?.should == false
+    end
+
+    it "sets external encoding to binary with binmode in mode string" do
+      @io = IO.send(@method, @fd, 'wb')
+      @io.external_encoding.to_s.should == 'ASCII-8BIT'
+    end
+
+    ruby_bug "#5917", "2.0" do
+      it "sets external encoding to binary with :binmode option" do
+        @io = IO.send(@method, @fd, 'w', {:binmode => true})
+        @io.external_encoding.to_s.should == 'ASCII-8BIT'
+      end
+    end
+  end
+
+  ruby_version_is "1.9.2" do
+    it "accepts an :autoclose option" do
+      @io = IO.send(@method, @fd, 'w', :autoclose => false)
+      @io.autoclose?.should == false
+    end
+
+    it "accepts any truthy option :autoclose" do
+      @io = IO.send(@method, @fd, 'w', :autoclose => 42)
+      @io.autoclose?.should == true
     end
   end
 end

@@ -88,7 +88,7 @@ describe "Array#* with an integer" do
     end
   end
 
-  ruby_version_is '' ... '1.8' do
+  ruby_version_is '' ... '1.9' do
     it "does not copy the taint status of the original array if the passed count is 0" do
       ary = [1, 2, 3]
       ary.taint
@@ -139,5 +139,5 @@ describe "Array#* with an integer" do
 end
 
 describe "Array#* with a string" do
-  it_behaves_like :array_join, :*, ArraySpecs::NewArray
+  it_behaves_like :array_join_with_string_separator, :*
 end

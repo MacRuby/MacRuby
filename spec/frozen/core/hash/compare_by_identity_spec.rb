@@ -55,12 +55,12 @@ ruby_version_is "1.9" do
       end
     end
 
-    it "doesn't call #equal? on keys to determine their identity" do
+    it "uses #equal? semantics, but doesn't actually call #equal? to determine identity" do
       obj = mock('equal')
       obj.should_not_receive(:equal?)
       @idh[:foo] = :glark
       @idh[obj] = :a
-      @idh[obj.dup].should == nil
+      @idh[obj].should == :a
     end
 
     it "regards #dup'd objects as having different identities" do

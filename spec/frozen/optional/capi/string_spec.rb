@@ -2,6 +2,19 @@ require File.expand_path('../spec_helper', __FILE__)
 
 load_extension('string')
 
+describe :rb_str_new2, :shared => true do
+  it "returns a new string object calling strlen on the passed C string" do
+    # Hardcoded to pass const char * = "hello\0invisible"
+    @s.send(@method, "hello\0not used").should == "hello"
+  end
+
+  ruby_version_is ""..."1.9" do
+    it "raises an ArgumentError if passed NULL" do
+      lambda { @s.send(@method, nil) }.should raise_error(ArgumentError)
+    end
+  end
+end
+
 describe "C-API String function" do
   before :each do
     @s = CApiStringSpecs.new
@@ -109,14 +122,20 @@ describe "C-API String function" do
   end
 
   describe "rb_str_new2" do
-    it "returns a new string object calling strlen on the passed C string" do
-      # Hardcoded to pass const char * = "hello\0invisible"
-      @s.rb_str_new2.should == "hello"
+    it_behaves_like :rb_str_new2, :rb_str_new2
+  end
+
+  ruby_version_is "1.9" do
+    describe "rb_str_new_cstr" do
+      it_behaves_like :rb_str_new2, :rb_str_new_cstr
     end
 
-    ruby_version_is ""..."1.9" do
-      it "rb_str_new2 should raise ArgumentError if passed NULL" do
-        lambda { @s.rb_str_new2_with_null }.should raise_error(ArgumentError)
+    describe "rb_usascii_str_new_cstr" do
+      it "creates a new String with US-ASCII Encoding" do
+        str = encode("abc", "us-ascii")
+        result = @s.rb_usascii_str_new_cstr("abc")
+        result.should == str
+        result.encoding.should == Encoding::US_ASCII
       end
     end
   end
@@ -225,9 +244,39 @@ describe "C-API String function" do
   end
 
   describe "rb_cstr2inum" do
-    it "converts a C string to a number given a base" do
+    it "converts a C string to a Fixnum given a base" do
       @s.rb_cstr2inum("10", 10).should == 10
       @s.rb_cstr2inum("10", 16).should == 16
+    end
+
+    it "converts a C string to a Bignum given a base" do
+      @s.rb_cstr2inum(bignum_value.to_s, 10).should == bignum_value
+    end
+
+    it "converts a C string to a Fixnum non-strictly if base is not 0" do
+      @s.rb_cstr2inum("1234a", 10).should == 1234
+    end
+
+    it "converts a C string to a Fixnum strictly if base is 0" do
+      lambda { @s.rb_cstr2inum("1234a", 0) }.should raise_error(ArgumentError)
+    end
+  end
+
+  describe "rb_cstr_to_inum" do
+    it "converts a C string to a Fixnum given a base" do
+      @s.rb_cstr_to_inum("1234", 10, true).should == 1234
+    end
+
+    it "converts a C string to a Bignum given a base" do
+      @s.rb_cstr_to_inum(bignum_value.to_s, 10, true).should == bignum_value
+    end
+
+    it "converts a C string to a Fixnum non-strictly" do
+      @s.rb_cstr_to_inum("1234a", 10, false).should == 1234
+    end
+
+    it "converts a C string to a Fixnum strictly" do
+      lambda { @s.rb_cstr_to_inum("1234a", 10, true) }.should raise_error(ArgumentError)
     end
   end
 
@@ -317,6 +366,14 @@ describe "C-API String function" do
   describe "RSTRING_LEN" do
     it "returns the size of the string" do
       @s.RSTRING_LEN("gumdrops").should == 8
+    end
+  end
+
+  ruby_version_is "1.9" do
+    describe "RSTRING_LENINT" do
+      it "returns the size of a string" do
+        @s.RSTRING_LENINT("silly").should == 5
+      end
     end
   end
 
@@ -481,6 +538,60 @@ describe "C-API String function" do
     describe "rb_str_len" do
       it "returns the string's length" do
         @s.rb_str_len("dewdrops").should == 8
+      end
+    end
+  end
+end
+
+ruby_version_is "1.9" do
+  describe :rb_external_str_new, :shared => true do
+    it "returns a String in the default external encoding" do
+      Encoding.default_external = "UTF-8"
+      @s.send(@method, "abc").encoding.should == Encoding::UTF_8
+    end
+
+    it "returns an ASCII-8BIT encoded string if any non-ascii bytes are present and default external is US-ASCII" do
+      Encoding.default_external = "US-ASCII"
+      @s.send(@method, "\x80abc").encoding.should == Encoding::ASCII_8BIT
+    end
+
+    it "returns a tainted String" do
+      @s.send(@method, "abc").tainted?.should be_true
+    end
+  end
+
+  describe "C-API String function" do
+    before :each do
+      @s = CApiStringSpecs.new
+      @encoding = Encoding.default_external
+    end
+
+    after :each do
+      Encoding.default_external = @encoding
+    end
+
+    describe "rb_external_str_new" do
+      it_behaves_like :rb_external_str_new, :rb_external_str_new
+    end
+
+    describe "rb_external_str_new_cstr" do
+      it_behaves_like :rb_external_str_new, :rb_external_str_new_cstr
+    end
+
+    describe "rb_external_str_new_with_enc" do
+      it "returns a String in the specified encoding" do
+        s = @s.rb_external_str_new_with_enc("abc", 3, Encoding::UTF_8)
+        s.encoding.should == Encoding::UTF_8
+      end
+
+      it "returns an ASCII-8BIT encoded String if any non-ascii bytes are present and the specified encoding is US-ASCII" do
+        s = @s.rb_external_str_new_with_enc("\x80abc", 4, Encoding::US_ASCII)
+        s.encoding.should == Encoding::ASCII_8BIT
+      end
+
+      it "returns a tainted String" do
+        s = @s.rb_external_str_new_with_enc("abc", 3, Encoding::US_ASCII)
+        s.tainted?.should be_true
       end
     end
   end

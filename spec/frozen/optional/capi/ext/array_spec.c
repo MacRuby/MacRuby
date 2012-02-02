@@ -87,7 +87,7 @@ static VALUE array_spec_RARRAY_LEN(VALUE self, VALUE array) {
 static VALUE array_spec_rb_ary_aref(int argc, VALUE *argv, VALUE self) {
   VALUE ary, args;
   rb_scan_args(argc, argv, "1*", &ary, &args);
-  return rb_ary_aref(RARRAY_LEN(args), RARRAY_PTR(args), ary);
+  return rb_ary_aref((int)RARRAY_LEN(args), RARRAY_PTR(args), ary);
 }
 #endif
 
@@ -161,7 +161,10 @@ static VALUE array_spec_rb_ary_new3(VALUE self, VALUE first, VALUE second, VALUE
 
 #ifdef HAVE_RB_ARY_NEW4
 static VALUE array_spec_rb_ary_new4(VALUE self, VALUE first, VALUE second, VALUE third) {
-  VALUE values[3] = {first, second, third};
+  VALUE values[3];
+  values[0] = first;
+  values[1] = second;
+  values[2] = third;
   return rb_ary_new4(3, values);
 }
 #endif

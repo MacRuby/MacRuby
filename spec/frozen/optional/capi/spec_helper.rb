@@ -14,7 +14,9 @@ end
 
 CAPI_RUBY_SIGNATURE = "#{RUBY_NAME}-#{RUBY_VERSION}"
 
-def compile_extension(path, name)
+def compile_extension(name)
+  path = extension_path
+
   # TODO use rakelib/ext_helper.rb?
   arch_hdrdir = nil
   ruby_hdrdir = nil
@@ -73,6 +75,7 @@ def compile_extension(path, name)
   libpath   = "-L#{path}"
   libs      = RbConfig::CONFIG["LIBS"]
   dldflags  = RbConfig::CONFIG["DLDFLAGS"]
+  dldflags.sub!(/-Wl,-soname,\S+/, '')
 
   output = `#{ldshared} #{obj} #{libpath} #{dldflags} #{libs} -o #{lib}`
 
@@ -86,11 +89,12 @@ def compile_extension(path, name)
   lib
 end
 
-def load_extension(name)
-  path = File.join(File.dirname(__FILE__), 'ext')
+def extension_path
+  File.expand_path("../ext", __FILE__)
+end
 
-  ext = compile_extension path, name
-  require ext
+def load_extension(name)
+  require compile_extension(name)
 end
 
 # Constants

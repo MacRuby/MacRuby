@@ -3,27 +3,20 @@ require File.expand_path('../../../spec_helper', __FILE__)
 require File.expand_path('../fixtures/classes.rb', __FILE__)
 
 describe "String#inspect" do
-  ruby_version_is "1.9" do
-    before :each do
-      Encoding.default_external = Encoding::UTF_8
-      @orig_exteenc = Encoding.default_external
-    end
-
-    after :each do
-      Encoding.default_external = @orig_exteenc
-    end
-  end
-
   it "taints the result if self is tainted" do
     "foo".taint.inspect.tainted?.should == true
     "foo\n".taint.inspect.tainted?.should == true
   end
 
-  it "does not return subclass instances" do
-    str = StringSpecs::MyString.new
-    str << "test"
-    str.should == "test"
-    str.inspect.should be_an_instance_of(String)
+  ruby_version_is "1.9" do
+    it "untrusts the result if self is untrusted" do
+      "foo".untrust.inspect.untrusted?.should == true
+      "foo\n".untrust.inspect.untrusted?.should == true
+    end
+  end
+
+  it "does not return a subclass instance" do
+    StringSpecs::MyString.new.inspect.should be_an_instance_of(String)
   end
 
   it "returns a string with special characters replaced with \\<char> notation" do
@@ -517,177 +510,174 @@ describe "String#inspect" do
       ].should be_computed_by(:inspect)
     end
 
-    it "returns a string with non-printing, characters replaced by \\u notation for Unicode strings" do
-      [ [0000.chr('utf-8'), '"\u0000"'],
-        [0001.chr('utf-8'), '"\u0001"'],
-        [0002.chr('utf-8'), '"\u0002"'],
-        [0003.chr('utf-8'), '"\u0003"'],
-        [0004.chr('utf-8'), '"\u0004"'],
-        [0005.chr('utf-8'), '"\u0005"'],
-        [0006.chr('utf-8'), '"\u0006"'],
-        [0016.chr('utf-8'), '"\u000E"'],
-        [0017.chr('utf-8'), '"\u000F"'],
-        [0020.chr('utf-8'), '"\u0010"'],
-        [0021.chr('utf-8'), '"\u0011"'],
-        [0022.chr('utf-8'), '"\u0012"'],
-        [0023.chr('utf-8'), '"\u0013"'],
-        [0024.chr('utf-8'), '"\u0014"'],
-        [0025.chr('utf-8'), '"\u0015"'],
-        [0026.chr('utf-8'), '"\u0016"'],
-        [0027.chr('utf-8'), '"\u0017"'],
-        [0030.chr('utf-8'), '"\u0018"'],
-        [0031.chr('utf-8'), '"\u0019"'],
-        [0032.chr('utf-8'), '"\u001A"'],
-        [0034.chr('utf-8'), '"\u001C"'],
-        [0035.chr('utf-8'), '"\u001D"'],
-        [0036.chr('utf-8'), '"\u001E"'],
-        [0037.chr('utf-8'), '"\u001F"'],
-        [0177.chr('utf-8'), '"\u007F"'],
-        [0200.chr('utf-8'), '"\u0080"'],
-        [0201.chr('utf-8'), '"\u0081"'],
-        [0202.chr('utf-8'), '"\u0082"'],
-        [0203.chr('utf-8'), '"\u0083"'],
-        [0204.chr('utf-8'), '"\u0084"'],
-        [0206.chr('utf-8'), '"\u0086"'],
-        [0207.chr('utf-8'), '"\u0087"'],
-        [0210.chr('utf-8'), '"\u0088"'],
-        [0211.chr('utf-8'), '"\u0089"'],
-        [0212.chr('utf-8'), '"\u008A"'],
-        [0213.chr('utf-8'), '"\u008B"'],
-        [0214.chr('utf-8'), '"\u008C"'],
-        [0215.chr('utf-8'), '"\u008D"'],
-        [0216.chr('utf-8'), '"\u008E"'],
-        [0217.chr('utf-8'), '"\u008F"'],
-        [0220.chr('utf-8'), '"\u0090"'],
-        [0221.chr('utf-8'), '"\u0091"'],
-        [0222.chr('utf-8'), '"\u0092"'],
-        [0223.chr('utf-8'), '"\u0093"'],
-        [0224.chr('utf-8'), '"\u0094"'],
-        [0225.chr('utf-8'), '"\u0095"'],
-        [0226.chr('utf-8'), '"\u0096"'],
-        [0227.chr('utf-8'), '"\u0097"'],
-        [0230.chr('utf-8'), '"\u0098"'],
-        [0231.chr('utf-8'), '"\u0099"'],
-        [0232.chr('utf-8'), '"\u009A"'],
-        [0233.chr('utf-8'), '"\u009B"'],
-        [0234.chr('utf-8'), '"\u009C"'],
-        [0235.chr('utf-8'), '"\u009D"'],
-        [0236.chr('utf-8'), '"\u009E"'],
-        [0237.chr('utf-8'), '"\u009F"'],
-      ].should be_computed_by(:inspect)
-    end
+    describe "When default external is UTF-8" do
+      before :each do
+        @extenc, Encoding.default_external = Encoding.default_external, Encoding::UTF_8
+      end
 
-    it "returns a string with extended characters for Unicode strings" do
-      [ [0240.chr('utf-8'), '" "'],
-        [0241.chr('utf-8'), '"¡"'],
-        [0242.chr('utf-8'), '"¢"'],
-        [0243.chr('utf-8'), '"£"'],
-        [0244.chr('utf-8'), '"¤"'],
-        [0245.chr('utf-8'), '"¥"'],
-        [0246.chr('utf-8'), '"¦"'],
-        [0247.chr('utf-8'), '"§"'],
-        [0250.chr('utf-8'), '"¨"'],
-        [0251.chr('utf-8'), '"©"'],
-        [0252.chr('utf-8'), '"ª"'],
-        [0253.chr('utf-8'), '"«"'],
-        [0254.chr('utf-8'), '"¬"'],
-        [0255.chr('utf-8'), '"­"'],
-        [0256.chr('utf-8'), '"®"'],
-        [0257.chr('utf-8'), '"¯"'],
-        [0260.chr('utf-8'), '"°"'],
-        [0261.chr('utf-8'), '"±"'],
-        [0262.chr('utf-8'), '"²"'],
-        [0263.chr('utf-8'), '"³"'],
-        [0264.chr('utf-8'), '"´"'],
-        [0265.chr('utf-8'), '"µ"'],
-        [0266.chr('utf-8'), '"¶"'],
-        [0267.chr('utf-8'), '"·"'],
-        [0270.chr('utf-8'), '"¸"'],
-        [0271.chr('utf-8'), '"¹"'],
-        [0272.chr('utf-8'), '"º"'],
-        [0273.chr('utf-8'), '"»"'],
-        [0274.chr('utf-8'), '"¼"'],
-        [0275.chr('utf-8'), '"½"'],
-        [0276.chr('utf-8'), '"¾"'],
-        [0277.chr('utf-8'), '"¿"'],
-        [0300.chr('utf-8'), '"À"'],
-        [0301.chr('utf-8'), '"Á"'],
-        [0302.chr('utf-8'), '"Â"'],
-        [0303.chr('utf-8'), '"Ã"'],
-        [0304.chr('utf-8'), '"Ä"'],
-        [0305.chr('utf-8'), '"Å"'],
-        [0306.chr('utf-8'), '"Æ"'],
-        [0307.chr('utf-8'), '"Ç"'],
-        [0310.chr('utf-8'), '"È"'],
-        [0311.chr('utf-8'), '"É"'],
-        [0312.chr('utf-8'), '"Ê"'],
-        [0313.chr('utf-8'), '"Ë"'],
-        [0314.chr('utf-8'), '"Ì"'],
-        [0315.chr('utf-8'), '"Í"'],
-        [0316.chr('utf-8'), '"Î"'],
-        [0317.chr('utf-8'), '"Ï"'],
-        [0320.chr('utf-8'), '"Ð"'],
-        [0321.chr('utf-8'), '"Ñ"'],
-        [0322.chr('utf-8'), '"Ò"'],
-        [0323.chr('utf-8'), '"Ó"'],
-        [0324.chr('utf-8'), '"Ô"'],
-        [0325.chr('utf-8'), '"Õ"'],
-        [0326.chr('utf-8'), '"Ö"'],
-        [0327.chr('utf-8'), '"×"'],
-        [0330.chr('utf-8'), '"Ø"'],
-        [0331.chr('utf-8'), '"Ù"'],
-        [0332.chr('utf-8'), '"Ú"'],
-        [0333.chr('utf-8'), '"Û"'],
-        [0334.chr('utf-8'), '"Ü"'],
-        [0335.chr('utf-8'), '"Ý"'],
-        [0336.chr('utf-8'), '"Þ"'],
-        [0337.chr('utf-8'), '"ß"'],
-        [0340.chr('utf-8'), '"à"'],
-        [0341.chr('utf-8'), '"á"'],
-        [0342.chr('utf-8'), '"â"'],
-        [0343.chr('utf-8'), '"ã"'],
-        [0344.chr('utf-8'), '"ä"'],
-        [0345.chr('utf-8'), '"å"'],
-        [0346.chr('utf-8'), '"æ"'],
-        [0347.chr('utf-8'), '"ç"'],
-        [0350.chr('utf-8'), '"è"'],
-        [0351.chr('utf-8'), '"é"'],
-        [0352.chr('utf-8'), '"ê"'],
-        [0353.chr('utf-8'), '"ë"'],
-        [0354.chr('utf-8'), '"ì"'],
-        [0355.chr('utf-8'), '"í"'],
-        [0356.chr('utf-8'), '"î"'],
-        [0357.chr('utf-8'), '"ï"'],
-        [0360.chr('utf-8'), '"ð"'],
-        [0361.chr('utf-8'), '"ñ"'],
-        [0362.chr('utf-8'), '"ò"'],
-        [0363.chr('utf-8'), '"ó"'],
-        [0364.chr('utf-8'), '"ô"'],
-        [0365.chr('utf-8'), '"õ"'],
-        [0366.chr('utf-8'), '"ö"'],
-        [0367.chr('utf-8'), '"÷"'],
-        [0370.chr('utf-8'), '"ø"'],
-        [0371.chr('utf-8'), '"ù"'],
-        [0372.chr('utf-8'), '"ú"'],
-        [0373.chr('utf-8'), '"û"'],
-        [0374.chr('utf-8'), '"ü"'],
-        [0375.chr('utf-8'), '"ý"'],
-        [0376.chr('utf-8'), '"þ"'],
-        [0377.chr('utf-8'), '"ÿ"']
-      ].should be_computed_by(:inspect)
-    end
+      after :each do
+        Encoding.default_external = @extenc
+      end
 
-    # TODO: these specs need to be fixed, they are testing the result of
-    # #force_encoding being called *after* #inspect.
-    it "produces different output based on #force_encoding" do
-      "äöü".inspect.force_encoding('UTF-8').should == "\"\xC3\xA4\xC3\xB6\xC3\xBC\""
-      "äöü".inspect.force_encoding('ASCII').should == "\"äöü\"".force_encoding('ASCII')
-    end
+      it "returns a string with non-printing characters replaced by \\u notation for Unicode strings" do
+        [ [0000.chr('utf-8'), '"\u0000"'],
+          [0001.chr('utf-8'), '"\u0001"'],
+          [0002.chr('utf-8'), '"\u0002"'],
+          [0003.chr('utf-8'), '"\u0003"'],
+          [0004.chr('utf-8'), '"\u0004"'],
+          [0005.chr('utf-8'), '"\u0005"'],
+          [0006.chr('utf-8'), '"\u0006"'],
+          [0016.chr('utf-8'), '"\u000E"'],
+          [0017.chr('utf-8'), '"\u000F"'],
+          [0020.chr('utf-8'), '"\u0010"'],
+          [0021.chr('utf-8'), '"\u0011"'],
+          [0022.chr('utf-8'), '"\u0012"'],
+          [0023.chr('utf-8'), '"\u0013"'],
+          [0024.chr('utf-8'), '"\u0014"'],
+          [0025.chr('utf-8'), '"\u0015"'],
+          [0026.chr('utf-8'), '"\u0016"'],
+          [0027.chr('utf-8'), '"\u0017"'],
+          [0030.chr('utf-8'), '"\u0018"'],
+          [0031.chr('utf-8'), '"\u0019"'],
+          [0032.chr('utf-8'), '"\u001A"'],
+          [0034.chr('utf-8'), '"\u001C"'],
+          [0035.chr('utf-8'), '"\u001D"'],
+          [0036.chr('utf-8'), '"\u001E"'],
+          [0037.chr('utf-8'), '"\u001F"'],
+          [0177.chr('utf-8'), '"\u007F"'],
+          [0200.chr('utf-8'), '"\u0080"'],
+          [0201.chr('utf-8'), '"\u0081"'],
+          [0202.chr('utf-8'), '"\u0082"'],
+          [0203.chr('utf-8'), '"\u0083"'],
+          [0204.chr('utf-8'), '"\u0084"'],
+          [0206.chr('utf-8'), '"\u0086"'],
+          [0207.chr('utf-8'), '"\u0087"'],
+          [0210.chr('utf-8'), '"\u0088"'],
+          [0211.chr('utf-8'), '"\u0089"'],
+          [0212.chr('utf-8'), '"\u008A"'],
+          [0213.chr('utf-8'), '"\u008B"'],
+          [0214.chr('utf-8'), '"\u008C"'],
+          [0215.chr('utf-8'), '"\u008D"'],
+          [0216.chr('utf-8'), '"\u008E"'],
+          [0217.chr('utf-8'), '"\u008F"'],
+          [0220.chr('utf-8'), '"\u0090"'],
+          [0221.chr('utf-8'), '"\u0091"'],
+          [0222.chr('utf-8'), '"\u0092"'],
+          [0223.chr('utf-8'), '"\u0093"'],
+          [0224.chr('utf-8'), '"\u0094"'],
+          [0225.chr('utf-8'), '"\u0095"'],
+          [0226.chr('utf-8'), '"\u0096"'],
+          [0227.chr('utf-8'), '"\u0097"'],
+          [0230.chr('utf-8'), '"\u0098"'],
+          [0231.chr('utf-8'), '"\u0099"'],
+          [0232.chr('utf-8'), '"\u009A"'],
+          [0233.chr('utf-8'), '"\u009B"'],
+          [0234.chr('utf-8'), '"\u009C"'],
+          [0235.chr('utf-8'), '"\u009D"'],
+          [0236.chr('utf-8'), '"\u009E"'],
+          [0237.chr('utf-8'), '"\u009F"'],
+        ].should be_computed_by(:inspect)
+      end
 
-    it "can handle malformed UTF-8 string for #force_encoding('UTF-8')" do
-      # malformed UTF-8 sequence
-      "\007äöüz\303".inspect.force_encoding('UTF-8').should ==
-        "\"\\aäöüz\\xC3\"".force_encoding('UTF-8')
+      it "returns a string with extended characters for Unicode strings" do
+        [ [0240.chr('utf-8'), '" "'],
+          [0241.chr('utf-8'), '"¡"'],
+          [0242.chr('utf-8'), '"¢"'],
+          [0243.chr('utf-8'), '"£"'],
+          [0244.chr('utf-8'), '"¤"'],
+          [0245.chr('utf-8'), '"¥"'],
+          [0246.chr('utf-8'), '"¦"'],
+          [0247.chr('utf-8'), '"§"'],
+          [0250.chr('utf-8'), '"¨"'],
+          [0251.chr('utf-8'), '"©"'],
+          [0252.chr('utf-8'), '"ª"'],
+          [0253.chr('utf-8'), '"«"'],
+          [0254.chr('utf-8'), '"¬"'],
+          [0255.chr('utf-8'), '"­"'],
+          [0256.chr('utf-8'), '"®"'],
+          [0257.chr('utf-8'), '"¯"'],
+          [0260.chr('utf-8'), '"°"'],
+          [0261.chr('utf-8'), '"±"'],
+          [0262.chr('utf-8'), '"²"'],
+          [0263.chr('utf-8'), '"³"'],
+          [0264.chr('utf-8'), '"´"'],
+          [0265.chr('utf-8'), '"µ"'],
+          [0266.chr('utf-8'), '"¶"'],
+          [0267.chr('utf-8'), '"·"'],
+          [0270.chr('utf-8'), '"¸"'],
+          [0271.chr('utf-8'), '"¹"'],
+          [0272.chr('utf-8'), '"º"'],
+          [0273.chr('utf-8'), '"»"'],
+          [0274.chr('utf-8'), '"¼"'],
+          [0275.chr('utf-8'), '"½"'],
+          [0276.chr('utf-8'), '"¾"'],
+          [0277.chr('utf-8'), '"¿"'],
+          [0300.chr('utf-8'), '"À"'],
+          [0301.chr('utf-8'), '"Á"'],
+          [0302.chr('utf-8'), '"Â"'],
+          [0303.chr('utf-8'), '"Ã"'],
+          [0304.chr('utf-8'), '"Ä"'],
+          [0305.chr('utf-8'), '"Å"'],
+          [0306.chr('utf-8'), '"Æ"'],
+          [0307.chr('utf-8'), '"Ç"'],
+          [0310.chr('utf-8'), '"È"'],
+          [0311.chr('utf-8'), '"É"'],
+          [0312.chr('utf-8'), '"Ê"'],
+          [0313.chr('utf-8'), '"Ë"'],
+          [0314.chr('utf-8'), '"Ì"'],
+          [0315.chr('utf-8'), '"Í"'],
+          [0316.chr('utf-8'), '"Î"'],
+          [0317.chr('utf-8'), '"Ï"'],
+          [0320.chr('utf-8'), '"Ð"'],
+          [0321.chr('utf-8'), '"Ñ"'],
+          [0322.chr('utf-8'), '"Ò"'],
+          [0323.chr('utf-8'), '"Ó"'],
+          [0324.chr('utf-8'), '"Ô"'],
+          [0325.chr('utf-8'), '"Õ"'],
+          [0326.chr('utf-8'), '"Ö"'],
+          [0327.chr('utf-8'), '"×"'],
+          [0330.chr('utf-8'), '"Ø"'],
+          [0331.chr('utf-8'), '"Ù"'],
+          [0332.chr('utf-8'), '"Ú"'],
+          [0333.chr('utf-8'), '"Û"'],
+          [0334.chr('utf-8'), '"Ü"'],
+          [0335.chr('utf-8'), '"Ý"'],
+          [0336.chr('utf-8'), '"Þ"'],
+          [0337.chr('utf-8'), '"ß"'],
+          [0340.chr('utf-8'), '"à"'],
+          [0341.chr('utf-8'), '"á"'],
+          [0342.chr('utf-8'), '"â"'],
+          [0343.chr('utf-8'), '"ã"'],
+          [0344.chr('utf-8'), '"ä"'],
+          [0345.chr('utf-8'), '"å"'],
+          [0346.chr('utf-8'), '"æ"'],
+          [0347.chr('utf-8'), '"ç"'],
+          [0350.chr('utf-8'), '"è"'],
+          [0351.chr('utf-8'), '"é"'],
+          [0352.chr('utf-8'), '"ê"'],
+          [0353.chr('utf-8'), '"ë"'],
+          [0354.chr('utf-8'), '"ì"'],
+          [0355.chr('utf-8'), '"í"'],
+          [0356.chr('utf-8'), '"î"'],
+          [0357.chr('utf-8'), '"ï"'],
+          [0360.chr('utf-8'), '"ð"'],
+          [0361.chr('utf-8'), '"ñ"'],
+          [0362.chr('utf-8'), '"ò"'],
+          [0363.chr('utf-8'), '"ó"'],
+          [0364.chr('utf-8'), '"ô"'],
+          [0365.chr('utf-8'), '"õ"'],
+          [0366.chr('utf-8'), '"ö"'],
+          [0367.chr('utf-8'), '"÷"'],
+          [0370.chr('utf-8'), '"ø"'],
+          [0371.chr('utf-8'), '"ù"'],
+          [0372.chr('utf-8'), '"ú"'],
+          [0373.chr('utf-8'), '"û"'],
+          [0374.chr('utf-8'), '"ü"'],
+          [0375.chr('utf-8'), '"ý"'],
+          [0376.chr('utf-8'), '"þ"'],
+          [0377.chr('utf-8'), '"ÿ"']
+        ].should be_computed_by(:inspect)
+      end
     end
   end
 end

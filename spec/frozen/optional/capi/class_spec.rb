@@ -1,77 +1,30 @@
 require File.expand_path('../spec_helper', __FILE__)
+require File.expand_path('../fixtures/class', __FILE__)
 
 load_extension("class")
 
-class CApiClassSpecs
-  module M
-    def included?
-      true
-    end
+autoload :ClassUnderAutoload, "#{extension_path}/class_under_autoload_spec"
+
+describe :rb_path_to_class, :shared => true do
+  it "returns a class or module from a scoped String" do
+    @s.send(@method, "CApiClassSpecs::A::B").should equal(CApiClassSpecs::A::B)
   end
 
-  class IncludesM
+  it "raises an ArgumentError if a constant in the path does not exist" do
+    lambda { @s.send(@method, "CApiClassSpecs::NotDefined::B") }.should raise_error(ArgumentError)
   end
 
-  class Alloc
-    attr_reader :initialized
-    attr_reader :arguments
-
-    def initialize(*args)
-      @initialized = true
-      @arguments   = args
-    end
+  it "raises an ArgumentError if the final constant does not exist" do
+    lambda { @s.send(@method, "CApiClassSpecs::NotDefined") }.should raise_error(ArgumentError)
   end
 
-  class Attr
-    def initialize
-      @foo, @bar, @baz = 1, 2, 3
-    end
+  it "raises a TypeError if the constant is not a class or module" do
+    lambda { @s.send(@method, "CApiClassSpecs::A::C") }.should raise_error(TypeError)
   end
 
-  class CVars
-    @@cvar  = :cvar
-    @c_ivar = :c_ivar
-
-    def new_cv
-      @@new_cv if defined? @@new_cv
-    end
-
-    def new_cvar
-      @@new_cvar if defined? @@new_cvar
-    end
-
-    def rbdcv_cvar
-      @@rbdcv_cvar if defined? @@rbdcv_cvar
-    end
-  end
-
-  class Inherited
-    def self.inherited(klass)
-      klass
-    end
-  end
-
-  class NewClass
-    def self.inherited(klass)
-      raise "#{name}.inherited called"
-    end
-  end
-
-  class Super
-    def call_super_method
-      :super_method
-    end
-  end
-
-  class Sub < Super
-    def call_super_method
-      :subclass_method
-    end
-  end
-
-  class SubSub < Sub
-    def call_super_method
-      :subclass_method
+  ruby_bug '#5691', '1.9.3' do
+    it "raises an ArgumentError even if a constant in the path exists on toplevel" do
+      lambda { @s.send(@method, "CApiClassSpecs::Object") }.should raise_error(ArgumentError)
     end
   end
 end
@@ -157,8 +110,12 @@ describe "C-API Class function" do
   end
 
   describe "rb_path2class" do
-    it "returns the class" do
-      @s.rb_path2class("CApiClassSpecs::Sub").should == CApiClassSpecs::Sub
+    it_behaves_like :rb_path_to_class, :rb_path2class
+  end
+
+  ruby_version_is "1.9" do
+    describe "rb_path_to_class" do
+      it_behaves_like :rb_path_to_class, :rb_path_to_class
     end
   end
 
@@ -205,6 +162,38 @@ describe "C-API Class function" do
       o.new_cvar.should == 1
     end
 
+  end
+
+  describe "rb_define_class_under" do
+    it "creates a subclass of the superclass contained in a module" do
+      cls = @s.rb_define_class_under(CApiClassSpecs,
+                                     "ClassUnder1",
+                                     CApiClassSpecs::Super)
+      cls.should be_kind_of(Class)
+      CApiClassSpecs::Super.should be_ancestor_of(CApiClassSpecs::ClassUnder1)
+    end
+
+    it "uses Object as the superclass if NULL is passed" do
+      @s.rb_define_class_under(CApiClassSpecs, "ClassUnder2", nil)
+      Object.should be_ancestor_of(CApiClassSpecs::ClassUnder2)
+    end
+
+    it "sets the class name" do
+      cls = @s.rb_define_class_under(CApiClassSpecs, "ClassUnder3", nil)
+      cls.name.should == "CApiClassSpecs::ClassUnder3"
+    end
+
+    it "call #inherited on the superclass" do
+      CApiClassSpecs::Super.should_receive(:inherited)
+      cls = @s.rb_define_class_under(CApiClassSpecs,
+                                     "ClassUnder4", CApiClassSpecs::Super)
+    end
+
+    it "defines a class for an existing Autoload" do
+      compile_extension("class_under_autoload")
+
+      ClassUnderAutoload.name.should == "ClassUnderAutoload"
+    end
   end
 
   describe "rb_define_class_variable" do
@@ -258,6 +247,19 @@ describe "C-API Class function" do
     it "raises a TypeError if passed a singleton class as the superclass" do
       metaclass = Object.new.singleton_class
       lambda { @s.rb_class_new(metaclass) }.should raise_error(TypeError)
+    end
+  end
+
+  ruby_version_is "1.9.3" do
+    describe "rb_class_superclass" do
+      it "returns the superclass of a class" do
+        cls = @s.rb_class_superclass(CApiClassSpecs::Sub)
+        cls.should == CApiClassSpecs::Super
+      end
+
+      it "returns nil if the class has no superclass" do
+        @s.rb_class_superclass(BasicObject).should be_nil
+      end
     end
   end
 end

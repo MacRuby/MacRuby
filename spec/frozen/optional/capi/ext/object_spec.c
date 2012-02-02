@@ -18,6 +18,13 @@ static VALUE object_spec_OBJ_TAINTED(VALUE self, VALUE obj) {
 }
 #endif
 
+#ifdef HAVE_OBJ_INFECT
+static VALUE object_spec_OBJ_INFECT(VALUE self, VALUE host, VALUE source) {
+  OBJ_INFECT(host, source);
+  return Qnil;
+}
+#endif
+
 #ifdef HAVE_RB_ANY_TO_S
 static VALUE object_spec_rb_any_to_s(VALUE self, VALUE obj) {
   return rb_any_to_s(obj);
@@ -102,7 +109,7 @@ static VALUE so_rb_obj_dup(VALUE self, VALUE klass) {
 static VALUE so_rb_obj_call_init(VALUE self, VALUE object,
                                  VALUE nargs, VALUE args) {
   int c_nargs = FIX2INT(nargs);
-  VALUE c_args[c_nargs];
+  VALUE *c_args = alloca(sizeof(VALUE) * c_nargs);
   int i;
 
   for (i = 0; i < c_nargs; i++)
@@ -340,6 +347,10 @@ void Init_object_spec() {
 
 #ifdef HAVE_OBJ_TAINTED
   rb_define_method(cls, "OBJ_TAINTED", object_spec_OBJ_TAINTED, 1);
+#endif
+
+#ifdef HAVE_OBJ_INFECT
+  rb_define_method(cls, "OBJ_INFECT", object_spec_OBJ_INFECT, 2);
 #endif
 
 #ifdef HAVE_RB_ANY_TO_S
