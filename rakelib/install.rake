@@ -365,9 +365,6 @@ namespace :install do
 
     makedirs xcode3_template_dir
     install_recursive 'misc/xcode-templates', xcode3_template_dir, :mode => prog_mode
-
-    makedirs xcode2_template_dir
-    install_recursive 'misc/xcode-templates', xcode2_template_dir, :mode => prog_mode
   end
 
   task :xcode_samples do
