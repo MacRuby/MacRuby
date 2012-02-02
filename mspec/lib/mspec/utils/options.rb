@@ -280,6 +280,8 @@ class MSpecOptions
         config[:formatter] = YamlFormatter
       when 'p', 'profile'
         config[:formatter] = ProfileFormatter
+      when 'j', 'junit'
+        config[:formatter] = JUnitFormatter
       when 'mr', 'macruby'
         config[:formatter] = MacRubyFormatter
       else
@@ -299,6 +301,7 @@ class MSpecOptions
     doc "       a, *, spin               SpinnerFormatter"
     doc "       t, method                MethodFormatter"
     doc "       y, yaml                  YamlFormatter"
+    doc "       j, junit                 JUnitFormatter\n"
     doc "       mr, macruby              MacRubyFormatter\n"
 
     on("-o", "--output", "FILE",
