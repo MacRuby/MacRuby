@@ -63,7 +63,8 @@ Or, as with LLVM, you can specify the amount of jobs to run simultaneously:
 Once done, you can run the RubySpec-based regression tests as well as the
 performance suite:
 
-  $ rake spec:ci
+  $ rake spec:rubyspec
+  $ rake spec:ci         # Currently has some known failures - see https://www.macruby.org/trac/ticket/1441
   $ rake bench:ci
 
 To install MacRuby on your machine:
