@@ -1,9 +1,5 @@
-fails:Kernel#load (path resolution) loads a ./ relative path from the current working directory with empty $LOAD_PATH
-fails:Kernel#load (path resolution) loads a ../ relative path from the current working directory with empty $LOAD_PATH
 fails:Kernel#load sets the enclosing scope to an anonymous module if passed true for 'wrap'
 fails:Kernel#load (shell expansion) expands a tilde to the HOME environment variable as the path to load
-fails:Kernel.load (path resolution) loads a ./ relative path from the current working directory with empty $LOAD_PATH
-fails:Kernel.load (path resolution) loads a ../ relative path from the current working directory with empty $LOAD_PATH
 fails:Kernel.load sets the enclosing scope to an anonymous module if passed true for 'wrap'
 fails:Kernel.load (shell expansion) expands a tilde to the HOME environment variable as the path to load
 fails:Kernel#load loads from the current working directory
