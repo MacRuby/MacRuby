@@ -7,7 +7,7 @@ task :mark_gc do
   end
 end
 
-task :files => [:config_h, :dtrace_h, :revision_h, :mark_gc] do
+task :files => [:config_h, :dtrace_h, :revision_h, :mark_gc, :info_plist] do
 end
 
 def build_objects
@@ -177,12 +177,10 @@ end
 desc "Same as extensions"
 task :ext => 'extensions'
 
-namespace :framework do
-  desc "Create the plist file for the framework"
-  task :info_plist do
-    require File.expand_path('../builder/templates', __FILE__)
-    Builder.create_framework_info_plist
-  end
+desc "Create the plist file for the framework"
+task :info_plist do
+  require File.expand_path('../builder/templates', __FILE__)
+  Builder.create_framework_info_plist
 end
 
 namespace :clean do
