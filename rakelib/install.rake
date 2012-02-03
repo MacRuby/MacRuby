@@ -248,12 +248,11 @@ namespace :install do
     end
 
     puts 'Installing Extension Objects'
-    makedirs arch_lib_dir, RUBY_SITE_LIB2, RUBY_VENDOR_ARCHLIB, arch_header_dir
+    makedirs RUBY_SITE_LIB2, RUBY_VENDOR_ARCHLIB
     install_recursive "#{EXTOUT}/#{NEW_RUBY_PLATFORM}", arch_lib_dir, :mode => prog_mode
     install_recursive "#{EXTOUT}/include/#{NEW_RUBY_PLATFORM}", arch_header_dir, :glob => '*.h', :mode => data_mode
 
     puts 'Installing extensions scripts'
-    makedirs lib_dir, RUBY_SITE_LIB2, RUBY_VENDOR_LIB2, ruby_header_dir
     install_recursive "#{EXTOUT}/common", lib_dir, :mode => data_mode
     install_recursive "#{EXTOUT}/include/ruby", ruby_header_dir, :glob => '*.h', :mode => data_mode
   end
@@ -261,14 +260,12 @@ namespace :install do
   desc 'Install the MacRuby headers'
   task :headers do
     puts 'Installing headers'
-    makedirs header_dir
     install_recursive 'include', header_dir, :glob => '*.h', :mode => data_mode
   end
 
   desc 'Install RDoc and RI documentation'
   task :doc do
     puts 'Installing RI data'
-    makedirs ri_dir
     install_recursive 'doc/', ri_dir, :mode => data_mode
   end
 
@@ -359,17 +356,12 @@ namespace :install do
   task :xcode_templates do
     # TODO only install templates for installed Xcodes
     puts 'Installing XCode templates'
-
-    makedirs xcode4_template_dir
     install_recursive 'misc/xcode4-templates', xcode4_template_dir, :mode => prog_mode
-
-    makedirs xcode3_template_dir
     install_recursive 'misc/xcode-templates', xcode3_template_dir, :mode => prog_mode
   end
 
   task :xcode_samples do
     puts 'Installing MacRuby sample projects'
-    makedirs xcode_example_dir
     install_recursive 'sample-macruby', xcode_example_dir, :mode => script_mode
   end
 
