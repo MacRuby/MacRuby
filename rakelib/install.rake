@@ -167,7 +167,8 @@ end
 namespace :install do
   extend Installer
 
-  task :all => [:bin, :scripts, :lib, :ext, :headers, :doc, :man, :resources, :xcode_support]
+  task :all => ['framework:info_plist',
+                :bin, :scripts, :lib, :ext, :headers, :doc, :man, :resources, :xcode_support]
 
   desc 'Install MacRuby binaries'
   task :bin do
