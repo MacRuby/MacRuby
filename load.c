@@ -298,6 +298,24 @@ rb_f_require_imp(VALUE obj, SEL sel, VALUE fname)
     return rb_f_require(obj, fname);
 }
 
+VALUE
+rb_f_require_relative(VALUE obj, VALUE fname)
+{
+    VALUE rb_current_realfilepath(void);
+    VALUE base = rb_current_realfilepath();
+    if (NIL_P(base)) {
+	rb_raise(rb_eLoadError, "cannot infer basepath");
+    }
+    base = rb_file_dirname(base);
+    return rb_require_safe(rb_file_absolute_path(fname, base), rb_safe_level());
+}
+
+VALUE
+rb_f_require_relative_imp(VALUE obj, SEL sel, VALUE fname)
+{
+    return rb_f_require_relative(obj, fname);
+}
+
 #if !defined(MACRUBY_STATIC)
 
 static bool
@@ -570,6 +588,7 @@ Init_load()
 
     rb_objc_define_module_function(rb_mKernel, "load", rb_f_load, -1);
     rb_objc_define_module_function(rb_mKernel, "require", rb_f_require_imp, 1);
+    rb_objc_define_module_function(rb_mKernel, "require_relative", rb_f_require_relative_imp, 1);
     rb_objc_define_method(rb_cModule, "autoload", rb_mod_autoload, 2);
     rb_objc_define_method(rb_cModule, "autoload?", rb_mod_autoload_p, 1);
     rb_objc_define_module_function(rb_mKernel, "autoload", rb_f_autoload, 2);

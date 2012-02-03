@@ -3883,6 +3883,28 @@ rb_vm_backtrace(int skip)
     return ary;
 }
 
+extern VALUE rb_progname;
+
+extern "C"
+VALUE
+rb_current_realfilepath(void)
+{
+    void *callstack[10];
+    int callstack_n = backtrace(callstack, 10);
+    char path[PATH_MAX];
+    unsigned int interpreter_frame_idx = 0;
+
+    for (int i = 0; i < callstack_n; i++) {
+	path[0] = '\0';
+	GET_CORE()->symbolize_call_address(callstack[i], path, sizeof path,
+		NULL, NULL, 0, &interpreter_frame_idx);
+	if (path[0] != '\0' && path[0] != '-') { // ignore '-e'
+	    return rb_str_new_cstr(path);
+	}
+    }
+    return rb_progname;
+}
+
 extern "C"
 unsigned char
 rb_vm_is_eh_active(int argc, ...)
