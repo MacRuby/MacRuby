@@ -36,10 +36,10 @@ task :test => [:sample_test, :unit_tests]
 =end
 
 desc "Clean local and extension build files"
-task :clean => ['clean:local', 'clean:rbo', 'clean:ext', 'clean:doc']
+task :clean => ['clean:local', 'clean:rbo', 'clean:ext', 'clean:doc', 'clean:info_plist']
 
 desc "Build everything"
-task :all => [:macruby, 'stdlib:build', :extensions, :doc]
+task :all => [:macruby, 'stdlib:build', :extensions, :doc, :info_plist]
 
 desc "Create an archive (GIT only)"
 task :git_archive do

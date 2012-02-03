@@ -177,12 +177,10 @@ end
 desc "Same as extensions"
 task :ext => 'extensions'
 
-namespace :framework do
-  desc "Create the plist file for the framework"
-  task :info_plist do
-    require File.expand_path('../builder/templates', __FILE__)
-    Builder.create_framework_info_plist
-  end
+desc "Create the plist file for the framework"
+task :info_plist do
+  require File.expand_path('../builder/templates', __FILE__)
+  Builder.create_framework_info_plist
 end
 
 namespace :clean do
@@ -212,5 +210,10 @@ namespace :clean do
   desc "Clean the RDoc files"
   task :doc do
     rm_rf('doc')
+  end
+
+  desc "Clean the Info.plist file"
+  task :info_plist do
+    rm_f('framework/Info.plist')
   end
 end
