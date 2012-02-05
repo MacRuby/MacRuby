@@ -4659,6 +4659,9 @@ RoxorCompiler::compile_node0(NODE *node)
 		    // one from the VM stack and rethrow.
 		    bb = new_rescue_invoke_bb;
 		    compile_landing_pad_header();
+#if ROXOR_COMPILER_DEBUG
+		    printf("%s (%s:%d): Calling compile_pop_exception(1)...\n", __FUNCTION__, __FILE__, __LINE__);
+#endif
 		    compile_pop_exception(1);
 		    compile_rethrow_exception();
 		    rescue_invoke_bb = old_rescue_invoke_bb;
