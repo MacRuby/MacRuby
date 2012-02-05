@@ -6042,6 +6042,8 @@ Init_String(void)
     rb_set_class_path(rb_cRubyString, rb_cObject, "String");
     rb_const_set(rb_cObject, rb_intern("String"), rb_cRubyString);
 
+    rb_objc_define_method(*(VALUE *)rb_cRubyString, "new",
+	    rb_class_new_instance_imp, -1);
     rb_objc_define_method(*(VALUE *)rb_cRubyString, "alloc", rstr_alloc, 0);
     rb_objc_define_method(*(VALUE *)rb_cRubyString, "try_convert",
 	    rstr_try_convert, 1);
