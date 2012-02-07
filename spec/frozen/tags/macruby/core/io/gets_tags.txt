@@ -1,2 +1,2 @@
-fails:IO#gets with an empty String separator returns the next paragraph
 fails:IO#gets with an empty String separator reads until the beginning of the next paragraph
+fails:IO#gets reads until the next paragraph when passed '' and a limit greater than the next paragraph

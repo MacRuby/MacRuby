@@ -1,5 +1,2 @@
-critical:IO#readlines when passed a separator tries to convert the passed separator to a String using #to_str
-critical:IO.readlines when passed an object as separator tries to convert the passed separator to a String using #to_str
-critical:IO#readlines when passed an empty String returns an Array containing all paragraphs
 fails:IO#readlines when passed a string that starts with a | gets data from a fork when passed
 fails:IO.readlines when passed an empty String as a separator returns an Array containing all paragraphs

@@ -1,0 +1,3 @@
+fails:IO#binmode sets external encoding to binary
+fails:IO#binmode sets internal encoding to nil
+fails:IO#binmode? is true after a call to IO#binmode

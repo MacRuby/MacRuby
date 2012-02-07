@@ -1,0 +1,2 @@
+critical:IO.select when passed nil for timeout sleeps forever
+critical:IO.select when passed nil for timeout sets the thread's status to 'sleep'
