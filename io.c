@@ -1594,11 +1594,9 @@ rb_io_getline_1(VALUE sep, long line_limit, VALUE io)
 		    io_struct->buf_offset++;
 		}
 	    }
-	    long cache_len = CFDataGetLength(io_struct->buf)
+	    assert(CFDataGetLength(io_struct->buf) >= io_struct->buf_offset);
+	    const long cache_len = CFDataGetLength(io_struct->buf)
 		- io_struct->buf_offset;
-	    if (CFDataGetLength(io_struct->buf) < io_struct->buf_offset) {
-		cache_len = 0;
-	    }
 	    const UInt8 *pos = cache;
 	    long data_read = 0;
 	    while (true) {
