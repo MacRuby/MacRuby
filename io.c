@@ -1599,8 +1599,10 @@ rb_io_getline_1(VALUE sep, long line_limit, VALUE io)
 		- io_struct->buf_offset;
 	    const UInt8 *pos = cache;
 	    long data_read = 0;
+	    #define REST_CACHE_LENGTH (cache_len - (long)(pos - cache))
+
 	    while (true) {
-		const UInt8 *tmp = memchr(pos, sepstr[0], cache_len);
+		const UInt8 *tmp = memchr(pos, sepstr[0], REST_CACHE_LENGTH);
 		if (tmp == NULL) {
 		    data_read = cache_len;
 		    break;
@@ -1608,9 +1610,16 @@ rb_io_getline_1(VALUE sep, long line_limit, VALUE io)
 		if (seplen == 1
 			|| memcmp(tmp + 1, &sepstr[1], seplen - 1) == 0) {
 		    data_read = tmp - cache + seplen;
+		    if (data_read > cache_len) {
+			data_read = cache_len;
+		    }
 		    break;
 		}
 		pos = tmp + seplen;
+		if (REST_CACHE_LENGTH <= 0) {
+		    data_read = cache_len;
+		    break;
+		}
 	    }
 	    if (data_read == 0) {
 		return Qnil;
@@ -1618,6 +1627,8 @@ rb_io_getline_1(VALUE sep, long line_limit, VALUE io)
 
 	    rb_bstr_concat(bstr, cache, data_read);
 	    rb_io_read_update(io_struct, data_read);
+
+	    #undef REST_CACHE_LENGTH
 	}
 	else {
 	    // Read from IO (slow).
