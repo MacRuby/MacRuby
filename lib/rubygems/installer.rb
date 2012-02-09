@@ -318,9 +318,41 @@ class Gem::Installer
   def generate_bin_script(filename, bindir)
     bin_script_path = File.join bindir, formatted_program_filename(filename)
 
-    FileUtils.rm_f bin_script_path # prior install may have been --no-wrappers
+    # XXX MACRUBY do not allow executables to be overriden by a different
+    # Ruby implementation
+    #FileUtils.rm_f bin_script_path # prior install may have been --no-wrappers
 
-    File.open bin_script_path, 'wb', 0755 do |file|
+    #File.open bin_script_path, 'wb', 0755 do |file|
+    bin_script_exists = File.exists?(bin_script_path)
+    mode   = 'w' unless(bin_script_exists)
+    mode ||= 'r+'
+    new_shebang = shebang(filename)
+    File.open bin_script_path, mode, 0755 do |file|
+      if bin_script_exists
+        # If the first line is different than the shebang we want to insert
+        # we are probably overwriting a script installed by another ruby
+        # implementation / version
+        begin
+          old_shebang = file.readline.chomp
+        rescue
+          old_shebang = ""
+        end
+
+        if old_shebang != new_shebang
+          warn = <<-WARN_MESSAGE
+You are installing a new version of #{bin_script_path}.
+This file already exists with a different shebang, possibly from a different
+ruby implementation or version. This operation may break the script.
+WARN_MESSAGE
+          alert_warning(warn)
+          if !@force && !ask_yes_no("Do you still wish to continue?")
+            raise Gem::InstallError, "Could not write #{bin_script_path}"
+          end
+          say "Overwrote #{bin_script_path}" if Gem.configuration.really_verbose
+        end
+        file.seek(0)
+        file.truncate(0)
+      end
       file.print app_script_text(filename)
     end
 
