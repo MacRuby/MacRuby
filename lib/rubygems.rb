@@ -6,8 +6,11 @@
 #++
 
 module Gem
-  QUICKLOADER_SUCKAGE = RUBY_VERSION =~ /^1\.9\.1/
-  GEM_PRELUDE_SUCKAGE = RUBY_VERSION =~ /^1\.9\.2/
+  # XXX MACRUBY does not preload rubygems
+  #QUICKLOADER_SUCKAGE = RUBY_VERSION =~ /^1\.9\.1/
+  #GEM_PRELUDE_SUCKAGE = RUBY_VERSION =~ /^1\.9\.2/
+  QUICKLOADER_SUCKAGE = false
+  GEM_PRELUDE_SUCKAGE = false
 end
 
 if Gem::GEM_PRELUDE_SUCKAGE and defined?(Gem::QuickLoader) then
@@ -1232,7 +1235,9 @@ end
 
 require 'rubygems/exceptions'
 
-gem_preluded = Gem::GEM_PRELUDE_SUCKAGE and defined? Gem
+# XXX MACRUBY does not preload rubygems
+#gem_preluded = Gem::GEM_PRELUDE_SUCKAGE and defined? Gem
+gem_preluded = false
 unless gem_preluded then # TODO: remove guard after 1.9.2 dropped
   begin
     ##
