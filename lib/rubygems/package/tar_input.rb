@@ -54,7 +54,9 @@ class Gem::Package::TarInput
           args << { :external_encoding => Encoding::UTF_8 } if
             Object.const_defined?(:Encoding)
 
-          gzis = Zlib::GzipReader.new(*args)
+          # XXX MACRUBY our Zlib::GzipReader.new can't accept variable length arguments
+          #gzis = Zlib::GzipReader.new(*args)
+          gzis = Zlib::GzipReader.new(sio || entry)
 
           # YAML wants an instance of IO
           @metadata = load_gemspec(gzis)
