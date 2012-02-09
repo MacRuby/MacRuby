@@ -19,11 +19,8 @@ class Gem::Commands::InstallCommand < Gem::Command
 
   def initialize
     defaults = Gem::DependencyInstaller::DEFAULT_OPTIONS.merge({
-      # XXX MACRUBY does not generate documents because errer occurs
-      #:generate_rdoc     => true,
-      #:generate_ri       => true,
-      :generate_rdoc     => false,
-      :generate_ri       => false,
+      :generate_rdoc     => true,
+      :generate_ri       => true,
       :format_executable => false,
       :version           => Gem::Requirement.default,
     })
