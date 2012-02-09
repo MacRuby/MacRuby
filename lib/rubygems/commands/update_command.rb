@@ -58,6 +58,8 @@ class Gem::Commands::UpdateCommand < Gem::Command
     hig = {}
 
     if options[:system] then
+      # XXX MACRUBY We can't allow people to self-update RubyGems at this point.
+      raise "This version of RubyGems cannot be self-updated."
       update_rubygems
       return
     else
