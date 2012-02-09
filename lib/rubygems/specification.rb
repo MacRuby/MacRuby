@@ -1924,7 +1924,9 @@ class Gem::Specification
     if YAML.const_defined?(:ENGINE) && !YAML::ENGINE.syck? then
       super.gsub(/ !!null \n/, " \n")
     else
-      YAML.quick_emit object_id, opts do |out|
+      # XXX MACRUBY our quick_emit is different than syck
+      #YAML.quick_emit object_id, opts do |out|
+      YAML.quick_emit nil do |out|
         out.map taguri, to_yaml_style do |map|
           encode_with map
         end
