@@ -13,10 +13,21 @@ task :nightly do
       `svn up`
     end
   end
+
   puts "Building MacRuby"
   `rake`
+
   puts "Preparing for packaging"
   `rake install DESTDIR=#{build_destination}` 
+
   puts "Packaging MacRuby"
-  `/Developer/usr/bin/packagemaker --doc #{File.expand_path(File.dirname(__FILE__))}/../misc/release/macruby_nightly.pmdoc/ --out ~/tmp/macruby_nightly-#{Time.now.strftime("%Y-%m-%d")}.pkg --version #{Time.now.strftime("%Y-%m-%d")}-nightly`
+  package_dir  = ["#{ENV['HOME']}/tmp", "#{ENV['HOME']}/Desktop", '/tmp'].find { |dir| File.exist?(dir) }
+  package_date = Time.now.strftime("%Y-%m-%d")
+  package      = "#{package_dir}/macruby_nightly-#{package_date}.pkg"
+  `/Developer/usr/bin/packagemaker --doc #{File.expand_path(File.dirname(__FILE__))}/../misc/release/macruby_nightly.pmdoc/ --out #{package} --version #{package_date}-nightly`
+  if $?.success?
+    puts "Package saved to #{package}"
+  else
+    puts "Failed to save package"
+  end
 end
