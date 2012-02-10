@@ -171,7 +171,7 @@ namespace :install do
 
   desc 'Install MacRuby binaries'
   task :bin do
-    puts 'Installing the macruby binary command'
+    puts 'Installing the macruby binary and dependencies'
 
     makedirs FRAMEWORK_USR_BIN, FRAMEWORK_USR_LIB, arch_lib_dir
 
@@ -186,7 +186,7 @@ namespace :install do
       ln_sf dylib, "#{FRAMEWORK_USR_LIB}/#{link}"
     end
 
-    puts 'Installing LLVM tools'
+    puts 'Installing LLVM tool'
     install "#{LLVM_PATH}/bin/llc", "#{FRAMEWORK_USR_BIN}/llc", :mode => prog_mode
   end
 
@@ -247,7 +247,7 @@ namespace :install do
       install path, "#{RUBY_SITE_LIB2}/#{sub_dir}", :mode => prog_mode
     end
 
-    puts 'Installing Extension Objects'
+    puts 'Installing extension objects'
     makedirs RUBY_SITE_LIB2, RUBY_VENDOR_ARCHLIB
     install_recursive "#{EXTOUT}/#{NEW_RUBY_PLATFORM}", arch_lib_dir, :mode => prog_mode
     install_recursive "#{EXTOUT}/include/#{NEW_RUBY_PLATFORM}", arch_header_dir, :glob => '*.h', :mode => data_mode
