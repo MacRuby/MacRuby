@@ -74,10 +74,12 @@ class Gem::Commands::QueryCommand < Gem::Command
         exit_code |= 1
       end
 
-      raise Gem::SystemExitException, exit_code
+      terminate_interaction exit_code
     end
 
-    dep = Gem::Dependency.new name, Gem::Requirement.default
+    req = Gem::Requirement.default
+    # TODO: deprecate for real
+    dep = Gem::Deprecate.skip_during { Gem::Dependency.new name, req }
 
     if local? then
       if prerelease and not both? then
@@ -90,7 +92,9 @@ class Gem::Commands::QueryCommand < Gem::Command
         say
       end
 
-      specs = Gem.source_index.search dep
+      specs = Gem::Specification.find_all { |s|
+        s.name =~ name and req =~ s.version
+      }
 
       spec_tuples = specs.map do |spec|
         [[spec.name, spec.version, spec.original_platform, spec], :local]
@@ -108,31 +112,11 @@ class Gem::Commands::QueryCommand < Gem::Command
 
       all = options[:all]
 
-      begin
-        fetcher = Gem::SpecFetcher.fetcher
-        spec_tuples = fetcher.find_matching dep, all, false, prerelease
+      fetcher = Gem::SpecFetcher.fetcher
+      spec_tuples = fetcher.find_matching dep, all, false, prerelease
 
-        spec_tuples += fetcher.find_matching dep, false, false, true if
-          prerelease and all
-      rescue Gem::RemoteFetcher::FetchError => e
-        if prerelease then
-          raise Gem::OperationNotSupportedError,
-                "Prereleases not supported on legacy repositories"
-        end
-
-        raise unless fetcher.warn_legacy e do
-          require 'rubygems/source_info_cache'
-
-          dep.name = '' if dep.name == //
-
-          specs = Gem::SourceInfoCache.search_with_source dep, false, all
-
-          spec_tuples = specs.map do |spec, source_uri|
-            [[spec.name, spec.version, spec.original_platform, spec],
-             source_uri]
-          end
-        end
-      end
+      spec_tuples += fetcher.find_matching dep, false, false, true if
+        prerelease and all
 
       output_query_results spec_tuples
     end
@@ -143,9 +127,8 @@ class Gem::Commands::QueryCommand < Gem::Command
   ##
   # Check if gem +name+ version +version+ is installed.
 
-  def installed?(name, version = Gem::Requirement.default)
-    dep = Gem::Dependency.new name, version
-    !Gem.source_index.search(dep).empty?
+  def installed?(name, req = Gem::Requirement.default)
+    Gem::Specification.any? { |s| s.name =~ name and req =~ s.version }
   end
 
   def output_query_results(spec_tuples)

@@ -1,7 +1,6 @@
 require 'rubygems/command'
 require 'rubygems/local_remote_options'
 require 'rubygems/version_option'
-require 'rubygems/source_info_cache'
 require 'rubygems/format'
 
 class Gem::Commands::SpecificationCommand < Gem::Command
@@ -10,7 +9,7 @@ class Gem::Commands::SpecificationCommand < Gem::Command
   include Gem::VersionOption
 
   def initialize
-    require 'yaml'
+    Gem.load_yaml
 
     super 'specification', 'Display gem specification (in yaml)',
           :domain => :local, :version => Gem::Requirement.default,
@@ -67,18 +66,8 @@ FIELD         name of gemspec field to show
 
     field = get_one_optional_argument
 
-    if field then
-      field = field.intern
-
-      if options[:format] == :ruby then
-        raise Gem::CommandLineError, "--ruby and FIELD are mutually exclusive"
-      end
-
-      unless Gem::Specification.attribute_names.include? field then
-        raise Gem::CommandLineError,
-              "no field %p on Gem::Specification" % field.to_s
-      end
-    end
+    raise Gem::CommandLineError, "--ruby and FIELD are mutually exclusive" if
+      field and options[:format] == :ruby
 
     if local? then
       if File.exist? gem then
@@ -86,7 +75,7 @@ FIELD         name of gemspec field to show
       end
 
       if specs.empty? then
-        specs.push(*Gem.source_index.search(dep))
+        specs.push(*dep.matching_specs)
       end
     end
 
@@ -101,7 +90,11 @@ FIELD         name of gemspec field to show
       terminate_interaction 1
     end
 
-    output = lambda do |s|
+    unless options[:all] then
+      specs = [specs.sort_by { |s| s.version }.last]
+    end
+
+    specs.each do |s|
       s = s.send field if field
 
       say case options[:format]
@@ -112,14 +105,5 @@ FIELD         name of gemspec field to show
 
       say "\n"
     end
-
-    if options[:all] then
-      specs.each(&output)
-    else
-      spec = specs.sort_by { |s| s.version }.last
-      output[spec]
-    end
   end
-
 end
-

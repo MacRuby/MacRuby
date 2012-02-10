@@ -1,5 +1,4 @@
 require 'webrick'
-require 'yaml'
 require 'zlib'
 require 'erb'
 
@@ -21,7 +20,6 @@ require 'rubygems/doc_manager'
 # * legacy indexes:
 #   * "/Marshal.#{Gem.marshal_version}" - Full SourceIndex dump of metadata
 #     for installed gems
-#   * "/yaml" - YAML dump of metadata for installed gems - deprecated
 #
 # == Usage
 #
@@ -77,47 +75,47 @@ class Gem::Server
 
   <dl>
   <% values["specs"].each do |spec| %>
-  	<dt>
-  	<% if spec["first_name_entry"] then %>
-  	  <a name="<%=spec["name"]%>"></a>
-  	<% end %>
+    <dt>
+    <% if spec["first_name_entry"] then %>
+      <a name="<%=spec["name"]%>"></a>
+    <% end %>
 
-  	<b><%=spec["name"]%> <%=spec["version"]%></b>
+    <b><%=spec["name"]%> <%=spec["version"]%></b>
 
-  	<% if spec["rdoc_installed"] then %>
-  	  <a href="<%=spec["doc_path"]%>">[rdoc]</a>
-  	<% else %>
-  	  <span title="rdoc not installed">[rdoc]</span>
-  	<% end %>
+    <% if spec["rdoc_installed"] then %>
+      <a href="<%=spec["doc_path"]%>">[rdoc]</a>
+    <% else %>
+      <span title="rdoc not installed">[rdoc]</span>
+    <% end %>
 
-  	<% if spec["homepage"] then %>
-  		<a href="<%=spec["homepage"]%>" title="<%=spec["homepage"]%>">[www]</a>
-  	<% else %>
-  		<span title="no homepage available">[www]</span>
-  	<% end %>
+    <% if spec["homepage"] then %>
+      <a href="<%=spec["homepage"]%>" title="<%=spec["homepage"]%>">[www]</a>
+    <% else %>
+      <span title="no homepage available">[www]</span>
+    <% end %>
 
-  	<% if spec["has_deps"] then %>
-  	 - depends on
-  		<%= spec["dependencies"].map { |v| "<a href=\"##{v["name"]}\">#{v["name"]}</a>" }.join ', ' %>.
-  	<% end %>
-  	</dt>
-  	<dd>
-  	<%=spec["summary"]%>
-  	<% if spec["executables"] then %>
-  	  <br/>
+    <% if spec["has_deps"] then %>
+     - depends on
+      <%= spec["dependencies"].map { |v| "<a href=\"##{v["name"]}\">#{v["name"]}</a>" }.join ', ' %>.
+    <% end %>
+    </dt>
+    <dd>
+    <%=spec["summary"]%>
+    <% if spec["executables"] then %>
+      <br/>
 
-  		<% if spec["only_one_executable"] then %>
-  		    Executable is
-  		<% else %>
-  		    Executables are
-  		<%end%>
+      <% if spec["only_one_executable"] then %>
+          Executable is
+      <% else %>
+          Executables are
+      <%end%>
 
-  		<%= spec["executables"].map { |v| "<span class=\"context-item-name\">#{v["executable"]}</span>"}.join ', ' %>.
+      <%= spec["executables"].map { |v| "<span class=\"context-item-name\">#{v["executable"]}</span>"}.join ', ' %>.
 
-  	<%end%>
-  	<br/>
-  	<br/>
-  	</dd>
+    <%end%>
+    <br/>
+    <br/>
+    </dd>
   <% end %>
   </dl>
 
@@ -456,15 +454,15 @@ div.method-source-code pre { color: #ffdead; overflow: hidden; }
       spec_dir
     end
 
-    @source_index = Gem::SourceIndex.from_gems_in(*@spec_dirs)
+    Gem::Specification.dirs = @gem_dirs
   end
 
   def Marshal(req, res)
-    @source_index.refresh!
+    Gem::Specification.reset
 
     add_date res
 
-    index = Marshal.dump @source_index
+    index = Gem::Deprecate.skip_during { Marshal.dump Gem.source_index }
 
     if req.request_method == 'HEAD' then
       res['content-length'] = index.length
@@ -488,15 +486,16 @@ div.method-source-code pre { color: #ffdead; overflow: hidden; }
   end
 
   def latest_specs(req, res)
-    @source_index.refresh!
+    Gem::Specification.reset
 
     res['content-type'] = 'application/x-gzip'
 
     add_date res
 
-    specs = @source_index.latest_specs.sort.map do |spec|
-      platform = spec.original_platform
-      platform = Gem::Platform::RUBY if platform.nil?
+    latest_specs = Gem::Specification.latest_specs
+
+    specs = latest_specs.sort.map do |spec|
+      platform = spec.original_platform || Gem::Platform::RUBY
       [spec.name, spec.version, platform]
     end
 
@@ -548,31 +547,17 @@ div.method-source-code pre { color: #ffdead; overflow: hidden; }
   end
 
   def quick(req, res)
-    @source_index.refresh!
+    Gem::Specification.reset
 
     res['content-type'] = 'text/plain'
     add_date res
 
     case req.request_uri.path
-    when '/quick/index' then
-      res.body << @source_index.map { |name,| name }.sort.join("\n")
-    when '/quick/index.rz' then
-      index = @source_index.map { |name,| name }.sort.join("\n")
-      res['content-type'] = 'application/x-deflate'
-      res.body << Gem.deflate(index)
-    when '/quick/latest_index' then
-      index = @source_index.latest_specs.map { |spec| spec.full_name }
-      res.body << index.sort.join("\n")
-    when '/quick/latest_index.rz' then
-      index = @source_index.latest_specs.map { |spec| spec.full_name }
-      res['content-type'] = 'application/x-deflate'
-      res.body << Gem.deflate(index.sort.join("\n"))
     when %r|^/quick/(Marshal.#{Regexp.escape Gem.marshal_version}/)?(.*?)-([0-9.]+)(-.*?)?\.gemspec\.rz$| then
       marshal_format, name, version, platform = $1, $2, $3, $4
-      dep = Gem::Dependency.new name, version
-      specs = @source_index.search dep
+      specs = Gem::Specification.find_all_by_name name, version
 
-      selector = [name, version, platform].map { |s| s.inspect }.join ' '
+      selector = [name, version, platform].map(&:inspect).join ' '
 
       platform = if platform then
                    Gem::Platform.new platform.sub(/^-/, '')
@@ -591,9 +576,6 @@ div.method-source-code pre { color: #ffdead; overflow: hidden; }
       elsif marshal_format then
         res['content-type'] = 'application/x-deflate'
         res.body << Gem.deflate(Marshal.dump(specs.first))
-      else # deprecated YAML format
-        res['content-type'] = 'application/x-deflate'
-        res.body << Gem.deflate(specs.first.to_yaml)
       end
     else
       raise WEBrick::HTTPStatus::NotFound, "`#{req.path}' not found."
@@ -601,7 +583,7 @@ div.method-source-code pre { color: #ffdead; overflow: hidden; }
   end
 
   def root(req, res)
-    @source_index.refresh!
+    Gem::Specification.reset
     add_date res
 
     raise WEBrick::HTTPStatus::NotFound, "`#{req.path}' not found." unless
@@ -610,13 +592,15 @@ div.method-source-code pre { color: #ffdead; overflow: hidden; }
     specs = []
     total_file_count = 0
 
-    @source_index.each do |path, spec|
+    Gem::Specification.each do |spec|
       total_file_count += spec.files.size
-      deps = spec.dependencies.map do |dep|
-        { "name"    => dep.name,
+      deps = spec.dependencies.map { |dep|
+        {
+          "name"    => dep.name,
           "type"    => dep.type,
-          "version" => dep.requirement.to_s, }
-      end
+          "version" => dep.requirement.to_s,
+        }
+      }
 
       deps = deps.sort_by { |dep| [dep["name"].downcase, dep["version"]] }
       deps.last["is_last"] = true unless deps.empty?
@@ -673,9 +657,11 @@ div.method-source-code pre { color: #ffdead; overflow: hidden; }
     template = ERB.new(DOC_TEMPLATE)
     res['content-type'] = 'text/html'
 
-    # this is used by binding, 1.9.3dev warns anyways
     values = { "gem_count" => specs.size.to_s, "specs" => specs,
                "total_file_count" => total_file_count.to_s }
+
+    # suppress 1.9.3dev warning about unused variable
+    values = values
 
     result = template.result binding
     res.body = result
@@ -770,9 +756,6 @@ div.method-source-code pre { color: #ffdead; overflow: hidden; }
 
     WEBrick::Daemon.start if @daemon
 
-    @server.mount_proc "/yaml", method(:yaml)
-    @server.mount_proc "/yaml.Z", method(:yaml)
-
     @server.mount_proc "/Marshal.#{Gem.marshal_version}", method(:Marshal)
     @server.mount_proc "/Marshal.#{Gem.marshal_version}.Z", method(:Marshal)
 
@@ -811,13 +794,12 @@ div.method-source-code pre { color: #ffdead; overflow: hidden; }
   end
 
   def specs(req, res)
-    @source_index.refresh!
+    Gem::Specification.reset
 
     add_date res
 
-    specs = @source_index.sort.map do |_, spec|
-      platform = spec.original_platform
-      platform = Gem::Platform::RUBY if platform.nil?
+    specs = Gem::Specification.sort_by(&:sort_obj).map do |spec|
+      platform = spec.original_platform || Gem::Platform::RUBY
       [spec.name, spec.version, platform]
     end
 
@@ -837,37 +819,14 @@ div.method-source-code pre { color: #ffdead; overflow: hidden; }
     end
   end
 
-  def yaml(req, res)
-    @source_index.refresh!
-
-    add_date res
-
-    index = @source_index.to_yaml
-
-    if req.path =~ /Z$/ then
-      res['content-type'] = 'application/x-deflate'
-      index = Gem.deflate index
-    else
-      res['content-type'] = 'text/plain'
-    end
-
-    if req.request_method == 'HEAD' then
-      res['content-length'] = index.length
-      return
-    end
-
-    res.body << index
-  end
-  
   def launch
     listeners = @server.listeners.map{|l| l.addr[2] }
 
+    # TODO: 0.0.0.0 == any, not localhost.
     host = listeners.any?{|l| l == '0.0.0.0'} ? 'localhost' : listeners.first
 
     say "Launching browser to http://#{host}:#{@port}"
 
     system("#{@launch} http://#{host}:#{@port}")
   end
-
 end
-
