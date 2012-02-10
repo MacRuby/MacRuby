@@ -154,11 +154,11 @@ module Installer
   end
 
   def dest_bin
-    "#{SYM_INSTDIR}/bin"
+    with_destdir "#{SYM_INSTDIR}/bin"
   end
 
   def dest_man
-    "#{SYM_INSTDIR}/share/man"
+    with_destdir "#{SYM_INSTDIR}/share/man"
   end
 
 end
