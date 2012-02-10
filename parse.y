@@ -10116,6 +10116,11 @@ ripper_warning0(struct parser_params *parser, const char *fmt)
 static void
 ripper_warningS(struct parser_params *parser, const char *fmt, const char *str)
 {
+#if WITH_OBJC
+    if (str == NULL) {
+	str = "unknown variable";
+    }
+#endif
     rb_funcall(parser->value, rb_intern("warning"), 2,
                STR_NEW2(fmt), STR_NEW2(str));
 }
