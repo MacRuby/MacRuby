@@ -4,11 +4,6 @@ require 'rake'
 require 'rake/tasklib'
 require 'rbconfig'
 
-# it could already be loaded by rubygems or others
-unless MacRuby.const_defined?(:Compiler)
-  load File.join(RbConfig::CONFIG['bindir'], 'macrubyc')
-end
-
 module Rake
 
   # Create a task that compiles your ruby source files for MacRuby.
@@ -57,6 +52,11 @@ module Rake
     def define
       desc 'Compile ruby files' + (name == :compile ? '' : " for #{name}")
       task name do
+        # lazy load compiler, it could already be loaded by rubygems or others
+        unless MacRuby.const_defined?(:Compiler)
+          load File.join(RbConfig::CONFIG['bindir'], 'macrubyc')
+        end
+
         start_time = Time.now
         number_of_files = 0
 
