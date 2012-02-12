@@ -262,18 +262,19 @@ class Gem::Specification
 
   def self._all # :nodoc:
     unless defined?(@@all) && @@all then
-      specs = []
+      specs = {}
 
-      self.dirs.reverse_each { |dir|
+      self.dirs.each { |dir|
         Dir[File.join(dir, "*.gemspec")].each { |path|
           spec = Gem::Specification.load path.untaint
           # #load returns nil if the spec is bad, so we just ignore
           # it at this stage
-          specs << spec if spec
+          specs[spec.full_name] ||= spec if spec
         }
       }
 
-      @@all = specs
+      @@all = specs.values
+
       _resort!
     end
     @@all
@@ -537,7 +538,7 @@ class Gem::Specification
     file = file.dup.untaint
 
     code = if defined? Encoding
-             File.read file, :encoding => "UTF-8"
+             File.read file, :mode => 'r:UTF-8:-'
            else
              File.read file
            end
@@ -2137,4 +2138,3 @@ class Gem::Specification
 end
 
 Gem.clear_paths
-

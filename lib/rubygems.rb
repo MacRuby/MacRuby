@@ -121,7 +121,7 @@ require "rubygems/deprecate"
 # -The RubyGems Team
 
 module Gem
-  VERSION = '1.8.15'
+  VERSION = '1.8.16'
 
   ##
   # Raised when RubyGems is unable to load or activate a gem.  Contains the
@@ -448,7 +448,7 @@ module Gem
     require 'fileutils'
 
     old_umask = File.umask
-    File.umask old_umask | 022
+    File.umask old_umask | 002
 
     %w[cache doc gems specifications].each do |name|
       subdir = File.join dir, name
