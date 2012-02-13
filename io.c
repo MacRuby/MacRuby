@@ -3653,7 +3653,7 @@ retry:
 		}
 	    }
 	    else {
-		int fr = open(fn, O_RDONLY);
+		int fr = open_internal(fn, O_RDONLY, 0);
 		if (ARGF.inplace) {
 		    // we need to rename and create new files for inplace mode
 		    struct stat st, st2;
@@ -3683,7 +3683,7 @@ retry:
 			    goto retry;
 			}
 		    }
-		    fw = open(fn, O_WRONLY|O_CREAT|O_TRUNC, 0666);
+		    fw = open_internal(fn, O_WRONLY|O_CREAT|O_TRUNC, 0666);
 		    fstat(fw, &st2); // pull out its filestats
 		    fchmod(fw, st.st_mode); // copy the permissions
 		    if ((st.st_uid != st2.st_uid) || (st.st_gid != st2.st_gid)) {
