@@ -357,6 +357,7 @@ io_close(rb_io_t *io_struct, bool close_read, bool close_write)
     if (close_read) {
 	if (io_struct->read_fd != io_struct->write_fd) {
 	    CLOSE_FD(io_struct->read_fd);
+	    io_struct->fd = io_struct->write_fd;
 	}
 	else {
 	    io_struct->fd = -1;
@@ -366,6 +367,7 @@ io_close(rb_io_t *io_struct, bool close_read, bool close_write)
     if (close_write) {
 	if (io_struct->write_fd != io_struct->read_fd) {
 	    CLOSE_FD(io_struct->write_fd);
+	    io_struct->fd = io_struct->read_fd;
 	}
 	else {
 	    io_struct->fd = -1;
