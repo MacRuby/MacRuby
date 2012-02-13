@@ -2616,6 +2616,30 @@ check_pipe_command(VALUE fname)
     return Qnil;
 }
 
+static int
+open_internal(const char* path, int oflags, mode_t perm)
+{
+    int fd, retry = 0;
+    while (true) {
+	fd = open(path, oflags, perm);
+	if (fd == -1) {
+	    if (retry < 5 && errno == EMFILE) {
+		// Too many open files. Let's schedule a GC collection.
+		rb_gc();
+		usleep(1000);
+		retry++;
+	    }
+	    else {
+		rb_sys_fail("open() failed");
+	    }
+	}
+	else {
+	    break;
+	}
+    }
+    return fd;
+}
+
 /*
  *  call-seq:
  *     open(path [, mode_enc [, perm]] )                => io or nil
@@ -2755,24 +2779,7 @@ rb_file_open(VALUE io, int argc, VALUE *argv)
     }
     const char *filepath = RSTRING_PTR(path);
     const mode_t perm = NIL_P(permissions) ? 0666 : NUM2UINT(permissions);
-    int fd, retry = 0;
-    while (true) {
-       fd = open(filepath, flags, perm);
-       if (fd == -1) {
-	   if (retry < 5 && errno == EMFILE) {
-		// Too many open files. Let's schedule a GC collection.
-	       	rb_gc();
-		usleep(1000);
-	       	retry++;
-	   }
-	   else {
-	       rb_sys_fail("open() failed");
-	   }
-       }
-       else {
-	   break;
-       }
-    }
+    int fd = open_internal(filepath, flags, perm);
     rb_io_t *io_struct = ExtractIOStruct(io);
     prepare_io_from_fd(io_struct, fd, convert_oflags_to_fmode(flags));
     GC_WB(&io_struct->path, path); 
@@ -2856,11 +2863,7 @@ rb_io_s_sysopen(VALUE klass, SEL sel, int argc, VALUE *argv)
 	perm = NUM2UINT(vperm);
     }
 
-    fd = open(RSTRING_PTR(fname), oflags, perm);
-    if (fd < 0) {
-	rb_sys_fail(RSTRING_PTR(fname));
-    }
-
+    fd = open_internal(RSTRING_PTR(fname), oflags, perm);
     return INT2NUM(fd);
 }
 
