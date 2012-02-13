@@ -2454,6 +2454,30 @@ rb_io_binmode_p(VALUE io, SEL sel)
     } \
 } while(0)
 
+static int
+pipe_internal(int *pipes)
+{
+    int ret, retry = 0;
+    while (true) {
+	ret = pipe(pipes);
+	if (ret == -1) {
+	    if (retry < 5 && errno == EMFILE) {
+		// Too many open files. Let's schedule a GC collection.
+		rb_gc();
+		usleep(1000);
+		retry++;
+	    }
+	    else {
+		break;
+	    }
+	}
+	else {
+	    break;
+	}
+    }
+    return ret;
+}
+
 static VALUE 
 io_from_spawning_new_process(VALUE klass, VALUE prog, VALUE mode)
 {
@@ -2462,10 +2486,10 @@ io_from_spawning_new_process(VALUE klass, VALUE prog, VALUE mode)
     posix_spawn_file_actions_t actions;
 
     int fd_r[2], fd_w[2];
-    if (pipe(fd_r) < 0) {
+    if (pipe_internal(fd_r) < 0) {
 	rb_sys_fail("pipe() failed");
     }
-    if (pipe(fd_w) < 0) {
+    if (pipe_internal(fd_w) < 0) {
 	close(fd_r[0]);
 	close(fd_r[1]);
 	rb_sys_fail("pipe() failed");
@@ -4284,7 +4308,7 @@ rb_io_s_pipe(VALUE recv, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "02", &ext_enc, &int_enc);
 
     int fd[2] = {-1, -1};
-    if (pipe(fd) != 0) {
+    if (pipe_internal(fd) != 0) {
 	rb_sys_fail("pipe() failed");
     }
 
