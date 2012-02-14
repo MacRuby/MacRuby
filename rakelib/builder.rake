@@ -144,6 +144,8 @@ AOT_STDLIB = [
   'lib/net/**/*.rb',
   'lib/optparse.rb',
   #'lib/stringio.rb', #spec fails
+  'lib/rake.rb',
+  'lib/rake/**/*.rb',
   'lib/rexml.rb',
   'lib/rexml/**/*.rb',
   'lib/{r,}ubygems.rb',
