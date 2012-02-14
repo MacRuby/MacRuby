@@ -65,7 +65,9 @@ module FileUtils
   private :set_verbose_option
 
   def rake_system(*cmd) # :nodoc:
-    Rake::AltSystem.system(*cmd)
+    # XXX MACRUBY
+    #Rake::AltSystem.system(*cmd)
+    system(*cmd)
   end
   private :rake_system
 
