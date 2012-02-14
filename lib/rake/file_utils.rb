@@ -65,7 +65,7 @@ module FileUtils
   private :set_verbose_option
 
   def rake_system(*cmd) # :nodoc:
-    # XXX MACRUBY
+    # XXX MACRUBY use Kernel.system directly for RBO
     #Rake::AltSystem.system(*cmd)
     system(*cmd)
   end
