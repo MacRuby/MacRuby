@@ -3417,8 +3417,7 @@ rb_io_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
     rb_secure(4);
 	
     VALUE file_descriptor, mode;
-    int mode_flags, fd;
-    struct stat st;
+    int mode_flags, ofmode, fd;
 
     // TODO handle optional hash
     /*VALUE opt =*/ pop_last_hash(&argc, argv);
@@ -3433,26 +3432,25 @@ rb_io_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
     }
     fd = FIX2INT(file_descriptor);
 
-    if (fstat(fd, &st) < 0) {
-	rb_sys_fail(0);
+    const int oflags = fcntl(fd, F_GETFL);
+    if (oflags == -1) {
+	rb_sys_fail("fcntl(2) failed");
     }
 
+    ofmode = convert_oflags_to_fmode(oflags);
     if (NIL_P(mode)) {
-#ifdef F_GETFL
-	const int oflags = fcntl(fd, F_GETFL);
-	if (oflags == -1) {
-	    rb_sys_fail("fcntl(2) failed");
-	}
-	mode_flags = convert_oflags_to_fmode(oflags);
-#else
-	mode_flags = FMODE_READABLE;
-#endif
+	mode_flags = ofmode;
     }
     else if (TYPE(mode) == T_STRING) {
 	mode_flags = convert_mode_string_to_fmode(mode);
     }
     else {
 	mode_flags = NUM2INT(mode);
+    }
+
+    if ((~ofmode & mode_flags) & FMODE_READWRITE) {
+	VALUE error = INT2FIX(EINVAL);
+	rb_exc_raise(rb_class_new_instance(1, &error, rb_eSystemCallError));
     }
 
     prepare_io_from_fd(io_struct, fd, mode_flags);
