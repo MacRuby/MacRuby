@@ -3425,12 +3425,7 @@ rb_io_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "11", &file_descriptor, &mode);
 
     rb_io_t *io_struct = ExtractIOStruct(io);
-    file_descriptor = rb_check_to_integer(file_descriptor, "to_int");
-    if (NIL_P(file_descriptor)) {
-	rb_raise(rb_eTypeError, "can't convert %s into Integer",
-		rb_obj_classname(file_descriptor));
-    }
-    fd = FIX2INT(file_descriptor);
+    fd = NUM2INT(file_descriptor);
 
     const int oflags = fcntl(fd, F_GETFL);
     if (oflags == -1) {
