@@ -45,6 +45,7 @@ thread_s_alloc(VALUE self, SEL sel)
 {
     rb_vm_thread_t *t = (rb_vm_thread_t *)xmalloc(sizeof(rb_vm_thread_t));
     t->thread = 0;
+    t->exception = Qnil;
     return Data_Wrap_Struct(self, NULL, NULL, t);
 }
 
