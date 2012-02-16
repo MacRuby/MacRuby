@@ -117,6 +117,48 @@ rb_io_check_io(VALUE io)
     return rb_check_convert_type(io, T_FILE, "IO", "to_io");
 }
 
+#define IO_RETRY_SYSCALL 5
+
+static int
+open_internal(const char* path, int oflags, mode_t perm)
+{
+    int fd;
+    for (int retry = IO_RETRY_SYSCALL; retry > 0; retry--) {
+	fd = open(path, oflags, perm);
+	if (fd >= 0) {
+	    break;
+	}
+	if (errno == EMFILE || errno == ENFILE) {
+	    rb_gc();
+	    usleep(1000);
+	}
+	else {
+	    rb_sys_fail("open() failed");
+	}
+    }
+    return fd;
+}
+
+static int
+pipe_internal(int *pipes)
+{
+    int ret;
+    for (int retry = IO_RETRY_SYSCALL; retry > 0; retry--) {
+	ret = pipe(pipes);
+	if (ret >= 0) {
+	    break;
+	}
+	if (errno == EMFILE || errno == ENFILE) {
+	    rb_gc();
+	    usleep(1000);
+	}
+	else {
+	    break;
+	}
+    }
+    return ret;
+}
+
 static int
 convert_mode_string_to_fmode(VALUE rstr)
 {
@@ -2454,30 +2496,6 @@ rb_io_binmode_p(VALUE io, SEL sel)
     } \
 } while(0)
 
-static int
-pipe_internal(int *pipes)
-{
-    int ret, retry = 0;
-    while (true) {
-	ret = pipe(pipes);
-	if (ret == -1) {
-	    if (retry < 5 && errno == EMFILE) {
-		// Too many open files. Let's schedule a GC collection.
-		rb_gc();
-		usleep(1000);
-		retry++;
-	    }
-	    else {
-		break;
-	    }
-	}
-	else {
-	    break;
-	}
-    }
-    return ret;
-}
-
 static VALUE 
 io_from_spawning_new_process(VALUE klass, VALUE prog, VALUE mode)
 {
@@ -2640,30 +2658,6 @@ check_pipe_command(VALUE fname)
         return cmd;
     }
     return Qnil;
-}
-
-static int
-open_internal(const char* path, int oflags, mode_t perm)
-{
-    int fd, retry = 0;
-    while (true) {
-	fd = open(path, oflags, perm);
-	if (fd == -1) {
-	    if (retry < 5 && errno == EMFILE) {
-		// Too many open files. Let's schedule a GC collection.
-		rb_gc();
-		usleep(1000);
-		retry++;
-	    }
-	    else {
-		rb_sys_fail("open() failed");
-	    }
-	}
-	else {
-	    break;
-	}
-    }
-    return fd;
 }
 
 /*
