@@ -3004,10 +3004,7 @@ rb_io_reopen(VALUE io, SEL sel, int argc, VALUE *argv)
 
     const char *filepath = RSTRING_PTR(path_or_io);
     const int fd =
-	open(filepath, convert_fmode_to_oflags(io_s->mode), 0644);
-    if (fd == -1) {
-	rb_sys_fail("open() failed");
-    }
+	open_internal(filepath, convert_fmode_to_oflags(io_s->mode), 0644);
 
     prepare_io_from_fd(io_s, fd, io_s->mode);
     GC_WB(&io_s->path, path_or_io);
