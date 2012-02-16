@@ -160,6 +160,26 @@ pipe_internal(int *pipes)
 }
 
 static int
+dup_internal(int orig)
+{
+    int fd;
+    for (int retry = IO_RETRY_SYSCALL; retry > 0; retry--) {
+	fd = dup(orig);
+	if (fd >= 0) {
+	    break;
+	}
+	if (errno == EMFILE || errno == ENFILE) {
+	    rb_gc();
+	    usleep(1000);
+	}
+	else {
+	    rb_sys_fail("dup() failed");
+	}
+    }
+    return fd;
+}
+
+static int
 convert_mode_string_to_fmode(VALUE rstr)
 {
     int fmode = 0;
@@ -3015,10 +3035,7 @@ rb_io_init_copy(VALUE dest, SEL sel, VALUE origin)
 		"cannot copy from non file descriptor based IO");
     }
 
-    const int fd = dup(origin_io->fd);
-    if (fd < 0) {
-	rb_sys_fail("dup() failed");
-    }
+    const int fd = dup_internal(origin_io->fd);
     io_replace_streams(fd, dest_io, origin_io);
 
     if ((origin_io->write_fd != -1) && (origin_io->fd != origin_io->write_fd)) {
