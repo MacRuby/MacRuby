@@ -70,7 +70,7 @@ module RbConfig
   CONFIG["PACKAGE_STRING"] = ""
   CONFIG["PACKAGE_BUGREPORT"] = ""
   CONFIG["exec_prefix"] = "$(prefix)"
-  CONFIG["bindir"] = "$(exec_prefix)/bin"
+  CONFIG["bindir"] = "#{SYM_INSTDIR}/bin"
   CONFIG["sbindir"] = "$(exec_prefix)/sbin"
   CONFIG["libexecdir"] = "$(exec_prefix)/libexec"
   CONFIG["datarootdir"] = "$(prefix)/share"
@@ -243,8 +243,6 @@ module RbConfig
 end
 Config = RbConfig # compatibility for ruby-1.8.4 and older.
 CROSS_COMPILING = nil
-RUBY_FRAMEWORK = true
-RUBY_FRAMEWORK_VERSION = RbConfig::CONFIG['ruby_version']
 EOS
     if !File.exist?('rbconfig.rb') or File.read('rbconfig.rb') != rbconfig
       File.open('rbconfig.rb', 'w') { |io| io.print rbconfig }
