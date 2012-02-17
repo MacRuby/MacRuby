@@ -350,7 +350,7 @@ namespace :install do
   task :nibtool do
     puts 'Installing IB support'
     makedirs xcode_usr_bin
-    ln_sfh "../../../#{FRAMEWORK_USR_BIN}/rb_nibtool", xcode_usr_bin
+    ln_sfh "#{FRAMEWORK_USR_BIN}/rb_nibtool", xcode_usr_bin
   end
 
   task :xcode_templates do
