@@ -146,7 +146,7 @@ module Installer
   end
 
   def xcode4_template_dir
-    "#{xcode_dir}/Library/Xcode/Templates"
+    "~/Library/Developer/Xcode/Templates/Application"
   end
 
   def xcode_usr_bin
@@ -356,6 +356,7 @@ namespace :install do
   task :xcode_templates do
     # TODO only install templates for installed Xcodes
     puts 'Installing XCode templates'
+    makedirs xcode4_template_dir
     install_recursive 'misc/xcode4-templates', xcode4_template_dir, :mode => prog_mode
     install_recursive 'misc/xcode-templates', xcode3_template_dir, :mode => prog_mode
   end
