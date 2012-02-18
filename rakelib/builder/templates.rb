@@ -89,6 +89,7 @@ module RbConfig
   CONFIG["libdir"] = "$(exec_prefix)/lib"
   CONFIG["localedir"] = "$(datarootdir)/locale"
   CONFIG["mandir"] = "$(datarootdir)/man"
+  CONFIG["symdir"] = "#{SYM_INSTDIR}"
   CONFIG["DEFS"] = ""
   CONFIG["ECHO_C"] = "\\\\\\\\c"
   CONFIG["ECHO_N"] = ""

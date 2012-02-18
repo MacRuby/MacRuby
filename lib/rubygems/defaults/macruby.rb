@@ -1,4 +1,5 @@
 require 'rubygems/config_file'
+require 'rbconfig'
 
 module Gem
   ConfigFile::PLATFORM_DEFAULTS['install'] = '--no-rdoc --no-ri'
@@ -13,4 +14,7 @@ module Gem
     "/Library/Ruby/Gems/MacRuby/#{MACRUBY_VERSION.to_f}"
   end
 
+  def self.default_bindir
+    "#{RbConfig::CONFIG['symdir']}/bin"
+  end
 end
