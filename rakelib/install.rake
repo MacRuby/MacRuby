@@ -153,6 +153,10 @@ module Installer
     "#{xcode_dir}/usr/bin"
   end
 
+  def xcode4_3_rb_nibtool_bin
+    "/Application/Xcode.app/Contents/Developer/Tools/"
+  end
+
   def dest_bin
     "#{SYM_INSTDIR}/bin"
   end
@@ -349,8 +353,7 @@ namespace :install do
 
   task :nibtool do
     puts 'Installing IB support'
-    makedirs xcode_usr_bin
-    ln_sfh "#{FRAMEWORK_USR_BIN}/rb_nibtool", xcode_usr_bin
+    ln_sfh "#{FRAMEWORK_USR_BIN}/rb_nibtool", xcode4_3_rb_nibtool_bin
   end
 
   task :xcode_templates do
