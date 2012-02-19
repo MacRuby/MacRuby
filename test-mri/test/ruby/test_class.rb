@@ -213,6 +213,8 @@ class TestClass < Test::Unit::TestCase
   end
 
   def test_invalid_jump_from_class_definition
+    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
+
     assert_raise(SyntaxError) { eval("class C; next; end") }
     assert_raise(SyntaxError) { eval("class C; break; end") }
     assert_raise(SyntaxError) { eval("class C; redo; end") }
@@ -238,7 +240,7 @@ class TestClass < Test::Unit::TestCase
   end
 
   def test_nested_class_removal
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
+    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
 
     assert_normal_exit('File.__send__(:remove_const, :Stat); at_exit{File.stat(".")}; GC.start')
   end

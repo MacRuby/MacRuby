@@ -98,7 +98,7 @@ class TestGemStreamUI < Gem::TestCase
   end
 
   def test_ask_yes_no_no_tty_without_default
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
+    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
 
     skip 'TTY handling is broken on windows' if
       Gem.win_platform? unless RUBY_VERSION > '1.9.2'

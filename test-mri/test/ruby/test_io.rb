@@ -956,8 +956,6 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_write_nonblock
-    skip("[BUG : #1085] Assertion failed: ((b->flags & flags) == flags)")
-
     skip "IO#write_nonblock is not supported on file/pipe." if /mswin|bccwin|mingw/ =~ RUBY_PLATFORM
     pipe(proc do |w|
       w.write_nonblock(1)
@@ -1679,8 +1677,6 @@ End
   end
 
   def test_threaded_flush
-    skip("[BUG : #1085] Assertion failed: ((b->flags & flags) == flags)")
-
     bug3585 = '[ruby-core:31348]'
     src = %q{\
       t = Thread.new { sleep 3 }

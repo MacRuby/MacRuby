@@ -420,7 +420,7 @@ class TestGemDependencyInstaller < Gem::TestCase
   end
 
   def test_install_reinstall
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
+    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
 
     util_setup_gems
 

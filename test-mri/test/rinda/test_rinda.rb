@@ -240,7 +240,7 @@ module TupleSpaceTestModule
   end
 
   def test_ruby_talk_264062
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
+    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
 
     th = Thread.new { @ts.take([:empty], 1) }
     sleep(10)
@@ -264,7 +264,7 @@ module TupleSpaceTestModule
   end
 
   def test_core_01
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
+    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
 
     5.times do |n|
       @ts.write([:req, 2])
@@ -294,7 +294,7 @@ module TupleSpaceTestModule
   end
 
   def test_core_02
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
+    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
 
     taker = Thread.new do
       s = 0
@@ -322,7 +322,7 @@ module TupleSpaceTestModule
   end
 
   def test_core_03_notify
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
+    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
 
     notify1 = @ts.notify(nil, [:req, Integer])
     notify2 = @ts.notify(nil, [:ans, Integer], 8)
@@ -421,7 +421,7 @@ module TupleSpaceTestModule
   end
 
   def test_cancel_01
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
+    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
 
     entry = @ts.write([:removeme, 1])
     assert_equal([[:removeme, 1]], @ts.read_all([nil, nil]))
@@ -452,7 +452,7 @@ module TupleSpaceTestModule
   end
 
   def test_cancel_02
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
+    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
 
     entry = @ts.write([:removeme, 1])
     assert_equal([[:removeme, 1]], @ts.read_all([nil, nil]))

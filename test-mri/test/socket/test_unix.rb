@@ -105,7 +105,7 @@ class TestSocket_UNIXSocket < Test::Unit::TestCase
   end
 
   def test_fd_passing_race_condition
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
+    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
 
     r1, w = IO.pipe
     s1, s2 = UNIXSocket.pair

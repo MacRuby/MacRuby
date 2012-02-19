@@ -275,7 +275,7 @@ class TestBignum < Test::Unit::TestCase
   end
 
   def test_quo
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
+    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
 
     assert_equal(T32.to_f, T32.quo(1))
     assert_equal(T32.to_f, T32.quo(1.0))
@@ -412,7 +412,7 @@ class TestBignum < Test::Unit::TestCase
   end
 
   def test_big_fdiv
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
+    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
 
     assert_equal(1, @big.fdiv(@big))
     assert_not_equal(0, @big.fdiv(@fmax2))
@@ -423,7 +423,7 @@ class TestBignum < Test::Unit::TestCase
   end
 
   def test_float_fdiv
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
+    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
 
     b = 1E+300.to_i
     assert_equal(b, (b ** 2).fdiv(b))

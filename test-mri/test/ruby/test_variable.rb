@@ -34,7 +34,7 @@ class TestVariable < Test::Unit::TestCase
   end
 
   def test_variable
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
+    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
 
     assert_instance_of(Fixnum, $$)
 

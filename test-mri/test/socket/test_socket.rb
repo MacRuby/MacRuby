@@ -176,7 +176,7 @@ class TestSocket < Test::Unit::TestCase
     end
 
     def test_accept_loop_with_unix
-      skip("[BUG : #???] Timeout, MacRuby don't finish")
+      skip("[BUG : #???] Timeout, MacRuby doesn't finish")
 
       Dir.mktmpdir {|tmpdir|
         tcp_servers = []
@@ -211,7 +211,7 @@ class TestSocket < Test::Unit::TestCase
   end
 
   def test_accept_loop
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
+    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
 
     servers = []
     begin
@@ -233,7 +233,7 @@ class TestSocket < Test::Unit::TestCase
   end
 
   def test_accept_loop_multi_port
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
+    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
 
     servers = []
     begin

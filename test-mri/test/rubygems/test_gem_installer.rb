@@ -346,7 +346,7 @@ load Gem.bin_path('a', 'executable', version)
   end
 
   def test_generate_bin_script_wrappers
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
+    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
 
     @installer.wrappers = true
     util_make_exec

@@ -1022,7 +1022,7 @@ class TestProcess < Test::Unit::TestCase
   end
 
   def test_argv0_noarg
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
+    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
 
     with_tmpchdir {|d|
       open("t", "w") {|f| f.print "exit true" }

@@ -46,7 +46,7 @@ class TestReadPartial < Test::Unit::TestCase
   end
 
   def test_open_pipe
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
+    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
 
     pipe {|r, w|
       w << 'abc'
@@ -59,7 +59,7 @@ class TestReadPartial < Test::Unit::TestCase
   end
 
   def test_with_stdio
-    skip("[BUG : #???] Timeout, MacRuby don't finish")
+    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
 
     pipe {|r, w|
       w << "abc\ndef\n"
