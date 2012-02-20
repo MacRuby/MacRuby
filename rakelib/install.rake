@@ -137,7 +137,7 @@ module Installer
     "#{xcode_dir}/Examples/Ruby/MacRuby"
   end
 
-  def xcode2_template_dir
+  def xcode3_2_template_dir
     '/Library/Application Support/Developer/Shared/Xcode'
   end
 
@@ -358,6 +358,7 @@ namespace :install do
     makedirs xcode4_template_dir
     install_recursive 'misc/xcode4-templates', xcode4_template_dir, :mode => prog_mode
     install_recursive 'misc/xcode-templates', xcode3_template_dir, :mode => prog_mode
+    install_recursive 'misc/xcode-templates', xcode3_2_template_dir, :mode => prog_mode
   end
 
   task :xcode_samples do
