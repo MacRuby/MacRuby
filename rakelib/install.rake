@@ -146,7 +146,7 @@ module Installer
   end
 
   def xcode4_template_dir
-    "~/Library/Developer/Xcode/Templates/Application"
+    File.expand_path "~/Library/Developer/Xcode/Templates/Application"
   end
 
   def xcode_usr_bin
