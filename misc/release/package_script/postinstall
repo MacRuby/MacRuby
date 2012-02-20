@@ -1,8 +1,21 @@
 #!/bin/bash
 
+# create the symbolic link of rb_nibtool
 NIBTOOL=/Library/Frameworks/MacRuby.framework/Versions/Current/usr/bin/rb_nibtool
 XCODE_DIR=`xcode-select -print-path`
+DEST_NIBTOOL_PATH=$XCODE_DIR/Tools/rb_nibtool
+if [ ! -e  $DEST_NIBTOOL_PATH ] ; then
+    ln -s $NIBTOOL $DEST_NIBTOOL_PATH
+fi
 
-ln -s $NIBTOOL $XCODE_DIR/Tools/rb_nibtool
+# copy the Xcode Templates
+USER_TEMPLETE_DIR=~/Library/Developer/Xcode/Templates/Application
+mkdir -p $USER_TEMPLETE_DIR
+cp -R /tmp/macruby/xcode4-templates/ $USER_TEMPLETE_DIR
+
+# copy the Examples
+USER_EXAMPLE_DIR=~/Documents/MacRubyExamples
+mkdir -p $USER_EXAMPLE_DIR
+cp -R /tmp/macruby/sample-macruby/ $USER_EXAMPLE_DIR
 
 exit 0

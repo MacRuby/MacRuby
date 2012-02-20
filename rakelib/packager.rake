@@ -20,6 +20,16 @@ task :nightly do
   puts "Preparing for packaging"
   `rake install DESTDIR=#{build_destination}` 
 
+  ## prepare for post install script
+  xcode_dir = `xcode-select -print-path`
+  # remove '/tmp/macruby-nightly/Developer/xxx'
+  rm_rf "#{build_destination}/#{xcode_dir.split('/')[1]}"
+
+  temporary_dir = "#{build_destination}/tmp/macruby"
+  mkdir_p temporary_dir
+  cp_r "misc/xcode4-templates/", temporary_dir
+  cp_r "sample-macruby", temporary_dir
+
   puts "Packaging MacRuby"
   package_dir  = ["#{ENV['HOME']}/tmp", "#{ENV['HOME']}/Desktop", '/tmp'].find { |dir| File.exist?(dir) }
   package_date = Time.now.strftime("%Y-%m-%d")
