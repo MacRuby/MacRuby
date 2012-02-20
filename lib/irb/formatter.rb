@@ -48,8 +48,7 @@ module IRB
     def inspect_object(object)
       if @inspect
         result = object.respond_to?(:pretty_inspect) ? object.pretty_inspect : object.inspect
-        result.strip!
-        result
+        result.strip
       else
         minimal_inspect_object(object)
       end
