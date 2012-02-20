@@ -1,0 +1,8 @@
+#!/bin/bash
+
+NIBTOOL=/Library/Frameworks/MacRuby.framework/Versions/Current/usr/bin/rb_nibtool
+XCODE_DIR=`xcode-select -print-path`
+
+ln -s $NIBTOOL $XCODE_DIR/Tools/rb_nibtool
+
+exit 0

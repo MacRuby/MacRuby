@@ -24,7 +24,7 @@ task :nightly do
   package_dir  = ["#{ENV['HOME']}/tmp", "#{ENV['HOME']}/Desktop", '/tmp'].find { |dir| File.exist?(dir) }
   package_date = Time.now.strftime("%Y-%m-%d")
   package      = "#{package_dir}/macruby_nightly-#{package_date}.pkg"
-  `/Developer/usr/bin/packagemaker --doc #{File.expand_path(File.dirname(__FILE__))}/../misc/release/macruby_nightly.pmdoc/ --out #{package} --version #{package_date}-nightly`
+  `/Developer/usr/bin/packagemaker --doc #{File.expand_path(File.dirname(__FILE__))}/../misc/release/macruby_nightly.pmdoc/ --out #{package} --scripts #{File.expand_path(File.dirname(__FILE__))}/../misc/release/package_script --version #{package_date}-nightly`
   if $?.success?
     puts "Package saved to #{package}"
   else
