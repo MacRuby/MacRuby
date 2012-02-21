@@ -6,9 +6,7 @@
  * Copyright (C) 2008-2011, Apple Inc. All rights reserved.
  */
 
-#define ROXOR_VM_DEBUG		0
-#define ROXOR_COMPILER_DEBUG 	0
-#define ROXOR_VM_DEBUG_CONST	0
+#include "debug_config.h"
 
 #if MACRUBY_STATIC
 # include <vector>
