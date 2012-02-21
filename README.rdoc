@@ -50,6 +50,13 @@ http://macruby.org
     $ svn revert -R .
     $ svn switch <repository-URL>
 
+=== Note for using Xcode 4.3 (or later)
+
+If you use the Xcode 4.3 (or later), you might need to configure Xcode path
+before installing MacRuby:
+
+    $ sudo xcode-select -switch /Applications/Xcode.app/Contents/Developer/
+
 === Build Instructions
 
 You can build MacRuby by doing the following command:
