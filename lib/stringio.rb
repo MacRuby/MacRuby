@@ -131,23 +131,28 @@ class StringIO
     raise TypeError unless buffer.respond_to?(:to_str)
     buffer = buffer.to_str
 
-    if length == 0
-      buffer.replace("")
-    elsif length == nil
+    if length.nil?
       return buffer.replace("") if self.eof?
       buffer.replace(@string[@pos..-1])
       @pos = @string.size
     else
-      if self.eof?
-        buffer.replace("")
-        return nil
-      end
       raise TypeError unless length.respond_to?(:to_int)
       length = length.to_int
       raise ArgumentError if length < 0
-      buffer.replace(@string[@pos, length])
-      @pos += buffer.length
-    end
+
+      if length == 0
+        buffer.replace("")
+      else
+        if self.eof?
+          buffer.replace("")
+          return nil
+        end
+        buffer.replace(@string[@pos, length])
+        @pos += buffer.length
+      end
+      buffer.force_encoding('BINARY')
+   end
+
 
     buffer
   end
