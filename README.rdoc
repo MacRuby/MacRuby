@@ -75,7 +75,7 @@ performance suite:
 
 To install MacRuby on your machine:
 
-  $ sudo rake install
+  $ sudo rake install # --quiet
 
 Then you should be all set! Please report us any problem you will find (the
 http://macruby.org website has pointers). Thanks!
