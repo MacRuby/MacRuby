@@ -134,7 +134,7 @@ module Installer
   end
 
   def xcode_example_dir
-    "#{xcode_dir}/Examples/Ruby/MacRuby"
+    File.expand_path "~/Documents/MacRubyExamples"
   end
 
   def xcode3_2_template_dir
