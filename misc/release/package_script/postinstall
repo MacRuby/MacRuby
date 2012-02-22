@@ -3,8 +3,16 @@
 # create the symbolic link of rb_nibtool
 NIBTOOL=/Library/Frameworks/MacRuby.framework/Versions/Current/usr/bin/rb_nibtool
 XCODE_DIR=`xcode-select -print-path`
+if test $? -ne 0 ; then
+    XCODE_DIR=/Applications/Xcode.app/Contents/Developer/
+    if [ ! -e $XCODE_DIR ] ; then
+	exit 1
+    fi
+    sudo xcode-select -switch $XCODE_DIR
+fi
+
 DEST_NIBTOOL_PATH=$XCODE_DIR/Tools/rb_nibtool
-if [ ! -e  $DEST_NIBTOOL_PATH ] ; then
+if [ ! -e $DEST_NIBTOOL_PATH ] ; then
     ln -s $NIBTOOL $DEST_NIBTOOL_PATH
 fi
 
