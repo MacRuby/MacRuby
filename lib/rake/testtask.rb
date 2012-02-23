@@ -157,7 +157,9 @@ module Rake
       when :testrb
         "-S testrb #{fix}"
       when :rake
-        "-I\"#{rake_lib_dir}\" \"#{rake_loader}\""
+        # XXX MacRuby does not include rake_lib_dir, because fails to load minitest gem
+        #"-I\"#{rake_lib_dir}\" \"#{rake_loader}\""
+        "\"#{rake_loader}\""
       end
     end
 
