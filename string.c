@@ -854,6 +854,9 @@ str_splice(rb_str_t *self, long pos, long len, rb_str_t *str)
 
     long bytes_to_add = 0;
     if (str != NULL) {
+	if (!str->flags) {
+	    str_update_flags(str);
+	}
 	if (str->length_in_bytes > 0 && self->flags != str->flags) {
 	    str_reset_flags(self);
 	}
