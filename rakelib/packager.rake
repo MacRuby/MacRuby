@@ -27,7 +27,6 @@ task :nightly do
 
   temporary_dir = "#{build_destination}/tmp/macruby"
   mkdir_p temporary_dir
-  cp_r "misc/xcode4-templates/", temporary_dir
   cp_r "sample-macruby", temporary_dir
 
   puts "Packaging MacRuby"

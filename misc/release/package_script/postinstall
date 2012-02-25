@@ -16,11 +16,6 @@ if [ ! -e $DEST_NIBTOOL_PATH ] ; then
     ln -s $NIBTOOL $DEST_NIBTOOL_PATH
 fi
 
-# copy the Xcode Templates
-USER_TEMPLETE_DIR=~/Library/Developer/Xcode/Templates/Application
-mkdir -p $USER_TEMPLETE_DIR
-cp -R /tmp/macruby/xcode4-templates/ $USER_TEMPLETE_DIR
-
 # copy the Examples
 USER_EXAMPLE_DIR=~/Documents/MacRubyExamples
 mkdir -p $USER_EXAMPLE_DIR
