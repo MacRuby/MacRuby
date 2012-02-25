@@ -5,20 +5,20 @@ NIBTOOL=/Library/Frameworks/MacRuby.framework/Versions/Current/usr/bin/rb_nibtoo
 XCODE_DIR=`xcode-select -print-path`
 if test $? -ne 0 ; then
     XCODE_DIR=/Applications/Xcode.app/Contents/Developer/
-    if [ ! -e $XCODE_DIR ] ; then
+    if [ ! -e "$XCODE_DIR" ] ; then
 	exit 1
     fi
-    sudo xcode-select -switch $XCODE_DIR
+    sudo xcode-select -switch "$XCODE_DIR"
 fi
 
-DEST_NIBTOOL_PATH=$XCODE_DIR/Tools/rb_nibtool
-if [ ! -e $DEST_NIBTOOL_PATH ] ; then
-    ln -s $NIBTOOL $DEST_NIBTOOL_PATH
+DEST_NIBTOOL_PATH="$XCODE_DIR/Tools/rb_nibtool"
+if [ ! -e "$DEST_NIBTOOL_PATH" ] ; then
+    ln -s "$NIBTOOL" "$DEST_NIBTOOL_PATH"
 fi
 
 # copy the Examples
 USER_EXAMPLE_DIR=~/Documents/MacRubyExamples
-mkdir -p $USER_EXAMPLE_DIR
-cp -R /tmp/macruby/sample-macruby/ $USER_EXAMPLE_DIR
+mkdir -p "$USER_EXAMPLE_DIR"
+cp -R /tmp/macruby/sample-macruby/ "$USER_EXAMPLE_DIR"
 
 exit 0
