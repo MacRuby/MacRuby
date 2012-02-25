@@ -12,6 +12,11 @@ if test $? -ne 0 ; then
 fi
 
 DEST_NIBTOOL_PATH="$XCODE_DIR/Tools/rb_nibtool"
+XCODE_MAJOR_VER=`xcodebuild -version | sed -e '2,$d' -e 's/Xcode \([0-9]*\).*/\1/'`
+if test $XCODE_MAJOR_VER -le 3 ; then
+    DEST_NIBTOOL_PATH="$XCODE_DIR/usr/bin/rb_nibtool"
+fi
+
 if [ ! -e "$DEST_NIBTOOL_PATH" ] ; then
     ln -s "$NIBTOOL" "$DEST_NIBTOOL_PATH"
 fi
