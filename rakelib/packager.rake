@@ -21,9 +21,10 @@ task :nightly do
   `rake install DESTDIR=#{build_destination}` 
 
   ## prepare for post install script
-  xcode_dir = `xcode-select -print-path`
-  # remove '/tmp/macruby-nightly/Developer/xxx'
+  xcode_dir = `xcode-select -print-path`.chomp
+  # remove '/tmp/macruby-nightly/Developer/' and '/tmp/macruby-nightly/Users/'
   rm_rf "#{build_destination}/#{xcode_dir.split('/')[1]}"
+  rm_rf "#{build_destination}/Users"
 
   temporary_dir = "#{build_destination}/tmp/macruby"
   mkdir_p temporary_dir
