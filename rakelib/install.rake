@@ -316,7 +316,7 @@ namespace :install do
       link = "../../../#{FRAMEWORK_USR_BIN}/#{file}"
       link.sub!(/#{INSTALL_VERSION}/, 'Current')
       link_dest = "#{dest_bin}/#{File.basename(file)}"
-      unless File.exists?(link_dest)
+      unless File.exists?(with_destdir(link_dest))
         ln_sfh link, link_dest
       end
     end
@@ -332,7 +332,7 @@ namespace :install do
           link = "../../../../../#{man_dir}/#{man_set}/#{man_file}"
           link.sub!(/#{INSTALL_VERSION}/, 'Current')
           link_dest = "#{dest_man}/#{File.basename(man_set)}/#{File.basename(man_file)}"
-          unless File.exists?(link_dest)
+          unless File.exists?(with_destdir(link_dest))
             ln_sfh link, link_dest
           end
         end
