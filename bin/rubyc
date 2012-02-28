@@ -472,10 +472,11 @@ if __FILE__ == $0
 
     opts.on('-v', '--version', 'Display the version') {
       puts RUBY_DESCRIPTION
-      exit 1
+      exit 0
     }
     opts.on('-h', '--help', 'Display this information') {
-      die opts
+      $stderr.puts opts
+      exit 0
     }
 
     begin
