@@ -729,7 +729,6 @@ rb_mod_included_modules_nosuper(VALUE mod, VALUE ary)
 	for (i = 0; i < count; i++) {
 	    VALUE imod = RARRAY_AT(inc_mods, i);
 	    rb_ary_push(ary, imod);
-	    rb_ary_concat(ary, rb_mod_included_modules(imod));
 	}
     }
 }
