@@ -921,9 +921,10 @@ rb_thread_priority_set(VALUE thread, SEL sel, VALUE prio)
     // FIXME this doesn't really minic what 1.9 does, but do we care?
     int policy;
     struct sched_param param;
+    rb_secure(4);
     pthread_assert(pthread_getschedparam(GetThreadPtr(thread)->thread,
 		&policy, &param));
- 
+
     const int max = sched_get_priority_max(policy);
     const int min = sched_get_priority_min(policy);
 
