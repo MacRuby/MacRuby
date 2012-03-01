@@ -472,7 +472,7 @@ rb_obj_inspect(VALUE obj, SEL sel)
 	    }
 	}
     }
-    return rb_funcall(obj, rb_intern("to_s"), 0, 0);
+    return rb_funcall(obj, rb_intern("description"), 0, 0);
 }
 
 /*
