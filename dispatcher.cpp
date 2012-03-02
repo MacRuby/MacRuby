@@ -674,18 +674,20 @@ recache2:
 	    if ((opt & DISPATCH_SUPER) == 0
 		    && rb_objc_supports_forwarding(self, sel)) {
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
+//#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
 		// In earlier versions of the Objective-C runtime, there seems
 		// to be a bug where class_getInstanceMethod isn't atomic,
 		// and might return NULL while at the exact same time another
 		// thread registers the related method.
 		// As a work-around, we double-check if the method still does
 		// not exist here. If he does, we can dispatch it properly.
+
+		// note: OS X 10.7 also, this workaround is required. see #1476
 		method = class_getInstanceMethod(klass, sel);
 		if (method != NULL) {
 		    goto recache2;
 		}
-#endif
+//#endif
 		fill_ocache(cache, self, klass, (IMP)objc_msgSend, sel, NULL,
 			argc);
 		goto dispatch;
