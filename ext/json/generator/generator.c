@@ -1322,7 +1322,8 @@ void Init_generator()
     rb_define_method(cState, "generate", cState_generate, 1);
 
     mGeneratorMethods = rb_define_module_under(mGenerator, "GeneratorMethods");
-    mObject = rb_define_module_under(mGeneratorMethods, "Object");
+    // XXX MACRUBY Change Object ot LOLObject until ticket #1326 is resolved
+    mObject = rb_define_module_under(mGeneratorMethods, "JSONObject");
     rb_define_method(mObject, "to_json", mObject_to_json, -1);
     mHash = rb_define_module_under(mGeneratorMethods, "Hash");
     rb_define_method(mHash, "to_json", mHash_to_json, -1);
