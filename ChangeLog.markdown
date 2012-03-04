@@ -12,5 +12,10 @@ MacRuby 0.12 was a milestone release...
  * macrubyc now uses proper exit codes for `--help` and `--version` options
  * The `instruby.rb` script has been replaced with a set of rake tasks
  * Upgrade JSON to 1.6.5
+ * Cocoa objects now use `#description` for their `#inspect` output
+
+```ruby
+p NSURL.URLWithString("http://macruby.org/").inspect
+```
 
 ![Business Cat Doin His Thang](http://i.imgur.com/2KmJW.jpg)
