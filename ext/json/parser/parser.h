@@ -3,30 +3,10 @@
 
 #include "ruby.h"
 
-#ifdef __MACRUBY__
-/* We cannot use the GC memory functions here because the underlying libedit
- * function will call free() on the memory, resulting in a leak.
- */
-# undef ALLOC
-# define ALLOC(type) (type*)malloc(sizeof(type))
-# undef ALLOC_N
-# define ALLOC_N(type,n) ((type *)malloc(sizeof(type) * (n)))
-# undef REALLOC_N
-# define REALLOC_N(var,type,n) \
-    (var)=(type*)realloc((char*)(var),(n) * sizeof(type))
-# define ruby_xfree(x) free(x)
-#endif
-
-#if HAVE_RE_H
+#ifndef HAVE_RUBY_RE_H
 #include "re.h"
 #endif
 
-#ifdef HAVE_RUBY_ENCODING_H
-#include "ruby/encoding.h"
-#define FORCE_UTF8(obj) rb_enc_associate((obj), rb_utf8_encoding())
-#else
-#define FORCE_UTF8(obj)
-#endif
 #ifdef HAVE_RUBY_ST_H
 #include "ruby/st.h"
 #else
@@ -37,9 +17,9 @@
 
 /* unicode */
 
-typedef unsigned long	UTF32;	/* at least 32 bits */
-typedef unsigned short UTF16;	/* at least 16 bits */
-typedef unsigned char	UTF8;	  /* typically 8 bits */
+typedef unsigned long UTF32;  /* at least 32 bits */
+typedef unsigned short UTF16; /* at least 16 bits */
+typedef unsigned char UTF8;   /* typically 8 bits */
 
 #define UNI_REPLACEMENT_CHAR (UTF32)0x0000FFFD
 #define UNI_SUR_HIGH_START  (UTF32)0xD800
@@ -58,13 +38,18 @@ typedef struct JSON_ParserStruct {
     int allow_nan;
     int parsing_name;
     int symbolize_names;
+    int quirks_mode;
     VALUE object_class;
     VALUE array_class;
-		int create_additions;
-		VALUE match_string;
+    int create_additions;
+    VALUE match_string;
+    FBuffer *fbuffer;
 } JSON_Parser;
 
 #define GET_PARSER                          \
+    GET_PARSER_INIT;                        \
+    if (!json->Vsource) rb_raise(rb_eTypeError, "uninitialized instance")
+#define GET_PARSER_INIT                     \
     JSON_Parser *json;                      \
     Data_Get_Struct(self, JSON_Parser, json)
 
