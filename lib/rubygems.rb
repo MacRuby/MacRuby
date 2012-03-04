@@ -6,11 +6,10 @@
 #++
 
 module Gem
-  # XXX MACRUBY does not preload rubygems
-  #QUICKLOADER_SUCKAGE = RUBY_VERSION =~ /^1\.9\.1/
-  #GEM_PRELUDE_SUCKAGE = RUBY_VERSION =~ /^1\.9\.2/
-  QUICKLOADER_SUCKAGE = false
-  GEM_PRELUDE_SUCKAGE = false
+  QUICKLOADER_SUCKAGE = RUBY_VERSION =~ /^1\.9\.1/
+
+  # Only MRI 1.9.2 has the custom prelude.
+  GEM_PRELUDE_SUCKAGE = RUBY_VERSION =~ /^1\.9\.2/ && RUBY_ENGINE == "ruby"
 end
 
 if Gem::GEM_PRELUDE_SUCKAGE and defined?(Gem::QuickLoader) then
@@ -121,7 +120,7 @@ require "rubygems/deprecate"
 # -The RubyGems Team
 
 module Gem
-  VERSION = '1.8.16'
+  VERSION = '1.8.17'
 
   ##
   # Raised when RubyGems is unable to load or activate a gem.  Contains the
@@ -259,7 +258,7 @@ module Gem
 
     Gem.path.each do |gemdir|
       each_load_path all_partials(gemdir) do |load_path|
-        result << gemdir.add(load_path).expand_path
+        result << load_path
       end
     end
 
@@ -445,10 +444,10 @@ module Gem
   # problem, then we will silently continue.
 
   def self.ensure_gem_subdirectories dir = Gem.dir
-    require 'fileutils'
-
     old_umask = File.umask
     File.umask old_umask | 002
+
+    require 'fileutils'
 
     %w[cache doc gems specifications].each do |name|
       subdir = File.join dir, name
@@ -1235,9 +1234,7 @@ end
 
 require 'rubygems/exceptions'
 
-# XXX MACRUBY does not preload rubygems
-#gem_preluded = Gem::GEM_PRELUDE_SUCKAGE and defined? Gem
-gem_preluded = false
+gem_preluded = Gem::GEM_PRELUDE_SUCKAGE and defined? Gem
 unless gem_preluded then # TODO: remove guard after 1.9.2 dropped
   begin
     ##
