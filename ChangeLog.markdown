@@ -11,5 +11,6 @@ MacRuby 0.12 was a milestone release...
  * Remove obsoleted constants `RUBY_FRAMEWORK` and `RUBY_FRAMEWORK_VERSION` from `RbConfig`
  * macrubyc now uses proper exit codes for `--help` and `--version` options
  * The `instruby.rb` script has been replaced with a set of rake tasks
+ * Upgrade JSON to 1.6.5
 
 ![Business Cat Doin His Thang](http://i.imgur.com/2KmJW.jpg)
