@@ -472,7 +472,12 @@ rb_obj_inspect(VALUE obj, SEL sel)
 	    }
 	}
     }
-    return rb_funcall(obj, rb_intern("description"), 0, 0);
+    else if (!SPECIAL_CONST_P(obj) && !RCLASS_RUBY(RBASIC(obj)->klass)) {
+      if (rb_vm_respond_to(obj, selDescription, false)) {
+        return rb_str_new3(rb_vm_call(obj, selDescription, 0, 0));
+      }
+    }
+    return rb_funcall(obj, rb_intern("to_s"), 0, 0);
 }
 
 /*
