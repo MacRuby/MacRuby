@@ -43,7 +43,7 @@ if have_func("iconv", "iconv.h") or
     $cleanfiles << wrapper
   end
   $INCFLAGS << ' -I../..'
-  $INCFLAGS << ' -I../../icu-1060' if `sw_vers -productVersion`.to_f <= 10.7
+  $INCFLAGS << ' -I../../icu-1060'
   create_makefile("iconv")
   if conf
     open("Makefile", "a") do |mf|
