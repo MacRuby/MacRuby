@@ -109,4 +109,12 @@ describe "An Objective-C class" do
     a.eql?(b).should == true
     a.equal?(b).should == false
   end
+
+  it "uses #description when it receives #inspect" do
+    url = NSURL.URLWithString('http://macruby.org/')
+    url.inspect.should == url.description
+
+    bundle = NSBundle.mainBundle
+    bundle.inspect.should == bundle.description
+  end
 end
