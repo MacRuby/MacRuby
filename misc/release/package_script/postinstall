@@ -15,7 +15,6 @@ fi
 if [ $XCODE_DIR != $XCODE43_DIR ] ; then
     DEST_NIBTOOL_PATH="$XCODE43_DIR/Tools/rb_nibtool"
     if [ -e "$XCODE43_DIR" -a ! -L "$DEST_NIBTOOL_PATH" ] ; then
-	echo $DEST_NIBTOOL_PATH
 	ln -s "$NIBTOOL" "$DEST_NIBTOOL_PATH"
     fi
 fi
