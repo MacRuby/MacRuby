@@ -120,7 +120,7 @@ require "rubygems/deprecate"
 # -The RubyGems Team
 
 module Gem
-  VERSION = '1.8.17'
+  VERSION = '1.8.18'
 
   ##
   # Raised when RubyGems is unable to load or activate a gem.  Contains the
@@ -663,6 +663,8 @@ module Gem
     ensure
       require 'yaml'
     end
+
+    require 'rubygems/psych_tree'
 
     # Now that we're sure some kind of yaml library is loaded, pull
     # in our hack to deal with Syck's DefaultKey ugliness.

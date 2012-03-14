@@ -670,7 +670,7 @@ class Gem::Specification
     # spec version
     spec.instance_variable_set :@name,                      array[2]
     spec.instance_variable_set :@version,                   array[3]
-    spec.instance_variable_set :@date,                      array[4]
+    spec.date =                                             array[4]
     spec.instance_variable_set :@summary,                   array[5]
     spec.instance_variable_set :@required_ruby_version,     array[6]
     spec.instance_variable_set :@required_rubygems_version, array[7]
@@ -1923,7 +1923,15 @@ class Gem::Specification
 
   def to_yaml(opts = {}) # :nodoc:
     if YAML.const_defined?(:ENGINE) && !YAML::ENGINE.syck? then
-      super.gsub(/ !!null \n/, " \n")
+      builder = Gem::NoAliasYAMLTree.new({})
+      builder << self
+      ast = builder.tree
+
+      io = StringIO.new
+
+      Psych::Visitors::Emitter.new(io).accept(ast)
+
+      io.string.gsub(/ !!null \n/, " \n")
     else
       # XXX MACRUBY our quick_emit is different than syck
       #YAML.quick_emit object_id, opts do |out|
@@ -2110,7 +2118,13 @@ class Gem::Specification
   # FIX: have this handle the platform/new_platform/original_platform bullshit
   def yaml_initialize(tag, vals) # :nodoc:
     vals.each do |ivar, val|
-      instance_variable_set "@#{ivar}", val
+      case ivar
+      when "date"
+        # Force Date to go through extra coerce logic in date=
+        self.date = val.untaint
+      else
+        instance_variable_set "@#{ivar}", val.untaint
+      end
     end
 
     @original_platform = @platform # for backwards compatibility
