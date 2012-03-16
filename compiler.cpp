@@ -2092,9 +2092,6 @@ RoxorCompiler::compile_jump(NODE *node)
 	    break;
 
 	case NODE_RETURN:
-	    if (current_rescue) {
-		compile_pop_exception();
-	    }
 	    if (within_block) {
 		if (return_from_block == -1) {
 		    return_from_block = return_from_block_ids++;
@@ -2103,6 +2100,9 @@ RoxorCompiler::compile_jump(NODE *node)
 		ReturnInst::Create(context, val, bb);
 	    }
 	    else {
+		if (current_rescue) {
+		    compile_pop_exception();
+		}
 		compile_simple_return(val);
 	    }
 	    break;
