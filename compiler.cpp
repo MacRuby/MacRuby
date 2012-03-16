@@ -2058,9 +2058,6 @@ RoxorCompiler::compile_jump(NODE *node)
 	    break;
 
 	case NODE_NEXT:
-	    if (current_rescue) {
-		compile_landing_pad_footer();
-	    }
 	    if (within_loop) {
 		if (ensure_node != NULL) {
 		    compile_node(ensure_node);
