@@ -32,7 +32,7 @@ class Deployer
       opts.on('--codesign [CERT]', String,    'Sign the files with the specified certificate') { |cert| @certificate = cert }
       opts.on('-v', '--version',              'Display the version') do
         puts RUBY_DESCRIPTION
-        exit 1
+        exit 0
       end
       begin
         opts.parse!(argv)
