@@ -9,7 +9,7 @@ MacRuby 0.12 was a milestone release...
  * Add the `--codesign` option to `macruby_deploy`
  * Gems are now installed to `/Library/Ruby/Gems/MacRuby`
  * Remove obsoleted constants `RUBY_FRAMEWORK` and `RUBY_FRAMEWORK_VERSION` from `RbConfig`
- * macrubyc now uses proper exit codes for `--help` and `--version` options
+ * macrubyc/macruby\_deploy now uses proper exit codes for `--help` and `--version` options
  * The `instruby.rb` script has been replaced with a set of rake tasks
  * Upgrade JSON to 1.6.5
  * Cocoa objects now use `#description` for their `#inspect` output
