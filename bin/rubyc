@@ -474,10 +474,6 @@ if __FILE__ == $0
       puts RUBY_DESCRIPTION
       exit 0
     }
-    opts.on('-h', '--help', 'Display this information') {
-      $stderr.puts opts
-      exit 0
-    }
 
     begin
       opts.parse!(ARGV)
