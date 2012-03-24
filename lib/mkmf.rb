@@ -174,7 +174,8 @@ OUTFLAG = CONFIG['OUTFLAG']
 COUTFLAG = CONFIG['COUTFLAG']
 CPPOUTFILE = CONFIG['CPPOUTFILE']
 
-CONFTEST_C = "conftest.c".freeze
+# XXX MacRuby : generate as objc to enable '-fobjc-gc-only'
+CONFTEST_C = "conftest.m".freeze
 
 class String
   # Wraps a string in escaped quotes if it contains whitespace.
@@ -382,8 +383,8 @@ def link_command(ldflags, opt="", libpath=$DEFLIBPATH|$LIBPATH)
                                 'arch_hdrdir' => "#$arch_hdrdir",
                                 'top_srcdir' => $top_srcdir.quote,
                                 'INCFLAGS' => "#$INCFLAGS",
-                                'CPPFLAGS' => "#$CPPFLAGS",
-                                'CFLAGS' => "#$CFLAGS",
+                                'CPPFLAGS' => "#$CPPFLAGS -fobjc-gc-only", # XXX MacRuby
+                                'CFLAGS' => "#$CFLAGS -fobjc-gc-only",     # XXX MacRuby
                                 'ARCH_FLAG' => "#$ARCH_FLAG",
                                 'LDFLAGS' => "#$LDFLAGS #{ldflags}",
                                 'LIBPATH' => libpathflag(libpath),
