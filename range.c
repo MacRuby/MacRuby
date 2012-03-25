@@ -1,6 +1,6 @@
 /*
  * This file is covered by the Ruby license. See COPYING for more details.
- * 
+ *
  * Copyright (C) 2007-2011, Apple Inc. All rights reserved.
  * Copyright (C) 1993-2007 Yukihiro Matsumoto
  */
@@ -13,7 +13,7 @@
 #include "array.h"
 
 VALUE rb_cRange;
-static SEL selUpto, selBeg, selEnd, selExcludeEnd, selInclude; 
+static SEL selUpto, selBeg, selEnd, selExcludeEnd, selInclude;
 
 extern VALUE rb_struct_init_copy(VALUE copy, VALUE s);
 
@@ -385,7 +385,7 @@ range_step(VALUE range, SEL sel, int argc, VALUE *argv)
 
 	if (!EXCL(range))
 	    end += 1;
-	i = FIX2LONG(b);	
+	i = FIX2LONG(b);
 	while (i < end) {
 	    rb_yield(LONG2NUM(i));
 	    RETURN_IF_BROKEN();
