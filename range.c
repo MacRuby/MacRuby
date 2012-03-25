@@ -969,6 +969,8 @@ range_relative_to(VALUE range, SEL sel, VALUE max)
 {
     long beg, len, m = NUM2LONG(max);
     rb_range_beg_len(range, &beg, &len, m, 0);
+    if (beg + len - 1 > m)
+      len -= 1;
     return rb_range_new(LONG2NUM(beg), LONG2NUM(beg + len - 1), 0);
 }
 

@@ -11,9 +11,8 @@ describe "A Range object" do
   it "responds to #relative_to, which returns a new Range object without negative indicies" do
     ( 0 ..  10).relative_to(11).should == (0..10)
     ( 1 ..  9 ).relative_to(11).should == (1..9 )
-    ##
-    # TODO: This spec fails right now, though it is the intended behaviour.
-    # ( 0 ..  15).relative_to(11).should == (0..10)
+    ( 0 ..  15).relative_to(11).should == (0..10)
+    ( 0 ..  11).relative_to(11).should == (0..10)
 
     ( 0 .. -1 ).relative_to(11).should == (0..10)
     ( 0 .. -2 ).relative_to(11).should == (0..9 )
@@ -24,6 +23,7 @@ describe "A Range object" do
     (-10.. -5 ).relative_to(11).should == (1..6 )
 
     ( 4 ... 11).relative_to(11).should == (4..10)
+    ( 4 ... 15).relative_to(11).should == (4..10)
     ( 4 ... 10).relative_to(11).should == (4..9 )
     ( 4 ...-1 ).relative_to(11).should == (4..9 )
     (-11...-1 ).relative_to(11).should == (0..9 )
