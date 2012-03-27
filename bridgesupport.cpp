@@ -1012,6 +1012,9 @@ rb_pointer_cast(VALUE rcv, SEL sel, VALUE type)
     Data_Get_Struct(rcv, rb_vm_pointer_t, ptr);
 
     check_no_magic_cookie(ptr);
+
+    const char *type_str = convert_ffi_type(type, false);
+    type = rb_str_new_cstr(type_str);
     rb_pointer_init_type(ptr, type);
     return rcv;
 }

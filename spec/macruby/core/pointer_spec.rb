@@ -193,6 +193,10 @@ describe "A Pointer object" do
     pointer2.cast!(NSRect.type).should == pointer2
     pointer2.type.should == NSRect.type
     pointer2[0].should == NSMakeRect(10, 20, 30, 40)
+
+    pointer3 = Pointer.new(:int)
+    pointer3.cast!(:uint)
+    pointer3.type == 'I'
   end
 
   it "raises a TypeError when a incompatible object is given into #cast!" do
