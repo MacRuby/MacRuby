@@ -883,13 +883,13 @@ rb_pointer_init_type(rb_vm_pointer_t *ptr, VALUE type)
 
     RoxorCore *core = GET_CORE();
 
+    ptr->type_size = core->get_sizeof(type_str);
+    assert(ptr->type_size > 0);
+
     ptr->convert_to_rval =
 	(VALUE (*)(void *))core->gen_to_rval_convertor(type_str);
     ptr->convert_to_ocval =
 	(void (*)(VALUE, void *))core->gen_to_ocval_convertor(type_str);
-
-    ptr->type_size = core->get_sizeof(type_str);
-    assert(ptr->type_size > 0);
 }
 
 extern "C"

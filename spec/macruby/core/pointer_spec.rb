@@ -195,6 +195,13 @@ describe "A Pointer object" do
     pointer2[0].should == NSMakeRect(10, 20, 30, 40)
   end
 
+  it "raises a TypeError when a incompatible object is given into #cast!" do
+    lambda {
+      pointer = Pointer.new('i')
+      pointer.cast!('x')
+    }.should raise_error(TypeError)
+  end
+
   it "of type 'c' can be passed as a C-style char array argument" do
     s = NSString.stringWithString('foo')
     ptr = Pointer.new(:char, 4)
