@@ -4973,7 +4973,9 @@ ripper_yylval_id(ID x)
 #else
 #define ripper_flush(p) (p->tokp = p->parser_lex_p)
 
+#if !WITH_OBJC
 #define yylval_rval *(RB_TYPE_P(yylval.val, T_NODE) ? &yylval.node->nd_rval : &yylval.val)
+#endif
 
 static int
 ripper_has_scan_event(struct parser_params *parser)
@@ -4996,7 +4998,11 @@ static void
 ripper_dispatch_scan_event(struct parser_params *parser, int t)
 {
     if (!ripper_has_scan_event(parser)) return;
+#if WITH_OBJC
+    yylval.val = ripper_scan_event_val(parser, t);
+#else
     yylval_rval = ripper_scan_event_val(parser, t);
+#endif
 }
 
 static void
@@ -5014,7 +5020,11 @@ ripper_dispatch_delayed_token(struct parser_params *parser, int t)
 
     ruby_sourceline = parser->delayed_line;
     parser->tokp = lex_pbeg + parser->delayed_col;
+#if WITH_OBJC
+    yylval.val = ripper_dispatch1(parser, ripper_token2eventid(t), parser->delayed);
+#else
     yylval_rval = ripper_dispatch1(parser, ripper_token2eventid(t), parser->delayed);
+#endif
     parser->delayed = Qnil;
     ruby_sourceline = saved_line;
     parser->tokp = saved_tokp;
@@ -10055,22 +10065,30 @@ ripper_id2sym(ID id)
 static ID
 ripper_get_id(VALUE v)
 {
+#if WITH_OBJC
+    return v;
+#else
     NODE *nd;
     if (!RB_TYPE_P(v, T_NODE)) return 0;
     nd = (NODE *)v;
     if (nd_type(nd) != NODE_LASGN) return 0;
     return nd->nd_vid;
+#endif
 }
 
 static VALUE
 ripper_get_value(VALUE v)
 {
+#if WITH_OBJC
+    return v;
+#else
     NODE *nd;
     if (v == Qundef) return Qnil;
     if (!RB_TYPE_P(v, T_NODE)) return v;
     nd = (NODE *)v;
     if (nd_type(nd) != NODE_LASGN) return Qnil;
     return nd->nd_rval;
+#endif
 }
 
 static void
