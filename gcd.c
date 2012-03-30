@@ -766,7 +766,7 @@ rb_group_init(VALUE self, SEL sel)
 
 /* 
  *  call-seq:
- *    grp.notify { block }
+ *    grp.notify(queue) { block }
  *
  *  Asynchronously schedules a block to be called when the previously
  *  submitted dispatches for that group have completed.
@@ -774,7 +774,7 @@ rb_group_init(VALUE self, SEL sel)
  *     gcdq = Dispatch::Queue.new('doc')
  *     grp = Dispatch::Group.new
  *     gcdq.async(grp) { print 'foo' }
- *     grp.notify { print 'bar' } #=> foobar
+ *     grp.notify(gcdq) { print 'bar' } #=> foobar
  */
 
 static VALUE
