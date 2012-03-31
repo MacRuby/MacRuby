@@ -1044,7 +1044,7 @@ rb_source_get_mask(VALUE self, SEL sel)
  *     src = Dispatch::Source.new(Dispatch::Source::DATA_ADD, 0, 0, gcdq) do |s|
  *       puts s.data
  *     end
- *     src.merge(1)
+ *     src << 1
  *     gcdq.sync { } #=> 1
  */
 
@@ -1056,7 +1056,7 @@ rb_source_get_data(VALUE self, SEL sel)
 
 /* 
  *  call-seq:
- *    src.merge(number)
+ *    src << number
  *
  *  Intended only for use with the Dispatch::Source::DATA_ADD and
  *  Dispatch::Source::DATA_OR source types, calling this function will
@@ -1068,8 +1068,8 @@ rb_source_get_data(VALUE self, SEL sel)
  *     src = Dispatch::Source.new(Dispatch::Source::DATA_ADD, 0, 0, gcdq) do |s|
  *       @sum += s.data # safe since always serialized
  *     end
- *     src.merge(1)
- *     src.merge(3)
+ *     src << 1
+ *     src << 3
  *     gcdq.sync { }
  *     puts @sum #=> 4
  */
@@ -1419,7 +1419,7 @@ Init_Dispatch(void)
  *  (since the event handler -et al- have already been set).
  *   
  *     src.suspended? #=? false
- *     src.merge(0)
+ *     src << 0
  *     gcdq.sync { } #=> Fired!
  */
     cSource = rb_define_class_under(mDispatch, "Source", cObject);
