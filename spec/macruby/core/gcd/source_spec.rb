@@ -416,6 +416,13 @@ if MACOSX_VERSION >= 10.6
         @count.should == repeats
         @count.should == ((t1-t0).to_f / @interval).to_i
       end
+
+      it "should not repeat with TIME_FOREVER" do
+        @count = 0
+        @src = Dispatch::Source.timer(0, Dispatch::TIME_FOREVER, 0, @q) { @count += 1 }
+        sleep 0.1
+        @count.should == 1
+      end
     end
   end
 

@@ -112,6 +112,9 @@ static VALUE cGroup;
 static VALUE cSource;
 static VALUE cSemaphore;
 
+static VALUE const_time_now;
+static VALUE const_time_forever;
+
 static inline void
 Check_Queue(VALUE object)
 {
@@ -152,6 +155,10 @@ rb_raise_init(VALUE self, SEL sel)
 static inline uint64_t
 rb_num2nsec(VALUE num)
 {
+    if (num == const_time_forever) {
+	return DISPATCH_TIME_FOREVER;
+    }
+
     const double sec = rb_num2dbl(num);
     if (sec < 0.0) {
         rb_raise(rb_eArgError, "negative delay specified");
@@ -1471,8 +1478,10 @@ Init_Dispatch(void)
  * dispatch_time(3)[http://developer.apple.com/Mac/library/documentation/Darwin/Reference/ManPages/man3/dispatch_time.3.html]
  */
 
-    rb_define_const(mDispatch, "TIME_NOW", ULL2NUM(DISPATCH_TIME_NOW));
-    rb_define_const(mDispatch, "TIME_FOREVER", ULL2NUM(DISPATCH_TIME_FOREVER));
+    const_time_now = ULL2NUM(DISPATCH_TIME_NOW);
+    const_time_forever = ULL2NUM(DISPATCH_TIME_FOREVER);
+    rb_define_const(mDispatch, "TIME_NOW", const_time_now);
+    rb_define_const(mDispatch, "TIME_FOREVER", const_time_forever);
     
 /* Constants for future reference */
     selClose = sel_registerName("close");
