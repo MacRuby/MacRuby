@@ -2,7 +2,7 @@
  * MacRuby BridgeSupport implementation.
  *
  * This file is covered by the Ruby license. See COPYING for more details.
- * 
+ *
  * Copyright (C) 2007-2011, Apple Inc. All rights reserved.
  */
 
@@ -258,7 +258,7 @@ rb_vm_set_struct(VALUE rcv, int field, VALUE val)
 {
     VALUE *data;
     Data_Get_Struct(rcv, VALUE, data);
-    GC_WB(&data[field], val);    
+    GC_WB(&data[field], val);
 }
 
 void
@@ -401,7 +401,7 @@ rb_vm_struct_fake_new(VALUE rcv, SEL sel, int argc, VALUE *argv)
     GET_CORE()->unlock();
 
     // Replace the fake method with the new one in the runtime.
-    rb_objc_define_method(*(VALUE *)rcv, "new", (void *)imp, -1); 
+    rb_objc_define_method(*(VALUE *)rcv, "new", (void *)imp, -1);
 
     // Call the new method.
     return ((VALUE (*)(VALUE, SEL, int, VALUE *))imp)(rcv, sel, argc, argv);
@@ -428,7 +428,7 @@ rb_vm_struct_fake_set(VALUE rcv, SEL sel, VALUE val)
 	    break;
 	}
     }
-    assert(field != -1); 
+    assert(field != -1);
 
     // Generate the new setter method.
     GET_CORE()->lock();
@@ -440,7 +440,7 @@ rb_vm_struct_fake_set(VALUE rcv, SEL sel, VALUE val)
     // Replace the fake method with the new one in the runtime.
     buf[s - 1] = '=';
     buf[s] = '\0';
-    rb_objc_define_method(*(VALUE *)rcv, buf, (void *)imp, 1); 
+    rb_objc_define_method(*(VALUE *)rcv, buf, (void *)imp, 1);
 
     // Call the new method.
     return ((VALUE (*)(VALUE, SEL, VALUE))imp)(rcv, sel, val);
@@ -599,7 +599,7 @@ rb_vm_opaque_new(VALUE rcv, SEL sel)
     // XXX instead of doing this, we should perhaps simply delete the new
     // method on the class...
     rb_raise(rb_eRuntimeError, "can't allocate opaque type `%s'",
-	    rb_class2name(rcv)); 
+	    rb_class2name(rcv));
 }
 
 bool
@@ -821,7 +821,7 @@ rb_vm_get_struct_fields(VALUE rval, VALUE *buf, rb_vm_bs_boxed_t *bs_boxed)
     }
     else {
 	if (!rb_obj_is_kind_of(rval, bs_boxed->klass)) {
-	    rb_raise(rb_eTypeError, 
+	    rb_raise(rb_eTypeError,
 		    "expected instance of `%s', got `%s' (%s)",
 		    rb_class2name(bs_boxed->klass),
 		    RSTRING_PTR(rb_inspect(rval)),
@@ -839,7 +839,7 @@ rb_vm_get_struct_fields(VALUE rval, VALUE *buf, rb_vm_bs_boxed_t *bs_boxed)
 		    != bs_boxed->as.s->fields_count) {
 		rb_raise(rb_eTypeError,
 			"expected instance of Boxed with %d fields, got %d",
-			bs_boxed->as.s->fields_count, 
+			bs_boxed->as.s->fields_count,
 			rval_bs_boxed->as.s->fields_count);
 	    }
 
@@ -852,7 +852,7 @@ rb_vm_get_struct_fields(VALUE rval, VALUE *buf, rb_vm_bs_boxed_t *bs_boxed)
 			i,
 			rb_class2name(bs_boxed->klass),
 			bs_boxed->as.s->fields[i].type,
-			rval_bs_boxed->as.s->fields[i].type);	
+			rval_bs_boxed->as.s->fields[i].type);
 		}
 	    }
 	}
@@ -862,7 +862,7 @@ rb_vm_get_struct_fields(VALUE rval, VALUE *buf, rb_vm_bs_boxed_t *bs_boxed)
 
 	for (unsigned i = 0; i < bs_boxed->as.s->fields_count; i++) {
 	    buf[i] = data[i];
-	}	
+	}
     }
 }
 
@@ -1072,7 +1072,7 @@ index_bs_class_methods(const char *name,
     std::map<std::string, std::map<SEL, bs_element_method_t *> *>::iterator
 	iter = map.find(name);
 
-    std::map<SEL, bs_element_method_t *> *methods_map = NULL;	
+    std::map<SEL, bs_element_method_t *> *methods_map = NULL;
     if (iter == map.end()) {
 	methods_map = new std::map<SEL, bs_element_method_t *>();
 	map[name] = methods_map;
@@ -1085,7 +1085,7 @@ index_bs_class_methods(const char *name,
 	bs_element_method_t *m = &methods[i];
 	methods_map->insert(std::make_pair(m->name, m));
     }
-} 
+}
 
 void
 RoxorCore::register_bs_class(bs_element_class_t *bs_class)
@@ -1143,7 +1143,7 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 		VALUE val = strchr(bs_enum->value, '.') != NULL
 		    ? rb_float_new(rb_cstr_to_dbl(bs_enum->value, 0))
 		    : rb_cstr_to_inum(bs_enum->value, 10, 0);
-		CFDictionarySetValue(rb_cObject_dict, (const void *)name, 
+		CFDictionarySetValue(rb_cObject_dict, (const void *)name,
 			(const void *)val);
 	    }
 	    break;
@@ -1157,7 +1157,7 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 			(const void *)name, NULL)) {
 
 		bs_consts[name] = bs_const;
-		CFDictionarySetValue(rb_cObject_dict, (const void *)name, 
+		CFDictionarySetValue(rb_cObject_dict, (const void *)name,
 			(const void *)bs_const_magic_cookie);
 		do_not_free = true;
 	    }
@@ -1166,14 +1166,14 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 
 	case BS_ELEMENT_STRING_CONSTANT:
 	{
-	    bs_element_string_constant_t *bs_strconst = 
+	    bs_element_string_constant_t *bs_strconst =
 		(bs_element_string_constant_t *)value;
 	    ID name = generate_const_name(bs_strconst->name);
 	    if (!CFDictionaryGetValueIfPresent(rb_cObject_dict,
 			(const void *)name, NULL)) {
 
 		VALUE val = rb_str_new2(bs_strconst->value);
-		CFDictionarySetValue(rb_cObject_dict, (const void *)name, 
+		CFDictionarySetValue(rb_cObject_dict, (const void *)name,
 			(const void *)val);
 	    }
 	    break;
@@ -1196,19 +1196,19 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 	case BS_ELEMENT_FUNCTION_ALIAS:
 	{
 #if 0 // TODO
-	    bs_element_function_alias_t *bs_func_alias = 
+	    bs_element_function_alias_t *bs_func_alias =
 		(bs_element_function_alias_t *)value;
 	    bs_element_function_t *bs_func_original;
-	    if (st_lookup(bs_functions, 
-			(st_data_t)rb_intern(bs_func_alias->original), 
+	    if (st_lookup(bs_functions,
+			(st_data_t)rb_intern(bs_func_alias->original),
 			(st_data_t *)&bs_func_original)) {
-		st_insert(bs_functions, 
-			(st_data_t)rb_intern(bs_func_alias->name), 
+		st_insert(bs_functions,
+			(st_data_t)rb_intern(bs_func_alias->name),
 			(st_data_t)bs_func_original);
 	    }
 	    else {
-		rb_raise(rb_eRuntimeError, 
-			"cannot alias '%s' to '%s' because it doesn't exist", 
+		rb_raise(rb_eRuntimeError,
+			"cannot alias '%s' to '%s' because it doesn't exist",
 			bs_func_alias->name, bs_func_alias->original);
 	    }
 #endif
@@ -1241,7 +1241,7 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 		    if (bs_method != NULL) {
 			bs_element_arg_t *arg = bs_method->args;
 			while (arg != NULL) {
-			    if (arg->index == 0 
+			    if (arg->index == 0
 				    && arg->sel_of_type != NULL
 				    && arg->sel_of_type[0] != '@') {
 				arg->sel_of_type[0] = '@';
@@ -1261,7 +1261,7 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 
 	case BS_ELEMENT_INFORMAL_PROTOCOL_METHOD:
 	{
-	    bs_element_informal_protocol_method_t *bs_inf_prot_method = 
+	    bs_element_informal_protocol_method_t *bs_inf_prot_method =
 		(bs_element_informal_protocol_method_t *)value;
 
 	    std::map<SEL, std::string *> &map =
@@ -1305,7 +1305,7 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 		    }
 		    else if (strncmp(p, "{_NSRange=", 10) == 0) {
 			strlcat(type, "{_NSRange=QQ}", typelen);
-		    } 
+		    }
 		    else {
 			char buf[100];
 			strncpy(buf, p, len);
@@ -1367,7 +1367,7 @@ void
 RoxorCore::load_bridge_support(const char *path, const char *framework_path,
 	int options)
 {
-    CFMutableDictionaryRef rb_cObject_dict;  
+    CFMutableDictionaryRef rb_cObject_dict;
 
     if (bs_parser == NULL) {
 	bs_parser = bs_parser_new();
@@ -1467,7 +1467,7 @@ RoxorCompiler::compile_ffi_function(void *stub, void *imp, int argc)
     std::vector<Value *> params;
     std::vector<const Type *> stub_types;
 
-    // First argument is the function implementation. 
+    // First argument is the function implementation.
     params.push_back(compile_const_pointer(imp));
     stub_types.push_back(PtrTy);
 
@@ -1500,7 +1500,7 @@ RoxorCompiler::compile_ffi_function(void *stub, void *imp, int argc)
 
     // Call the stub and return its return value.
     CallInst *stub_call = CallInst::Create(stub_val, params.begin(),
-	    params.end(), "", bb); 
+	    params.end(), "", bb);
     ReturnInst::Create(context, stub_call, bb);
 
     return f;
@@ -1530,7 +1530,7 @@ rb_ffi_attach_function(VALUE rcv, SEL sel, VALUE name, VALUE args, VALUE ret)
     const int argc = RARRAY_LEN(args);
     for (int i = 0; i < argc; i++) {
 	types.append(convert_ffi_type(RARRAY_AT(args, i), true));
-    } 
+    }
 
     rb_vm_c_stub_t *stub = (rb_vm_c_stub_t *)GET_CORE()->gen_stub(types,
 	    false, argc, false);
@@ -1719,4 +1719,3 @@ rb_pointer_new2(const char *type_str, VALUE rval)
     return p;
 #endif
 }
-
