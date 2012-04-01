@@ -519,7 +519,10 @@ RoxorVM::debug_exceptions(void)
     for (std::vector<VALUE>::iterator i = current_exceptions.begin();
 	    i != current_exceptions.end();
 	    ++i) {
-	printf("%p ", (void *)*i);
+	    printf("current_exceptions[%d] = (%p) \"%s\"",
+				(int)(i - current_exceptions.begin()),
+				(void *)*i,
+				RSTRING_PTR(rb_inspect(*i)));
     }
     printf("\n");
 }
@@ -3560,6 +3563,10 @@ static inline void
 __vm_raise(void)
 {
     VALUE rb_exc = GET_VM()->current_exception();
+#if ROXOR_VM_DEBUG
+	printf("%s (%s:%d): rb_exc = \"%s\"\n",
+			__FUNCTION__, __FILE__, __LINE__, RSTRING_PTR(rb_inspect(rb_exc)));
+#endif
 
     // DTrace probe: raise
     if (MACRUBY_RAISE_ENABLED()) {
@@ -3586,6 +3593,10 @@ RoxorVM::push_current_exception(VALUE exc)
     assert(!NIL_P(exc));
     GC_RETAIN(exc);
     current_exceptions.push_back(exc);
+#if ROXOR_VM_DEBUG
+	printf("%s (%s:%d): exc = \"%s\"\n",
+			__FUNCTION__, __FILE__, __LINE__, RSTRING_PTR(rb_inspect(exc)));
+#endif
 //printf("PUSH %p %s\n", (void *)exc, RSTRING_PTR(rb_inspect(exc)));
 }
 
@@ -3597,6 +3608,17 @@ RoxorVM::pop_current_exception(int pos)
 	return;
     }
 
+#if ROXOR_VM_DEBUG
+    if (!((size_t)pos < current_exceptions.size()))
+    {
+        printf("RoxorVM::%s (%s:%d) - "
+               "Warning: Assertion about to fail: "
+               "((size_t)pos < current_exceptions.size()); pos = %d; "
+               "current_exceptions.size() = %d\n",
+               __FUNCTION__, __FILE__, __LINE__, pos, (int)current_exceptions.size());
+		debug_exceptions();
+    }
+#endif
     assert((size_t)pos < current_exceptions.size());
 
     std::vector<VALUE>::iterator iter = current_exceptions.end() - (pos + 1);
@@ -3613,6 +3635,10 @@ void
 rb_rb2oc_exc_handler(void)
 {
     VALUE exc = GET_VM()->current_exception();
+#if ROXOR_VM_DEBUG
+	printf("%s (%s:%d): exc = \"%s\"\n",
+			__FUNCTION__, __FILE__, __LINE__, RSTRING_PTR(rb_inspect(exc)));
+#endif
     if (exc != Qnil) {
 	id ocexc = rb_rb2oc_exception(exc);
 	objc_exception_throw(ocexc);
@@ -3639,6 +3665,10 @@ void
 rb_vm_raise_current_exception(void)
 {
     VALUE exception = GET_VM()->current_exception();
+#if ROXOR_VM_DEBUG
+	printf("%s (%s:%d): exception = \"%s\"\n",
+			__FUNCTION__, __FILE__, __LINE__, RSTRING_PTR(rb_inspect(exception)));
+#endif
     assert(exception != Qnil);
     prepare_exception_bt(exception);
     __vm_raise(); 
@@ -3649,6 +3679,10 @@ void
 rb_vm_raise(VALUE exception)
 {
     prepare_exception_bt(exception);
+#if ROXOR_VM_DEBUG
+	printf("%s (%s:%d): exception = \"%s\"\n",
+			__FUNCTION__, __FILE__, __LINE__, RSTRING_PTR(rb_inspect(exception)));
+#endif
     GET_VM()->push_current_exception(exception);
     __vm_raise();
 }
@@ -3664,6 +3698,10 @@ rb_rescue2(VALUE (*b_proc) (ANYARGS), VALUE data1,
     catch (...) {
 	RoxorVM *vm = GET_VM();
 	VALUE exc = vm->current_exception();
+#if ROXOR_VM_DEBUG
+	printf("%s (%s:%d): exc = \"%s\"\n",
+			__FUNCTION__, __FILE__, __LINE__, RSTRING_PTR(rb_inspect(exc)));
+#endif
 	if (exc != Qnil) {
 	    va_list ar;
 	    VALUE eclass;
@@ -3679,6 +3717,10 @@ rb_rescue2(VALUE (*b_proc) (ANYARGS), VALUE data1,
 	    va_end(ar);
 
 	    if (handled) {
+#if ROXOR_VM_DEBUG
+		printf("%s (%s:%d): Calling pop_current_exception...\n",
+				__FUNCTION__, __FILE__, __LINE__);
+#endif
 		vm->pop_current_exception();
 		if (r_proc != NULL) {
 		    return (*r_proc)(data2, exc);
@@ -3890,6 +3932,10 @@ rb_vm_is_eh_active(int argc, ...)
     assert(argc > 0);
 
     VALUE current_exception = GET_VM()->current_exception();
+#if ROXOR_VM_DEBUG
+	printf("%s (%s:%d): current_exception = \"%s\"\n",
+			__FUNCTION__, __FILE__, __LINE__, RSTRING_PTR(rb_inspect(current_exception)));
+#endif
     if (current_exception == Qnil) {
 	// Not a Ruby exception...
 	return 0;
@@ -3925,6 +3971,10 @@ extern "C"
 void
 rb_vm_pop_exception(int pos)
 {
+#if ROXOR_VM_DEBUG
+	printf("%s (%s:%d): Calling pop_current_exception(%d)...\n",
+			__FUNCTION__, __FILE__, __LINE__, pos);
+#endif
     GET_VM()->pop_current_exception(pos);
 }
 
@@ -3941,7 +3991,15 @@ rb_vm_set_current_exception(VALUE exception)
 {
     assert(!NIL_P(exception));
 
+#if ROXOR_VM_DEBUG
+	printf("%s (%s:%d): exception = \"%s\"\n",
+			__FUNCTION__, __FILE__, __LINE__, RSTRING_PTR(rb_inspect(exception)));
+#endif
     VALUE current = GET_VM()->current_exception();
+#if ROXOR_VM_DEBUG
+	printf("%s: (%s:%d) current = \"%s\"\n",
+			__FUNCTION__, __FILE__, __LINE__, RSTRING_PTR(rb_inspect(current)));
+#endif
     assert(exception != current);
     if (!NIL_P(current)) {
 	GET_VM()->pop_current_exception();
@@ -4535,6 +4593,10 @@ RoxorVM::increase_nesting_for_tag(VALUE tag)
 {
     std::map<VALUE, rb_vm_catch_t *>::iterator iter = this->catch_nesting.find(tag);
     VALUE exc = current_exception();
+#if ROXOR_VM_DEBUG
+	printf("%s: (%s:%d) exc = \"%s\"\n",
+			__FUNCTION__, __FILE__, __LINE__, RSTRING_PTR(rb_inspect(exc)));
+#endif
     if (iter == catch_nesting.end()) {
 	rb_vm_catch_t *catch_ptr = new rb_vm_catch_t;
 	catch_ptr->nested = 1;
@@ -4617,6 +4679,10 @@ RoxorVM::ruby_throw(VALUE tag, VALUE value)
     // since we are going to unwind the stack.
     rb_vm_catch_t *catch_ptr = iter->second;
     while (catch_ptr->current_exceptions.back() != current_exception()) {
+#if ROXOR_VM_DEBUG
+		printf("RoxorVM::%s (%s:%d): Calling pop_current_exception...\n",
+				__FUNCTION__, __FILE__, __LINE__);
+#endif
 	pop_current_exception();
     }
 
@@ -4882,6 +4948,10 @@ rb_vm_thread_run(VALUE thread)
 	else {
 	    exc = rb_vm_current_exception();
 	}
+#if ROXOR_VM_DEBUG
+	printf("%s (%s:%d): exc = \"%s\"\n",
+			__FUNCTION__, __FILE__, __LINE__, RSTRING_PTR(rb_inspect(exc)));
+#endif
 	if (exc != Qnil) {
 	    GC_WB(&t->exception, exc);
 	}
@@ -5110,6 +5180,10 @@ rb_vm_thread_raise(rb_vm_thread_t *t, VALUE exc)
 {
     // XXX we should lock here
     RoxorVM *vm = (RoxorVM *)t->vm;
+#if ROXOR_VM_DEBUG
+	printf("%s (%s:%d): exc = \"%s\"\n",
+			__FUNCTION__, __FILE__, __LINE__, RSTRING_PTR(rb_inspect(exc)));
+#endif
     vm->push_current_exception(exc);
 
     rb_vm_thread_cancel(t);
