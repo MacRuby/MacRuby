@@ -15,7 +15,9 @@ MacRuby 0.12 was a milestone release...
  * Cocoa objects now use `#description` for their `#inspect` output
 
 ```ruby
-p NSURL.URLWithString("http://macruby.org/").inspect
+    p NSURL.URLWithString("http://macruby.org/").inspect
 ```
+
+ * Added `Pointer#value` shortcut to `Pointer#[0]`
 
 ![Business Cat Doin His Thang](http://i.imgur.com/2KmJW.jpg)

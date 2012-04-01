@@ -980,6 +980,12 @@ rb_pointer_aref(VALUE rcv, SEL sel, VALUE idx)
 }
 
 static VALUE
+rb_pointer_value(VALUE rcv, SEL sel)
+{
+    return rb_pointer_aref(rcv, 0, INT2FIX(0));
+}
+
+static VALUE
 rb_pointer_aset(VALUE rcv, SEL sel, VALUE idx, VALUE val)
 {
     rb_vm_pointer_t *ptr;
@@ -1582,6 +1588,7 @@ Init_BridgeSupport(void)
 	    (void *)rb_pointer_s_magic_cookie, 1);
     rb_objc_define_method(rb_cPointer, "[]", (void *)rb_pointer_aref, 1);
     rb_objc_define_method(rb_cPointer, "[]=", (void *)rb_pointer_aset, 2);
+    rb_objc_define_method(rb_cPointer, "value", (void *)rb_pointer_value, 0);
     rb_objc_define_method(rb_cPointer, "assign", (void *)rb_pointer_assign, 1);
     rb_objc_define_method(rb_cPointer, "type", (void *)rb_pointer_type, 0);
     rb_objc_define_method(rb_cPointer, "cast!", (void *)rb_pointer_cast, 1);

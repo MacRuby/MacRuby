@@ -66,7 +66,7 @@ describe "A Pointer object, when initializing" do
   end
 end
 
-describe "Pointer, through #[] and #[]=" do
+describe "Pointer, through #value, #[], #assign, and #[]=" do
   integer_types = %w{ char uchar short ushort int uint long ulong long_long ulong_long }.map { |x| x.intern }
   float_types   = %w{ float double }.map { |x| x.intern }
 
@@ -77,9 +77,9 @@ describe "Pointer, through #[] and #[]=" do
   it "can assign and retrieve any object with type `object'" do
     pointer = Pointer.new(:object)
     [Object.new, 123].each do |object|
-      pointer[0] = object
-      pointer[0].should == object
-      pointer[0].should be_kind_of(object.class)
+      pointer.assign object
+      pointer.value.should == object
+      pointer.value.should be_kind_of(object.class)
     end
   end
 
@@ -91,9 +91,9 @@ describe "Pointer, through #[] and #[]=" do
       def coercable_object.to_i; 42; end
 
       [42, coercable_object].each do |object|
-        pointer[0] = object
-        pointer[0].should == 42
-        pointer[0].should be_kind_of(Fixnum)
+        pointer.assign object
+        pointer.value.should == 42
+        pointer.value.should be_kind_of(Fixnum)
       end
     end
   end
@@ -106,9 +106,9 @@ describe "Pointer, through #[] and #[]=" do
       def coercable_object.to_f; 42.0; end
 
       [42, coercable_object].each do |object|
-        pointer[0] = object
-        pointer[0].should == 42.0
-        pointer[0].should be_kind_of(Float)
+        pointer.assign object
+        pointer.value.should == 42.0
+        pointer.value.should be_kind_of(Float)
       end
     end
   end
@@ -117,24 +117,24 @@ describe "Pointer, through #[] and #[]=" do
     it "can assign and retrieve #{struct.class.name} objects for type `#{type}'" do
       pointer = Pointer.new(type)
 
-      pointer[0] = struct
-      pointer[0].should == struct
-      pointer[0].should be_kind_of(struct.class)
+      pointer.assign struct
+      pointer.value.should == struct
+      pointer.value.should be_kind_of(struct.class)
     end
   end
 
   (integer_types + float_types + struct_types).each do |type|
     it "raises a TypeError when assigned an object not of type `#{type}'" do
       pointer = Pointer.new(type)
-      lambda { pointer[0] = Object.new }.should raise_error(TypeError)
+      lambda { pointer.assign Object.new }.should raise_error(TypeError)
     end
   end
 
   it "can assign and retrieve CF type objects" do
     ptr = Pointer.new('^{__CFError}')
-    ptr[0].should == nil
+    ptr.value.should == nil
     CFURLResourceIsReachable(NSURL.URLWithString('http://doesnotexistomgwtf.be'), ptr).should == false
-    ptr[0].is_a?(NSError).should == true
+    ptr.value.should be_kind_of(NSError)
   end
 
   it "handle 'void *' C pointers as 'unsigned char *'" do
