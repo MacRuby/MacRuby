@@ -1,0 +1,7 @@
+fails:Marshal.restore returns an untrusted object if source is untrusted
+fails:Marshal.restore loads a 1..2
+fails:Marshal.restore loads a 1...2
+fails:Marshal.restore loads a 'a'..'b'
+fails:Marshal.restore loads a Random
+fails:Marshal.restore for a Hash preserves hash ivars when hash contains a string having ivar
+fails:Marshal.restore for a wrapped C pointer loads

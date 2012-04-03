@@ -1,0 +1,2 @@
+fails:Integer#succ overflows a Fixnum to a Bignum
+fails:Integer#succ underflows a Bignum to a Fixnum

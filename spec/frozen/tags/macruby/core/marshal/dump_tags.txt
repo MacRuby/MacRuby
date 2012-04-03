@@ -23,3 +23,69 @@ fails:Marshal.dump dumps a Regexp subclass /i
 fails:Marshal.dump dumps a Random
 fails:Marshal.dump invokes respond_to? for marshal_dump and _dump on user classes
 fails:Marshal.dump attempts to invoke _dump if respond_to? :_dump is true
+fails:Marshal.dump nil returns a binary string
+fails:Marshal.dump 1..2 returns a binary string
+fails:Marshal.dump 1...2 returns a binary string
+fails:Marshal.dump 'a'..'b' returns a binary string
+fails:Marshal.dump Struct returns a binary string
+fails:Marshal.dump Symbol returns a binary string
+fails:Marshal.dump true returns a binary string
+fails:Marshal.dump false returns a binary string
+fails:Marshal.dump String empty returns a binary string
+fails:Marshal.dump String small returns a binary string
+fails:Marshal.dump String big returns a binary string
+fails:Marshal.dump String extended returns a binary string
+fails:Marshal.dump String subclass returns a binary string
+fails:Marshal.dump String subclass extended returns a binary string
+fails:Marshal.dump Symbol small returns a binary string
+fails:Marshal.dump Symbol big returns a binary string
+fails:Marshal.dump Bignum -2**64 returns a binary string
+fails:Marshal.dump Bignum -2**63 returns a binary string
+fails:Marshal.dump Fixnum -2**24 returns a binary string
+fails:Marshal.dump Fixnum -2**16 returns a binary string
+fails:Marshal.dump Fixnum -2**8 returns a binary string
+fails:Marshal.dump Fixnum -123 returns a binary string
+fails:Marshal.dump Fixnum 0 returns a binary string
+fails:Marshal.dump Fixnum 5 returns a binary string
+fails:Marshal.dump Fixnum 2**8 returns a binary string
+fails:Marshal.dump Fixnum 2**16 returns a binary string
+fails:Marshal.dump Fixnum 2**24 returns a binary string
+fails:Marshal.dump Bignum 2**64 returns a binary string
+fails:Marshal.dump Bignum 2**90 returns a binary string
+fails:Marshal.dump Class String returns a binary string
+fails:Marshal.dump Module Marshal returns a binary string
+fails:Marshal.dump Module nested returns a binary string
+fails:Marshal.dump _dump object returns a binary string
+fails:Marshal.dump _dump object extended returns a binary string
+fails:Marshal.dump marshal_dump object returns a binary string
+fails:Marshal.dump Regexp returns a binary string
+fails:Marshal.dump Regexp subclass /i returns a binary string
+fails:Marshal.dump Float 0.0 returns a binary string
+fails:Marshal.dump Float -0.0 returns a binary string
+fails:Marshal.dump Float Infinity returns a binary string
+fails:Marshal.dump Float -Infinity returns a binary string
+fails:Marshal.dump Float 1.0 returns a binary string
+fails:Marshal.dump Hash returns a binary string
+fails:Marshal.dump Hash subclass returns a binary string
+fails:Marshal.dump Array returns a binary string
+fails:Marshal.dump Array subclass returns a binary string
+fails:Marshal.dump Random returns a binary string
+fails:Marshal.dump returns an untrusted string if nested object is untrusted
+fails:Marshal.dump with a Symbol dumps an encoded Symbol
+fails:Marshal.dump with a String dumps a US-ASCII String
+fails:Marshal.dump with a String dumps a UTF-8 String
+fails:Marshal.dump with a String dumps a String in another encoding
+fails:Marshal.dump with a Regexp dumps a Regexp
+fails:Marshal.dump with a Regexp dumps a Regexp with flags
+fails:Marshal.dump with a Regexp dumps a Regexp with instance variables
+fails:Marshal.dump with a Regexp dumps an extended Regexp
+fails:Marshal.dump with a Regexp dumps a Regexp subclass
+fails:Marshal.dump with a Regexp dumps a binary Regexp
+fails:Marshal.dump with a Regexp dumps a UTF-8 Regexp
+fails:Marshal.dump with a Regexp dumps a Regexp in another encoding
+fails:Marshal.dump with an Array dumps an Array with instance variables
+fails:Marshal.dump with a Hash dumps a Hash with a default value
+fails:Marshal.dump with a Hash raises a TypeError with hash having default proc
+fails:Marshal.dump with a Hash dumps a Hash with instance variables
+fails:Marshal.dump with a Hash dumps an Hash subclass with a parameter to initialize
+fails:Marshal.dump with a Struct dumps a Struct with instance variables

@@ -1,0 +1,1 @@
+fails:String.new returns a binary String
