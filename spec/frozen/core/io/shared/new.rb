@@ -41,21 +41,6 @@ describe :io_new, :shared => true do
       @io.write("foo").should == 3
     end
 
-    it "raises an error when trying to set both binmode and textmode" do
-      lambda {
-        @io = IO.send(@method, @fd, "wb", :textmode => true)
-      }.should raise_error(ArgumentError)
-      lambda {
-        @io = IO.send(@method, @fd, "wt", :binmode => true)
-      }.should raise_error(ArgumentError)
-      lambda {
-        @io = IO.send(@method, @fd, "w", :textmode => true, :binmode => true)
-      }.should raise_error(ArgumentError)
-      lambda {
-        @io = IO.send(@method, @fd, File::Constants::WRONLY, :textmode => true, :binmode => true)
-      }.should raise_error(ArgumentError)
-    end
-
     it "raises an error if passed modes two ways" do
       lambda {
         IO.send(@method, @fd, "w", :mode => "w")
@@ -149,6 +134,29 @@ describe :io_new, :shared => true do
       @io.binmode?.should == false
     end
 
+    ruby_bug "#5918", "2.0" do
+      it "raises an error if passed binary/text mode two ways" do
+        ["wb", "wt"].each do |mode|
+          [:binmode, :textmode].each do |key|
+            [true, false].each do |value|
+              lambda {
+                @io = IO.send(@method, @fd, mode, key => value)
+              }.should raise_error(ArgumentError)
+            end
+          end
+        end
+      end
+    end
+
+    it "raises an error when trying to set both binmode and textmode" do
+      lambda {
+        @io = IO.send(@method, @fd, "w", :textmode => true, :binmode => true)
+      }.should raise_error(ArgumentError)
+      lambda {
+        @io = IO.send(@method, @fd, File::Constants::WRONLY, :textmode => true, :binmode => true)
+      }.should raise_error(ArgumentError)
+    end
+
     it "sets external encoding to binary with binmode in mode string" do
       @io = IO.send(@method, @fd, 'wb')
       @io.external_encoding.to_s.should == 'ASCII-8BIT'
@@ -159,6 +167,103 @@ describe :io_new, :shared => true do
         @io = IO.send(@method, @fd, 'w', {:binmode => true})
         @io.external_encoding.to_s.should == 'ASCII-8BIT'
       end
+    end
+
+    it "does not use binary encoding when mode encoding is specified" do
+      @io = IO.send(@method, @fd, 'wb:iso-8859-1')
+      @io.external_encoding.to_s.should == 'ISO-8859-1'
+    end
+
+    it "does not use binary encoding when :encoding option is specified" do
+      @io = IO.send(@method, @fd, 'wb', :encoding => "iso-8859-1")
+      @io.external_encoding.to_s.should == 'ISO-8859-1'
+    end
+
+    it "does not use binary encoding when :external_encoding option is specified" do
+      @io = IO.send(@method, @fd, 'wb', :external_encoding => "iso-8859-1")
+      @io.external_encoding.to_s.should == 'ISO-8859-1'
+    end
+
+    it "does not use binary encoding when :internal_encoding option is specified" do
+      @io = IO.send(@method, @fd, 'wb', :internal_encoding => "iso-8859-1")
+      @io.internal_encoding.to_s.should == 'ISO-8859-1'
+    end
+
+    it "accepts nil options" do
+      @io = IO.send(@method, @fd, 'w', nil)
+      @io.write("foo").should == 3
+    end
+
+    it "coerces mode with #to_str" do
+      mode = mock("mode")
+      mode.should_receive(:to_str).any_number_of_times.and_return('w')
+      @io = IO.send(@method, @fd, mode)
+    end
+
+    it "coerces mode with #to_int" do
+      mode = mock("mode")
+      mode.should_receive(:to_int).any_number_of_times.and_return(File::WRONLY)
+      @io = IO.send(@method, @fd, mode)
+    end
+
+    it "coerces mode with #to_str when passed in options" do
+      mode = mock("mode")
+      mode.should_receive(:to_str).any_number_of_times.and_return('w')
+      @io = IO.send(@method, @fd, :mode => mode)
+    end
+
+    it "coerces mode with #to_int when passed in options" do
+      mode = mock("mode")
+      mode.should_receive(:to_int).any_number_of_times.and_return(File::WRONLY)
+      @io = IO.send(@method, @fd, :mode => mode)
+    end
+
+    it "coerces :encoding option with #to_str" do
+      encoding = mock("encoding")
+      encoding.should_receive(:to_str).any_number_of_times.and_return('utf-8')
+      @io = IO.send(@method, @fd, 'w', :encoding => encoding)
+    end
+
+    it "coerces :external_encoding option with #to_str" do
+      encoding = mock("encoding")
+      encoding.should_receive(:to_str).any_number_of_times.and_return('utf-8')
+      @io = IO.send(@method, @fd, 'w', :external_encoding => encoding)
+    end
+
+    it "coerces :internal_encoding option with #to_str" do
+      encoding = mock("encoding")
+      encoding.should_receive(:to_str).any_number_of_times.and_return('utf-8')
+      @io = IO.send(@method, @fd, 'w', :internal_encoding => encoding)
+    end
+
+    it "coerces options as third argument with #to_hash" do
+      options = mock("options")
+      options.should_receive(:to_hash).any_number_of_times.and_return({})
+      @io = IO.send(@method, @fd, 'w', options)
+    end
+
+    it "coerces options as second argument with #to_hash" do
+      options = mock("options")
+      options.should_receive(:to_hash).any_number_of_times.and_return({})
+      @io = IO.send(@method, @fd, options)
+    end
+
+    it "raises ArgumentError if not passed a hash or nil for options" do
+      lambda {
+        @io = IO.send(@method, @fd, 'w', false)
+      }.should raise_error(ArgumentError)
+      lambda {
+        @io = IO.send(@method, @fd, false, false)
+      }.should raise_error(ArgumentError)
+      lambda {
+        @io = IO.send(@method, @fd, nil, false)
+      }.should raise_error(ArgumentError)
+    end
+
+    it "raises TypeError if passed a hash for mode and nil for options" do
+      lambda {
+        @io = IO.send(@method, @fd, {:mode => 'w'}, nil)
+      }.should raise_error(TypeError)
     end
   end
 
@@ -198,5 +303,9 @@ describe :io_new_errors, :shared => true do
 
   it "raises an Errno::EINVAL if the new mode is not compatible with the descriptor's current mode" do
     lambda { IO.send(@method, @fd, "r") }.should raise_error(Errno::EINVAL)
+  end
+
+  it "raises ArgumentError if passed an empty mode string" do
+    lambda { IO.send(@method, @fd, "") }.should raise_error(ArgumentError)
   end
 end
