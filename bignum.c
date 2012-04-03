@@ -3653,7 +3653,7 @@ Init_Bignum(void)
     rb_objc_define_method(rb_cBignum, ">=", big_ge, 1);
     rb_objc_define_method(rb_cBignum, "<", big_lt, 1);
     rb_objc_define_method(rb_cBignum, "<=", big_le, 1);
-    rb_objc_define_method(rb_cBignum, "===", rb_big_eq, 1);
+    rb_objc_define_method(rb_cBignum, "===", rb_big_eq_imp, 1);
     rb_objc_define_method(rb_cBignum, "eql?", rb_big_eql, 1);
     rb_objc_define_method(rb_cBignum, "hash", rb_big_hash, 0);
     rb_objc_define_method(rb_cBignum, "to_f", rb_big_to_f, 0);
