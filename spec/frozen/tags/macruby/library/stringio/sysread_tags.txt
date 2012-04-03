@@ -1,1 +1,0 @@
-fails:StringIO#sysread when passed [length] returns a binary String
