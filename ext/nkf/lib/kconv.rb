@@ -202,7 +202,7 @@ class String
   # Convert <code>self</code> to out_code.
   # <code>out_code</code> and <code>in_code</code> are given as constants of Kconv.
   def kconv(to_enc, from_enc=nil)
-    form_enc = self.encoding if !from_enc && self.encoding != Encoding.list[0]
+    from_enc = self.encoding if !from_enc && self.encoding != Encoding.list[0]
     Kconv::kconv(self, to_enc, from_enc)
   end
   
