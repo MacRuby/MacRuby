@@ -4296,10 +4296,14 @@ RoxorCompiler::compile_node0(NODE *node)
 
 	case NODE_DOT2:
 	case NODE_DOT3:
-	    assert(node->nd_beg != NULL);
-	    assert(node->nd_end != NULL);
-	    return compile_range(compile_node(node->nd_beg),
-		    compile_node(node->nd_end), nd_type(node) == NODE_DOT3);
+	    {
+		assert(node->nd_beg != NULL);
+		assert(node->nd_end != NULL);
+		Value *beg = compile_node(node->nd_beg);
+		Value *end = compile_node(node->nd_end);
+		return compile_range(beg, end, nd_type(node) == NODE_DOT3);
+	    }
+	    break;
 
 	case NODE_FLIP2:
 	case NODE_FLIP3:
