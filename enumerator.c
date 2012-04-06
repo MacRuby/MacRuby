@@ -526,7 +526,7 @@ inspect_enumerator(VALUE obj, VALUE dummy, int recur)
     if (method_name[length-1] == ':') {
 	length--;
     }
-    rb_str_cat(str, method_name, length);
+    rb_str_buf_cat(str, method_name, length);
 
     if (e->args) {
 	long   argc = RARRAY_LEN(e->args);
