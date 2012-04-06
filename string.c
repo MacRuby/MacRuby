@@ -29,6 +29,8 @@
 #include <unicode/utrans.h>
 #include <unicode/uchar.h>
 
+#define numberof(array) (int)(sizeof(array) / sizeof((array)[0]))
+
 #define SET_CLASS(dst, src)						\
     do{									\
 	if (RSTR(dst) != NULL && RSTR(src) != NULL) {			\
@@ -5125,13 +5127,16 @@ rstr_succ_bang(VALUE str, SEL sel)
 
 /*
  *  call-seq:
- *     str.upto(other_str, exclusive=false) {|s| block }   => str
+ *     str.upto(other_str, exclusive=false) {|s| block }   -> str
+ *     str.upto(other_str, exclusive=false)                -> an_enumerator
  *
  *  Iterates through successive values, starting at <i>str</i> and
  *  ending at <i>other_str</i> inclusive, passing each value in turn to
  *  the block. The <code>String#succ</code> method is used to generate
- *  each value.  If optional second argument exclusive is omitted or is <code>false</code>,
+ *  each value.  If optional second argument exclusive is omitted or is false,
  *  the last value will be included; otherwise it will be excluded.
+ *
+ *  If no block is given, an enumerator is returned instead.
  *
  *     "a8".upto("b6") {|s| print s, ' ' }
  *     for s in "a8".."b6"
@@ -5142,6 +5147,14 @@ rstr_succ_bang(VALUE str, SEL sel)
  *
  *     a8 a9 b0 b1 b2 b3 b4 b5 b6
  *     a8 a9 b0 b1 b2 b3 b4 b5 b6
+ *
+ *  If <i>str</i> and <i>other_str</i> contains only ascii numeric characters,
+ *  both are recognized as decimal numbers. In addition, the width of
+ *  string (e.g. leading zeros) is handled appropriately.
+ *
+ *     "9".upto("11").to_a   #=> ["9", "10", "11"]
+ *     "25".upto("5").to_a   #=> []
+ *     "07".upto("11").to_a  #=> ["07", "08", "09", "10", "11"]
  */
 
 static VALUE
@@ -5149,11 +5162,17 @@ rstr_upto(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     VALUE beg = str;
     VALUE end, exclusive;
+    int cmp, ascii;
+    rb_encoding *enc;
+
     rb_scan_args(argc, argv, "11", &end, &exclusive);
     RETURN_ENUMERATOR(beg, argc, argv);
 
     bool excl = RTEST(exclusive);
+    SEL succ_sel = sel_registerName("succ");
     StringValue(end);
+    enc = str_must_have_compatible_encoding(RSTR(beg), RSTR(end));
+    ascii = (str_is_ruby_ascii_only(RSTR(beg)) && str_is_ruby_ascii_only(RSTR(end)));
 
     if (rb_str_chars_len(beg) == 1 && rb_str_chars_len(end) == 1) {
 	UChar begc = rb_str_get_uchar(beg, 0);
@@ -5176,12 +5195,58 @@ rstr_upto(VALUE str, SEL sel, int argc, VALUE *argv)
 	return beg;
     }
 
-    const int cmp = rb_str_cmp(beg, end);
-    if (cmp > 0 || (excl && cmp == 0)) {
+    const char* str_beg = RSTRING_PTR(beg);
+    const char* str_end = RSTRING_PTR(end);
+    /* both edges are all digits */
+    if (ascii && ISDIGIT(str_beg[0]) && ISDIGIT(str_end[0])) {
+	const char *s, *send;
+	VALUE b, e;
+	int width;
+
+	s = RSTRING_PTR(beg); send = RSTRING_END(beg);
+	width = rb_long2int(send - s);
+	while (s < send) {
+	    if (!ISDIGIT(*s)) goto no_digits;
+	    s++;
+	}
+	s = RSTRING_PTR(end); send = RSTRING_END(end);
+	while (s < send) {
+	    if (!ISDIGIT(*s)) goto no_digits;
+	    s++;
+	}
+	b = rb_str_to_inum(beg, 10, FALSE);
+	e = rb_str_to_inum(end, 10, FALSE);
+	if (FIXNUM_P(b) && FIXNUM_P(e)) {
+	    long bi = FIX2LONG(b);
+	    long ei = FIX2LONG(e);
+	    rb_encoding *usascii = rb_usascii_encoding();
+
+	    while (bi <= ei) {
+		if (excl && bi == ei) break;
+		rb_yield(rb_enc_sprintf(usascii, "%.*ld", width, bi));
+		bi++;
+	    }
+	}
+	else {
+	    ID op = excl ? '<' : rb_intern("<=");
+	    VALUE args[2], fmt = rb_obj_freeze(rb_usascii_str_new_cstr("%.*d"));
+
+	    args[0] = INT2FIX(width);
+	    while (rb_funcall(b, op, 1, e)) {
+		args[1] = b;
+		rb_yield(rb_str_format(numberof(args), args, fmt));
+		b = rb_vm_call(b, succ_sel, 0, NULL);
+	    }
+	}
 	return beg;
     }
 
-    SEL succ_sel = sel_registerName("succ");
+    /* normal case */
+  no_digits:
+    cmp = rb_str_cmp(beg, end);
+    if (cmp > 0 || (excl && cmp == 0)) {
+	return beg;
+    }
 
     VALUE current = beg;
     VALUE after_end = rb_vm_call(end, succ_sel, 0, NULL);
