@@ -5150,6 +5150,7 @@ rstr_upto(VALUE str, SEL sel, int argc, VALUE *argv)
     VALUE beg = str;
     VALUE end, exclusive;
     rb_scan_args(argc, argv, "11", &end, &exclusive);
+    RETURN_ENUMERATOR(beg, argc, argv);
 
     bool excl = RTEST(exclusive);
     StringValue(end);
