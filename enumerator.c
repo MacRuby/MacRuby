@@ -521,7 +521,12 @@ inspect_enumerator(VALUE obj, VALUE dummy, int recur)
     str = rb_sprintf("#<%s: ", cname);
     rb_str_concat(str, rb_inspect(eobj));
     rb_str_buf_cat2(str, ":");
-    rb_str_buf_cat2(str, sel_getName(e->sel));
+    const char *method_name = sel_getName(e->sel);
+    long length = strlen(method_name);
+    if (method_name[length-1] == ':') {
+	length--;
+    }
+    rb_str_cat(str, method_name, length);
 
     if (e->args) {
 	long   argc = RARRAY_LEN(e->args);
