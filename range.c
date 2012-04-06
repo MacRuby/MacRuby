@@ -573,6 +573,7 @@ first_i(VALUE i, VALUE *ary)
 
     if (n <= 0) {
 	rb_iter_break();
+	return Qnil;
     }
     rb_ary_push(ary[1], i);
     n--;
