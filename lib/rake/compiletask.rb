@@ -48,6 +48,9 @@ module Rake
       define
     end
 
+
+    private
+
     # Create the tasks defined by this task lib.
     def define
       desc 'Compile ruby files' + (name == :compile ? '' : " for #{name}")
