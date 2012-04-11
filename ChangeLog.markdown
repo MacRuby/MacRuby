@@ -4,8 +4,8 @@ MacRuby 0.12 was a milestone release...
 
  * Add support for XCode 4.3
  * Drop support for XCode 4.2 and earlier
- * Upgrade to RubyGems 1.8.x
- * Upgrade to Rake 0.9.x
+ * Upgrade to RubyGems 1.8.20
+ * Upgrade to Rake 0.9.2.2
  * Add the `--codesign` option to `macruby_deploy`
  * Gems are now installed to `/Library/Ruby/Gems/MacRuby`
  * Remove obsoleted constants `RUBY_FRAMEWORK` and `RUBY_FRAMEWORK_VERSION` from `RbConfig`
@@ -19,6 +19,7 @@ MacRuby 0.12 was a milestone release...
 ```
 
  * Added `Pointer#value` shortcut to `Pointer#[0]`
+ * Improve stability and compatibility by over total 630 commits
 
 # ~~0.11~~
  * Update to new ruby license
