@@ -20,4 +20,13 @@ MacRuby 0.12 was a milestone release...
 
  * Added `Pointer#value` shortcut to `Pointer#[0]`
 
+# ~~0.11~~
+ * Update to new ruby license
+ * Improve some methods of String/Array performance
+ * Add `Range#relative_to(max)`
+ * Add `Pointer#to_object`
+ * Import JSON 1.5.1
+ * Upgrade RDoc to 3.5.3
+ * Improve stability and compatibility by total 515 commits
+
 ![Business Cat Doin His Thang](http://i.imgur.com/2KmJW.jpg)
