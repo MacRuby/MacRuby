@@ -617,7 +617,7 @@ rb_block_applier(void *data, size_t ii)
  *     gcdq = Dispatch::Queue.new('doc')
  *     @result = []
  *     gcdq.apply(5) {|i| @result[i] = i*i }
- *     p @result  #=> [0, 1, 4, 9, 16, 25]
+ *     p @result  #=> [0, 1, 4, 9, 16]
  *
  */
 
