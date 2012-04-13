@@ -595,7 +595,8 @@ rb_block_arg_dispatcher(rb_vm_block_t *block, VALUE param)
     VALUE args[2];
     args[0] = (VALUE)block;
     args[1] = param;
-    rb_rescue(rb_block_arg_eval, (VALUE) args, rb_block_rescue, (VALUE)"gcd.c: Exception in rb_block_arg_dispatcher");
+    // XXX We are casting a C array to VALUE here!!!
+    rb_rescue(rb_block_arg_eval, (VALUE)args, rb_block_rescue, Qnil);
 }
 
 static void
