@@ -1194,7 +1194,10 @@ rb_semaphore_init(VALUE self, SEL sel, VALUE value)
  *
  *     gcdq = Dispatch::Queue.new('doc')
  *     sema = Dispatch::Semaphore.new(0)
- *     gcdq.async { sleep 0.1; sema.signal } #=> false
+ *     gcdq.async { 
+ *       sleep 0.1
+ *       sema.signal #=> false
+ *     }
  *     sema.wait
  *
  */
