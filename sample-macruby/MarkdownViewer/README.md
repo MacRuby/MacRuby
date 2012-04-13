@@ -3,6 +3,6 @@ MarkdownViewer
 
 ## Requirement
 
-- Rubygems of [rdiscount](https://github.com/rtomayko/rdiscount)
+- Rubygems of [redcarpet](https://github.com/tanoku/redcarpet)
 
-Please type in Terminal.app: `sudo macgem install rdiscount`
+Please type in Terminal.app: `sudo macgem install redcarpet`

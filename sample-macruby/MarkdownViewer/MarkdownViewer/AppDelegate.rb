@@ -4,8 +4,6 @@
 #
 #  Created by Watson on 11/09/16.
 #
-require 'rubygems'
-require 'rdiscount'
 
 class AppDelegate
   # outlet
@@ -67,7 +65,7 @@ class AppDelegate
     dir   = File.dirname(path) + "/"
     nsurl = NSURL.URLWithString(dir)
     res_path = NSBundle.mainBundle.resourcePath
-    md = RDiscount.new(File.read(path))
+    string = Markdown.convert(File.read(path))
 
     html =<<"EOS"
 <html>
@@ -76,7 +74,7 @@ class AppDelegate
 <link rel="stylesheet" type="text/css" href="#{res_path}/style.css">
 </head>
 <body>
-#{md.to_html}
+#{string}
 </body>
 </html>
 EOS
