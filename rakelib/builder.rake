@@ -168,7 +168,7 @@ namespace :stdlib do
       Dir.glob(pattern).map do |path|
         out = File.join(File.dirname(path), File.basename(path, '.rb') + '.rbo')
         if !File.exist?(out) or File.mtime(path) > File.mtime(out) or File.mtime('./miniruby') > File.mtime(out)
-          "./miniruby -I. -I./lib bin/rubyc --internal #{archf} -C \"#{path}\" -o \"#{out}\""
+          "VM_OPT_LEVEL=0 ./miniruby -I. -I./lib bin/rubyc --internal #{archf} -C \"#{path}\" -o \"#{out}\""
         end
       end
     end.flatten.compact
