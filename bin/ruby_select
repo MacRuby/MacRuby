@@ -2,6 +2,7 @@
 #
 # This file is covered by the Ruby license.
 #
+# Copyright (C) 2012, The MacRuby Team
 # Copyright (C) 2009-2011, Apple Inc
 
 MACRUBY_FRAMEWORK = '/Library/Frameworks/MacRuby.framework'
