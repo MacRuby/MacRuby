@@ -3,6 +3,7 @@
 #
 # This file is covered by the Ruby license.
 #
+# Copyright (C) 2012, The MacRuby Team
 # Copyright (C) 2010-2011, Apple Inc
 
 require 'readline'

@@ -4,6 +4,7 @@
 #
 # This file is covered by the Ruby license.
 #
+# Copyright (C) 2012, The MacRuby Team
 # Copyright (C) 2008-2010, Apple Inc
 
 require 'optparse'

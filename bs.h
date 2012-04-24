@@ -1,4 +1,5 @@
-/*  
+/*
+ *  Copyright (c) 2012, The MacRuby Team. All rights reserved.
  *  Copyright (c) 2008-2011, Apple Inc. All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
