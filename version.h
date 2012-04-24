@@ -1,6 +1,7 @@
 /*
  * This file is covered by the Ruby license. See COPYING for more details.
- * 
+ *
+ * Copyright (C) 2012, The MacRuby Team. All rights reserved.
  * Copyright (C) 2007-2011, Apple Inc. All rights reserved.
  * Copyright (C) 1993-2007 Yukihiro Matsumoto
  */
@@ -31,8 +32,8 @@ RUBY_EXTERN const char ruby_description[];
 RUBY_EXTERN const char ruby_copyright[];
 #endif
 
-#define RUBY_AUTHOR 		"Apple Inc."
-#define RUBY_BIRTH_YEAR 	2007
+#define RUBY_AUTHOR 		"The MacRuby Team"
+#define RUBY_BIRTH_YEAR 	2012
 
 #ifndef RUBY_REVISION
 # define RUBY_REVISION 0
