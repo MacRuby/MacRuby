@@ -2,6 +2,7 @@
 
 MacRuby 0.12 was a milestone release...
 
+ * Changed `RUBY_AUTHOR` to "The MacRuby Team"
  * Add support for XCode 4.3
  * Drop support for XCode 4.2 and earlier
  * Upgrade to RubyGems 1.8.20
