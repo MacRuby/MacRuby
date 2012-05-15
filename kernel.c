@@ -439,6 +439,64 @@ vm_fast_div(VALUE left, VALUE right, unsigned char overriden)
 }
 
 PRIMITIVE VALUE
+vm_fast_mod(VALUE left, VALUE right, unsigned char overriden)
+{
+    if (overriden == 0 && NUMERIC_IMM_P(left) && NUMERIC_IMM_P(right)) {
+	if (FIXNUM_P(left) && FIXNUM_P(right)) {
+	    const long x = FIX2LONG(left);
+	    const long y = FIX2LONG(right);
+	    long div, mod;
+
+	    if (y == 0) {
+		rb_num_zerodiv();
+	    }
+	    if (y < 0) {
+		if (x < 0) {
+		    div = -x / -y;
+		}
+		else {
+		    div = - (x / -y);
+		}
+	    }
+	    else {
+		if (x < 0) {
+		    div = - (-x / y);
+		}
+		else {
+		    div = x / y;
+		}
+	    }
+	    mod = x - div*y;
+	    if ((mod < 0 && y > 0) || (mod > 0 && y < 0)) {
+		mod += y;
+		div -= 1;
+	    }
+	    return LONG2FIX(mod);
+	}
+	else if (FIXFLOAT_P(left) && FIXFLOAT_P(right)) {
+	    const double x = IMM2DBL(left);
+	    const double y = IMM2DBL(right);
+	    double div, mod;
+
+#ifdef HAVE_FMOD
+	    mod = fmod(x, y);
+#else
+	    double z;
+	    modf(x/y, &z);
+	    mod = x - z * y;
+#endif
+	    div = (x - mod) / y;
+	    if (y * mod < 0) {
+		mod += y;
+		div -= 1.0;
+	    }
+	    return DBL2FIXFLOAT(mod);
+	}
+    }
+    return vm_dispatch(0, left, selMOD, NULL, 0, 1, &right);
+}
+
+PRIMITIVE VALUE
 vm_fast_lt(VALUE left, VALUE right, unsigned char overriden)
 {
     if (overriden == 0 && NUMERIC_IMM_P(left) && NUMERIC_IMM_P(right)) {

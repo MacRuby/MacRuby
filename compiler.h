@@ -159,6 +159,7 @@ class RoxorCompiler {
 	Function *fastMinusFunc;
 	Function *fastMultFunc;
 	Function *fastDivFunc;
+	Function *fastModFunc;
 	Function *fastLtFunc;
 	Function *fastLeFunc;
 	Function *fastGtFunc;

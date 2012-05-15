@@ -172,6 +172,7 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     fastMinusFunc = get_function("vm_fast_minus");
     fastMultFunc = get_function("vm_fast_mult");
     fastDivFunc = get_function("vm_fast_div");
+    fastModFunc = get_function("vm_fast_mod");
     fastLtFunc = get_function("vm_fast_lt");
     fastLeFunc = get_function("vm_fast_le");
     fastGtFunc = get_function("vm_fast_gt");
@@ -2298,7 +2299,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	return pn;
     }
     // Pure arithmetic operations.
-    else if (sel == selPLUS || sel == selMINUS || sel == selDIV 
+    else if (sel == selPLUS || sel == selMINUS || sel == selDIV || sel == selMOD
 	     || sel == selMULT || sel == selLT || sel == selLE 
 	     || sel == selGT || sel == selGE || sel == selEq
 	     || sel == selNeq || sel == selEqq) {
@@ -2319,6 +2320,9 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	}
 	else if (sel == selDIV) {
 	    func = fastDivFunc;
+	}
+	else if (sel == selMOD) {
+	    func = fastModFunc;
 	}
 	else if (sel == selMULT) {
 	    func = fastMultFunc;

@@ -14,6 +14,7 @@ _rstr_concat
 _selPLUS
 _selMINUS
 _selDIV
+_selMOD
 _selMULT
 _selLT
 _selLE
