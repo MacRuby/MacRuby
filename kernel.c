@@ -403,6 +403,9 @@ vm_fast_mult(VALUE left, VALUE right, unsigned char overriden)
 	    if (FIXABLE(res) && res / a == b) {
 		return LONG2FIX(res);
 	    }
+	    else {
+		return rb_big_mul(rb_int2big(a), rb_int2big(b));
+	    }
 	}
 	else {
 	    const double res = IMM2DBL(left) * IMM2DBL(right);
