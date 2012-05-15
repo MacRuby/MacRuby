@@ -116,6 +116,25 @@ range_exclude_end_p(VALUE range, SEL sel)
     return EXCL(range) ? Qtrue : Qfalse;
 }
 
+static VALUE
+recursive_equal(VALUE range, VALUE obj, int recur)
+{
+    if (recur) {
+	return Qtrue; /* Subtle! */
+    }
+    if (!rb_equal(RANGE_BEG(range), RANGE_BEG(obj))) {
+	return Qfalse;
+    }
+    if (!rb_equal(RANGE_END(range), RANGE_END(obj))) {
+	return Qfalse;
+    }
+
+    if (EXCL(range) != EXCL(obj)) {
+	return Qfalse;
+    }
+    return Qtrue;
+}
+
 
 /*
  *  call-seq:
@@ -141,18 +160,7 @@ range_eq(VALUE range, SEL sel, VALUE obj)
 	return Qfalse;
     }
 
-    if (!rb_equal(RANGE_BEG(range), RANGE_BEG(obj))) {
-	return Qfalse;
-    }
-    if (!rb_equal(RANGE_END(range), RANGE_END(obj))) {
-	return Qfalse;
-    }
-
-    if (EXCL(range) != EXCL(obj)) {
-	return Qfalse;
-    }
-
-    return Qtrue;
+    return rb_exec_recursive(recursive_equal, range, obj);
 }
 
 static int
@@ -183,6 +191,24 @@ r_le(VALUE a, VALUE b)
     return Qfalse;
 }
 
+static VALUE
+recursive_eql(VALUE range, VALUE obj, int recur)
+{
+    if (recur) {
+	return Qtrue; /* Subtle! */
+    }
+    if (!rb_eql(RANGE_BEG(range), RANGE_BEG(obj))) {
+	return Qfalse;
+    }
+    if (!rb_eql(RANGE_END(range), RANGE_END(obj))) {
+	return Qfalse;
+    }
+
+    if (EXCL(range) != EXCL(obj)) {
+	return Qfalse;
+    }
+    return Qtrue;
+}
 
 /*
  *  call-seq:
@@ -207,19 +233,7 @@ range_eql(VALUE range, SEL sel, VALUE obj)
     if (!rb_obj_is_kind_of(obj, rb_cRange)) {
 	return Qfalse;
     }
-
-    if (!rb_eql(RANGE_BEG(range), RANGE_BEG(obj))) {
-	return Qfalse;
-    }
-    if (!rb_eql(RANGE_END(range), RANGE_END(obj))) {
-	return Qfalse;
-    }
-
-    if (EXCL(range) != EXCL(obj)) {
-	return Qfalse;
-    }
-
-    return Qtrue;
+    return rb_exec_recursive(recursive_eql, range, obj);
 }
 
 /*
