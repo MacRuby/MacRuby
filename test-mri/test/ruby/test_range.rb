@@ -308,8 +308,6 @@ class TestRange < Test::Unit::TestCase
     def <=>(other); true; end
   end
   def test_cyclic_range_inspect
-    skip("[BUG : #781] Segfault")
-
     o = CyclicRange.allocate
     o.instance_eval { initialize(o, 1) }
     assert_equal("(... .. ...)..1", o.inspect)
