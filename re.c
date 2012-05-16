@@ -295,6 +295,14 @@ reg_operand(VALUE s, bool check)
     }
 }
 
+static void
+rb_reg_check(VALUE re)
+{
+    if (RREGEXP(re)->pattern == NULL) {
+	rb_raise(rb_eTypeError, "uninitialized Regexp");
+    }
+}
+
 static VALUE
 rb_check_regexp_type(VALUE re)
 {
@@ -555,6 +563,7 @@ regexp_hash(VALUE rcv, SEL sel)
 {
     const UChar *chars = NULL;
     int32_t chars_len = 0;
+    rb_reg_check(rcv);
     regexp_get_pattern(RREGEXP(rcv)->pattern, &chars, &chars_len);
 
     unsigned long code = rb_str_hash_uchars(chars, chars_len);
@@ -587,8 +596,8 @@ regexp_equal(VALUE rcv, SEL sel, VALUE other)
 	return Qfalse;
     }
 
-    assert(RREGEXP(rcv)->pattern != NULL);
-    assert(RREGEXP(other)->pattern != NULL);
+    rb_reg_check(rcv);
+    rb_reg_check(other);
 
     UErrorCode status = U_ZERO_ERROR;
 
@@ -690,7 +699,7 @@ rb_reg_matcher_new(VALUE re, VALUE str)
     OBJSETUP(matcher, rb_cRegexpMatcher, T_OBJECT);
 
     UErrorCode status = U_ZERO_ERROR;
-    assert(RREGEXP(re)->pattern != NULL);
+    rb_reg_check(re);
     URegularExpression *match_pattern = uregex_clone(RREGEXP(re)->pattern,
 	    &status);
     if (match_pattern == NULL) {
@@ -861,6 +870,7 @@ reg_match_pos(VALUE re, VALUE *strp, long pos)
 VALUE
 regexp_match(VALUE rcv, SEL sel, VALUE str)
 {
+    rb_reg_check(rcv);
     const long pos = reg_match_pos(rcv, &str, 0);
     if (pos < 0) {
 	return Qnil;
@@ -1000,6 +1010,7 @@ rb_regexp_source(VALUE re)
 {
     int32_t chars_len = 0;
     const UChar *chars = NULL;
+    rb_reg_check(re);
     regexp_get_pattern(RREGEXP(re)->pattern, &chars, &chars_len);
 
     return rb_unicode_str_new(chars, chars_len);
@@ -1030,6 +1041,10 @@ regexp_source(VALUE rcv, SEL sel)
 static VALUE
 regexp_inspect(VALUE rcv, SEL sel)
 {
+    if (RREGEXP(rcv)->pattern == NULL) {
+        return rb_any_to_s(rcv);
+    }
+
     VALUE str = rb_unicode_str_new(NULL, 0);
     rb_str_append_uchar(str, '/');
 
@@ -1090,6 +1105,7 @@ regexp_to_s(VALUE rcv, SEL sel)
 {
     VALUE str = rb_str_new2("(?");
 
+    rb_reg_check(rcv);
     const uint32_t options = rb_reg_options(rcv);
     const bool mode_m = options & REGEXP_OPT_MULTILINE;
     const bool mode_i = options & REGEXP_OPT_IGNORECASE;
@@ -1139,7 +1155,7 @@ regexp_to_s(VALUE rcv, SEL sel)
 int
 rb_reg_options(VALUE re)
 {
-    assert(RREGEXP(re)->pattern != NULL);
+    rb_reg_check(re);
     UErrorCode status = U_ZERO_ERROR;
     return uregex_flags(RREGEXP(re)->pattern, &status);
 }
@@ -1234,6 +1250,7 @@ static VALUE
 regexp_names(VALUE rcv, SEL sel)
 {
     // TODO
+    rb_reg_check(rcv);
     return rb_ary_new();
 }
 
@@ -1263,6 +1280,7 @@ static VALUE
 regexp_named_captures(VALUE rcv, SEL sel)
 {
     // TODO
+    rb_reg_check(rcv);
     return rb_hash_new();
 }
 
