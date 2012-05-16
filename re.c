@@ -26,6 +26,7 @@ static VALUE rb_cRegexpMatcher;
 typedef struct rb_regexp {
     struct RBasic basic;
     URegularExpression *pattern;
+    int option;
     bool fixed_encoding;
 } rb_regexp_t;
 
@@ -53,6 +54,7 @@ regexp_alloc(VALUE klass, SEL sel)
     NEWOBJ(re, struct rb_regexp);
     OBJSETUP(re, klass, T_REGEXP);
     re->pattern = NULL;
+    re->option = 0;
     re->fixed_encoding = false;
     return re;
 }
@@ -258,6 +260,7 @@ printf("\n");
 static bool
 init_from_string(rb_regexp_t *regexp, VALUE str, int option, VALUE *excp)
 {
+    regexp->option = option;
     option |= REGEXP_OPT_DEFAULT;
 
     RB_STR_GET_UCHARS(str, chars, chars_len);
@@ -313,6 +316,7 @@ init_from_regexp(rb_regexp_t *regexp, rb_regexp_t *from)
 	rb_raise(rb_eRegexpError, "can't clone given regexp: %s",
 		u_errorName(status));
     }
+    regexp->option = from->option;
 }
 
 static VALUE
@@ -1229,8 +1233,7 @@ int
 rb_reg_options(VALUE re)
 {
     rb_reg_check(re);
-    UErrorCode status = U_ZERO_ERROR;
-    return uregex_flags(RREGEXP(re)->pattern, &status);
+    return RREGEXP(re)->option;
 }
 
 static VALUE
