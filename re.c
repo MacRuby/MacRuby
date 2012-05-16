@@ -175,6 +175,26 @@ sanitize_regexp_string(UChar **chars_p, long *chars_len_p)
 	chars_len += str_hex_len - 2;
     }
 
+    // Replace all occurences \H by [^0-9a-fA-F].
+    UChar no_hex_chars[] = {'\\', 'H'};
+    const char *no_str_hex = "[^0-9a-fA-F]";
+    long no_str_hex_len = strlen(no_str_hex);
+    pos = 0;
+    while (true) {
+	UChar *p = u_strFindFirst(chars + pos, chars_len - pos,
+		no_hex_chars, 2);
+	if (p == NULL) {
+	    break;
+	}
+	pos = p - chars;
+	copy_if_needed();
+	expand_buffer(chars, no_str_hex_len);
+	memmove(&chars[pos + no_str_hex_len], &chars[pos + 2],
+		sizeof(UChar) * (chars_len - pos - 2));
+	replace_uchar_with_cstring(&chars[pos], no_str_hex, no_str_hex_len);
+	chars_len += no_str_hex_len - 2;
+    }
+
     // Replace all occurences of \n (where n is a number < 1 or > 9) by the
     // number value.
     UChar backslash_chars[] = {'\\'};
