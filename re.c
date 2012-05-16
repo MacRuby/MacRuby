@@ -117,13 +117,6 @@ replace_uchar_with_cstring(UChar *chars, const char *str, long len)
     }
 }
 
-// Work around ICU limitations.
-static void
-sanitize_regexp_string(UChar **chars_p, long *chars_len_p)
-{
-    UChar *chars = *chars_p;
-    long chars_len = *chars_len_p;
-
 #define copy_if_needed() \
     do { \
 	UChar *tmp = (UChar *)xmalloc(sizeof(UChar) * chars_len); \
@@ -131,75 +124,68 @@ sanitize_regexp_string(UChar **chars_p, long *chars_len_p)
 	chars = tmp; \
     } \
     while (0)
-
-#define expand_buffer(buffer, expand_size) \
+#define expand_buffer(buffer, buffer_size, expand_size) \
     do { \
-	buffer = (UChar *)xrealloc(buffer, sizeof(UChar) * (chars_len + expand_size)); \
+	buffer = (UChar *)xrealloc(buffer, sizeof(UChar) * (buffer_size + expand_size)); \
     } \
     while (0)
 
-    // Replace all occurences [[:word:]] by \w.
-    UChar word_chars[10] = {'[', '[', ':', 'w', 'o', 'r', 'd', ':', ']', ']'};
+static void
+replace_regexp_string(UChar **chars_p, long *chars_len_p, const char* find, const char* replace)
+{
+    UChar *chars = *chars_p;
+    long chars_len = *chars_len_p;
+    UChar buffer[30] = {0};
     size_t pos = 0;
+
+    const long find_len = strlen(find);
+    const long replace_len = strlen(replace);
+    const long replaced_len = replace_len - find_len;
+
+    assert(find_len < 30);
+    replace_uchar_with_cstring(buffer, find, find_len);
     while (true) {
-	UChar *p = u_strFindFirst(chars + pos, chars_len - pos, word_chars, 10);
+	UChar *p = u_strFindFirst(chars + pos, chars_len - pos, buffer, find_len);
 	if (p == NULL) {
 	    break;
 	}
 	pos = p - chars;
 	copy_if_needed();
-	chars[pos] = '\\';
-	chars[pos + 1] = 'w';
-	memmove(&chars[pos + 2], &chars[pos + 10],
-		sizeof(UChar) * (chars_len - (pos + 8)));
-	chars_len -= 8;
+	if (replace_len > find_len) {
+	    expand_buffer(chars, chars_len, replaced_len);
+	}
+
+	memmove(&chars[pos + replace_len], &chars[pos + find_len],
+		sizeof(UChar) * (chars_len - (pos + find_len)));
+	replace_uchar_with_cstring(&chars[pos], replace, replace_len);
+	chars_len += replaced_len;
     }
+
+    *chars_p = chars;
+    *chars_len_p = chars_len;
+}
+
+// Work around ICU limitations.
+static void
+sanitize_regexp_string(UChar **chars_p, long *chars_len_p)
+{
+    // Replace all occurences [[:word:]] by \w.
+    replace_regexp_string(chars_p, chars_len_p, "[[:word:]]", "\\w");
 
     // Replace all occurences \h by [0-9a-fA-F].
-    UChar hex_chars[] = {'\\', 'h'};
-    const char *str_hex = "[0-9a-fA-F]";
-    long str_hex_len = strlen(str_hex);
-    pos = 0;
-    while (true) {
-	UChar *p = u_strFindFirst(chars + pos, chars_len - pos,
-		hex_chars, 2);
-	if (p == NULL) {
-	    break;
-	}
-	pos = p - chars;
-	copy_if_needed();
-	expand_buffer(chars, str_hex_len);
-	memmove(&chars[pos + str_hex_len], &chars[pos + 2],
-		sizeof(UChar) * (chars_len - pos - 2));
-	replace_uchar_with_cstring(&chars[pos], str_hex, str_hex_len);
-	chars_len += str_hex_len - 2;
-    }
+    replace_regexp_string(chars_p, chars_len_p, "\\h", "[0-9a-fA-F]");
 
     // Replace all occurences \H by [^0-9a-fA-F].
-    UChar no_hex_chars[] = {'\\', 'H'};
-    const char *no_str_hex = "[^0-9a-fA-F]";
-    long no_str_hex_len = strlen(no_str_hex);
-    pos = 0;
-    while (true) {
-	UChar *p = u_strFindFirst(chars + pos, chars_len - pos,
-		no_hex_chars, 2);
-	if (p == NULL) {
-	    break;
-	}
-	pos = p - chars;
-	copy_if_needed();
-	expand_buffer(chars, no_str_hex_len);
-	memmove(&chars[pos + no_str_hex_len], &chars[pos + 2],
-		sizeof(UChar) * (chars_len - pos - 2));
-	replace_uchar_with_cstring(&chars[pos], no_str_hex, no_str_hex_len);
-	chars_len += no_str_hex_len - 2;
-    }
+    replace_regexp_string(chars_p, chars_len_p, "\\H", "[^0-9a-fA-F]");
+
+    UChar *chars = *chars_p;
+    long chars_len = *chars_len_p;
 
     // Replace all occurences of \n (where n is a number < 1 or > 9) by the
     // number value.
     UChar backslash_chars[] = {'\\'};
     char buf[11];
-    pos = 0;
+    size_t pos = 0;
     while (true) {
 	UChar *p = u_strFindFirst(chars + pos, chars_len - pos,
 		backslash_chars, 1);
@@ -221,7 +207,7 @@ sanitize_regexp_string(UChar **chars_p, long *chars_len_p)
 		    // Handling for octal literals.
 		    if (c > '0') {
 			// ICU need the string as octal literal \0ooo format.
-			expand_buffer(chars, 1);
+			expand_buffer(chars, chars_len, 1);
 			memmove(&chars[i + 1], &chars[i],
 				sizeof(UChar) * (chars_len - i));
 			chars[i] = '0';
@@ -254,9 +240,6 @@ sanitize_regexp_string(UChar **chars_p, long *chars_len_p)
 	pos++;
     }
 
-#undef copy_if_needed
-#undef expand_buffer
-
 #if 0
 printf("out:\n");
 for (int i = 0; i < chars_len; i++) {
@@ -268,6 +251,9 @@ printf("\n");
     *chars_p = chars;
     *chars_len_p = chars_len;
 }
+
+#undef copy_if_needed
+#undef expand_buffer
 
 static bool
 init_from_string(rb_regexp_t *regexp, VALUE str, int option, VALUE *excp)
