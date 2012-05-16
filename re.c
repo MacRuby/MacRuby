@@ -90,6 +90,25 @@ regexp_finalize_imp(void *rcv, SEL sel)
     }
 }
 
+static bool
+is_octal_literal(UChar *chars, long length)
+{
+    bool ret = false;
+    int i;
+    for(i = 0; i < length; i++) {
+	UChar c = chars[i];
+	if (!rb_isdigit(c)) {
+	    break;
+	}
+	if (c >= '8') {
+	    return false;
+	}
+	ret = true;
+    }
+
+    return ret && i >= 2;
+}
+
 // Work around ICU limitations.
 static void
 sanitize_regexp_string(UChar **chars_p, long *chars_len_p)
@@ -102,6 +121,12 @@ sanitize_regexp_string(UChar **chars_p, long *chars_len_p)
 	UChar *tmp = (UChar *)xmalloc(sizeof(UChar) * chars_len); \
 	memcpy(tmp, chars, sizeof(UChar) * chars_len); \
 	chars = tmp; \
+    } \
+    while (0)
+
+#define expand_buffer(buffer, expand_size) \
+    do { \
+	buffer = (UChar *)xrealloc(buffer, sizeof(UChar) * (chars_len + expand_size)); \
     } \
     while (0)
 
@@ -143,7 +168,20 @@ sanitize_regexp_string(UChar **chars_p, long *chars_len_p)
 		break;
 	    }
 	    UChar c = chars[i];
-	    if (c >= '0' && c <= '9') {
+	    if (rb_isdigit(c)) {
+		if (is_octal_literal(&chars[i], chars_len)) {
+		    // Handling for octal literals.
+		    if (c > '0') {
+			// ICU need the string as octal literal \0ooo format.
+			expand_buffer(chars, 1);
+			memmove(&chars[i + 1], &chars[i],
+				sizeof(UChar) * (chars_len - i));
+			chars[i] = '0';
+			chars_len++;
+		    }
+		    break;
+		}
+
 		assert(n < 10);
 		buf[n++] = (char)c;
 	    }
@@ -169,6 +207,7 @@ sanitize_regexp_string(UChar **chars_p, long *chars_len_p)
     }
 
 #undef copy_if_needed
+#undef expand_buffer
 
 #if 0
 printf("out:\n");
