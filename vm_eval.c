@@ -501,7 +501,7 @@ rb_obj_instance_eval_imp(VALUE self, SEL sel, VALUE top, int argc, VALUE *argv)
     VALUE klass;
 
     if (SPECIAL_CONST_P(self) || CLASS_OF(self) == rb_cSymbol) {
-	klass = 0;
+	klass = Qnil;
     }
     else {
 	klass = rb_singleton_class(self);
@@ -541,7 +541,7 @@ rb_obj_instance_exec(VALUE self, SEL sel, int argc, VALUE *argv)
     VALUE klass;
 
     if (SPECIAL_CONST_P(self)) {
-	klass = 0;
+	klass = Qnil;
     }
     else {
 	klass = rb_singleton_class(self);

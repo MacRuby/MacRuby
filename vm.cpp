@@ -2812,6 +2812,10 @@ extern "C"
 void
 rb_vm_undef_method(Class klass, ID name, bool check)
 {
+    if (NIL_P(klass)) {
+	rb_raise(rb_eTypeError, "no class to undef method");
+    }
+
     const char *name_str = rb_id2name(name);
     SEL sel0 = rb_vm_name_to_sel(name_str, 0);
     SEL sel1 = rb_vm_name_to_sel(name_str, 1);
