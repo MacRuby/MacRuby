@@ -109,6 +109,14 @@ is_octal_literal(UChar *chars, long length)
     return ret && i >= 2;
 }
 
+static void
+replace_uchar_with_cstring(UChar *chars, const char *str, long len)
+{
+    for(int i = 0; i < len; i++) {
+	chars[i] = str[i];
+    }
+}
+
 // Work around ICU limitations.
 static void
 sanitize_regexp_string(UChar **chars_p, long *chars_len_p)
@@ -145,6 +153,26 @@ sanitize_regexp_string(UChar **chars_p, long *chars_len_p)
 	memmove(&chars[pos + 2], &chars[pos + 10],
 		sizeof(UChar) * (chars_len - (pos + 8)));
 	chars_len -= 8;
+    }
+
+    // Replace all occurences \h by [0-9a-fA-F].
+    UChar hex_chars[] = {'\\', 'h'};
+    const char *str_hex = "[0-9a-fA-F]";
+    long str_hex_len = strlen(str_hex);
+    pos = 0;
+    while (true) {
+	UChar *p = u_strFindFirst(chars + pos, chars_len - pos,
+		hex_chars, 2);
+	if (p == NULL) {
+	    break;
+	}
+	pos = p - chars;
+	copy_if_needed();
+	expand_buffer(chars, str_hex_len);
+	memmove(&chars[pos + str_hex_len], &chars[pos + 2],
+		sizeof(UChar) * (chars_len - pos - 2));
+	replace_uchar_with_cstring(&chars[pos], str_hex, str_hex_len);
+	chars_len += str_hex_len - 2;
     }
 
     // Replace all occurences of \n (where n is a number < 1 or > 9) by the
