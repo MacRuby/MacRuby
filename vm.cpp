@@ -1607,11 +1607,11 @@ rb_vm_alias2(VALUE outer, VALUE name, VALUE def, unsigned char dynamic_class)
 {
     if (dynamic_class) {
 	Class k = GET_VM()->get_current_class();
-	if (k != NULL) {
-	    outer = (VALUE)k;
-	}
-	else if (RCLASS_SUPER(outer) == 0) {
+	if (NIL_P(outer)) {
 	    rb_raise(rb_eTypeError, "no class to make alias");
+	}
+	else if (k != NULL) {
+	    outer = (VALUE)k;
 	}
     }
 
@@ -2132,20 +2132,20 @@ prepare_method(Class klass, bool dynamic_class, SEL sel, void *data,
 	else {
 	    k = o->klass;
 	}
-	if (k != NULL) {
+	if (NIL_P(k)) {
+	    rb_raise(rb_eTypeError, "no class/module to add method");
+	}
+	else if (klass != NULL) {
 	    const bool meta = class_isMetaClass(klass);
 	    klass = k;
 	    if (meta && !class_isMetaClass(klass)) {
 		klass = *(Class *)klass;
 	    }
 	}
-	else if (RCLASS_SUPER(klass) == 0) {
-	    rb_raise(rb_eTypeError, "no class/module to add method");
-	}
     }
     else {
 	rb_vm_outer_t *o = GET_VM()->get_outer_stack();
-	if (o != NULL && o->klass == NULL) {
+	if ((o != NULL && o->klass == NULL) || NIL_P(o)) {
 	    rb_raise(rb_eTypeError, "no class/module to add method");
 	}
     }
@@ -4228,6 +4228,9 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 	else {
 	    klass = (VALUE)o->klass;
 	}
+    }
+    if (NIL_P(klass)) {
+	klass = 0;
     }
     if (self != 0) {
 	vm->set_current_top_object(self);
