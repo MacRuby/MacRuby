@@ -2757,7 +2757,7 @@ rb_file_s_basename(VALUE rcv, SEL sel, int argc, VALUE *argv)
     }
     FilePathStringValue(fname);
     if (RSTRING_LEN(fname) == 0 || !*(name = RSTRING_PTR(fname))) {
-	return fname;
+	return rb_str_new3(fname);
     }
     name = skipprefix(name);
     while (isdirsep(*name))
@@ -2777,7 +2777,7 @@ rb_file_s_basename(VALUE rcv, SEL sel, int argc, VALUE *argv)
 	if (NIL_P(fext) || !(f = rmext(p, n, StringValueCStr(fext)))) {
 	    f = n;
 	}
-	if (f == RSTRING_LEN(fname)) return fname;
+	if (f == RSTRING_LEN(fname)) return rb_str_new3(fname);
     }
 
     basename = rb_str_new(p, f);
