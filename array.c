@@ -2837,7 +2837,7 @@ rary_uniq_bang(VALUE ary, SEL sel)
 	rary_resize(ary, RHASH_SIZE(hash));
     }
     else {
-	hash = ary_make_hash(rb_ary_new(), ary);
+	hash = ary_make_hash(ary, 0);
 	if (RARRAY_LEN(ary) == RHASH_SIZE(hash)) {
 	    return Qnil;
 	}
