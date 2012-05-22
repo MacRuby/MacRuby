@@ -2699,6 +2699,19 @@ ary_make_hash(VALUE ary1, VALUE ary2)
     return hash;
 }
 
+static VALUE
+ary_make_hash_by(VALUE ary)
+{
+    VALUE hash = rb_hash_new();
+    for (long i = 0; i < RARRAY_LEN(ary); ++i) {
+	VALUE v = rb_ary_elt(ary, i), k = rb_yield(v);
+	if (rb_hash_lookup(hash, k) == Qnil) {
+	    rb_hash_aset(hash, k, v);
+	}
+    }
+    return hash;
+}
+
 // Defined on NSArray.
 VALUE
 rary_diff(VALUE ary1, SEL sel, VALUE ary2)
@@ -2783,6 +2796,13 @@ rary_or(VALUE ary1, SEL sel, VALUE ary2)
     return ary3;
 }
 
+static int
+push_value(st_data_t key, st_data_t val, st_data_t ary)
+{
+    rb_ary_push((VALUE)ary, (VALUE)val);
+    return ST_CONTINUE;
+}
+
 /*
  *  call-seq:
  *     array.uniq! -> array or nil
@@ -2808,12 +2828,17 @@ rary_uniq_bang(VALUE ary, SEL sel)
         return Qnil;
     }
     if (rb_block_given_p()) {
-	// TODO
-	return Qnil;
+	hash = ary_make_hash_by(ary);
+	if (RARRAY_LEN(ary) == RHASH_SIZE(hash)) {
+	    return Qnil;
+	}
+	RARY(ary)->len = 0;
+	st_foreach(RHASH_TBL(hash), push_value, ary);
+	rary_resize(ary, RHASH_SIZE(hash));
     }
     else {
 	hash = ary_make_hash(rb_ary_new(), ary);
-	if (RARRAY_LEN(ary) == (long)RHASH_SIZE(hash)) {
+	if (RARRAY_LEN(ary) == RHASH_SIZE(hash)) {
 	    return Qnil;
 	}
 	for (i=j=0; i<RARRAY_LEN(ary); i++) {
