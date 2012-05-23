@@ -165,22 +165,26 @@ make_struct(VALUE name, VALUE members, VALUE klass)
     for (i=0; i< len; i++) {
 	ID id = SYM2ID(RARRAY_AT(members, i));
 	if (rb_is_local_id(id) || rb_is_const_id(id)) {
-            long j = i; /* Needed for block data reference. */
-            VALUE (^struct_ref)(VALUE) =
-                    ^(VALUE obj) {
-                        return RSTRUCT_PTR(obj)[j];
-                    };
-            VALUE (^struct_set)(VALUE, VALUE) =
-                    ^(VALUE obj, VALUE val) {
-                        VALUE *ptr = RSTRUCT_PTR(obj);
-                        rb_struct_modify(obj);
-                        GC_WB(&ptr[j], val);
-                        return val;
-                    };
-            rb_objc_define_method(nstr, rb_id2name(id),
-                    imp_implementationWithBlock(Block_copy(struct_ref)), 0);
-            rb_objc_define_method(nstr, rb_id2name(rb_id_attrset(id)),
-                    imp_implementationWithBlock(Block_copy(struct_set)), 1);
+	    long j = i; /* Needed for block data reference. */
+	    VALUE
+	    (^struct_ref)(VALUE)
+	    = ^(VALUE obj)
+	    {
+		return RSTRUCT_PTR(obj)[j];
+	    };
+	    VALUE
+	    (^struct_set)(VALUE, VALUE)
+	    = ^(VALUE obj, VALUE val)
+	    {
+		VALUE *ptr = RSTRUCT_PTR(obj);
+		rb_struct_modify(obj);
+		GC_WB(&ptr[j], val);
+		return val;
+	    };
+	    rb_objc_define_method(nstr, rb_id2name(id),
+		    imp_implementationWithBlock(Block_copy(struct_ref)), 0);
+	    rb_objc_define_method(nstr, rb_id2name(rb_id_attrset(id)),
+		    imp_implementationWithBlock(Block_copy(struct_set)), 1);
 	}
     }
 
