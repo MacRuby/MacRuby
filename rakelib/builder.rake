@@ -246,6 +246,15 @@ namespace :clean do
     list = ['parse.c', 'lex.c', INSTALLED_LIST, 'Makefile', RUBY_INSTALL_NAME, 'miniruby', 'kernel_data.c']
     list.concat(Dir['*.inc'])
     list.concat(Dir['lib*.{dylib,a}'])
+    list.concat(Dir['plblockimp/*.o'])
+    ARCHS.each do |a|
+      plbi_s_t = "plblockimp/blockimp_#{a}"
+      ['', '_stret'].each do |x|
+        ['.h', '_config.c', '.s'].each do |y|
+          list << plbi_s_t + x + y
+        end
+      end
+    end
     list.each { |x| rm_f(x) }
   end
 
