@@ -1,0 +1,61 @@
+#!/bin/sh
+
+# -----------------------------------------------------------------------
+#  Copyright (c) 2010-2011, Plausible Labs Cooperative, Inc.
+#  All Rights Reserved.
+# 
+#  Permission is hereby granted, free of charge, to any person obtaining
+#  a copy of this software and associated documentation files (the
+#  ``Software''), to deal in the Software without restriction, including
+#  without limitation the rights to use, copy, modify, merge, publish,
+#  distribute, sublicense, and/or sell copies of the Software, and to
+#  permit persons to whom the Software is furnished to do so, subject to
+#  the following conditions:
+#
+#  The above copyright notice and this permission notice shall be included
+#  in all copies or substantial portions of the Software.
+#
+#  THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
+#  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+#  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#  NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+#  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+#  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+#  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+#  DEALINGS IN THE SOFTWARE.
+#  -----------------------------------------------------------------------
+
+# Architecture definitions
+ARCH="${CURRENT_ARCH}"
+PAGE_SIZE="4096"
+
+# The name of this page
+PAGE_NAME=pl_blockimp_table_stret_page
+
+# Prefix to be placed at the start of the trampoline page
+trampoline_prefix () {
+asm << 'EOF'
+    _block_tramp_dispatch:
+        # trampoline address+8 is in r12 -- calculate our config page address
+        sub r12, #0x8
+        sub r12, #0x1000
+
+        # Set the 'self' argument as the third argument
+        mov r2, r1
+        
+        # Load the block pointer as the second argument
+        ldr r1, [r12]
+
+        # Jump to the block pointer
+        ldr pc, [r1, #0xc]
+EOF
+}
+
+# Generate a single trampoline
+trampoline () {
+asm << 'EOF'
+    # Save pc+8, then jump to the shared prefix implementation
+    mov r12, pc
+    b _block_tramp_dispatch;
+EOF
+}

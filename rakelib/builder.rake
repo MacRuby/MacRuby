@@ -7,7 +7,58 @@ task :mark_gc do
   end
 end
 
-task :files => [:config_h, :dtrace_h, :revision_h, :mark_gc] do
+desc "Build the plblockimp library for imp_implementationWithBlock() support."
+task :plblockimp do
+  # Prepare assembly trampolines for plblockimp
+  plblockimp_sources = []
+  plblockimp_targets = []
+  ARCHS.each do |a|
+    tramp_sources = ["", "_stret"].map { |s|
+        "plblockimp/#{a}/blockimp_#{a}#{s}.tramp"
+    }
+    tramp_sources.each do |s|
+      unless sh "plblockimp/gentramp.sh #{s} #{a} plblockimp/"
+        $stderr.puts "Failed to generate trampolines for plblockimp"
+        exit 1
+      end
+    end
+    plblockimp_sources.concat( ["", "_stret"].map { |s|
+        "plblockimp/blockimp_#{a}#{s}_config.c"
+    } )
+    as_sources = ["", "_stret"].map { |s|
+        "plblockimp/blockimp_#{a}#{s}.s"
+    }
+    as_sources.each do |s|
+      t = s.sub(%r{\.s$}, ".o")
+      unless sh "as -arch #{a} -o #{t} #{s}"
+        $stderr.puts "Failed to assemble trampolines for plblockimp"
+        exit 1
+      end
+      plblockimp_targets << t
+    end
+  end
+
+  # Build plblockimp as an object file for later linking
+  plblockimp_sources.concat( ["blockimp.c", "trampoline_table.c"].map { |s|
+      "plblockimp/#{s}"
+  } )
+  cflags = $builder.cflags.scan(%r{-[^D][^\s]*}).join(' ').sub(%r{-arch},'')
+  plblockimp_sources.each do |s|
+    t = s.sub(%r{.c$}, ".o")
+    a = ARCHS.map { |x| "-arch #{x}" }.join(' ')
+    unless sh "#{CC} #{a} -c #{cflags} -DPL_BLOCKIMP_PRIVATE -o #{t} #{s}"
+      exit 1
+    end
+    plblockimp_targets << t
+  end
+  plbi_o = plblockimp_targets.join(' ')
+  unless sh "ld #{plbi_o} -r -o #{$builder.objsdir}/plblockimp.o"
+    $stderr.puts "Failed to link plblockimp components"
+    exit 1
+  end
+end
+
+task :files => [:config_h, :dtrace_h, :revision_h, :mark_gc, :plblockimp] do
 end
 
 def build_objects
@@ -58,6 +109,9 @@ def build_objects
       mv "#{output}.old", output
     end
   end
+
+
+
   dispatcher_o = File.join($builder.objsdir, 'dispatcher.o')
   t = File.exist?(dispatcher_o) ? File.mtime(dispatcher_o) : nil
   vm_o = File.join($builder.objsdir, 'vm.o')
@@ -75,7 +129,7 @@ desc "Create miniruby"
 task :miniruby => :files do
   $builder.config = FULL_CONFIG
   build_objects
-  $builder.link_executable('miniruby', OBJS)
+  $builder.link_executable('miniruby', OBJS + ['plblockimp'])
 end
 
 desc "Create config file"
@@ -90,7 +144,7 @@ namespace :macruby do
     $builder.config = FULL_CONFIG
     build_objects
     dylib = "lib#{RUBY_SO_NAME}.#{NEW_RUBY_VERSION}.dylib"
-    $builder.link_dylib(dylib, $builder.objs - ['main', 'gc-stub'])
+    $builder.link_dylib(dylib, $builder.objs - ['main', 'gc-stub'] + ['plblockimp'])
     major, minor, teeny = NEW_RUBY_VERSION.scan(/\d+/)
     ["lib#{RUBY_SO_NAME}.#{major}.#{minor}.dylib", "lib#{RUBY_SO_NAME}.dylib"].each do |dylib_alias|
       if !File.exist?(dylib_alias) or File.readlink(dylib_alias) != dylib
@@ -105,7 +159,7 @@ namespace :macruby do
     if ENABLE_STATIC_LIBRARY
       $builder.config = STATIC_CONFIG
       build_objects
-      $builder.link_archive("lib#{RUBY_SO_NAME}-static.a", $builder.objs - ['main', 'gc-stub'])
+      $builder.link_archive("lib#{RUBY_SO_NAME}-static.a", $builder.objs - ['main', 'gc-stub'] + ['plblockimp'])
     end
   end
 

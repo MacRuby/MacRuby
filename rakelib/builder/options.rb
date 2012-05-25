@@ -180,8 +180,8 @@ class BuilderConfig
     end
     @cxxflags << " -fno-rtti" unless @cxxflags.index("-fno-rtti")
     @dldflags = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION} -exported_symbols_list #{EXPORTED_SYMBOLS_LIST}"
-    @cflags << ' -I./icu-1060'
-    @cxxflags << ' -I./icu-1060'
+    @cflags << ' -I./icu-1060 -I./plblockimp'
+    @cxxflags << ' -I./icu-1060 -I./plblockimp'
     if sdk
       sdk_flags = "--sysroot=#{sdk}"
       @cflags << " #{sdk_flags}"

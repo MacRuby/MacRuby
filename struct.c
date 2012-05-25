@@ -182,9 +182,9 @@ make_struct(VALUE name, VALUE members, VALUE klass)
 		return val;
 	    };
 	    rb_objc_define_method(nstr, rb_id2name(id),
-		    imp_implementationWithBlock(Block_copy(struct_ref)), 0);
+		    pl_imp_implementationWithBlock(Block_copy(struct_ref)), 0);
 	    rb_objc_define_method(nstr, rb_id2name(rb_id_attrset(id)),
-		    imp_implementationWithBlock(Block_copy(struct_set)), 1);
+		    pl_imp_implementationWithBlock(Block_copy(struct_set)), 1);
 	}
     }
 
