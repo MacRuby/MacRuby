@@ -166,19 +166,19 @@ make_struct(VALUE name, VALUE members, VALUE klass)
 	ID id = SYM2ID(RARRAY_AT(members, i));
 	if (rb_is_local_id(id) || rb_is_const_id(id)) {
 	    long j = i; /* Needed for block data reference. */
-        /* Struct attribute reader */
-        rb_objc_define_method(nstr, rb_id2name(id),
-                pl_imp_implementationWithBlock(^(VALUE obj) {
-                    return RSTRUCT_PTR(obj)[j];
-                }), 0);
-        /* Struct attribute writer */
-        rb_objc_define_method(nstr, rb_id2name(rb_id_attrset(id)),
-                pl_imp_implementationWithBlock(^(VALUE obj, VALUE val) {
-                    VALUE *ptr = RSTRUCT_PTR(obj);
-                    rb_struct_modify(obj);
-                    GC_WB(&ptr[i], val);
-                    return val;
-                }), 1);
+	/* Struct attribute reader */
+	rb_objc_define_method(nstr, rb_id2name(id),
+		pl_imp_implementationWithBlock(^(VALUE obj) {
+		    return RSTRUCT_PTR(obj)[j];
+		}), 0);
+	/* Struct attribute writer */
+	rb_objc_define_method(nstr, rb_id2name(rb_id_attrset(id)),
+		pl_imp_implementationWithBlock(^(VALUE obj, VALUE val) {
+		    VALUE *ptr = RSTRUCT_PTR(obj);
+		    rb_struct_modify(obj);
+		    GC_WB(&ptr[i], val);
+		    return val;
+		}), 1);
 	    }
     }
 
