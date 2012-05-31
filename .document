@@ -3,8 +3,10 @@
 # tool when it is given the top-level directory
 # as an argument
 
-# Process all the C source files
+# Process all the C/C++/Objective-C source files
 *.c
+*.cpp
+*.m
 
 # the lib/ directory (which has its own .document file)
 
