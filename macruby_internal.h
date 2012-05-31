@@ -13,6 +13,7 @@ extern "C" {
 #endif
 
 #include "ruby.h"
+#include "PLBlockIMP.h"
 
 #include <objc/objc.h>
 #include <objc/runtime.h>

@@ -1932,7 +1932,7 @@ def init_mkmf(config = CONFIG)
   $LDFLAGS = with_config("ldflags", arg_config("LDFLAGS", config["LDFLAGS"])).dup
   $INCFLAGS = "-I$(arch_hdrdir)"
   $INCFLAGS << " -I$(hdrdir)/ruby/backward" unless $extmk
-  $INCFLAGS << " -I$(hdrdir) -I$(srcdir)"
+  $INCFLAGS << " -I$(hdrdir) -I$(srcdir) -I$(top_srcdir)/plblockimp"
   $DLDFLAGS = with_config("dldflags", arg_config("DLDFLAGS", config["DLDFLAGS"])).dup
   $LIBEXT = config['LIBEXT'].dup
   $OBJEXT = config["OBJEXT"].dup

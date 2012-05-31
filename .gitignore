@@ -44,6 +44,8 @@ mspec/upstream_patches
 mspec_upstream
 node_name.inc
 parse.c
+plblockimp/blockimp_ARM*
+plblockimp/blockimp_x86*
 prelude.c
 rbconfig.rb
 revision.h
