@@ -7,7 +7,7 @@
  */
 
 #define RUBY_ENGINE 		"macruby"
-#define MACRUBY_VERSION 	"0.12"
+#define MACRUBY_VERSION 	"0.13"
 
 #define RUBY_VERSION 		"1.9.2"
 #define RUBY_RELEASE_DATE 	"2008-06-03"
