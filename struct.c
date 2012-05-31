@@ -118,72 +118,12 @@ rb_struct_getmember(VALUE obj, ID id)
     return Qnil;		/* not reached */
 }
 
-static VALUE
-rb_struct_ref(VALUE obj, SEL sel)
-{
-    return rb_struct_getmember(obj, rb_frame_this_func());
-}
-
-static VALUE rb_struct_ref0(VALUE obj, SEL sel) {return RSTRUCT_PTR(obj)[0];}
-static VALUE rb_struct_ref1(VALUE obj, SEL sel) {return RSTRUCT_PTR(obj)[1];}
-static VALUE rb_struct_ref2(VALUE obj, SEL sel) {return RSTRUCT_PTR(obj)[2];}
-static VALUE rb_struct_ref3(VALUE obj, SEL sel) {return RSTRUCT_PTR(obj)[3];}
-static VALUE rb_struct_ref4(VALUE obj, SEL sel) {return RSTRUCT_PTR(obj)[4];}
-static VALUE rb_struct_ref5(VALUE obj, SEL sel) {return RSTRUCT_PTR(obj)[5];}
-static VALUE rb_struct_ref6(VALUE obj, SEL sel) {return RSTRUCT_PTR(obj)[6];}
-static VALUE rb_struct_ref7(VALUE obj, SEL sel) {return RSTRUCT_PTR(obj)[7];}
-static VALUE rb_struct_ref8(VALUE obj, SEL sel) {return RSTRUCT_PTR(obj)[8];}
-static VALUE rb_struct_ref9(VALUE obj, SEL sel) {return RSTRUCT_PTR(obj)[9];}
-
-#define N_REF_FUNC (sizeof(ref_func) / sizeof(ref_func[0]))
-
-static VALUE (*const ref_func[])(VALUE,SEL) = {
-    rb_struct_ref0,
-    rb_struct_ref1,
-    rb_struct_ref2,
-    rb_struct_ref3,
-    rb_struct_ref4,
-    rb_struct_ref5,
-    rb_struct_ref6,
-    rb_struct_ref7,
-    rb_struct_ref8,
-    rb_struct_ref9,
-};
-
 static void
 rb_struct_modify(VALUE s)
 {
     if (OBJ_FROZEN(s)) rb_error_frozen("Struct");
     if (!OBJ_TAINTED(s) && rb_safe_level() >= 4)
        rb_raise(rb_eSecurityError, "Insecure: can't modify Struct");
-}
-
-static VALUE
-rb_struct_set(VALUE obj, SEL sel, VALUE val)
-{
-    VALUE members, slot, *ptr;
-    long i, len;
-
-    // foo=: -> foo
-    char buf[100];
-    const size_t s = strlcpy(buf, sel_getName(sel), sizeof buf);
-    buf[s - 2] = '\0';
-    ID field = rb_intern(buf);
-
-    members = rb_struct_members(obj);
-    len = RARRAY_LEN(members);
-    rb_struct_modify(obj);
-    ptr = RSTRUCT_PTR(obj);
-    for (i=0; i<len; i++) {
-	slot = RARRAY_AT(members, i);
-	if (SYM2ID(slot) == field) {
-	    GC_WB(&ptr[i], val);
-	    return val;
-	}
-    }
-    rb_name_error(rb_frame_this_func(), "`%s' is not a struct member",
-		  rb_id2name(field));
-    return Qnil;		/* not reached */
 }
 
 static VALUE
@@ -225,15 +165,21 @@ make_struct(VALUE name, VALUE members, VALUE klass)
     for (i=0; i< len; i++) {
 	ID id = SYM2ID(RARRAY_AT(members, i));
 	if (rb_is_local_id(id) || rb_is_const_id(id)) {
-	    if (i < N_REF_FUNC) {
-		rb_objc_define_method(nstr, rb_id2name(id), ref_func[i], 0);
+	    long j = i; /* Needed for block data reference. */
+	/* Struct attribute reader */
+	rb_objc_define_method(nstr, rb_id2name(id),
+		pl_imp_implementationWithBlock(^(VALUE obj) {
+		    return RSTRUCT_PTR(obj)[j];
+		}), 0);
+	/* Struct attribute writer */
+	rb_objc_define_method(nstr, rb_id2name(rb_id_attrset(id)),
+		pl_imp_implementationWithBlock(^(VALUE obj, VALUE val) {
+		    VALUE *ptr = RSTRUCT_PTR(obj);
+		    rb_struct_modify(obj);
+		    GC_WB(&ptr[i], val);
+		    return val;
+		}), 1);
 	    }
-	    else {
-		rb_objc_define_method(nstr, rb_id2name(id), rb_struct_ref, 0);
-	    }
-	    rb_objc_define_method(nstr, rb_id2name(rb_id_attrset(id)),
-		    rb_struct_set, 1);
-	}
     }
 
     return nstr;
