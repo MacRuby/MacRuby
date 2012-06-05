@@ -474,6 +474,7 @@ zstream_expand_buffer_into(struct zstream *z, int size)
 {
     if (NIL_P(z->buf)) {
         GC_WB(&z->buf, rb_bstr_new());
+        rb_bstr_resize(z->buf, size);
         z->buf_filled = 0;
         z->stream.next_out = BSTRING_PTR_BYTEF(z->buf);
         z->stream.avail_out = size;
