@@ -215,12 +215,6 @@ class Deployer
     rm_rf(app_macruby)
     rsync('-rl', *exclude_dirs, @macruby_framework_path, app_frameworks)
 
-    # Rename the current version folder to Current in the MacRuby.framework
-    # copy when the AppStore validation gets an Info.plist in a symlinked
-    # folder it thinks it is a seperate target.
-    rm_rf(File.join(app_macruby, 'Versions', 'Current'))
-    mv(File.join(app_macruby, 'Versions', @macruby_install_version), File.join(app_macruby, 'Versions', 'Current'))
-
     # Orphaned symlinks prevent AppStore validation.
     rm_rf(File.join(app_macruby, 'Headers'))
     rm_rf(File.join(app_macruby, 'Versions', 'Current', 'Headers'))

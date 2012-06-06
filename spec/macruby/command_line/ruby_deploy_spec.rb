@@ -203,14 +203,15 @@ describe "ruby_deploy command line options:" do
       File.exists?(File.join(framework, 'Current/usr/lib/libmacruby.1.9.2.dylib'))
     end
 
-    it 'only copies the Current version which is not a symlink' do
+    it 'keeps the correct version and Current symlink' do
       cached_deploy('--embed')
 
       dirs = Dir.entries(framework) - ['.','..']
-      dirs.count.should == 1
+      dirs.count.should == 2
       dirs.should include('Current')
+      dirs.should include(MACRUBY_VERSION)
 
-      File.symlink?(File.join(framework, 'Current')).should be_false
+      File.readlink(File.join(framework, 'Current')).should == MACRUBY_VERSION
 
       info = load_plist(IO.read(File.join(framework_resources, 'Info.plist')))
       info['CFBundleShortVersionString'].should == MACRUBY_VERSION
