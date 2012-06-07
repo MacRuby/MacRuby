@@ -289,6 +289,7 @@ str_replace_with_string(rb_str_t *self, rb_str_t *source)
 	str_update_flags(source);
     }
     self->flags = source->flags;
+    self->cached_length = source->cached_length;
 }
 
 static void
@@ -419,6 +420,11 @@ str_length_with_cache(rb_str_t *self, character_boundaries_cache_t *cache)
 	return cache->cached_length;
     }
 
+    // TODO: might not need character_boundaries_cache_t *cache in above
+    if (self->cached_length != 0) {
+	return self->cached_length;
+    }
+
     // slow paths
     long length = 0;
     if (IS_UTF8_ENC(self->encoding)) {
@@ -445,6 +451,8 @@ str_length_with_cache(rb_str_t *self, character_boundaries_cache_t *cache)
     if (cache != NULL) {
 	cache->cached_length = length;
     }
+
+    self->cached_length = length;
     return length;
 }
 
@@ -855,6 +863,7 @@ str_splice(rb_str_t *self, long pos, long len, rb_str_t *str)
     const long bytes_to_splice = end.end_offset_in_bytes
 	- beg.start_offset_in_bytes;
 
+    str_reset_cache(self);
     long bytes_to_add = 0;
     if (str != NULL) {
 	if (!str->flags) {
@@ -898,6 +907,7 @@ str_delete(rb_str_t *self, long pos, long len)
 {
     if (str_is_ruby_ascii_only(self) &&
 	self->length_in_bytes <= pos + len) {
+	str_reset_cache(self);
 	self->length_in_bytes = pos;
 	return;
     }
@@ -917,6 +927,7 @@ str_concat_bytes(rb_str_t *self, const char *bytes, long len)
 
     const long new_length_in_bytes = self->length_in_bytes + len;
 
+    str_reset_cache(self);
     str_resize_bytes(self, new_length_in_bytes);
     memcpy(self->bytes + self->length_in_bytes, bytes, len);
     self->length_in_bytes = new_length_in_bytes;

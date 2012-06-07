@@ -58,6 +58,7 @@ typedef struct {
     struct rb_encoding *encoding;
     long capacity_in_bytes;
     long length_in_bytes;
+    long cached_length;
     char *bytes;
     str_flag_t flags;
 } rb_str_t;
@@ -193,8 +194,15 @@ div_round_up(long a, long b)
 void str_update_flags(rb_str_t *self);
 
 static inline void
+str_reset_cache(rb_str_t *self)
+{
+    self->cached_length = 0;
+}
+
+static inline void
 str_reset_flags(rb_str_t *self)
 {
+    str_reset_cache(self);
     self->flags = 0;
 }
 
