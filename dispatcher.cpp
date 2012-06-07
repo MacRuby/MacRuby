@@ -697,7 +697,7 @@ recache2:
 	    // Let's see if are not trying to call a Ruby method that accepts
 	    // a regular argument then an optional Hash argument, to be
 	    // compatible with the Ruby specification.
-	    const char *selname = (const char *)sel;
+	    const char *selname = sel_getName(sel);
 	    size_t selname_len = strlen(selname);
 	    if (argc > 1) {
 		const char *p = strchr(selname, ':');
