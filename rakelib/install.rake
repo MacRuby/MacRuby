@@ -169,6 +169,9 @@ namespace :install do
 
   task :all => [:bin, :scripts, :lib, :ext, :headers, :doc, :man, :resources, :xcode_support]
 
+  desc 'Install MacRuby without Xcode support'
+  task :most => [:bin, :scripts, :lib, :ext, :headers, :doc, :man, :resources]
+
   desc 'Install MacRuby binaries'
   task :bin do
     puts 'Installing the macruby binary and dependencies'
