@@ -4717,6 +4717,15 @@ rb_exec_recursive(VALUE (*func) (VALUE, VALUE, int), VALUE obj, VALUE arg)
     return GET_VM()->exec_recursive(func, obj, arg);
 }
 
+void
+RoxorVM::remove_recursive_object(VALUE obj)
+{
+    std::vector<VALUE>::iterator iter =
+	std::find(recursive_objects.begin(), recursive_objects.end(), obj);
+    assert(iter != recursive_objects.end());
+    recursive_objects.erase(iter);
+}
+
 VALUE
 RoxorVM::exec_recursive(VALUE (*func) (VALUE, VALUE, int), VALUE obj,
 	VALUE arg)
@@ -4729,13 +4738,16 @@ RoxorVM::exec_recursive(VALUE (*func) (VALUE, VALUE, int), VALUE obj,
     }
 
     recursive_objects.push_back(obj);
-    // XXX the function is not supposed to raise an exception.
-    VALUE ret = (*func) (obj, arg, Qfalse);
-
-    iter = std::find(recursive_objects.begin(), recursive_objects.end(), obj);
-    assert(iter != recursive_objects.end());
-    recursive_objects.erase(iter);
-
+    VALUE ret;
+    try {
+	ret = (*func) (obj, arg, Qfalse);
+    }
+    catch (...) {
+	RoxorSpecialException *exc = get_special_exc();
+	remove_recursive_object(obj);
+	throw exc;
+    }
+    remove_recursive_object(obj);
     return ret;
 }
 

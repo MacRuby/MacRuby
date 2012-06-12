@@ -1226,6 +1226,7 @@ class RoxorVM {
 
 	void setup_from_current_thread(void);
 
+	void remove_recursive_object(VALUE obj);
 	VALUE exec_recursive(VALUE (*func) (VALUE, VALUE, int), VALUE obj,
 		VALUE arg);
 
