@@ -1228,7 +1228,7 @@ class RoxorVM {
 
 	void remove_recursive_object(VALUE obj);
 	VALUE exec_recursive(VALUE (*func) (VALUE, VALUE, int), VALUE obj,
-		VALUE arg);
+		VALUE arg, int outer);
 
         rb_vm_outer_t *push_outer(Class klass);
         void pop_outer(bool need_release = false);

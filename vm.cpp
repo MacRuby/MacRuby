@@ -4714,7 +4714,14 @@ extern "C"
 VALUE
 rb_exec_recursive(VALUE (*func) (VALUE, VALUE, int), VALUE obj, VALUE arg)
 {
-    return GET_VM()->exec_recursive(func, obj, arg);
+    return GET_VM()->exec_recursive(func, obj, arg, 0);
+}
+
+extern "C"
+VALUE
+rb_exec_recursive_outer(VALUE (*func) (VALUE, VALUE, int), VALUE obj, VALUE arg)
+{
+    return GET_VM()->exec_recursive(func, obj, arg, 1);
 }
 
 void
@@ -4728,27 +4735,48 @@ RoxorVM::remove_recursive_object(VALUE obj)
 
 VALUE
 RoxorVM::exec_recursive(VALUE (*func) (VALUE, VALUE, int), VALUE obj,
-	VALUE arg)
+	VALUE arg, int outer)
 {
     std::vector<VALUE>::iterator iter =
 	std::find(recursive_objects.begin(), recursive_objects.end(), obj);
-    if (iter != recursive_objects.end()) {
-	// Object is already being iterated!
-	return (*func) (obj, arg, Qtrue);
+    try {
+	VALUE ret = Qnil;
+	if (iter != recursive_objects.end()) {
+	    // Object is already being iterated!
+	    ret = (*func) (obj, arg, Qtrue);
+	    if (outer) {
+		// throw the result value of outer loop
+		throw ret;
+	    }
+	    return ret;
+	}
+
+	recursive_objects.push_back(obj);
+	try {
+	    ret = (*func) (obj, arg, Qfalse);
+	}
+	catch (VALUE ret) {
+	    // catch and rethrow the value of outer loop
+	    throw;
+	}
+	catch (...) {
+	    RoxorSpecialException *exc = get_special_exc();
+	    remove_recursive_object(obj);
+	    throw exc;
+	}
+	remove_recursive_object(obj);
+	return ret;
+    }
+    catch (VALUE ret) {
+	// catch the value of outer loop
+	if (!recursive_objects.empty()) {
+	    recursive_objects.pop_back();
+	    throw;
+	}
+	return ret;
     }
 
-    recursive_objects.push_back(obj);
-    VALUE ret;
-    try {
-	ret = (*func) (obj, arg, Qfalse);
-    }
-    catch (...) {
-	RoxorSpecialException *exc = get_special_exc();
-	remove_recursive_object(obj);
-	throw exc;
-    }
-    remove_recursive_object(obj);
-    return ret;
+    return Qnil; /* not reached */
 }
 
 extern "C"
