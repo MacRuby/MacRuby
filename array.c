@@ -2589,6 +2589,20 @@ rary_eql_fast(rb_ary_t *ary1, rb_ary_t *ary2)
 
 /*
  *  call-seq:
+ *     ary.hash   -> fixnum
+ *
+ *  Compute a hash-code for this array. Two arrays with the same content
+ *  will have the same hash code (and will compare using <code>eql?</code>).
+ */
+
+static VALUE
+rary_hash(VALUE ary, SEL sel)
+{
+    return LONG2FIX(rb_ary_hash(ary));
+}
+
+/*
+ *  call-seq:
  *     array.include?(obj)   -> true or false
  *  
  *  Returns <code>true</code> if the given object is present in
@@ -3790,6 +3804,7 @@ Init_Array(void)
     rb_objc_define_method(rb_cRubyArray, "inspect", rary_inspect, 0);
     rb_objc_define_method(rb_cRubyArray, "==", rary_equal, 1);
     rb_objc_define_method(rb_cRubyArray, "eql?", rary_eql, 1);
+    rb_objc_define_method(rb_cRubyArray, "hash", rary_hash, 0);
     rb_objc_define_method(rb_cRubyArray, "[]", rary_aref, -1);
     rb_objc_define_method(rb_cRubyArray, "[]=", rary_aset, -1);
     rb_objc_define_method(rb_cRubyArray, "at", rary_at, 1);

@@ -1458,32 +1458,29 @@ rb_ary_ptr(VALUE ary)
     return values;
 }
 
-// A very naive hashing function for arrays, which hashes the array's length,
-// then first and last elements (in case the array has more than 4 elements).
-// We cannot rely on the CoreFoundation hashing function for arrays as it's
-// simply returning the number of elements, and can trigger huge performance
-// problems when using same-sized arrays as keys in Hash objects.
+static unsigned long
+recursive_hash(VALUE ary, VALUE dummy, int recur)
+{
+    long i;
+    st_index_t h;
+    VALUE n;
+
+    h = rb_hash_start(RARRAY_LEN(ary));
+    if (recur) {
+	h = rb_hash_uint(h, NUM2LONG(rb_hash(rb_cArray)));
+    }
+    else {
+	for (i=0; i<RARRAY_LEN(ary); i++) {
+	    n = rb_hash(RARRAY_PTR(ary)[i]);
+	    h = rb_hash_uint(h, NUM2LONG(n));
+	}
+    }
+    h = rb_hash_end(h);
+    return h;
+}
+
 unsigned long
 rb_ary_hash(VALUE ary)
 {
-    const long len = RARRAY_LEN(ary);
-    unsigned long hash = 0;
-    if (len > 0) {
-	VALUE elem = RARRAY_AT(ary, 0);
-	if (elem == ary) {
-	    // recursive array
-	    return (unsigned long)rb_cRubyArray;
-	}
-	hash += rb_hash_code(elem);
-	if (len > 4) {
-	    elem = RARRAY_AT(ary, len - 1);
-	    if (elem == ary) {
-		// recursive array
-		return (unsigned long)rb_cRubyArray;
-	    }
-	    hash = (hash >> 3) ^ rb_hash_code(elem);
-	}
-	hash += len;
-    }
-    return hash;
+    return rb_exec_recursive_outer(recursive_hash, ary, 0);
 }
