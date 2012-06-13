@@ -849,7 +849,7 @@ rb_struct_hash_r(VALUE s, VALUE s2, int recur)
 static VALUE
 rb_struct_hash(VALUE s, SEL sel)
 {
-    return rb_exec_recursive(rb_struct_hash_r, s, Qnil);
+    return rb_exec_recursive_outer(rb_struct_hash_r, s, 0);
 }
 
 static VALUE
