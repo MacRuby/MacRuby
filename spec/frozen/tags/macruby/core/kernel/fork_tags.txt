@@ -1,0 +1,4 @@
+fails:Kernel#fork return nil for the child process
+fails:Kernel#fork runs a block in a child process
+fails:Kernel.fork return nil for the child process
+fails:Kernel.fork runs a block in a child process

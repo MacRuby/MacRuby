@@ -1,0 +1,2 @@
+fails:Kernel#sprintf with format string that contains %{} sections raises KeyError when no matching key is in second argument
+fails:Kernel#sprintf with format string that contains %<> sections raises KeyError when no matching key is in second argument

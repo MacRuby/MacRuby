@@ -1,1 +1,4 @@
+critical:Process.abort raises a SystemExit exception
+critical:Process.abort sets the exception status code of of 1
 fails:Process.abort terminates execution immediately
+fails:Process.abort coerces the argument with #to_str

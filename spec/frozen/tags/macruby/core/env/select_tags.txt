@@ -1,0 +1,4 @@
+fails:ENV.select! removes environment variables for which the block returns true
+fails:ENV.select! returns self if any changes were made
+fails:ENV.select! returns nil if no changes were made
+fails:ENV.select! returns an Enumerator if called without a block

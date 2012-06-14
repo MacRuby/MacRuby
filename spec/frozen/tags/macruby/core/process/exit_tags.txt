@@ -1,2 +1,7 @@
+critical:Process.exit raises a SystemExit with status 0
+critical:Process.exit raises a SystemExit with the specified status
+critical:Process.exit raises a SystemExit with the specified boolean status
+critical:Process.exit tries to convert the passed argument to an Integer using #to_int
+critical:Process.exit converts the passed Float argument to an Integer
 fails:Process.exit! exits with the given status
 fails:Process.exit! exits immediately when called from a thread
