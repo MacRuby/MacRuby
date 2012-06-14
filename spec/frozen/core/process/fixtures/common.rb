@@ -11,34 +11,27 @@ module ProcessSpecs
     end
 
     def wait_for_daemon
-      while true
-        return if File.exists? @signal
+      5.times do
+        return true if File.exists? @signal and
+                       File.exists? @data and
+                       File.size? @data
         sleep 0.1
       end
+
+      return false
     end
 
     def invoke(behavior, arguments=[])
       args = Marshal.dump(arguments).unpack("H*")
-      args << @input
-      args << @data
-      args << @signal
-      args << behavior
+      args << @input << @data << @signal << behavior
 
       ruby_exe @script, :args => args
 
       wait_for_daemon
 
-      if 'daemon_at_exit' == behavior || /keep_stdio_open_true_stdout/ =~ behavior
-        # prevent false negative because of filesystem cache or something
-        10.times do
-          break if File.exist?(@data) && File.size?(@data)
-          sleep 0.1
-        end
-      end
-
       return unless File.exists? @data
 
-      File.open(@data, "rb") { |f| return f.gets.tap{|x|x&&x.chomp!} }
+      File.open(@data, "rb") { |f| return f.read.chomp }
     end
   end
 end

@@ -16,10 +16,13 @@ describe "Net::HTTP.start" do
     net.should be_kind_of(Net::HTTP)
     net.address.should == "localhost"
     net.port.should == 3333
+    net.finish
   end
 
   it "opens the tcp connection" do
-    Net::HTTP.start("localhost", 3333).started?.should be_true
+    net = Net::HTTP.start("localhost", 3333)
+    net.started?.should be_true
+    net.finish
   end
 
   describe "when passed a block" do
@@ -59,6 +62,10 @@ describe "Net::HTTP#start" do
 
   before(:each) do
     @http = Net::HTTP.new("localhost", 3333)
+  end
+
+  after(:each) do
+    @http.finish if @http.started?
   end
 
   it "returns self" do

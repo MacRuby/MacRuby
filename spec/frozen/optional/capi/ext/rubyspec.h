@@ -196,6 +196,7 @@
 #define HAVE_RB_ENCODING_GET               1
 #define HAVE_RB_ENCODING_SET               1
 #define HAVE_RB_ENC_TO_INDEX               1
+#define HAVE_RB_OBJ_ENCODING               1
 
 #define HAVE_RB_USASCII_STR_NEW_CSTR       1
 #define HAVE_RB_EXTERNAL_STR_NEW           1
@@ -444,6 +445,9 @@
 
 /* Symbol */
 #define HAVE_RB_ID2NAME                    1
+#ifdef RUBY_VERSION_IS_1_9
+#define HAVE_RB_ID2STR                     1
+#endif
 #define HAVE_RB_INTERN                     1
 #define HAVE_RB_IS_CLASS_ID                1
 #define HAVE_RB_IS_CONST_ID                1
