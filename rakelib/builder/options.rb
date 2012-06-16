@@ -131,7 +131,7 @@ EXPORTED_SYMBOLS_LIST = "./exported_symbols_list"
 OBJS = %w{
   array bignum class compar complex enum enumerator error eval file load proc
   gc hash env inits io math numeric object pack parse prec dir process
-  random range rational re ruby signal sprintf st string struct time
+  random range rational re ruby signal sprintf st string struct time strftime
   util variable version thread id objc bs ucnv encoding main dln dmyext marshal
   gcd vm_eval gc-stub bridgesupport compiler dispatcher vm symbol debugger
   interpreter MacRuby MacRubyDebuggerConnector NSArray NSDictionary NSString

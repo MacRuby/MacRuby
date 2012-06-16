@@ -384,6 +384,7 @@ void rb_set_errinfo(VALUE);
 SIGNED_VALUE rb_num2long(VALUE);
 VALUE rb_num2ulong(VALUE);
 #define NUM2LONG(x) (FIXNUM_P(x)?FIX2LONG(x):rb_num2long((VALUE)x))
+#define NUM2TIMET(v) NUM2LONG(v)
 #define NUM2ULONG(x) rb_num2ulong((VALUE)x)
 #if SIZEOF_INT < SIZEOF_LONG
 long rb_num2int(VALUE);
