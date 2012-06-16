@@ -3402,7 +3402,8 @@ time_hash(VALUE time, SEL sel)
     struct time_object *tobj;
 
     GetTimeval(time, tobj);
-    return rb_hash(w2v(tobj->timew));
+    VALUE hash = rb_hash(w2v(tobj->timew));
+    return LONG2FIX(NUM2LONG(hash));
 }
 
 /* :nodoc: */
