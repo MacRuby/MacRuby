@@ -266,6 +266,18 @@ convert_mode_string_to_oflags(VALUE s)
     return convert_fmode_to_oflags(convert_mode_string_to_fmode(s));
 }
 
+int
+rb_io_modestr_fmode(const char *modestr)
+{
+    return convert_mode_string_to_fmode(rb_str_new2(modestr));
+}
+
+int
+rb_io_modestr_oflags(const char *modestr)
+{
+    return convert_mode_string_to_oflags(rb_str_new2(modestr));
+}
+
 static int
 convert_oflags_to_fmode(int mode)
 {

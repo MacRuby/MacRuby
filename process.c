@@ -26,9 +26,6 @@
 #ifdef HAVE_FCNTL_H
 #include <fcntl.h>
 #endif
-#ifdef __DJGPP__
-#include <process.h>
-#endif
 
 #include <time.h>
 #include <ctype.h>
@@ -140,7 +137,7 @@ static VALUE rb_cProcessTms;
 
 /*
  *  call-seq:
- *     Process.pid   => fixnum
+ *     Process.pid   -> fixnum
  *
  *  Returns the process id of this process. Not available on all
  *  platforms.
@@ -158,10 +155,10 @@ get_pid(VALUE rcv, SEL sel)
 
 /*
  *  call-seq:
- *     Process.ppid   => fixnum
+ *     Process.ppid   -> fixnum
  *
- *  Returns the process id of the parent of this process. Always
- *  returns 0 on NT. Not available on all platforms.
+ *  Returns the process id of the parent of this process. Returns
+ *  untrustworthy value on Win32/64. Not available on all platforms.
  *
  *     puts "I am #{Process.pid}"
  *     Process.fork { puts "Dad is #{Process.ppid}" }
@@ -176,11 +173,7 @@ static VALUE
 get_ppid(VALUE rcv, SEL sel)
 {
     rb_secure(2);
-#ifdef _WIN32
-    return INT2FIX(0);
-#else
     return PIDT2NUM(getppid());
-#endif
 }
 
 
@@ -224,8 +217,8 @@ rb_last_status_clear(void)
 
 /*
  *  call-seq:
- *     stat.to_i     => fixnum
- *     stat.to_int   => fixnum
+ *     stat.to_i     -> fixnum
+ *     stat.to_int   -> fixnum
  *
  *  Returns the bits in _stat_ as a <code>Fixnum</code>. Poking
  *  around in these bits is platform dependent.
@@ -241,10 +234,11 @@ pst_to_i(VALUE st, SEL sel)
     return rb_iv_get(st, "status");
 }
 
+#define PST2INT(st) NUM2INT(pst_to_i(st, 0))
 
 /*
  *  call-seq:
- *     stat.pid   => fixnum
+ *     stat.pid   -> fixnum
  *
  *  Returns the process ID that this status object represents.
  *
@@ -262,34 +256,29 @@ pst_pid(VALUE st, SEL sel)
 static void
 pst_message(VALUE str, rb_pid_t pid, int status)
 {
-    char buf[256];
-    snprintf(buf, sizeof(buf), "pid %ld", (long)pid);
-    rb_str_cat2(str, buf);
+    rb_str_catf(str, "pid %ld", (long)pid);
     if (WIFSTOPPED(status)) {
 	int stopsig = WSTOPSIG(status);
 	const char *signame = ruby_signal_name(stopsig);
 	if (signame) {
-	    snprintf(buf, sizeof(buf), " stopped SIG%s (signal %d)", signame, stopsig);
+	    rb_str_catf(str, " stopped SIG%s (signal %d)", signame, stopsig);
 	}
 	else {
-	    snprintf(buf, sizeof(buf), " stopped signal %d", stopsig);
+	    rb_str_catf(str, " stopped signal %d", stopsig);
 	}
-	rb_str_cat2(str, buf);
     }
     if (WIFSIGNALED(status)) {
 	int termsig = WTERMSIG(status);
 	const char *signame = ruby_signal_name(termsig);
 	if (signame) {
-	    snprintf(buf, sizeof(buf), " SIG%s (signal %d)", signame, termsig);
+	    rb_str_catf(str, " SIG%s (signal %d)", signame, termsig);
 	}
 	else {
-	    snprintf(buf, sizeof(buf), " signal %d", termsig);
+	    rb_str_catf(str, " signal %d", termsig);
 	}
-	rb_str_cat2(str, buf);
     }
     if (WIFEXITED(status)) {
-	snprintf(buf, sizeof(buf), " exit %d", WEXITSTATUS(status));
-	rb_str_cat2(str, buf);
+	rb_str_catf(str, " exit %d", WEXITSTATUS(status));
     }
 #ifdef WCOREDUMP
     if (WCOREDUMP(status)) {
@@ -301,7 +290,7 @@ pst_message(VALUE str, rb_pid_t pid, int status)
 
 /*
  *  call-seq:
- *     stat.to_s   => string
+ *     stat.to_s   -> string
  *
  *  Show pid and exit status as a string.
  */
@@ -313,8 +302,8 @@ pst_to_s(VALUE st, SEL sel)
     int status;
     VALUE str;
 
-    pid = NUM2LONG(pst_pid(st, 0));
-    status = NUM2INT(pst_to_i(st, 0));
+    pid = NUM2PIDT(pst_pid(st, 0));
+    status = PST2INT(st);
 
     str = rb_str_buf_new(0);
     pst_message(str, pid, status);
@@ -324,7 +313,7 @@ pst_to_s(VALUE st, SEL sel)
 
 /*
  *  call-seq:
- *     stat.inspect   => string
+ *     stat.inspect   -> string
  *
  *  Override the inspection method.
  */
@@ -334,10 +323,14 @@ pst_inspect(VALUE st, SEL sel)
 {
     rb_pid_t pid;
     int status;
-    VALUE str;
+    VALUE vpid, str;
 
-    pid = NUM2LONG(pst_pid(st, 0));
-    status = NUM2INT(pst_to_i(st, 0));
+    vpid = pst_pid(st, 0);
+    if (NIL_P(vpid)) {
+        return rb_sprintf("#<%s: uninitialized>", rb_class2name(CLASS_OF(st)));
+    }
+    pid = NUM2PIDT(vpid);
+    status = PST2INT(st);
 
     str = rb_sprintf("#<%s: ", rb_class2name(CLASS_OF(st)));
     pst_message(str, pid, status);
@@ -348,7 +341,7 @@ pst_inspect(VALUE st, SEL sel)
 
 /*
  *  call-seq:
- *     stat == other   => true or false
+ *     stat == other   -> true or false
  *
  *  Returns +true+ if the integer value of _stat_
  *  equals <em>other</em>.
@@ -366,7 +359,7 @@ pst_equal(VALUE st1, SEL sel, VALUE st2)
 
 /*
  *  call-seq:
- *     stat & num   => fixnum
+ *     stat & num   -> fixnum
  *
  *  Logical AND of the bits in _stat_ with <em>num</em>.
  *
@@ -379,7 +372,7 @@ pst_equal(VALUE st1, SEL sel, VALUE st2)
 static VALUE
 pst_bitand(VALUE st1, SEL sel, VALUE st2)
 {
-    int status = NUM2INT(st1) & NUM2INT(st2);
+    int status = PST2INT(st1) & NUM2INT(st2);
 
     return INT2NUM(status);
 }
@@ -387,7 +380,7 @@ pst_bitand(VALUE st1, SEL sel, VALUE st2)
 
 /*
  *  call-seq:
- *     stat >> num   => fixnum
+ *     stat >> num   -> fixnum
  *
  *  Shift the bits in _stat_ right <em>num</em> places.
  *
@@ -400,7 +393,7 @@ pst_bitand(VALUE st1, SEL sel, VALUE st2)
 static VALUE
 pst_rshift(VALUE st1, SEL sel, VALUE st2)
 {
-    int status = NUM2INT(st1) >> NUM2INT(st2);
+    int status = PST2INT(st1) >> NUM2INT(st2);
 
     return INT2NUM(status);
 }
@@ -408,7 +401,7 @@ pst_rshift(VALUE st1, SEL sel, VALUE st2)
 
 /*
  *  call-seq:
- *     stat.stopped?   => true or false
+ *     stat.stopped?   -> true or false
  *
  *  Returns +true+ if this process is stopped. This is only
  *  returned if the corresponding <code>wait</code> call had the
@@ -418,7 +411,7 @@ pst_rshift(VALUE st1, SEL sel, VALUE st2)
 static VALUE
 pst_wifstopped(VALUE st, SEL sel)
 {
-    int status = NUM2INT(st);
+    int status = PST2INT(st);
 
     if (WIFSTOPPED(status))
 	return Qtrue;
@@ -429,7 +422,7 @@ pst_wifstopped(VALUE st, SEL sel)
 
 /*
  *  call-seq:
- *     stat.stopsig   => fixnum or nil
+ *     stat.stopsig   -> fixnum or nil
  *
  *  Returns the number of the signal that caused _stat_ to stop
  *  (or +nil+ if self is not stopped).
@@ -438,7 +431,7 @@ pst_wifstopped(VALUE st, SEL sel)
 static VALUE
 pst_wstopsig(VALUE st, SEL sel)
 {
-    int status = NUM2INT(st);
+    int status = PST2INT(st);
 
     if (WIFSTOPPED(status))
 	return INT2NUM(WSTOPSIG(status));
@@ -448,7 +441,7 @@ pst_wstopsig(VALUE st, SEL sel)
 
 /*
  *  call-seq:
- *     stat.signaled?   => true or false
+ *     stat.signaled?   -> true or false
  *
  *  Returns +true+ if _stat_ terminated because of
  *  an uncaught signal.
@@ -457,7 +450,7 @@ pst_wstopsig(VALUE st, SEL sel)
 static VALUE
 pst_wifsignaled(VALUE st, SEL sel)
 {
-    int status = NUM2INT(st);
+    int status = PST2INT(st);
 
     if (WIFSIGNALED(status))
 	return Qtrue;
@@ -468,7 +461,7 @@ pst_wifsignaled(VALUE st, SEL sel)
 
 /*
  *  call-seq:
- *     stat.termsig   => fixnum or nil
+ *     stat.termsig   -> fixnum or nil
  *
  *  Returns the number of the signal that caused _stat_ to
  *  terminate (or +nil+ if self was not terminated by an
@@ -478,7 +471,7 @@ pst_wifsignaled(VALUE st, SEL sel)
 static VALUE
 pst_wtermsig(VALUE st, SEL sel)
 {
-    int status = NUM2INT(st);
+    int status = PST2INT(st);
 
     if (WIFSIGNALED(status))
 	return INT2NUM(WTERMSIG(status));
@@ -488,7 +481,7 @@ pst_wtermsig(VALUE st, SEL sel)
 
 /*
  *  call-seq:
- *     stat.exited?   => true or false
+ *     stat.exited?   -> true or false
  *
  *  Returns +true+ if _stat_ exited normally (for
  *  example using an <code>exit()</code> call or finishing the
@@ -498,7 +491,7 @@ pst_wtermsig(VALUE st, SEL sel)
 static VALUE
 pst_wifexited(VALUE st, SEL sel)
 {
-    int status = NUM2INT(st);
+    int status = PST2INT(st);
 
     if (WIFEXITED(status))
 	return Qtrue;
@@ -509,7 +502,7 @@ pst_wifexited(VALUE st, SEL sel)
 
 /*
  *  call-seq:
- *     stat.exitstatus   => fixnum or nil
+ *     stat.exitstatus   -> fixnum or nil
  *
  *  Returns the least significant eight bits of the return code of
  *  _stat_. Only available if <code>exited?</code> is
@@ -529,7 +522,7 @@ pst_wifexited(VALUE st, SEL sel)
 static VALUE
 pst_wexitstatus(VALUE st, SEL sel)
 {
-    int status = NUM2INT(st);
+    int status = PST2INT(st);
 
     if (WIFEXITED(status))
 	return INT2NUM(WEXITSTATUS(status));
@@ -539,7 +532,7 @@ pst_wexitstatus(VALUE st, SEL sel)
 
 /*
  *  call-seq:
- *     stat.success?   => true, false or nil
+ *     stat.success?   -> true, false or nil
  *
  *  Returns +true+ if _stat_ is successful, +false+ if not.
  *  Returns +nil+ if <code>exited?</code> is not +true+.
@@ -548,7 +541,7 @@ pst_wexitstatus(VALUE st, SEL sel)
 static VALUE
 pst_success_p(VALUE st, SEL sel)
 {
-    int status = NUM2INT(st);
+    int status = PST2INT(st);
 
     if (!WIFEXITED(status))
 	return Qnil;
@@ -558,7 +551,7 @@ pst_success_p(VALUE st, SEL sel)
 
 /*
  *  call-seq:
- *     stat.coredump?   => true or false
+ *     stat.coredump?   -> true or false
  *
  *  Returns +true+ if _stat_ generated a coredump
  *  when it terminated. Not available on all platforms.
@@ -568,7 +561,7 @@ static VALUE
 pst_wcoredump(VALUE st, SEL sel)
 {
 #ifdef WCOREDUMP
-    int status = NUM2INT(st);
+    int status = PST2INT(st);
 
     if (WCOREDUMP(status))
 	return Qtrue;
@@ -582,6 +575,29 @@ pst_wcoredump(VALUE st, SEL sel)
 #if !defined(HAVE_WAITPID) && !defined(HAVE_WAIT4)
 #define NO_WAITPID
 static st_table *pid_tbl;
+
+struct wait_data {
+    rb_pid_t pid;
+    int status;
+};
+
+static int
+wait_each(rb_pid_t pid, int status, struct wait_data *data)
+{
+    if (data->status != -1) return ST_STOP;
+
+    data->pid = pid;
+    data->status = status;
+    return ST_DELETE;
+}
+
+static int
+waitall_each(rb_pid_t pid, int status, VALUE ary)
+{
+    rb_last_status_set(status, pid);
+    rb_ary_push(ary, rb_assoc_new(PIDT2NUM(pid), rb_last_status_get()));
+    return ST_DELETE;
+}
 #else
 struct waitpid_arg {
     rb_pid_t pid;
@@ -628,13 +644,25 @@ rb_waitpid(rb_pid_t pid, int *st, int flags)
 	    goto retry;
 	}
 #endif
-	return -1;
+	return (rb_pid_t)-1;
     }
 #else  /* NO_WAITPID */
-    if (pid_tbl && st_lookup(pid_tbl, pid, (st_data_t *)st)) {
-	rb_last_status_set(*st, pid);
-	st_delete(pid_tbl, (st_data_t*)&pid, NULL);
-	return pid;
+    if (pid_tbl) {
+	st_data_t status, piddata = (st_data_t)pid;
+	if (pid == (rb_pid_t)-1) {
+	    struct wait_data data;
+	    data.pid = (rb_pid_t)-1;
+	    data.status = -1;
+	    st_foreach(pid_tbl, wait_each, (st_data_t)&data);
+	    if (data.status != -1) {
+		rb_last_status_set(data.status, data.pid);
+		return data.pid;
+	    }
+	}
+	else if (st_delete(pid_tbl, &piddata, &status)) {
+	    rb_last_status_set(*st = (int)status, pid);
+	    return pid;
+	}
     }
 
     if (flags) {
@@ -643,19 +671,19 @@ rb_waitpid(rb_pid_t pid, int *st, int flags)
 
     for (;;) {
 	result = (rb_pid_t)rb_thread_blocking_region(rb_waitpid_blocking,
-						     st, RB_UBF_DFL);
+						     st, RUBY_UBF_PROCESS, 0);
 	if (result < 0) {
 	    if (errno == EINTR) {
 		rb_thread_schedule();
 		continue;
 	    }
-	    return -1;
+	    return (rb_pid_t)-1;
 	}
-	if (result == pid) {
+	if (result == pid || pid == (rb_pid_t)-1) {
 	    break;
 	}
 	if (!pid_tbl)
-	  pid_tbl = st_init_numtable();
+	    pid_tbl = st_init_numtable();
 	st_insert(pid_tbl, pid, (st_data_t)st);
 	if (!rb_thread_alone()) rb_thread_schedule();
     }
@@ -665,31 +693,6 @@ rb_waitpid(rb_pid_t pid, int *st, int flags)
     }
     return result;
 }
-
-#ifdef NO_WAITPID
-struct wait_data {
-    rb_pid_t pid;
-    int status;
-};
-
-static int
-wait_each(rb_pid_t pid, int status, struct wait_data *data)
-{
-    if (data->status != -1) return ST_STOP;
-
-    data->pid = pid;
-    data->status = status;
-    return ST_DELETE;
-}
-
-static int
-waitall_each(rb_pid_t pid, int status, VALUE ary)
-{
-    rb_last_status_set(status, pid);
-    rb_ary_push(ary, rb_assoc_new(PIDT2NUM(pid), rb_last_status_get());
-    return ST_DELETE;
-}
-#endif
 
 
 /* [MG]:FIXME: I wasn't sure how this should be done, since ::wait()
@@ -708,9 +711,9 @@ waitall_each(rb_pid_t pid, int status, VALUE ary)
 
 /*
  *  call-seq:
- *     Process.wait()                     => fixnum
- *     Process.wait(pid=-1, flags=0)      => fixnum
- *     Process.waitpid(pid=-1, flags=0)   => fixnum
+ *     Process.wait()                     -> fixnum
+ *     Process.wait(pid=-1, flags=0)      -> fixnum
+ *     Process.waitpid(pid=-1, flags=0)   -> fixnum
  *
  *  Waits for a child process to exit, returns its process id, and
  *  sets <code>$?</code> to a <code>Process::Status</code> object
@@ -781,8 +784,8 @@ proc_wait(VALUE rcv, SEL sel, int argc, VALUE *argv)
 
 /*
  *  call-seq:
- *     Process.wait2(pid=-1, flags=0)      => [pid, status]
- *     Process.waitpid2(pid=-1, flags=0)   => [pid, status]
+ *     Process.wait2(pid=-1, flags=0)      -> [pid, status]
+ *     Process.waitpid2(pid=-1, flags=0)   -> [pid, status]
  *
  *  Waits for a child process to exit (see Process::waitpid for exact
  *  semantics) and returns an array containing the process id and the
@@ -807,7 +810,7 @@ proc_wait2(VALUE rcv, SEL sel, int argc, VALUE *argv)
 
 /*
  *  call-seq:
- *     Process.waitall   => [ [pid1,status1], ...]
+ *     Process.waitall   -> [ [pid1,status1], ...]
  *
  *  Waits for all children, returning an array of
  *  _pid_/_status_ pairs (where _status_ is a
@@ -888,7 +891,7 @@ rb_detach_process(rb_pid_t pid)
 
 /*
  *  call-seq:
- *     Process.detach(pid)   => thread
+ *     Process.detach(pid)   -> thread
  *
  *  Some operating systems retain the status of terminated child
  *  processes until the parent collects that status (normally using
@@ -904,6 +907,8 @@ rb_detach_process(rb_pid_t pid)
  *  when it terminates, so you can use <code>Thread#join</code> to
  *  know the result.  If specified _pid_ is not a valid child process
  *  ID, the thread returns +nil+ immediately.
+ *
+ *  The waiting thread has <code>pid</code> method which returns the pid.
  *
  *  In this first example, we don't reap the first child process, so
  *  it appears as a zombie in the process status display.
@@ -955,6 +960,8 @@ void rb_thread_reset_timer_thread(void);
 #define after_exec() \
   (rb_thread_start_timer_thread(), rb_disable_interrupt())
 #endif
+#define before_fork() before_exec()
+#define after_fork() after_exec()
 
 #include "dln.h"
 
@@ -981,17 +988,9 @@ proc_exec_v(char **argv, const char *prog)
 	return -1;
     }
 
-#if (defined(MSDOS) && !defined(DJGPP)) || defined(__human68k__) || defined(__EMX__) || defined(OS2)
+#if defined(__EMX__) || defined(OS2)
     {
-#if defined(__human68k__)
-#define COMMAND "command.x"
-#endif
-#if defined(__EMX__) || defined(OS2) /* OS/2 emx */
 #define COMMAND "cmd.exe"
-#endif
-#if (defined(MSDOS) && !defined(DJGPP))
-#define COMMAND "command.com"
-#endif
 	char *extension;
 
 	if ((extension = strrchr(prog, '.')) != NULL && STRCASECMP(extension, ".bat") == 0) {
@@ -1017,7 +1016,7 @@ proc_exec_v(char **argv, const char *prog)
 	    }
 	}
     }
-#endif /* MSDOS or __human68k__ or __EMX__ */
+#endif /* __EMX__ */
     before_exec();
     execv(prog, argv);
     preserving_errno(after_exec());
@@ -1068,14 +1067,7 @@ rb_proc_exec(const char *str)
 	    if (nl) s = nl;
 	}
 	if (*s != ' ' && !ISALPHA(*s) && strchr("*?{}[]<>()~&|\\$;'`\"\n",*s)) {
-#if defined(MSDOS)
-	    int status;
-	    before_exec();
-	    status = system(str);
-	    after_exec();
-	    if (status != -1)
-		exit(status);
-#elif defined(__human68k__) || defined(__CYGWIN32__) || defined(__EMX__)
+#if defined(__CYGWIN32__) || defined(__EMX__)
 	    char fbuf[MAXPATHLEN];
 	    char *shell = dln_find_exe_r("sh", 0, fbuf, sizeof(fbuf));
 	    int status = -1;
@@ -1125,7 +1117,6 @@ static rb_pid_t
 proc_spawn_v(char **argv, char *prog)
 {
     char fbuf[MAXPATHLEN];
-    char *extension;
     rb_pid_t status;
 
     if (!prog)
@@ -1135,30 +1126,6 @@ proc_spawn_v(char **argv, char *prog)
     if (!prog)
 	return -1;
 
-#if defined(__human68k__)
-    if ((extension = strrchr(prog, '.')) != NULL && STRCASECMP(extension, ".bat") == 0) {
-	char **new_argv;
-	char *p;
-	int n;
-
-	for (n = 0; argv[n]; n++)
-	    /* no-op */;
-	new_argv = ALLOCA_N(char*, n + 2);
-	for (; n > 0; n--)
-	    new_argv[n + 1] = argv[n];
-	new_argv[1] = strcpy(ALLOCA_N(char, strlen(argv[0]) + 1), argv[0]);
-	for (p = new_argv[1]; *p != '\0'; p++)
-	    if (*p == '/')
-		*p = '\\';
-	new_argv[0] = COMMAND;
-	argv = new_argv;
-	prog = dln_find_exe_r(argv[0], 0, fbuf, sizeof(fbuf));
-	if (!prog) {
-	    errno = ENOENT;
-	    return -1;
-	}
-    }
-#endif
     before_exec();
     status = spawnv(P_WAIT, prog, argv);
     rb_last_status_set(status == -1 ? 127 : status, 0);
@@ -1236,7 +1203,8 @@ enum {
     EXEC_OPTION_DUP2,
     EXEC_OPTION_CLOSE,
     EXEC_OPTION_OPEN,
-    EXEC_OPTION_CLOSE_OTHERS,
+    EXEC_OPTION_DUP2_CHILD,
+    EXEC_OPTION_CLOSE_OTHERS
 };
 
 static VALUE
@@ -1259,7 +1227,8 @@ check_exec_redirect_fd(VALUE v)
             goto wrong;
     }
     else if (!NIL_P(tmp = rb_check_convert_type(v, T_FILE, "IO", "to_io"))) {
-        rb_io_t *fptr = ExtractIOStruct(tmp);
+        rb_io_t *fptr;
+        GetOpenFile(tmp, fptr);
 #if 0
         if (fptr->tied_io_for_writing)
             rb_raise(rb_eArgError, "duplex IO redirection");
@@ -1291,6 +1260,18 @@ check_exec_redirect(VALUE key, VALUE val, VALUE options)
             index = EXEC_OPTION_CLOSE;
             param = Qnil;
         }
+        else if (id == rb_intern("in")) {
+            index = EXEC_OPTION_DUP2;
+            param = INT2FIX(0);
+        }
+        else if (id == rb_intern("out")) {
+            index = EXEC_OPTION_DUP2;
+            param = INT2FIX(1);
+        }
+        else if (id == rb_intern("err")) {
+            index = EXEC_OPTION_DUP2;
+            param = INT2FIX(2);
+        }
         else {
             rb_raise(rb_eArgError, "wrong exec redirect symbol: %s",
                                    rb_id2name(id));
@@ -1306,28 +1287,36 @@ check_exec_redirect(VALUE key, VALUE val, VALUE options)
         break;
 
       case T_ARRAY:
-        index = EXEC_OPTION_OPEN;
         path = rb_ary_entry(val, 0);
-        FilePathValue(path);
-        flags = rb_ary_entry(val, 1);
-        if (NIL_P(flags))
-            flags = INT2NUM(O_RDONLY);
-        else if (TYPE(flags) == T_STRING)
-            flags = INT2FIX(0);//TODO INT2NUM(rb_io_mode_modenum(StringValueCStr(flags)));
-        else
-            flags = rb_to_int(flags);
-        perm = rb_ary_entry(val, 2);
-        perm = NIL_P(perm) ? INT2FIX(0644) : rb_to_int(perm);
-        param = hide_obj(rb_ary_new3(3, hide_obj(rb_str_dup(path)),
-                                        flags, perm));
+        if (RARRAY_LEN(val) == 2 && SYMBOL_P(path) &&
+            SYM2ID(path) == rb_intern("child")) {
+            index = EXEC_OPTION_DUP2_CHILD;
+            param = check_exec_redirect_fd(rb_ary_entry(val, 1));
+        }
+        else {
+            index = EXEC_OPTION_OPEN;
+            FilePathValue(path);
+            flags = rb_ary_entry(val, 1);
+            if (NIL_P(flags))
+                flags = INT2NUM(O_RDONLY);
+            else if (TYPE(flags) == T_STRING)
+                flags = INT2NUM(rb_io_modestr_oflags(StringValueCStr(flags)));
+            else
+                flags = rb_to_int(flags);
+            perm = rb_ary_entry(val, 2);
+            perm = NIL_P(perm) ? INT2FIX(0644) : rb_to_int(perm);
+            param = hide_obj(rb_ary_new3(3, hide_obj(rb_str_dup(path)),
+                                            flags, perm));
+        }
         break;
 
       case T_STRING:
         index = EXEC_OPTION_OPEN;
         path = val;
         FilePathValue(path);
-        if ((FIXNUM_P(key) && (FIX2INT(key) == 1 || FIX2INT(key) == 2)) ||
-            key == rb_stdout || key == rb_stderr)
+        if (TYPE(key) == T_FILE)
+            key = check_exec_redirect_fd(key);
+        if (FIXNUM_P(key) && (FIX2INT(key) == 1 || FIX2INT(key) == 2))
             flags = INT2NUM(O_WRONLY|O_CREAT|O_TRUNC);
         else
             flags = INT2NUM(O_RDONLY);
@@ -1505,7 +1494,7 @@ check_exec_fds(VALUE options)
     int index, i;
     int maxhint = -1;
 
-    for (index = EXEC_OPTION_DUP2; index <= EXEC_OPTION_OPEN; index++) {
+    for (index = EXEC_OPTION_DUP2; index <= EXEC_OPTION_DUP2_CHILD; index++) {
         ary = rb_ary_entry(options, index);
         if (NIL_P(ary))
             continue;
@@ -1515,16 +1504,53 @@ check_exec_fds(VALUE options)
             if (RTEST(rb_hash_lookup(h, INT2FIX(fd)))) {
                 rb_raise(rb_eArgError, "fd %d specified twice", fd);
             }
-            rb_hash_aset(h, INT2FIX(fd), Qtrue);
+            if (index == EXEC_OPTION_OPEN || index == EXEC_OPTION_DUP2)
+                rb_hash_aset(h, INT2FIX(fd), Qtrue);
+            else if (index == EXEC_OPTION_DUP2_CHILD)
+                rb_hash_aset(h, INT2FIX(fd), RARRAY_PTR(elt)[1]);
+            else /* index == EXEC_OPTION_CLOSE */
+                rb_hash_aset(h, INT2FIX(fd), INT2FIX(-1));
             if (maxhint < fd)
                 maxhint = fd;
-            if (index == EXEC_OPTION_DUP2) {
+            if (index == EXEC_OPTION_DUP2 || index == EXEC_OPTION_DUP2_CHILD) {
                 fd = FIX2INT(RARRAY_AT(elt, 1));
                 if (maxhint < fd)
                     maxhint = fd;
             }
         }
     }
+
+    ary = rb_ary_entry(options, EXEC_OPTION_DUP2_CHILD);
+    if (!NIL_P(ary)) {
+        for (i = 0; i < RARRAY_LEN(ary); i++) {
+            VALUE elt = RARRAY_PTR(ary)[i];
+            int newfd = FIX2INT(RARRAY_AT(elt, 0));
+            int oldfd = FIX2INT(RARRAY_AT(elt, 1));
+            int lastfd = oldfd;
+            VALUE val = rb_hash_lookup(h, INT2FIX(lastfd));
+            long depth = 0;
+            while (FIXNUM_P(val) && 0 <= FIX2INT(val)) {
+                lastfd = FIX2INT(val);
+                val = rb_hash_lookup(h, val);
+                if (RARRAY_LEN(ary) < depth)
+                    rb_raise(rb_eArgError, "cyclic child fd redirection from %d", oldfd);
+                depth++;
+            }
+            if (val != Qtrue)
+                rb_raise(rb_eArgError, "child fd %d is not redirected", oldfd);
+            if (oldfd != lastfd) {
+                VALUE val2;
+                rb_ary_store(elt, 1, INT2FIX(lastfd));
+                rb_hash_aset(h, INT2FIX(newfd), INT2FIX(lastfd));
+                val = INT2FIX(oldfd);
+                while (FIXNUM_P(val2 = rb_hash_lookup(h, val))) {
+                    rb_hash_aset(h, val, INT2FIX(lastfd));
+                    val = val2;
+                }
+            }
+        }
+    }
+
     if (rb_ary_entry(options, EXEC_OPTION_CLOSE_OTHERS) != Qfalse) {
         rb_ary_store(options, EXEC_OPTION_CLOSE_OTHERS, INT2FIX(maxhint));
     }
@@ -1674,26 +1700,38 @@ rb_exec_arg_fixup(struct rb_exec_arg *e)
 
 /*
  *  call-seq:
- *     exec([env,] command [, arg, ...] [,options])
+ *     exec([env,] command... [,options])
  *
  *  Replaces the current process by running the given external _command_.
- *  If optional arguments, sequence of +arg+, are not given, that argument is
- *  taken as a line that is subject to shell expansion before being
- *  executed. If one or more +arg+ given, they
- *  are passed as parameters to _command_ with no shell
- *  expansion. If +command+ is a two-element array, the first
- *  element is the command to be executed, and the second argument is
- *  used as the <code>argv[0]</code> value, which may show up in process
- *  listings. In MSDOS environments, the command is executed in a
- *  subshell; otherwise, one of the <code>exec(2)</code> system calls is
- *  used, so the running command may inherit some of the environment of
- *  the original program (including open file descriptors).
+ *  _command..._ is one of following forms.
  *
- *  The hash arguments, env and options, are same as
- *  <code>system</code> and <code>spawn</code>.
+ *    commandline                 : command line string which is passed to the standard shell
+ *    cmdname, arg1, ...          : command name and one or more arguments (no shell)
+ *    [cmdname, argv0], arg1, ... : command name, argv[0] and zero or more arguments (no shell)
+ *
+ *  If single string is given as the command,
+ *  it is taken as a command line that is subject to shell expansion before being executed.
+ *
+ *  The standard shell means always <code>"/bin/sh"</code> on Unix-like systems,
+ *  <code>ENV["RUBYSHELL"]</code> or <code>ENV["COMSPEC"]</code> on Windows NT series, and
+ *  similar.
+ *
+ *  If two or more +string+ given,
+ *  the first is taken as a command name and
+ *  the rest are passed as parameters to command with no shell expansion.
+ *
+ *  If a two-element array at the beginning of the command,
+ *  the first element is the command to be executed,
+ *  and the second argument is used as the <code>argv[0]</code> value,
+ *  which may show up in process listings.
+ *
+ *  In order to execute the command, one of the <code>exec(2)</code>
+ *  system calls is used, so the running command may inherit some of the environment
+ *  of the original program (including open file descriptors).
+ *  This behavior is modified by env and options.
  *  See <code>spawn</code> for details.
  *
- *  Raises SystemCallError if the _command_ couldn't execute (typically
+ *  Raises SystemCallError if the command couldn't execute (typically
  *  <code>Errno::ENOENT</code> when it was not found).
  *
  *     exec "echo *"       # echoes list of files in current directory
@@ -1708,16 +1746,22 @@ static VALUE
 rb_f_exec(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     struct rb_exec_arg earg;
+#define CHILD_ERRMSG_BUFLEN 80
+    char errmsg[CHILD_ERRMSG_BUFLEN] = { '\0' };
 
     rb_exec_arg_init(argc, argv, TRUE, &earg);
     if (NIL_P(rb_ary_entry(earg.options, EXEC_OPTION_CLOSE_OTHERS)))
         rb_exec_arg_addopt(&earg, ID2SYM(rb_intern("close_others")), Qfalse);
     rb_exec_arg_fixup(&earg);
 
-    rb_exec(&earg);
+    rb_exec_err(&earg, errmsg, sizeof(errmsg));
+    if (errmsg[0])
+        rb_sys_fail(errmsg);
     rb_sys_fail(earg.prog);
     return Qnil;		/* dummy */
 }
+
+#define ERRMSG(str) do { if (errmsg && 0 < errmsg_buflen) strlcpy(errmsg, (str), errmsg_buflen); } while (0)
 
 /*#define DEBUG_REDIRECT*/
 #if defined(DEBUG_REDIRECT)
@@ -1730,7 +1774,11 @@ ttyprintf(const char *fmt, ...)
     va_list ap;
     FILE *tty;
     int save = errno;
+#ifdef _WIN32
+    tty = fopen("con", "w");
+#else
     tty = fopen("/dev/tty", "w");
+#endif
     if (!tty)
         return;
 
@@ -1785,12 +1833,17 @@ redirect_open(const char *pathname, int flags, mode_t perm)
 #endif
 
 static int
-save_redirect_fd(int fd, VALUE save)
+save_redirect_fd(int fd, VALUE save, char *errmsg, size_t errmsg_buflen)
 {
     if (!NIL_P(save)) {
         VALUE newary;
         int save_fd = redirect_dup(fd);
-        if (save_fd == -1) return -1;
+        if (save_fd == -1) {
+            if (errno == EBADF)
+                return 0;
+            ERRMSG("dup");
+            return -1;
+        }
         newary = rb_ary_entry(save, EXEC_OPTION_DUP2);
         if (NIL_P(newary)) {
             newary = hide_obj(rb_ary_new());
@@ -1838,20 +1891,30 @@ intcmp(const void *a, const void *b)
 }
 
 static int
-run_exec_dup2(VALUE ary, VALUE save)
+intrcmp(const void *a, const void *b)
 {
-    int n, i;
+    return *(int*)b - *(int*)a;
+}
+
+static int
+run_exec_dup2(VALUE ary, VALUE save, char *errmsg, size_t errmsg_buflen)
+{
+    long n, i;
     int ret;
     int extra_fd = -1;
     struct fd_pair {
         int oldfd;
         int newfd;
-        int older_index;
-        int num_newer;
+        long older_index;
+        long num_newer;
     } *pairs = 0;
 
     n = RARRAY_LEN(ary);
-    pairs = ALLOC_N(struct fd_pair, n);
+    pairs = (struct fd_pair *)malloc(sizeof(struct fd_pair) * n);
+    if (pairs == NULL) {
+        ERRMSG("malloc");
+        return -1;
+    }
 
     /* initialize oldfd and newfd: O(n) */
     for (i = 0; i < n; i++) {
@@ -1862,7 +1925,10 @@ run_exec_dup2(VALUE ary, VALUE save)
     }
 
     /* sort the table by oldfd: O(n log n) */
-    qsort(pairs, n, sizeof(struct fd_pair), intcmp);
+    if (!RTEST(save))
+        qsort(pairs, n, sizeof(struct fd_pair), intcmp);
+    else
+        qsort(pairs, n, sizeof(struct fd_pair), intrcmp);
 
     /* initialize older_index and num_newer: O(n log n) */
     for (i = 0; i < n; i++) {
@@ -1884,13 +1950,15 @@ run_exec_dup2(VALUE ary, VALUE save)
 
     /* non-cyclic redirection: O(n) */
     for (i = 0; i < n; i++) {
-        int j = i;
+        long j = i;
         while (j != -1 && pairs[j].oldfd != -1 && pairs[j].num_newer == 0) {
-            if (save_redirect_fd(pairs[j].newfd, save) < 0)
-                return -1;
-            ret = redirect_dup2(pairs[j].oldfd, pairs[j].newfd);
-            if (ret == -1)
+            if (save_redirect_fd(pairs[j].newfd, save, errmsg, errmsg_buflen) < 0)
                 goto fail;
+            ret = redirect_dup2(pairs[j].oldfd, pairs[j].newfd);
+            if (ret == -1) {
+                ERRMSG("dup2");
+                goto fail;
+            }
             pairs[j].oldfd = -1;
             j = pairs[j].older_index;
             if (j != -1)
@@ -1900,20 +1968,24 @@ run_exec_dup2(VALUE ary, VALUE save)
 
     /* cyclic redirection: O(n) */
     for (i = 0; i < n; i++) {
-        int j;
+        long j;
         if (pairs[i].oldfd == -1)
             continue;
         if (pairs[i].oldfd == pairs[i].newfd) { /* self cycle */
 #ifdef F_GETFD
             int fd = pairs[i].oldfd;
             ret = fcntl(fd, F_GETFD);
-            if (ret == -1)
+            if (ret == -1) {
+                ERRMSG("fcntl(F_GETFD)");
                 goto fail;
+            }
             if (ret & FD_CLOEXEC) {
                 ret &= ~FD_CLOEXEC;
                 ret = fcntl(fd, F_SETFD, ret);
-                if (ret == -1)
+                if (ret == -1) {
+                    ERRMSG("fcntl(F_SETFD)");
                     goto fail;
+                }
             }
 #endif
             pairs[i].oldfd = -1;
@@ -1921,29 +1993,37 @@ run_exec_dup2(VALUE ary, VALUE save)
         }
         if (extra_fd == -1) {
             extra_fd = redirect_dup(pairs[i].oldfd);
-            if (extra_fd == -1)
+            if (extra_fd == -1) {
+                ERRMSG("dup");
                 goto fail;
+            }
         }
         else {
             ret = redirect_dup2(pairs[i].oldfd, extra_fd);
-            if (ret == -1)
+            if (ret == -1) {
+                ERRMSG("dup2");
                 goto fail;
+            }
         }
         pairs[i].oldfd = extra_fd;
         j = pairs[i].older_index;
         pairs[i].older_index = -1;
         while (j != -1) {
             ret = redirect_dup2(pairs[j].oldfd, pairs[j].newfd);
-            if (ret == -1)
+            if (ret == -1) {
+                ERRMSG("dup2");
                 goto fail;
+            }
             pairs[j].oldfd = -1;
             j = pairs[j].older_index;
         }
     }
     if (extra_fd != -1) {
         ret = redirect_close(extra_fd);
-        if (ret == -1)
+        if (ret == -1) {
+            ERRMSG("close");
             goto fail;
+        }
     }
 
     return 0;
@@ -1955,7 +2035,7 @@ fail:
 }
 
 static int
-run_exec_close(VALUE ary)
+run_exec_close(VALUE ary, char *errmsg, size_t errmsg_buflen)
 {
     int i, ret;
 
@@ -1963,14 +2043,16 @@ run_exec_close(VALUE ary)
         VALUE elt = RARRAY_AT(ary, i);
         int fd = FIX2INT(RARRAY_AT(elt, 0));
         ret = redirect_close(fd);
-        if (ret == -1)
+        if (ret == -1) {
+            ERRMSG("close");
             return -1;
+        }
     }
     return 0;
 }
 
 static int
-run_exec_open(VALUE ary, VALUE save)
+run_exec_open(VALUE ary, VALUE save, char *errmsg, size_t errmsg_buflen)
 {
     int i, ret;
 
@@ -1983,7 +2065,10 @@ run_exec_open(VALUE ary, VALUE save)
         int perm = NUM2INT(RARRAY_AT(param, 2));
         int need_close = 1;
         int fd2 = redirect_open(path, flags, perm);
-        if (fd2 == -1) return -1;
+        if (fd2 == -1) {
+            ERRMSG("open");
+            return -1;
+        }
         while (i < RARRAY_LEN(ary) &&
                (elt = RARRAY_AT(ary, i), RARRAY_AT(elt, 1) == param)) {
             fd = FIX2INT(RARRAY_AT(elt, 0));
@@ -1991,16 +2076,42 @@ run_exec_open(VALUE ary, VALUE save)
                 need_close = 0;
             }
             else {
-                if (save_redirect_fd(fd, save) < 0)
+                if (save_redirect_fd(fd, save, errmsg, errmsg_buflen) < 0)
                     return -1;
                 ret = redirect_dup2(fd2, fd);
-                if (ret == -1) return -1;
+                if (ret == -1) {
+                    ERRMSG("dup2");
+                    return -1;
+                }
             }
             i++;
         }
         if (need_close) {
             ret = redirect_close(fd2);
-            if (ret == -1) return -1;
+            if (ret == -1) {
+                ERRMSG("close");
+                return -1;
+            }
+        }
+    }
+    return 0;
+}
+
+static int
+run_exec_dup2_child(VALUE ary, VALUE save, char *errmsg, size_t errmsg_buflen)
+{
+    int i, ret;
+    for (i = 0; i < RARRAY_LEN(ary); i++) {
+        VALUE elt = RARRAY_AT(ary, i);
+        int newfd = FIX2INT(RARRAY_AT(elt, 0));
+        int oldfd = FIX2INT(RARRAY_AT(elt, 1));
+
+        if (save_redirect_fd(newfd, save, errmsg, errmsg_buflen) < 0)
+            return -1;
+        ret = redirect_dup2(oldfd, newfd);
+        if (ret == -1) {
+            ERRMSG("dup2");
+            return -1;
         }
     }
     return 0;
@@ -2008,7 +2119,7 @@ run_exec_open(VALUE ary, VALUE save)
 
 #ifdef HAVE_SETPGID
 static int
-run_exec_pgroup(VALUE obj, VALUE save)
+run_exec_pgroup(VALUE obj, VALUE save, char *errmsg, size_t errmsg_buflen)
 {
     /*
      * If FD_CLOEXEC is available, rb_fork waits the child's execve.
@@ -2016,21 +2127,25 @@ run_exec_pgroup(VALUE obj, VALUE save)
      * No race condition, even without setpgid from the parent.
      * (Is there an environment which has setpgid but FD_CLOEXEC?)
      */
+    int ret;
+    pid_t pgroup;
     if (!NIL_P(save)) {
         /* maybe meaningless with no fork environment... */
         rb_ary_store(save, EXEC_OPTION_PGROUP, PIDT2NUM(getpgrp()));
     }
-    pid_t pgroup = NUM2PIDT(obj);
+    pgroup = NUM2PIDT(obj);
     if (pgroup == 0) {
         pgroup = getpid();
     }
-    return setpgid(getpid(), pgroup);
+    ret = setpgid(getpid(), pgroup);
+    if (ret == -1) ERRMSG("setpgid");
+    return ret;
 }
 #endif
 
 #ifdef RLIM2NUM
 static int
-run_exec_rlimit(VALUE ary, VALUE save)
+run_exec_rlimit(VALUE ary, VALUE save, char *errmsg, size_t errmsg_buflen)
 {
     int i;
     for (i = 0; i < RARRAY_LEN(ary); i++) {
@@ -2038,8 +2153,10 @@ run_exec_rlimit(VALUE ary, VALUE save)
         int rtype = NUM2INT(RARRAY_AT(elt, 0));
         struct rlimit rlim;
         if (!NIL_P(save)) {
-            if (getrlimit(rtype, &rlim) == -1)
+            if (getrlimit(rtype, &rlim) == -1) {
+                ERRMSG("getrlimit");
                 return -1;
+            }
             VALUE tmp = hide_obj(rb_ary_new3(3, RARRAY_AT(elt, 0),
                                              RLIM2NUM(rlim.rlim_cur),
                                              RLIM2NUM(rlim.rlim_max)));
@@ -2052,15 +2169,17 @@ run_exec_rlimit(VALUE ary, VALUE save)
         }
         rlim.rlim_cur = NUM2RLIM(RARRAY_AT(elt, 1));
         rlim.rlim_max = NUM2RLIM(RARRAY_AT(elt, 2));
-        if (setrlimit(rtype, &rlim) == -1)
+        if (setrlimit(rtype, &rlim) == -1) {
+            ERRMSG("setrlimit");
             return -1;
+        }
     }
     return 0;
 }
 #endif
 
 int
-rb_run_exec_options(const struct rb_exec_arg *e, struct rb_exec_arg *s)
+rb_run_exec_options_err(const struct rb_exec_arg *e, struct rb_exec_arg *s, char *errmsg, size_t errmsg_buflen)
 {
     VALUE options = e->options;
     VALUE soptions = Qnil;
@@ -2080,7 +2199,7 @@ rb_run_exec_options(const struct rb_exec_arg *e, struct rb_exec_arg *s)
 #ifdef HAVE_SETPGID
     obj = rb_ary_entry(options, EXEC_OPTION_PGROUP);
     if (RTEST(obj)) {
-        if (run_exec_pgroup(obj, soptions) == -1)
+        if (run_exec_pgroup(obj, soptions, errmsg, errmsg_buflen) == -1)
             return -1;
     }
 #endif
@@ -2088,7 +2207,7 @@ rb_run_exec_options(const struct rb_exec_arg *e, struct rb_exec_arg *s)
 #ifdef RLIM2NUM
     obj = rb_ary_entry(options, EXEC_OPTION_RLIMIT);
     if (!NIL_P(obj)) {
-        if (run_exec_rlimit(obj, soptions) == -1)
+        if (run_exec_rlimit(obj, soptions, errmsg, errmsg_buflen) == -1)
             return -1;
     }
 #endif
@@ -2121,8 +2240,10 @@ rb_run_exec_options(const struct rb_exec_arg *e, struct rb_exec_arg *s)
             rb_ary_store(soptions, EXEC_OPTION_CHDIR,
                          hide_obj(cwd));
         }
-        if (chdir(RSTRING_PTR(obj)) == -1)
+        if (chdir(RSTRING_PTR(obj)) == -1) {
+            ERRMSG("chdir");
             return -1;
+        }
     }
 
     obj = rb_ary_entry(options, EXEC_OPTION_UMASK);
@@ -2135,7 +2256,7 @@ rb_run_exec_options(const struct rb_exec_arg *e, struct rb_exec_arg *s)
 
     obj = rb_ary_entry(options, EXEC_OPTION_DUP2);
     if (!NIL_P(obj)) {
-        if (run_exec_dup2(obj, soptions) == -1)
+        if (run_exec_dup2(obj, soptions, errmsg, errmsg_buflen) == -1)
             return -1;
     }
 
@@ -2144,7 +2265,7 @@ rb_run_exec_options(const struct rb_exec_arg *e, struct rb_exec_arg *s)
         if (!NIL_P(soptions))
             rb_warn("cannot close fd before spawn");
         else {
-            if (run_exec_close(obj) == -1)
+            if (run_exec_close(obj, errmsg, errmsg_buflen) == -1)
                 return -1;
         }
     }
@@ -2152,13 +2273,19 @@ rb_run_exec_options(const struct rb_exec_arg *e, struct rb_exec_arg *s)
 #ifdef HAVE_FORK
     obj = rb_ary_entry(options, EXEC_OPTION_CLOSE_OTHERS);
     if (obj != Qfalse) {
-        // TODO rb_close_before_exec(3, FIX2LONG(obj), e->redirect_fds);
+        // TODO rb_close_before_exec(3, FIX2INT(obj), e->redirect_fds);
     }
 #endif
 
     obj = rb_ary_entry(options, EXEC_OPTION_OPEN);
     if (!NIL_P(obj)) {
-        if (run_exec_open(obj, soptions) == -1)
+        if (run_exec_open(obj, soptions, errmsg, errmsg_buflen) == -1)
+            return -1;
+    }
+
+    obj = rb_ary_entry(options, EXEC_OPTION_DUP2_CHILD);
+    if (!NIL_P(obj)) {
+        if (run_exec_dup2_child(obj, soptions, errmsg, errmsg_buflen) == -1)
             return -1;
     }
 
@@ -2166,13 +2293,19 @@ rb_run_exec_options(const struct rb_exec_arg *e, struct rb_exec_arg *s)
 }
 
 int
-rb_exec(const struct rb_exec_arg *e)
+rb_run_exec_options(const struct rb_exec_arg *e, struct rb_exec_arg *s)
+{
+    return rb_run_exec_options_err(e, s, NULL, 0);
+}
+
+int
+rb_exec_err(const struct rb_exec_arg *e, char *errmsg, size_t errmsg_buflen)
 {
     int argc = e->argc;
     VALUE *argv = e->argv;
     const char *prog = e->prog;
 
-    if (rb_run_exec_options(e, NULL) < 0) {
+    if (rb_run_exec_options_err(e, NULL, errmsg, errmsg_buflen) < 0) {
         return -1;
     }
 
@@ -2182,21 +2315,36 @@ rb_exec(const struct rb_exec_arg *e)
     else {
 	rb_proc_exec_n(argc, argv, prog);
     }
-#ifndef FD_CLOEXEC
-    preserving_errno({
-	fprintf(stderr, "%s:%d: command not found: %s\n",
-		rb_sourcefile(), rb_sourceline(), prog);
-    });
-#endif
     return -1;
+}
+
+int
+rb_exec(const struct rb_exec_arg *e)
+{
+#if !defined FD_CLOEXEC && !defined HAVE_SPAWNV
+    char errmsg[80] = { '\0' };
+    int ret = rb_exec_err(e, errmsg, sizeof(errmsg));
+    preserving_errno(
+	if (errmsg[0]) {
+	    fprintf(stderr, "%s\n", errmsg);
+	}
+	else {
+	    fprintf(stderr, "%s:%d: command not found: %s\n",
+		    rb_sourcefile(), rb_sourceline(), e->prog);
+	}
+    );
+    return ret;
+#else
+    return rb_exec_err(e, NULL, 0);
+#endif
 }
 
 #ifdef HAVE_FORK
 static int
-rb_exec_atfork(void* arg)
+rb_exec_atfork(void* arg, char *errmsg, size_t errmsg_buflen)
 {
     //rb_thread_atfork_before_exec();
-    return rb_exec(arg);
+    return rb_exec_err(arg, errmsg, errmsg_buflen);
 }
 #endif
 
@@ -2285,29 +2433,38 @@ pipe_nocrash(int filedes[2], VALUE fds)
  * +chfunc+ must not raise any exceptions.
  */
 rb_pid_t
-rb_fork(int *status, int (*chfunc)(void*), void *charg, VALUE fds)
+rb_fork_err(int *status, int (*chfunc)(void*, char *, size_t), void *charg, VALUE fds,
+        char *errmsg, size_t errmsg_buflen)
 {
     rb_pid_t pid;
     int err, state = 0;
+#ifdef FD_CLOEXEC
     int ep[2];
+#endif
 
 #define prefork() (		\
 	rb_io_flush(rb_stdout, 0), \
 	rb_io_flush(rb_stderr, 0)	\
 	)
-
     prefork();
 
+#ifdef FD_CLOEXEC
     if (chfunc) {
-		if (pipe(ep)) return -1;
-		if (fcntl(ep[1], F_SETFD, FD_CLOEXEC)) {
-		    preserving_errno((close(ep[0]), close(ep[1])));
-		    return -1;
-		}
+	if (pipe(ep)) return -1;
+	if (fcntl(ep[1], F_SETFD, FD_CLOEXEC)) {
+	    preserving_errno((close(ep[0]), close(ep[1])));
+	    return -1;
+	}
     }
+#endif
+    before_fork();
     for (; (pid = fork()) < 0; prefork()) {
+	after_fork();
 	switch (errno) {
+	  case EAGAIN:
+#if defined(EWOULDBLOCK) && EWOULDBLOCK != EAGAIN
 	  case EWOULDBLOCK:
+#endif
 	    if (!status && !chfunc) {
 		rb_thread_sleep(1);
 		continue;
@@ -2318,35 +2475,54 @@ rb_fork(int *status, int (*chfunc)(void*), void *charg, VALUE fds)
 		if (!state) continue;
 	    }
 	  default:
+#ifdef FD_CLOEXEC
 	    if (chfunc) {
 		preserving_errno((close(ep[0]), close(ep[1])));
 	    }
+#endif
 	    //if (state && !status) rb_jump_tag(state);
 	    return -1;
 	}
     }
     if (!pid) {
-	//rb_thread_reset_timer_thread();
 	if (chfunc) {
+#ifdef FD_CLOEXEC
 	    close(ep[0]);
-	    if (!(*chfunc)(charg)) _exit(EXIT_SUCCESS);
+#endif
+	    if (!(*chfunc)(charg, errmsg, errmsg_buflen)) _exit(EXIT_SUCCESS);
+#ifdef FD_CLOEXEC
 	    err = errno;
-	    write(ep[1], &err, sizeof(err));
+	    (void)write(ep[1], &err, sizeof(err));
+            if (errmsg && 0 < errmsg_buflen) {
+                errmsg[errmsg_buflen-1] = '\0';
+                (void)write(ep[1], errmsg, strlen(errmsg));
+            }
+#endif
 #if EXIT_SUCCESS == 127
 	    _exit(EXIT_FAILURE);
 #else
 	    _exit(127);
 #endif
 	}
-	//rb_thread_start_timer_thread();
     }
-    else if (chfunc) {
+    after_fork();
+#ifdef FD_CLOEXEC
+    if (pid && chfunc) {
+	ssize_t size;
 	close(ep[1]);
-	if ((state = read(ep[0], &err, sizeof(err))) < 0) {
+	if ((size = read(ep[0], &err, sizeof(err))) < 0) {
 	    err = errno;
 	}
+        if (size == sizeof(err) &&
+            errmsg && 0 < errmsg_buflen) {
+            ssize_t ret;
+            ret = read(ep[0], errmsg, errmsg_buflen-1);
+            if (0 <= ret) {
+                errmsg[ret] = '\0';
+            }
+        }
 	close(ep[0]);
-	if (state) {
+	if (size) {
 	    if (status) {
 		rb_protect((VALUE (*)(VALUE))rb_syswait, (VALUE)pid, status);
 	    }
@@ -2361,10 +2537,40 @@ rb_fork(int *status, int (*chfunc)(void*), void *charg, VALUE fds)
     return pid;
 }
 
+struct chfunc_wrapper_t {
+    int (*chfunc)(void*);
+    void *arg;
+};
+
+static int
+chfunc_wrapper(void *arg_, char *errmsg, size_t errmsg_buflen)
+{
+    struct chfunc_wrapper_t *arg = arg_;
+    return arg->chfunc(arg->arg);
+}
+
+rb_pid_t
+rb_fork(int *status, int (*chfunc)(void*), void *charg, VALUE fds)
+{
+    if (chfunc) {
+        struct chfunc_wrapper_t warg;
+        warg.chfunc = chfunc;
+        warg.arg = charg;
+        return rb_fork_err(status, chfunc_wrapper, &warg, fds, NULL, 0);
+    }
+    else {
+        return rb_fork_err(status, NULL, NULL, fds, NULL, 0);
+    }
+
+}
+
+#endif
+
+#if 0
 /*
  *  call-seq:
- *     Kernel.fork  [{ block }]   => fixnum or nil
- *     Process.fork [{ block }]   => fixnum or nil
+ *     Kernel.fork  [{ block }]   -> fixnum or nil
+ *     Process.fork [{ block }]   -> fixnum or nil
  *
  *  Creates a subprocess. If a block is specified, that block is run
  *  in the subprocess, and the subprocess terminates with a status of
@@ -2380,9 +2586,10 @@ rb_fork(int *status, int (*chfunc)(void*), void *charg, VALUE fds)
  *
  *  The thread calling fork is the only thread in the created child process.
  *  fork doesn't copy other threads.
+ *
+ *  If fork is not usable, Process.respond_to?(:fork) returns false.
  */
 
-#if 0
 static VALUE
 rb_f_fork(VALUE obj, SEL sel)
 {
@@ -2410,19 +2617,18 @@ rb_f_fork(VALUE obj, SEL sel)
     }
 }
 #else
-# define rb_f_fork rb_f_notimplement
+#define rb_f_fork rb_f_notimplement
 #endif
-
 
 /*
  *  call-seq:
- *     Process.exit!(fixnum=-1)
+ *     Process.exit!(status=false)
  *
  *  Exits the process immediately. No exit handlers are
- *  run. <em>fixnum</em> is returned to the underlying system as the
+ *  run. <em>status</em> is returned to the underlying system as the
  *  exit status.
  *
- *     Process.exit!(0)
+ *     Process.exit!(true)
  */
 
 static VALUE
@@ -2472,15 +2678,18 @@ rb_exit(int status)
 
 /*
  *  call-seq:
- *     exit(integer=0)
- *     Kernel::exit(integer=0)
- *     Process::exit(integer=0)
- *  
+ *     exit(status=true)
+ *     Kernel::exit(status=true)
+ *     Process::exit(status=true)
+ *
  *  Initiates the termination of the Ruby script by raising the
  *  <code>SystemExit</code> exception. This exception may be caught. The
  *  optional parameter is used to return a status code to the invoking
  *  environment.
- *     
+ *  +true+ and +FALSE+ of _status_ means success and failure
+ *  respectively.  The interpretation of other integer values are
+ *  system dependent.
+ *
  *     begin
  *       exit
  *       puts "never get here"
@@ -2488,22 +2697,22 @@ rb_exit(int status)
  *       puts "rescued a SystemExit exception"
  *     end
  *     puts "after begin block"
- *     
+ *
  *  <em>produces:</em>
- *     
+ *
  *     rescued a SystemExit exception
  *     after begin block
- *     
+ *
  *  Just prior to termination, Ruby executes any <code>at_exit</code> functions
  *  (see Kernel::at_exit) and runs any object finalizers (see
  *  ObjectSpace::define_finalizer).
- *     
+ *
  *     at_exit { puts "at_exit function" }
  *     ObjectSpace.define_finalizer("string",  proc { puts "in finalizer" })
  *     exit
- *     
+ *
  *  <em>produces:</em>
- *     
+ *
  *     at_exit function
  *     in finalizer
  */
@@ -2543,11 +2752,11 @@ rb_f_exit(VALUE obj, SEL sel, int argc, VALUE *argv)
 /*
  *  call-seq:
  *     abort
- *     Kernel::abort
- *     Process::abort
- *  
+ *     Kernel::abort([msg])
+ *     Process::abort([msg])
+ *
  *  Terminate execution immediately, effectively by calling
- *  <code>Kernel.exit(1)</code>. If _msg_ is given, it is written
+ *  <code>Kernel.exit(false)</code>. If _msg_ is given, it is written
  *  to STDERR prior to terminating.
  */
 
@@ -2580,12 +2789,8 @@ rb_f_abort(VALUE obj, SEL sel, int argc, VALUE *argv)
 }
 
 
-#if defined(sun)
-#define signal(a,b) sigset(a,b)
-#else
-# if defined(POSIX_SIGNAL)
-#  define signal(a,b) posix_signal(a,b)
-# endif
+#if defined(POSIX_SIGNAL)
+# define signal(a,b) posix_signal(a,b)
 #endif
 
 void
@@ -2600,7 +2805,7 @@ rb_syswait(rb_pid_t pid)
 #endif
     RETSIGTYPE (*ifunc)(int) = 0;
     int status;
-    int i, hooked = Qfalse;
+    int i, hooked = FALSE;
 
     if (!overriding) {
 #ifdef SIGHUP
@@ -2610,8 +2815,8 @@ rb_syswait(rb_pid_t pid)
 	qfunc = signal(SIGQUIT, SIG_IGN);
 #endif
 	ifunc = signal(SIGINT, SIG_IGN);
-	overriding = Qtrue;
-	hooked = Qtrue;
+	overriding = TRUE;
+	hooked = TRUE;
     }
 
     do {
@@ -2626,83 +2831,109 @@ rb_syswait(rb_pid_t pid)
 	signal(SIGQUIT, qfunc);
 #endif
 	signal(SIGINT, ifunc);
-	overriding = Qfalse;
+	overriding = FALSE;
     }
 }
 
-static rb_pid_t
-rb_spawn_internal(int argc, VALUE *argv, int default_close_others)
+static VALUE
+rb_exec_arg_prepare(struct rb_exec_arg *earg, int argc, VALUE *argv, int default_close_others)
 {
-    rb_pid_t status;
-    VALUE prog;
-    struct rb_exec_arg earg;
+    VALUE prog = rb_exec_arg_init(argc, argv, TRUE, earg);
+    if (NIL_P(rb_ary_entry(earg->options, EXEC_OPTION_CLOSE_OTHERS))) {
+        VALUE v = default_close_others ? Qtrue : Qfalse;
+        rb_exec_arg_addopt(earg, ID2SYM(rb_intern("close_others")), v);
+    }
+    rb_exec_arg_fixup(earg);
+    return prog;
+}
+
+static rb_pid_t
+rb_spawn_process(struct rb_exec_arg *earg, VALUE prog, char *errmsg, size_t errmsg_buflen)
+{
+    rb_pid_t pid;
+#if defined HAVE_FORK || !defined HAVE_SPAWNV
+    int status;
+#endif
 #if !defined HAVE_FORK
     struct rb_exec_arg sarg;
+    int argc;
+    VALUE *argv;
 #endif
 
-    prog = rb_exec_arg_init(argc, argv, TRUE, &earg);
-    if (NIL_P(rb_ary_entry(earg.options, EXEC_OPTION_CLOSE_OTHERS))) {
-        VALUE v = default_close_others ? Qtrue : Qfalse;
-        rb_exec_arg_addopt(&earg, ID2SYM(rb_intern("close_others")), v);
-    }
-    rb_exec_arg_fixup(&earg);
-
 #if defined HAVE_FORK
-    status = rb_fork(&status, rb_exec_atfork, &earg, earg.redirect_fds);
-    if (prog && earg.argc) earg.argv[0] = prog;
+    pid = rb_fork_err(&status, rb_exec_atfork, earg, earg->redirect_fds, errmsg, errmsg_buflen);
 #else
-    if (rb_run_exec_options(&earg, &sarg) < 0) {
+    if (rb_run_exec_options_err(earg, &sarg, errmsg, errmsg_buflen) < 0) {
         return -1;
     }
 
-    argc = earg.argc;
-    argv = earg.argv;
+    argc = earg->argc;
+    argv = earg->argv;
     if (prog && argc) argv[0] = prog;
 # if defined HAVE_SPAWNV
     if (!argc) {
-	status = proc_spawn(RSTRING_PTR(prog));
+	pid = proc_spawn(RSTRING_PTR(prog));
     }
     else {
-	status = proc_spawn_n(argc, argv, prog);
+	pid = proc_spawn_n(argc, argv, prog);
     }
 #  if defined(_WIN32)
-    if (status == -1)
+    if (pid == -1)
 	rb_last_status_set(0x7f << 8, 0);
 #  endif
 # else
     if (argc) prog = rb_ary_join(rb_ary_new4(argc, argv), rb_str_new2(" "));
     status = system(StringValuePtr(prog));
-#  if defined(__human68k__) || defined(__DJGPP__)
-    rb_last_status_set(status == -1 ? 127 : status, 0);
-#  else
     rb_last_status_set((status & 0xff) << 8, 0);
-#  endif
 # endif
 
-    rb_run_exec_options(&sarg, NULL);
+    rb_run_exec_options_err(&sarg, NULL, errmsg, errmsg_buflen);
 #endif
-    return status;
+    return pid;
+}
+
+static rb_pid_t
+rb_spawn_internal(int argc, VALUE *argv, int default_close_others,
+                  char *errmsg, size_t errmsg_buflen)
+{
+    struct rb_exec_arg earg;
+    VALUE prog = rb_exec_arg_prepare(&earg, argc, argv, default_close_others);
+    return rb_spawn_process(&earg, prog, errmsg, errmsg_buflen);
+}
+
+rb_pid_t
+rb_spawn_err(int argc, VALUE *argv, char *errmsg, size_t errmsg_buflen)
+{
+    return rb_spawn_internal(argc, argv, TRUE, errmsg, errmsg_buflen);
 }
 
 rb_pid_t
 rb_spawn(int argc, VALUE *argv)
 {
-    return rb_spawn_internal(argc, argv, Qtrue);
+    return rb_spawn_internal(argc, argv, TRUE, NULL, 0);
 }
 
 /*
  *  call-seq:
- *     system([env,] cmd [, arg, ...] [,options])    => true, false or nil
+ *     system([env,] command... [,options])    -> true, false or nil
  *
- *  Executes _cmd_ in a subshell, returning +true+ if the command
- *  gives zero exit status, +false+ for non zero exit status. Returns
- *  +nil+ if command execution fails.  An error status is available in
- *  <code>$?</code>. The arguments are processed in the same way as
- *  for <code>Kernel::exec</code>.
+ *  Executes _command..._ in a subshell.
+ *  _command..._ is one of following forms.
+ *
+ *    commandline                 : command line string which is passed to the standard shell
+ *    cmdname, arg1, ...          : command name and one or more arguments (no shell)
+ *    [cmdname, argv0], arg1, ... : command name, argv[0] and zero or more arguments (no shell)
+ *
+ *  system returns +true+ if the command gives zero exit status,
+ *  +false+ for non zero exit status.
+ *  Returns +nil+ if command execution fails.
+ *  An error status is available in <code>$?</code>.
+ *  The arguments are processed in the same way as
+ *  for <code>Kernel.spawn</code>.
  *
  *  The hash arguments, env and options, are same as
  *  <code>exec</code> and <code>spawn</code>.
- *  See <code>spawn</code> for details.
+ *  See <code>Kernel.spawn</code> for details.
  *
  *     system("echo *")
  *     system("echo", "*")
@@ -2711,11 +2942,14 @@ rb_spawn(int argc, VALUE *argv)
  *
  *     config.h main.rb
  *     *
+ *
+ *  See <code>Kernel.exec</code> for the standard shell.
  */
 
 static VALUE
 rb_f_system(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
+    rb_pid_t pid;
     int status;
 
 #if defined(SIGCLD) && !defined(SIGCHLD)
@@ -2727,37 +2961,95 @@ rb_f_system(VALUE obj, SEL sel, int argc, VALUE *argv)
 
     chfunc = signal(SIGCHLD, SIG_DFL);
 #endif
-    status = rb_spawn_internal(argc, argv, Qfalse);
+    pid = rb_spawn_internal(argc, argv, FALSE, NULL, 0);
 #if defined(HAVE_FORK) || defined(HAVE_SPAWNV)
-    if (status > 0) {
-	rb_syswait(status);
+    if (pid > 0) {
+	rb_syswait(pid);
     }
 #endif
 #ifdef SIGCHLD
     signal(SIGCHLD, chfunc);
 #endif
-    if (status < 0) {
+    if (pid < 0) {
 	return Qnil;
     }
-    status = NUM2INT(rb_last_status_get());
+    status = PST2INT(rb_last_status_get());
     if (status == EXIT_SUCCESS) return Qtrue;
     return Qfalse;
 }
 
 /*
  *  call-seq:
- *     spawn([env,] cmd [, arg, ...] [,options])     => pid
+ *     spawn([env,] command... [,options])     -> pid
+ *     Process.spawn([env,] command... [,options])     -> pid
  *
- *  Similar to <code>Kernel::system</code> except for not waiting for
- *  end of _cmd_, but returns its <i>pid</i>.
+ *  spawn executes specified command and return its pid.
+ *
+ *  This method doesn't wait for end of the command.
+ *  The parent process should
+ *  use <code>Process.wait</code> to collect
+ *  the termination status of its child or
+ *  use <code>Process.detach</code> to register
+ *  disinterest in their status;
+ *  otherwise, the operating system may accumulate zombie processes.
+ *
+ *  spawn has bunch of options to specify process attributes:
+ *
+ *    env: hash
+ *      name => val : set the environment variable
+ *      name => nil : unset the environment variable
+ *    command...:
+ *      commandline                 : command line string which is passed to the standard shell
+ *      cmdname, arg1, ...          : command name and one or more arguments (no shell)
+ *      [cmdname, argv0], arg1, ... : command name, argv[0] and zero or more arguments (no shell)
+ *    options: hash
+ *      clearing environment variables:
+ *        :unsetenv_others => true   : clear environment variables except specified by env
+ *        :unsetenv_others => false  : don't clear (default)
+ *      process group:
+ *        :pgroup => true or 0 : make a new process group
+ *        :pgroup => pgid      : join to specified process group
+ *        :pgroup => nil       : don't change the process group (default)
+ *      resource limit: resourcename is core, cpu, data, etc.  See Process.setrlimit.
+ *        :rlimit_resourcename => limit
+ *        :rlimit_resourcename => [cur_limit, max_limit]
+ *      current directory:
+ *        :chdir => str
+ *      umask:
+ *        :umask => int
+ *      redirection:
+ *        key:
+ *          FD              : single file descriptor in child process
+ *          [FD, FD, ...]   : multiple file descriptor in child process
+ *        value:
+ *          FD                        : redirect to the file descriptor in parent process
+ *          string                    : redirect to file with open(string, "r" or "w")
+ *          [string]                  : redirect to file with open(string, File::RDONLY)
+ *          [string, open_mode]       : redirect to file with open(string, open_mode, 0644)
+ *          [string, open_mode, perm] : redirect to file with open(string, open_mode, perm)
+ *          [:child, FD]              : redirect to the redirected file descriptor
+ *          :close                    : close the file descriptor in child process
+ *        FD is one of follows
+ *          :in     : the file descriptor 0 which is the standard input
+ *          :out    : the file descriptor 1 which is the standard output
+ *          :err    : the file descriptor 2 which is the standard error
+ *          integer : the file descriptor of specified the integer
+ *          io      : the file descriptor specified as io.fileno
+ *      file descriptor inheritance: close non-redirected non-standard fds (3, 4, 5, ...) or not
+ *        :close_others => false : inherit fds (default for system and exec)
+ *        :close_others => true  : don't inherit (default for spawn and IO.popen)
  *
  *  If a hash is given as +env+, the environment is
  *  updated by +env+ before <code>exec(2)</code> in the child process.
+ *  If a pair in +env+ has nil as the value, the variable is deleted.
+ *
+ *    # set FOO as BAR and unset BAZ.
+ *    pid = spawn({"FOO"=>"BAR", "BAZ"=>nil}, command)
  *
  *  If a hash is given as +options+,
  *  it specifies
  *  process group,
- *  resource limit, 
+ *  resource limit,
  *  current directory,
  *  umask and
  *  redirects for the child process.
@@ -2771,22 +3063,23 @@ rb_f_system(VALUE obj, SEL sel, int argc, VALUE *argv)
  *
  *  The <code>:pgroup</code> key in +options+ specifies a process group.
  *  The corresponding value should be true, zero or positive integer.
- *  true and zero means the process should be a process leader.
+ *  true and zero means the process should be a process leader of a new
+ *  process group.
  *  Other values specifies a process group to be belongs.
  *
  *    pid = spawn(command, :pgroup=>true) # process leader
  *    pid = spawn(command, :pgroup=>10) # belongs to the process group 10
  *
  *  The <code>:rlimit_</code><em>foo</em> key specifies a resource limit.
- *  <em>foo</em> should be one of resource types such as <code>core</code>
+ *  <em>foo</em> should be one of resource types such as <code>core</code>.
  *  The corresponding value should be an integer or an array which have one or
  *  two integers: same as cur_limit and max_limit arguments for
  *  Process.setrlimit.
  *
- *    pid = spawn(command, :rlimit_core=>0) # never dump core.
  *    cur, max = Process.getrlimit(:CORE)
  *    pid = spawn(command, :rlimit_core=>[0,max]) # disable core temporary.
  *    pid = spawn(command, :rlimit_core=>max) # enable core dump
+ *    pid = spawn(command, :rlimit_core=>0) # never dump core.
  *
  *  The <code>:chdir</code> key in +options+ specifies the current directory.
  *
@@ -2796,59 +3089,80 @@ rb_f_system(VALUE obj, SEL sel, int argc, VALUE *argv)
  *
  *    pid = spawn(command, :umask=>077)
  *
- *  The :in, :out, :err, a fixnum, an IO and an array key specifies a redirect.
+ *  The :in, :out, :err, a fixnum, an IO and an array key specifies a redirection.
  *  The redirection maps a file descriptor in the child process.
  *
- *  For example, stderr can be merged into stdout:
+ *  For example, stderr can be merged into stdout as follows:
  *
  *    pid = spawn(command, :err=>:out)
- *    pid = spawn(command, STDERR=>STDOUT)
  *    pid = spawn(command, 2=>1)
+ *    pid = spawn(command, STDERR=>:out)
+ *    pid = spawn(command, STDERR=>STDOUT)
  *
  *  The hash keys specifies a file descriptor
  *  in the child process started by <code>spawn</code>.
- *  :err, STDERR and 2 specifies the standard error stream.
+ *  :err, 2 and STDERR specifies the standard error stream (stderr).
  *
  *  The hash values specifies a file descriptor
  *  in the parent process which invokes <code>spawn</code>.
- *  :out, STDOUT and 1 specifies the standard output stream.
+ *  :out, 1 and STDOUT specifies the standard output stream (stdout).
  *
- *  The standard output in the child process is not specified.
+ *  In the above example,
+ *  the standard output in the child process is not specified.
  *  So it is inherited from the parent process.
  *
- *  The standard input stream can be specifed by :in, STDIN and 0.
- *  
+ *  The standard input stream (stdin) can be specified by :in, 0 and STDIN.
+ *
  *  A filename can be specified as a hash value.
  *
- *    pid = spawn(command, STDIN=>"/dev/null") # read mode
- *    pid = spawn(command, STDOUT=>"/dev/null") # write mode
- *    pid = spawn(command, STDERR=>"log") # write mode
+ *    pid = spawn(command, :in=>"/dev/null") # read mode
+ *    pid = spawn(command, :out=>"/dev/null") # write mode
+ *    pid = spawn(command, :err=>"log") # write mode
  *    pid = spawn(command, 3=>"/dev/null") # read mode
  *
- *  For standard output and standard error,
+ *  For stdout and stderr,
  *  it is opened in write mode.
  *  Otherwise read mode is used.
  *
  *  For specifying flags and permission of file creation explicitly,
  *  an array is used instead.
  *
- *    pid = spawn(command, STDIN=>["file"]) # read mode is assumed
- *    pid = spawn(command, STDIN=>["file", "r"])
- *    pid = spawn(command, STDOUT=>["log", "w"]) # 0644 assumed
- *    pid = spawn(command, STDOUT=>["log", "w", 0600])
- *    pid = spawn(command, STDOUT=>["log", File::WRONLY|File::EXCL|File::CREAT, 0600])
+ *    pid = spawn(command, :in=>["file"]) # read mode is assumed
+ *    pid = spawn(command, :in=>["file", "r"])
+ *    pid = spawn(command, :out=>["log", "w"]) # 0644 assumed
+ *    pid = spawn(command, :out=>["log", "w", 0600])
+ *    pid = spawn(command, :out=>["log", File::WRONLY|File::EXCL|File::CREAT, 0600])
  *
  *  The array specifies a filename, flags and permission.
  *  The flags can be a string or an integer.
- *  If the flags is ommitted or nil, File::RDONLY is assumed.
+ *  If the flags is omitted or nil, File::RDONLY is assumed.
  *  The permission should be an integer.
- *  If the permission is ommitted or nil, 0644 is assumed.
+ *  If the permission is omitted or nil, 0644 is assumed.
  *
  *  If an array of IOs and integers are specified as a hash key,
- *  all the elemetns are redirected.
+ *  all the elements are redirected.
  *
- *    # standard output and standard error is redirected to log file.
- *    pid = spawn(command, [STDOUT, STDERR]=>["log", "w"])
+ *    # stdout and stderr is redirected to log file.
+ *    # The file "log" is opened just once.
+ *    pid = spawn(command, [:out, :err]=>["log", "w"])
+ *
+ *  Another way to merge multiple file descriptors is [:child, fd].
+ *  \[:child, fd] means the file descriptor in the child process.
+ *  This is different from fd.
+ *  For example, :err=>:out means redirecting child stderr to parent stdout.
+ *  But :err=>[:child, :out] means redirecting child stderr to child stdout.
+ *  They differs if stdout is redirected in the child process as follows.
+ *
+ *    # stdout and stderr is redirected to log file.
+ *    # The file "log" is opened just once.
+ *    pid = spawn(command, :out=>["log", "w"], :err=>[:child, :out])
+ *
+ *  \[:child, :out] can be used to merge stderr into stdout in IO.popen.
+ *  In this case, IO.popen redirects stdout to a pipe in the child process
+ *  and [:child, :out] refers the redirected stdout.
+ *
+ *    io = IO.popen(["sh", "-c", "echo out; echo err >&2", :err=>[:child, :out]])
+ *    p io.read #=> "out\nerr\n"
  *
  *  spawn closes all non-standard unspecified descriptors by default.
  *  The "standard" descriptors are 0, 1 and 2.
@@ -2865,45 +3179,68 @@ rb_f_system(VALUE obj, SEL sel, int argc, VALUE *argv)
  *
  *    # similar to r = IO.popen(command)
  *    r, w = IO.pipe
- *    pid = spawn(command, STDOUT=>w)   # r, w is closed in the child process.
+ *    pid = spawn(command, :out=>w)   # r, w is closed in the child process.
  *    w.close
  *
- *  :close is specified as a hash value to close a fd individualy.
+ *  :close is specified as a hash value to close a fd individually.
  *
  *    f = open(foo)
  *    system(command, f=>:close)        # don't inherit f.
  *
+ *  If a file descriptor need to be inherited,
+ *  io=>io can be used.
+ *
+ *    # valgrind has --log-fd option for log destination.
+ *    # log_w=>log_w indicates log_w.fileno inherits to child process.
+ *    log_r, log_w = IO.pipe
+ *    pid = spawn("valgrind", "--log-fd=#{log_w.fileno}", "echo", "a", log_w=>log_w)
+ *    log_w.close
+ *    p log_r.read
+ *
  *  It is also possible to exchange file descriptors.
  *
- *    pid = spawn(command, STDOUT=>STDERR, STDERR=>STDOUT)
+ *    pid = spawn(command, :out=>:err, :err=>:out)
  *
  *  The hash keys specify file descriptors in the child process.
  *  The hash values specifies file descriptors in the parent process.
- *  So the above specifies exchanging STDOUT and STDERR.
+ *  So the above specifies exchanging stdout and stderr.
  *  Internally, +spawn+ uses an extra file descriptor to resolve such cyclic
  *  file descriptor mapping.
  *
+ *  See <code>Kernel.exec</code> for the standard shell.
  */
 
 static VALUE
 rb_f_spawn(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
     rb_pid_t pid;
+    char errmsg[CHILD_ERRMSG_BUFLEN] = { '\0' };
+    struct rb_exec_arg earg;
 
-    pid = rb_spawn(argc, argv);
-    if (pid == -1) rb_sys_fail(RSTRING_PTR(argv[0]));
+    pid = rb_spawn_process(&earg, rb_exec_arg_prepare(&earg, argc, argv, TRUE), errmsg, sizeof(errmsg));
+    if (pid == -1) {
+	const char *prog = errmsg;
+	if (!prog[0] && !(prog = earg.prog) && earg.argc) {
+	    prog = RSTRING_PTR(earg.argv[0]);
+	}
+	rb_sys_fail(prog);
+    }
+#if defined(HAVE_FORK) || defined(HAVE_SPAWNV)
     return PIDT2NUM(pid);
+#else
+    return Qnil;
+#endif
 }
 
 /*
  *  call-seq:
- *     sleep([duration])    => fixnum
+ *     sleep([duration])    -> fixnum
  *
  *  Suspends the current thread for _duration_ seconds (which may be any number,
  *  including a +Float+ with fractional seconds). Returns the actual number of
  *  seconds slept (rounded), which may be less than that asked for if another
- *  thread calls <code>Thread#run</code>. Zero arguments causes +sleep+ to sleep
- *  forever.
+ *  thread calls <code>Thread#run</code>. Called without an argument, sleep()
+ *  will sleep forever.
  *
  *     Time.new    #=> 2008-03-08 19:56:19 +0900
  *     sleep 1.2   #=> 1
@@ -2915,7 +3252,7 @@ rb_f_spawn(VALUE obj, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_f_sleep(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-    int beg, end;
+    time_t beg, end;
 
     beg = time(0);
     if (argc == 0) {
@@ -2925,7 +3262,7 @@ rb_f_sleep(VALUE recv, SEL sel, int argc, VALUE *argv)
 	rb_thread_wait_for(rb_time_interval(argv[0]));
     }
     else {
-	rb_raise(rb_eArgError, "wrong number of arguments");
+	rb_raise(rb_eArgError, "wrong number of arguments (%d for 0..1)", argc);
     }
 
     end = time(0) - beg;
@@ -2934,9 +3271,10 @@ rb_f_sleep(VALUE recv, SEL sel, int argc, VALUE *argv)
 }
 
 
+#if (defined(HAVE_GETPGRP) && defined(GETPGRP_VOID)) || defined(HAVE_GETPGID)
 /*
  *  call-seq:
- *     Process.getpgrp   => integer
+ *     Process.getpgrp   -> integer
  *
  *  Returns the process group ID for this process. Not available on
  *  all platforms.
@@ -2948,30 +3286,28 @@ rb_f_sleep(VALUE recv, SEL sel, int argc, VALUE *argv)
 static VALUE
 proc_getpgrp(VALUE rcv, SEL sel)
 {
-#if defined(HAVE_GETPGRP) && defined(GETPGRP_VOID) || defined(HAVE_GETPGID)
     rb_pid_t pgrp;
-#endif
 
     rb_secure(2);
 #if defined(HAVE_GETPGRP) && defined(GETPGRP_VOID)
     pgrp = getpgrp();
     if (pgrp < 0) rb_sys_fail(0);
     return PIDT2NUM(pgrp);
-#else
-# ifdef HAVE_GETPGID
+#else /* defined(HAVE_GETPGID) */
     pgrp = getpgid(0);
     if (pgrp < 0) rb_sys_fail(0);
     return PIDT2NUM(pgrp);
-# else
-    rb_notimplement();
-# endif
 #endif
 }
+#else
+#define proc_getpgrp rb_f_notimplement
+#endif
 
 
+#if defined(HAVE_SETPGID) || (defined(HAVE_SETPGRP) && defined(SETPGRP_VOID))
 /*
  *  call-seq:
- *     Process.setpgrp   => 0
+ *     Process.setpgrp   -> 0
  *
  *  Equivalent to <code>setpgid(0,0)</code>. Not available on all
  *  platforms.
@@ -2989,16 +3325,18 @@ proc_setpgrp(VALUE rcv, SEL sel)
     if (setpgid(0,0) < 0) rb_sys_fail(0);
 #elif defined(HAVE_SETPGRP) && defined(SETPGRP_VOID)
     if (setpgrp() < 0) rb_sys_fail(0);
-#else
-    rb_notimplement();
 #endif
     return INT2FIX(0);
 }
+#else
+#define proc_setpgrp rb_f_notimplement
+#endif
 
 
+#if defined(HAVE_GETPGID)
 /*
  *  call-seq:
- *     Process.getpgid(pid)   => integer
+ *     Process.getpgid(pid)   -> integer
  *
  *  Returns the process group ID for the given process id. Not
  *  available on all platforms.
@@ -3009,22 +3347,22 @@ proc_setpgrp(VALUE rcv, SEL sel)
 static VALUE
 proc_getpgid(VALUE obj, SEL sel, VALUE pid)
 {
-#if defined(HAVE_GETPGID) && !defined(__CHECKER__)
     rb_pid_t i;
 
     rb_secure(2);
     i = getpgid(NUM2PIDT(pid));
     if (i < 0) rb_sys_fail(0);
     return PIDT2NUM(i);
-#else
-    rb_notimplement();
-#endif
 }
+#else
+#define proc_getpgid rb_f_notimplement
+#endif
 
 
+#ifdef HAVE_SETPGID
 /*
  *  call-seq:
- *     Process.setpgid(pid, integer)   => 0
+ *     Process.setpgid(pid, integer)   -> 0
  *
  *  Sets the process group ID of _pid_ (0 indicates this
  *  process) to <em>integer</em>. Not available on all platforms.
@@ -3033,7 +3371,6 @@ proc_getpgid(VALUE obj, SEL sel, VALUE pid)
 static VALUE
 proc_setpgid(VALUE obj, SEL sel, VALUE pid, VALUE pgrp)
 {
-#ifdef HAVE_SETPGID
     rb_pid_t ipid, ipgrp;
 
     rb_secure(2);
@@ -3042,15 +3379,20 @@ proc_setpgid(VALUE obj, SEL sel, VALUE pid, VALUE pgrp)
 
     if (setpgid(ipid, ipgrp) < 0) rb_sys_fail(0);
     return INT2FIX(0);
-#else
-    rb_notimplement();
-#endif
 }
+#else
+#define proc_setpgid rb_f_notimplement
+#endif
 
 
+#if defined(HAVE_SETSID) || (defined(HAVE_SETPGRP) && defined(TIOCNOTTY))
+#if !defined(HAVE_SETSID)
+static rb_pid_t ruby_setsid(void);
+#define setsid() ruby_setsid()
+#endif
 /*
  *  call-seq:
- *     Process.setsid   => fixnum
+ *     Process.setsid   -> fixnum
  *
  *  Establishes this process as a new session and process group
  *  leader, with no controlling tty. Returns the session id. Not
@@ -3062,18 +3404,22 @@ proc_setpgid(VALUE obj, SEL sel, VALUE pid, VALUE pgrp)
 static VALUE
 proc_setsid(VALUE rcv, SEL sel)
 {
-#if defined(HAVE_SETSID)
     rb_pid_t pid;
 
     rb_secure(2);
     pid = setsid();
     if (pid < 0) rb_sys_fail(0);
     return PIDT2NUM(pid);
-#elif defined(HAVE_SETPGRP) && defined(TIOCNOTTY)
+}
+
+#if !defined(HAVE_SETSID)
+#define HAVE_SETSID 1
+static rb_pid_t
+ruby_setsid(void)
+{
     rb_pid_t pid;
     int ret;
 
-    rb_secure(2);
     pid = getpid();
 #if defined(SETPGRP_VOID)
     ret = setpgrp();
@@ -3083,22 +3429,24 @@ proc_setsid(VALUE rcv, SEL sel)
 #else
     ret = setpgrp(0, pid);
 #endif
-    if (ret == -1) rb_sys_fail(0);
+    if (ret == -1) return -1;
 
     if ((fd = open("/dev/tty", O_RDWR)) >= 0) {
 	ioctl(fd, TIOCNOTTY, NULL);
 	close(fd);
     }
-    return PIDT2NUM(pid);
-#else
-    rb_notimplement();
-#endif
+    return pid;
 }
+#endif
+#else
+#define proc_setsid rb_f_notimplement
+#endif
 
 
+#ifdef HAVE_GETPRIORITY
 /*
  *  call-seq:
- *     Process.getpriority(kind, integer)   => fixnum
+ *     Process.getpriority(kind, integer)   -> fixnum
  *
  *  Gets the scheduling priority for specified process, process group,
  *  or user. <em>kind</em> indicates the kind of entity to find: one
@@ -3116,7 +3464,6 @@ proc_setsid(VALUE rcv, SEL sel)
 static VALUE
 proc_getpriority(VALUE obj, SEL sel, VALUE which, VALUE who)
 {
-#ifdef HAVE_GETPRIORITY
     int prio, iwhich, iwho;
 
     rb_secure(2);
@@ -3127,15 +3474,16 @@ proc_getpriority(VALUE obj, SEL sel, VALUE which, VALUE who)
     prio = getpriority(iwhich, iwho);
     if (errno) rb_sys_fail(0);
     return INT2FIX(prio);
-#else
-    rb_notimplement();
-#endif
 }
+#else
+#define proc_getpriority rb_f_notimplement
+#endif
 
 
+#ifdef HAVE_GETPRIORITY
 /*
  *  call-seq:
- *     Process.setpriority(kind, integer, priority)   => 0
+ *     Process.setpriority(kind, integer, priority)   -> 0
  *
  *  See <code>Process#getpriority</code>.
  *
@@ -3148,7 +3496,6 @@ proc_getpriority(VALUE obj, SEL sel, VALUE which, VALUE who)
 static VALUE
 proc_setpriority(VALUE obj, SEL sel, VALUE which, VALUE who, VALUE prio)
 {
-#ifdef HAVE_GETPRIORITY
     int iwhich, iwho, iprio;
 
     rb_secure(2);
@@ -3159,10 +3506,10 @@ proc_setpriority(VALUE obj, SEL sel, VALUE which, VALUE who, VALUE prio)
     if (setpriority(iwhich, iwho, iprio) < 0)
 	rb_sys_fail(0);
     return INT2FIX(0);
-#else
-    rb_notimplement();
-#endif
 }
+#else
+#define proc_setpriority rb_f_notimplement
+#endif
 
 #if defined(RLIM2NUM)
 static int
@@ -3171,7 +3518,7 @@ rlimit_resource_name2int(const char *name, int casetype)
     size_t len = strlen(name);
     if (16 < len) return -1;
     if (casetype == 1) {
-        int i;
+        size_t i;
         char *name2 = ALLOCA_N(char, len+1);
         for (i = 0; i < len; i++) {
             if (!ISLOWER(name[i]))
@@ -3297,7 +3644,7 @@ rlimit_resource_value(VALUE rval)
 
     switch (TYPE(rval)) {
       case T_SYMBOL:
-        name = rb_sym2name(rval);
+        name = rb_id2name(SYM2ID(rval));
         break;
 
       default:
@@ -3328,9 +3675,10 @@ rlimit_resource_value(VALUE rval)
 }
 #endif
 
+#if defined(HAVE_GETRLIMIT) && defined(RLIM2NUM)
 /*
  *  call-seq:
- *     Process.getrlimit(resource)   => [cur_limit, max_limit]
+ *     Process.getrlimit(resource)   -> [cur_limit, max_limit]
  *
  *  Gets the resource limit of the process.
  *  _cur_limit_ means current (soft) limit and
@@ -3351,7 +3699,6 @@ rlimit_resource_value(VALUE rval)
 static VALUE
 proc_getrlimit(VALUE obj, SEL sel, VALUE resource)
 {
-#if defined(HAVE_GETRLIMIT) && defined(RLIM2NUM)
     struct rlimit rlim;
 
     rb_secure(2);
@@ -3360,15 +3707,16 @@ proc_getrlimit(VALUE obj, SEL sel, VALUE resource)
 	rb_sys_fail("getrlimit");
     }
     return rb_assoc_new(RLIM2NUM(rlim.rlim_cur), RLIM2NUM(rlim.rlim_max));
-#else
-    rb_notimplement();
-#endif
 }
+#else
+#define proc_getrlimit rb_f_notimplement
+#endif
 
+#if defined(HAVE_SETRLIMIT) && defined(NUM2RLIM)
 /*
  *  call-seq:
- *     Process.setrlimit(resource, cur_limit, max_limit)        => nil
- *     Process.setrlimit(resource, cur_limit)                   => nil
+ *     Process.setrlimit(resource, cur_limit, max_limit)        -> nil
+ *     Process.setrlimit(resource, cur_limit)                   -> nil
  *
  *  Sets the resource limit of the process.
  *  _cur_limit_ means current (soft) limit and
@@ -3414,7 +3762,6 @@ proc_getrlimit(VALUE obj, SEL sel, VALUE resource)
 static VALUE
 proc_setrlimit(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
-#if defined(HAVE_SETRLIMIT) && defined(NUM2RLIM)
     VALUE resource, rlim_cur, rlim_max;
     struct rlimit rlim;
 
@@ -3431,10 +3778,10 @@ proc_setrlimit(VALUE obj, SEL sel, int argc, VALUE *argv)
 	rb_sys_fail("setrlimit");
     }
     return Qnil;
-#else
-    rb_notimplement();
-#endif
 }
+#else
+#define proc_setrlimit rb_f_notimplement
+#endif
 
 static int under_uid_switch = 0;
 static void
@@ -3468,9 +3815,10 @@ check_gid_switch(void)
  */
 
 
+#if defined HAVE_SETUID
 /*
  *  call-seq:
- *     Process::Sys.setuid(integer)   => nil
+ *     Process::Sys.setuid(integer)   -> nil
  *
  *  Set the user ID of the current process to _integer_. Not
  *  available on all platforms.
@@ -3480,20 +3828,19 @@ check_gid_switch(void)
 static VALUE
 p_sys_setuid(VALUE obj, SEL sel, VALUE id)
 {
-#if defined HAVE_SETUID
     check_uid_switch();
     if (setuid(NUM2UIDT(id)) != 0) rb_sys_fail(0);
-#else
-    rb_notimplement();
-#endif
     return Qnil;
 }
+#else
+#define p_sys_setuid rb_f_notimplement
+#endif
 
 
-
+#if defined HAVE_SETRUID
 /*
  *  call-seq:
- *     Process::Sys.setruid(integer)   => nil
+ *     Process::Sys.setruid(integer)   -> nil
  *
  *  Set the real user ID of the calling process to _integer_.
  *  Not available on all platforms.
@@ -3503,19 +3850,19 @@ p_sys_setuid(VALUE obj, SEL sel, VALUE id)
 static VALUE
 p_sys_setruid(VALUE obj, SEL sel, VALUE id)
 {
-#if defined HAVE_SETRUID
     check_uid_switch();
     if (setruid(NUM2UIDT(id)) != 0) rb_sys_fail(0);
-#else
-    rb_notimplement();
-#endif
     return Qnil;
 }
+#else
+#define p_sys_setruid rb_f_notimplement
+#endif
 
 
+#if defined HAVE_SETEUID
 /*
  *  call-seq:
- *     Process::Sys.seteuid(integer)   => nil
+ *     Process::Sys.seteuid(integer)   -> nil
  *
  *  Set the effective user ID of the calling process to
  *  _integer_.  Not available on all platforms.
@@ -3525,19 +3872,19 @@ p_sys_setruid(VALUE obj, SEL sel, VALUE id)
 static VALUE
 p_sys_seteuid(VALUE obj, SEL sel, VALUE id)
 {
-#if defined HAVE_SETEUID
     check_uid_switch();
     if (seteuid(NUM2UIDT(id)) != 0) rb_sys_fail(0);
-#else
-    rb_notimplement();
-#endif
     return Qnil;
 }
+#else
+#define p_sys_seteuid rb_f_notimplement
+#endif
 
 
+#if defined HAVE_SETREUID
 /*
  *  call-seq:
- *     Process::Sys.setreuid(rid, eid)   => nil
+ *     Process::Sys.setreuid(rid, eid)   -> nil
  *
  *  Sets the (integer) real and/or effective user IDs of the current
  *  process to _rid_ and _eid_, respectively. A value of
@@ -3549,19 +3896,19 @@ p_sys_seteuid(VALUE obj, SEL sel, VALUE id)
 static VALUE
 p_sys_setreuid(VALUE obj, SEL sel, VALUE rid, VALUE eid)
 {
-#if defined HAVE_SETREUID
     check_uid_switch();
     if (setreuid(NUM2UIDT(rid),NUM2UIDT(eid)) != 0) rb_sys_fail(0);
-#else
-    rb_notimplement();
-#endif
     return Qnil;
 }
+#else
+#define p_sys_setreuid rb_f_notimplement
+#endif
 
 
+#if defined HAVE_SETRESUID
 /*
  *  call-seq:
- *     Process::Sys.setresuid(rid, eid, sid)   => nil
+ *     Process::Sys.setresuid(rid, eid, sid)   -> nil
  *
  *  Sets the (integer) real, effective, and saved user IDs of the
  *  current process to _rid_, _eid_, and _sid_ respectively. A
@@ -3573,21 +3920,20 @@ p_sys_setreuid(VALUE obj, SEL sel, VALUE rid, VALUE eid)
 static VALUE
 p_sys_setresuid(VALUE obj, SEL sel, VALUE rid, VALUE eid, VALUE sid)
 {
-#if defined HAVE_SETRESUID
     check_uid_switch();
     if (setresuid(NUM2UIDT(rid),NUM2UIDT(eid),NUM2UIDT(sid)) != 0) rb_sys_fail(0);
-#else
-    rb_notimplement();
-#endif
     return Qnil;
 }
+#else
+#define p_sys_setresuid rb_f_notimplement
+#endif
 
 
 /*
  *  call-seq:
- *     Process.uid           => fixnum
- *     Process::UID.rid      => fixnum
- *     Process::Sys.getuid   => fixnum
+ *     Process.uid           -> fixnum
+ *     Process::UID.rid      -> fixnum
+ *     Process::Sys.getuid   -> fixnum
  *
  *  Returns the (real) user ID of this process.
  *
@@ -3602,9 +3948,10 @@ proc_getuid(VALUE obj, SEL sel)
 }
 
 
+#if defined(HAVE_SETRESUID) || defined(HAVE_SETREUID) || defined(HAVE_SETRUID) || defined(HAVE_SETUID)
 /*
  *  call-seq:
- *     Process.uid= integer   => numeric
+ *     Process.uid= integer   -> numeric
  *
  *  Sets the (integer) user ID for this process. Not available on all
  *  platforms.
@@ -3618,7 +3965,7 @@ proc_setuid(VALUE obj, SEL sel, VALUE id)
     check_uid_switch();
 
     uid = NUM2UIDT(id);
-#if defined(HAVE_SETRESUID) &&  !defined(__CHECKER__)
+#if defined(HAVE_SETRESUID)
     if (setresuid(uid, -1, -1) < 0) rb_sys_fail(0);
 #elif defined HAVE_SETREUID
     if (setreuid(uid, -1) < 0) rb_sys_fail(0);
@@ -3633,11 +3980,12 @@ proc_setuid(VALUE obj, SEL sel, VALUE id)
 	    rb_notimplement();
 	}
     }
-#else
-    rb_notimplement();
 #endif
     return id;
 }
+#else
+#define proc_setuid rb_f_notimplement
+#endif
 
 
 /********************************************************************
@@ -3669,7 +4017,7 @@ setreuid(rb_uid_t ruid, rb_uid_t euid)
 
 /*
  *  call-seq:
- *     Process::UID.change_privilege(integer)   => fixnum
+ *     Process::UID.change_privilege(integer)   -> fixnum
  *
  *  Change the current process's real and effective user ID to that
  *  specified by _integer_. Returns the new user ID. Not
@@ -3820,9 +4168,10 @@ p_uid_change_privilege(VALUE obj, SEL sel, VALUE id)
 
 
 
+#if defined HAVE_SETGID
 /*
  *  call-seq:
- *     Process::Sys.setgid(integer)   => nil
+ *     Process::Sys.setgid(integer)   -> nil
  *
  *  Set the group ID of the current process to _integer_. Not
  *  available on all platforms.
@@ -3832,19 +4181,19 @@ p_uid_change_privilege(VALUE obj, SEL sel, VALUE id)
 static VALUE
 p_sys_setgid(VALUE obj, SEL sel, VALUE id)
 {
-#if defined HAVE_SETGID
     check_gid_switch();
     if (setgid(NUM2GIDT(id)) != 0) rb_sys_fail(0);
-#else
-    rb_notimplement();
-#endif
     return Qnil;
 }
+#else
+#define p_sys_setgid rb_f_notimplement
+#endif
 
 
+#if defined HAVE_SETRGID
 /*
  *  call-seq:
- *     Process::Sys.setrgid(integer)   => nil
+ *     Process::Sys.setrgid(integer)   -> nil
  *
  *  Set the real group ID of the calling process to _integer_.
  *  Not available on all platforms.
@@ -3854,20 +4203,19 @@ p_sys_setgid(VALUE obj, SEL sel, VALUE id)
 static VALUE
 p_sys_setrgid(VALUE obj, SEL sel, VALUE id)
 {
-#if defined HAVE_SETRGID
     check_gid_switch();
     if (setrgid(NUM2GIDT(id)) != 0) rb_sys_fail(0);
-#else
-    rb_notimplement();
-#endif
     return Qnil;
 }
+#else
+#define p_sys_setrgid rb_f_notimplement
+#endif
 
 
-
+#if defined HAVE_SETEGID
 /*
  *  call-seq:
- *     Process::Sys.setegid(integer)   => nil
+ *     Process::Sys.setegid(integer)   -> nil
  *
  *  Set the effective group ID of the calling process to
  *  _integer_.  Not available on all platforms.
@@ -3877,19 +4225,19 @@ p_sys_setrgid(VALUE obj, SEL sel, VALUE id)
 static VALUE
 p_sys_setegid(VALUE obj, SEL sel, VALUE id)
 {
-#if defined HAVE_SETEGID
     check_gid_switch();
     if (setegid(NUM2GIDT(id)) != 0) rb_sys_fail(0);
-#else
-    rb_notimplement();
-#endif
     return Qnil;
 }
+#else
+#define p_sys_setegid rb_f_notimplement
+#endif
 
 
+#if defined HAVE_SETREGID
 /*
  *  call-seq:
- *     Process::Sys.setregid(rid, eid)   => nil
+ *     Process::Sys.setregid(rid, eid)   -> nil
  *
  *  Sets the (integer) real and/or effective group IDs of the current
  *  process to <em>rid</em> and <em>eid</em>, respectively. A value of
@@ -3901,18 +4249,18 @@ p_sys_setegid(VALUE obj, SEL sel, VALUE id)
 static VALUE
 p_sys_setregid(VALUE obj, SEL sel, VALUE rid, VALUE eid)
 {
-#if defined HAVE_SETREGID
     check_gid_switch();
     if (setregid(NUM2GIDT(rid),NUM2GIDT(eid)) != 0) rb_sys_fail(0);
-#else
-    rb_notimplement();
-#endif
     return Qnil;
 }
+#else
+#define p_sys_setregid rb_f_notimplement
+#endif
 
+#if defined HAVE_SETRESGID
 /*
  *  call-seq:
- *     Process::Sys.setresgid(rid, eid, sid)   => nil
+ *     Process::Sys.setresgid(rid, eid, sid)   -> nil
  *
  *  Sets the (integer) real, effective, and saved user IDs of the
  *  current process to <em>rid</em>, <em>eid</em>, and <em>sid</em>
@@ -3924,19 +4272,19 @@ p_sys_setregid(VALUE obj, SEL sel, VALUE rid, VALUE eid)
 static VALUE
 p_sys_setresgid(VALUE obj, SEL sel, VALUE rid, VALUE eid, VALUE sid)
 {
-#if defined HAVE_SETRESGID
     check_gid_switch();
     if (setresgid(NUM2GIDT(rid),NUM2GIDT(eid),NUM2GIDT(sid)) != 0) rb_sys_fail(0);
-#else
-    rb_notimplement();
-#endif
     return Qnil;
 }
+#else
+#define p_sys_setresgid rb_f_notimplement
+#endif
 
 
+#if defined HAVE_ISSETUGID
 /*
  *  call-seq:
- *     Process::Sys.issetugid   => true or false
+ *     Process::Sys.issetugid   -> true or false
  *
  *  Returns +true+ if the process was created as a result
  *  of an execve(2) system call which had either of the setuid or
@@ -3949,25 +4297,23 @@ p_sys_setresgid(VALUE obj, SEL sel, VALUE rid, VALUE eid, VALUE sid)
 static VALUE
 p_sys_issetugid(VALUE obj, SEL sel)
 {
-#if defined HAVE_ISSETUGID
     rb_secure(2);
     if (issetugid()) {
 	return Qtrue;
     } else {
 	return Qfalse;
     }
-#else
-    rb_notimplement();
-    return Qnil;		/* not reached */
-#endif
 }
+#else
+#define p_sys_issetugid rb_f_notimplement
+#endif
 
 
 /*
  *  call-seq:
- *     Process.gid           => fixnum
- *     Process::GID.rid      => fixnum
- *     Process::Sys.getgid   => fixnum
+ *     Process.gid           -> fixnum
+ *     Process::GID.rid      -> fixnum
+ *     Process::Sys.getgid   -> fixnum
  *
  *  Returns the (real) group ID for this process.
  *
@@ -3982,9 +4328,10 @@ proc_getgid(VALUE obj, SEL sel)
 }
 
 
+#if defined(HAVE_SETRESGID) || defined(HAVE_SETREGID) || defined(HAVE_SETRGID) || defined(HAVE_SETGID)
 /*
  *  call-seq:
- *     Process.gid= fixnum   => fixnum
+ *     Process.gid= fixnum   -> fixnum
  *
  *  Sets the group ID for this process.
  */
@@ -3997,7 +4344,7 @@ proc_setgid(VALUE obj, SEL sel, VALUE id)
     check_gid_switch();
 
     gid = NUM2GIDT(id);
-#if defined(HAVE_SETRESGID) && !defined(__CHECKER__)
+#if defined(HAVE_SETRESGID)
     if (setresgid(gid, -1, -1) < 0) rb_sys_fail(0);
 #elif defined HAVE_SETREGID
     if (setregid(gid, -1) < 0) rb_sys_fail(0);
@@ -4012,19 +4359,21 @@ proc_setgid(VALUE obj, SEL sel, VALUE id)
 	    rb_notimplement();
 	}
     }
-#else
-    rb_notimplement();
 #endif
     return GIDT2NUM(gid);
 }
+#else
+#define proc_setgid rb_f_notimplement
+#endif
 
 
-static size_t maxgroups = NGROUPS_MAX;
+static int maxgroups = NGROUPS_MAX;
 
 
+#ifdef HAVE_GETGROUPS
 /*
  *  call-seq:
- *     Process.groups   => array
+ *     Process.groups   -> array
  *
  *  Get an <code>Array</code> of the gids of groups in the
  *  supplemental group access list for this process.
@@ -4036,11 +4385,9 @@ static size_t maxgroups = NGROUPS_MAX;
 static VALUE
 proc_getgroups(VALUE obj, SEL sel)
 {
-#ifdef HAVE_GETGROUPS
     VALUE ary;
-    size_t ngroups;
+    int i, ngroups;
     rb_gid_t *groups;
-    int i;
 
     groups = ALLOCA_N(rb_gid_t, maxgroups);
 
@@ -4053,16 +4400,16 @@ proc_getgroups(VALUE obj, SEL sel)
 	rb_ary_push(ary, GIDT2NUM(groups[i]));
 
     return ary;
-#else
-    rb_notimplement();
-    return Qnil;
-#endif
 }
+#else
+#define proc_getgroups rb_f_notimplement
+#endif
 
 
+#ifdef HAVE_SETGROUPS
 /*
  *  call-seq:
- *     Process.groups= array   => array
+ *     Process.groups= array   -> array
  *
  *  Set the supplemental group access list to the given
  *  <code>Array</code> of group IDs.
@@ -4076,21 +4423,19 @@ proc_getgroups(VALUE obj, SEL sel)
 static VALUE
 proc_setgroups(VALUE obj, SEL sel, VALUE ary)
 {
-#ifdef HAVE_SETGROUPS
-    size_t ngroups;
+    size_t ngroups, i;
     rb_gid_t *groups;
-    int i;
     struct group *gr;
 
     Check_Type(ary, T_ARRAY);
 
     ngroups = RARRAY_LEN(ary);
-    if (ngroups > maxgroups)
-	rb_raise(rb_eArgError, "too many groups, %lu max", (unsigned long)maxgroups);
+    if (ngroups > (size_t)maxgroups)
+	rb_raise(rb_eArgError, "too many groups, %u max", maxgroups);
 
     groups = ALLOCA_N(rb_gid_t, ngroups);
 
-    for (i = 0; i < ngroups && i < RARRAY_LEN(ary); i++) {
+    for (i = 0; i < ngroups && i < (size_t)RARRAY_LEN(ary); i++) {
 	VALUE g = RARRAY_AT(ary, i);
 
 	if (FIXNUM_P(g)) {
@@ -4112,21 +4457,20 @@ proc_setgroups(VALUE obj, SEL sel, VALUE ary)
 	}
     }
 
-    i = setgroups(ngroups, groups);
-    if (i == -1)
+    if (setgroups((int)ngroups, groups) == -1) /* ngroups <= maxgroups */
 	rb_sys_fail(0);
 
     return proc_getgroups(obj, 0);
-#else
-    rb_notimplement();
-    return Qnil;
-#endif
 }
+#else
+#define proc_setgroups rb_f_notimplement
+#endif
 
 
+#ifdef HAVE_INITGROUPS
 /*
  *  call-seq:
- *     Process.initgroups(username, gid)   => array
+ *     Process.initgroups(username, gid)   -> array
  *
  *  Initializes the supplemental group access list by reading the
  *  system group database and using all groups of which the given user
@@ -4144,21 +4488,19 @@ proc_setgroups(VALUE obj, SEL sel, VALUE ary)
 static VALUE
 proc_initgroups(VALUE obj, SEL sel, VALUE uname, VALUE base_grp)
 {
-#ifdef HAVE_INITGROUPS
     if (initgroups(StringValuePtr(uname), NUM2GIDT(base_grp)) != 0) {
 	rb_sys_fail(0);
     }
     return proc_getgroups(obj, 0);
-#else
-    rb_notimplement();
-    return Qnil;
-#endif
 }
+#else
+#define proc_initgroups rb_f_notimplement
+#endif
 
 
 /*
  *  call-seq:
- *     Process.maxgroups   => fixnum
+ *     Process.maxgroups   -> fixnum
  *
  *  Returns the maximum number of gids allowed in the supplemental
  *  group access list.
@@ -4175,7 +4517,7 @@ proc_getmaxgroups(VALUE obj, SEL sel)
 
 /*
  *  call-seq:
- *     Process.maxgroups= fixnum   => fixnum
+ *     Process.maxgroups= fixnum   -> fixnum
  *
  *  Sets the maximum number of gids allowed in the supplemental group
  *  access list.
@@ -4184,7 +4526,7 @@ proc_getmaxgroups(VALUE obj, SEL sel)
 static VALUE
 proc_setmaxgroups(VALUE obj, SEL sel, VALUE val)
 {
-    size_t  ngroups = FIX2INT(val);
+    int ngroups = FIX2UINT(val);
 
     if (ngroups > 4096)
 	ngroups = 4096;
@@ -4194,10 +4536,11 @@ proc_setmaxgroups(VALUE obj, SEL sel, VALUE val)
     return INT2FIX(maxgroups);
 }
 
+#if defined(HAVE_DAEMON) || (defined(HAVE_FORK) && defined(HAVE_SETSID))
 /*
  *  call-seq:
- *     Process.daemon()                        => fixnum
- *     Process.daemon(nochdir=nil,noclose=nil) => fixnum
+ *     Process.daemon()                        -> 0
+ *     Process.daemon(nochdir=nil,noclose=nil) -> 0
  *
  *  Detach the process from controlling terminal and run in
  *  the background as system daemon.  Unless the argument
@@ -4205,34 +4548,46 @@ proc_setmaxgroups(VALUE obj, SEL sel, VALUE val)
  *  working directory to the root ("/"). Unless the argument
  *  noclose is true, daemon() will redirect standard input,
  *  standard output and standard error to /dev/null.
+ *  Return zero on success, or raise one of Errno::*.
  */
 
 static VALUE
 proc_daemon(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     VALUE nochdir, noclose;
-#if defined(HAVE_DAEMON) || defined(HAVE_FORK)
     int n;
-#endif
 
     rb_secure(2);
     rb_scan_args(argc, argv, "02", &nochdir, &noclose);
 
 #if defined(HAVE_DAEMON)
+    prefork();
+    before_fork();
     n = daemon(RTEST(nochdir), RTEST(noclose));
+    after_fork();
     if (n < 0) rb_sys_fail("daemon");
     return INT2FIX(n);
 #elif defined(HAVE_FORK)
     switch (rb_fork(0, 0, 0, Qnil)) {
       case -1:
-	return (-1);
+	rb_sys_fail("daemon");
       case 0:
 	break;
       default:
-	_exit(0);
+	_exit(EXIT_SUCCESS);
     }
 
     proc_setsid(0, 0);
+
+    /* must not be process-leader */
+    switch (rb_fork(0, 0, 0, Qnil)) {
+      case -1:
+	rb_sys_fail("daemon");
+      case 0:
+	break;
+      default:
+	_exit(EXIT_SUCCESS);
+    }
 
     if (!RTEST(nochdir))
 	(void)chdir("/");
@@ -4245,10 +4600,11 @@ proc_daemon(VALUE rcv, SEL sel, int argc, VALUE *argv)
 	    (void)close (n);
     }
     return INT2FIX(0);
-#else
-    rb_notimplement();
 #endif
 }
+#else
+#define proc_daemon rb_f_notimplement
+#endif
 
 /********************************************************************
  *
@@ -4260,7 +4616,7 @@ proc_daemon(VALUE rcv, SEL sel, int argc, VALUE *argv)
  *
  */
 
-static int SAVED_GROUP_ID = -1;
+static rb_gid_t SAVED_GROUP_ID = -1;
 
 #ifdef BROKEN_SETREGID
 int
@@ -4279,7 +4635,7 @@ setregid(rb_gid_t rgid, rb_gid_t egid)
 
 /*
  *  call-seq:
- *     Process::GID.change_privilege(integer)   => fixnum
+ *     Process::GID.change_privilege(integer)   -> fixnum
  *
  *  Change the current process's real and effective group ID to that
  *  specified by _integer_. Returns the new group ID. Not
@@ -4432,9 +4788,9 @@ p_gid_change_privilege(VALUE obj, SEL sel, VALUE id)
 
 /*
  *  call-seq:
- *     Process.euid           => fixnum
- *     Process::UID.eid       => fixnum
- *     Process::Sys.geteuid   => fixnum
+ *     Process.euid           -> fixnum
+ *     Process::UID.eid       -> fixnum
+ *     Process::Sys.geteuid   -> fixnum
  *
  *  Returns the effective user ID for this process.
  *
@@ -4448,7 +4804,7 @@ proc_geteuid(VALUE obj, SEL sel)
     return UIDT2NUM(euid);
 }
 
-
+#if defined(HAVE_SETRESUID) || defined(HAVE_SETREUID) || defined(HAVE_SETEUID) || defined(HAVE_SETUID) || defined(_POSIX_SAVED_IDS)
 /*
  *  call-seq:
  *     Process.euid= integer
@@ -4465,7 +4821,7 @@ proc_seteuid(VALUE obj, SEL sel, VALUE euid)
     check_uid_switch();
 
     uid = NUM2UIDT(euid);
-#if defined(HAVE_SETRESUID) && !defined(__CHECKER__)
+#if defined(HAVE_SETRESUID)
     if (setresuid(-1, uid, -1) < 0) rb_sys_fail(0);
 #elif defined HAVE_SETREUID
     if (setreuid(-1, uid) < 0) rb_sys_fail(0);
@@ -4483,6 +4839,13 @@ proc_seteuid(VALUE obj, SEL sel, VALUE euid)
 #endif
     return euid;
 }
+#endif
+
+#if defined(HAVE_SETRESUID) || defined(HAVE_SETREUID) || defined(HAVE_SETEUID) || defined(HAVE_SETUID)
+#define proc_seteuid_m proc_seteuid
+#else
+#define proc_seteuid_m rb_f_notimplement
+#endif
 
 static rb_uid_t
 rb_seteuid_core(rb_uid_t euid)
@@ -4493,7 +4856,7 @@ rb_seteuid_core(rb_uid_t euid)
 
     uid = getuid();
 
-#if defined(HAVE_SETRESUID) && !defined(__CHECKER__)
+#if defined(HAVE_SETRESUID)
     if (uid != euid) {
 	if (setresuid(-1,euid,euid) < 0) rb_sys_fail(0);
 	SAVED_USER_ID = euid;
@@ -4521,8 +4884,8 @@ rb_seteuid_core(rb_uid_t euid)
 
 /*
  *  call-seq:
- *     Process::UID.grant_privilege(integer)   => fixnum
- *     Process::UID.eid= integer               => fixnum
+ *     Process::UID.grant_privilege(integer)   -> fixnum
+ *     Process::UID.eid= integer               -> fixnum
  *
  *  Set the effective user ID, and if possible, the saved user ID of
  *  the process to the given _integer_. Returns the new
@@ -4543,9 +4906,9 @@ p_uid_grant_privilege(VALUE obj, SEL sel, VALUE id)
 
 /*
  *  call-seq:
- *     Process.egid          => fixnum
- *     Process::GID.eid      => fixnum
- *     Process::Sys.geteid   => fixnum
+ *     Process.egid          -> fixnum
+ *     Process::GID.eid      -> fixnum
+ *     Process::Sys.geteid   -> fixnum
  *
  *  Returns the effective group ID for this process. Not available on
  *  all platforms.
@@ -4561,10 +4924,10 @@ proc_getegid(VALUE obj, SEL sel)
     return GIDT2NUM(egid);
 }
 
-
+#if defined(HAVE_SETRESGID) || defined(HAVE_SETREGID) || defined(HAVE_SETEGID) || defined(HAVE_SETGID) || defined(_POSIX_SAVED_IDS)
 /*
  *  call-seq:
- *     Process.egid = fixnum   => fixnum
+ *     Process.egid = fixnum   -> fixnum
  *
  *  Sets the effective group ID for this process. Not available on all
  *  platforms.
@@ -4578,7 +4941,7 @@ proc_setegid(VALUE obj, SEL sel, VALUE egid)
     check_gid_switch();
 
     gid = NUM2GIDT(egid);
-#if defined(HAVE_SETRESGID) && !defined(__CHECKER__)
+#if defined(HAVE_SETRESGID)
     if (setresgid(-1, gid, -1) < 0) rb_sys_fail(0);
 #elif defined HAVE_SETREGID
     if (setregid(-1, gid) < 0) rb_sys_fail(0);
@@ -4596,6 +4959,13 @@ proc_setegid(VALUE obj, SEL sel, VALUE egid)
 #endif
     return egid;
 }
+#endif
+
+#if defined(HAVE_SETRESGID) || defined(HAVE_SETREGID) || defined(HAVE_SETEGID) || defined(HAVE_SETGID)
+#define proc_setegid_m proc_setegid
+#else
+#define proc_setegid_m rb_f_notimplement
+#endif
 
 static rb_gid_t
 rb_setegid_core(rb_gid_t egid)
@@ -4606,7 +4976,7 @@ rb_setegid_core(rb_gid_t egid)
 
     gid = getgid();
 
-#if defined(HAVE_SETRESGID) && !defined(__CHECKER__)
+#if defined(HAVE_SETRESGID)
     if (gid != egid) {
 	if (setresgid(-1,egid,egid) < 0) rb_sys_fail(0);
 	SAVED_GROUP_ID = egid;
@@ -4634,8 +5004,8 @@ rb_setegid_core(rb_gid_t egid)
 
 /*
  *  call-seq:
- *     Process::GID.grant_privilege(integer)    => fixnum
- *     Process::GID.eid = integer               => fixnum
+ *     Process::GID.grant_privilege(integer)    -> fixnum
+ *     Process::GID.eid = integer               -> fixnum
  *
  *  Set the effective group ID, and if possible, the saved group ID of
  *  the process to the given _integer_. Returns the new
@@ -4656,7 +5026,7 @@ p_gid_grant_privilege(VALUE obj, SEL sel, VALUE id)
 
 /*
  *  call-seq:
- *     Process::UID.re_exchangeable?   => true or false
+ *     Process::UID.re_exchangeable?   -> true or false
  *
  *  Returns +true+ if the real and effective user IDs of a
  *  process may be exchanged on the current platform.
@@ -4666,7 +5036,7 @@ p_gid_grant_privilege(VALUE obj, SEL sel, VALUE id)
 static VALUE
 p_uid_exchangeable(VALUE rcv, SEL sel)
 {
-#if defined(HAVE_SETRESUID) &&  !defined(__CHECKER__)
+#if defined(HAVE_SETRESUID)
     return Qtrue;
 #elif defined(HAVE_SETREUID) && !defined(OBSOLETE_SETREUID)
     return Qtrue;
@@ -4678,7 +5048,7 @@ p_uid_exchangeable(VALUE rcv, SEL sel)
 
 /*
  *  call-seq:
- *     Process::UID.re_exchange   => fixnum
+ *     Process::UID.re_exchange   -> fixnum
  *
  *  Exchange real and effective user IDs and return the new effective
  *  user ID. Not available on all platforms.
@@ -4698,7 +5068,7 @@ p_uid_exchange(VALUE obj, SEL sel)
     uid = getuid();
     euid = geteuid();
 
-#if defined(HAVE_SETRESUID) &&  !defined(__CHECKER__)
+#if defined(HAVE_SETRESUID)
     if (setresuid(euid, uid, uid) < 0) rb_sys_fail(0);
     SAVED_USER_ID = uid;
 #elif defined(HAVE_SETREUID) && !defined(OBSOLETE_SETREUID)
@@ -4713,7 +5083,7 @@ p_uid_exchange(VALUE obj, SEL sel)
 
 /*
  *  call-seq:
- *     Process::GID.re_exchangeable?   => true or false
+ *     Process::GID.re_exchangeable?   -> true or false
  *
  *  Returns +true+ if the real and effective group IDs of a
  *  process may be exchanged on the current platform.
@@ -4723,7 +5093,7 @@ p_uid_exchange(VALUE obj, SEL sel)
 static VALUE
 p_gid_exchangeable(VALUE rcv, SEL sel)
 {
-#if defined(HAVE_SETRESGID) &&  !defined(__CHECKER__)
+#if defined(HAVE_SETRESGID)
     return Qtrue;
 #elif defined(HAVE_SETREGID) && !defined(OBSOLETE_SETREGID)
     return Qtrue;
@@ -4735,7 +5105,7 @@ p_gid_exchangeable(VALUE rcv, SEL sel)
 
 /*
  *  call-seq:
- *     Process::GID.re_exchange   => fixnum
+ *     Process::GID.re_exchange   -> fixnum
  *
  *  Exchange real and effective group IDs and return the new effective
  *  group ID. Not available on all platforms.
@@ -4755,7 +5125,7 @@ p_gid_exchange(VALUE obj, SEL sel)
     gid = getgid();
     egid = getegid();
 
-#if defined(HAVE_SETRESGID) &&  !defined(__CHECKER__)
+#if defined(HAVE_SETRESGID)
     if (setresgid(egid, gid, gid) < 0) rb_sys_fail(0);
     SAVED_GROUP_ID = gid;
 #elif defined(HAVE_SETREGID) && !defined(OBSOLETE_SETREGID)
@@ -4771,7 +5141,7 @@ p_gid_exchange(VALUE obj, SEL sel)
 
 /*
  *  call-seq:
- *     Process::UID.sid_available?   => true or false
+ *     Process::UID.sid_available?   -> true or false
  *
  *  Returns +true+ if the current platform has saved user
  *  ID functionality.
@@ -4801,8 +5171,8 @@ p_uid_sw_ensure(rb_uid_t id)
 
 /*
  *  call-seq:
- *     Process::UID.switch              => fixnum
- *     Process::UID.switch {|| block}   => object
+ *     Process::UID.switch              -> fixnum
+ *     Process::UID.switch {|| block}   -> object
  *
  *  Switch the effective and real user IDs of the current process. If
  *  a <em>block</em> is given, the user IDs will be switched back
@@ -4880,7 +5250,7 @@ p_uid_switch(VALUE obj, SEL sel)
 
 /*
  *  call-seq:
- *     Process::GID.sid_available?   => true or false
+ *     Process::GID.sid_available?   -> true or false
  *
  *  Returns +true+ if the current platform has saved group
  *  ID functionality.
@@ -4909,8 +5279,8 @@ p_gid_sw_ensure(rb_gid_t id)
 
 /*
  *  call-seq:
- *     Process::GID.switch              => fixnum
- *     Process::GID.switch {|| block}   => object
+ *     Process::GID.switch              -> fixnum
+ *     Process::GID.switch {|| block}   -> object
  *
  *  Switch the effective and real group IDs of the current process. If
  *  a <em>block</em> is given, the group IDs will be switched back
@@ -4923,7 +5293,7 @@ p_gid_sw_ensure(rb_gid_t id)
 static VALUE
 p_gid_switch(VALUE obj, SEL sel)
 {
-    int gid, egid;
+    rb_gid_t gid, egid;
 
     check_gid_switch();
 
@@ -4938,7 +5308,8 @@ p_gid_switch(VALUE obj, SEL sel)
 	} else {
 	    return GIDT2NUM(egid);
 	}
-    } else if (egid != SAVED_GROUP_ID) {
+    }
+    else if (egid != SAVED_GROUP_ID) {
 	proc_setegid(obj, 0, GIDT2NUM(SAVED_GROUP_ID));
 	if (rb_block_given_p()) {
 	    under_gid_switch = 1;
@@ -4946,7 +5317,8 @@ p_gid_switch(VALUE obj, SEL sel)
 	} else {
 	    return GIDT2NUM(gid);
 	}
-    } else {
+    }
+    else {
 	errno = EPERM;
 	rb_sys_fail(0);
     }
@@ -4984,9 +5356,10 @@ p_gid_switch(VALUE obj, SEL sel)
 #endif
 
 
+#if defined(HAVE_TIMES)
 /*
  *  call-seq:
- *     Process.times   => aStructTms
+ *     Process.times   -> aStructTms
  *
  *  Returns a <code>Tms</code> structure (see <code>Struct::Tms</code>
  *  on page 388) that contains user and system CPU times for this
@@ -4999,7 +5372,6 @@ p_gid_switch(VALUE obj, SEL sel)
 static VALUE
 rb_proc_times(VALUE obj, SEL sel)
 {
-#if defined(HAVE_TIMES) && !defined(__CHECKER__)
     const double hertz =
 #ifdef HAVE__SC_CLK_TCK
 	(double)sysconf(_SC_CLK_TCK);
@@ -5018,14 +5390,14 @@ rb_proc_times(VALUE obj, SEL sel)
 
     times(&buf);
     return rb_struct_new(rb_cProcessTms,
-			 utime = DOUBLE2NUM(buf.tms_utime / hertz),
-			 stime = DOUBLE2NUM(buf.tms_stime / hertz),
-			 cutime = DOUBLE2NUM(buf.tms_cutime / hertz),
-			 sctime = DOUBLE2NUM(buf.tms_cstime / hertz));
-#else
-    rb_notimplement();
-#endif
+			 utime = DBL2NUM(buf.tms_utime / hertz),
+			 stime = DBL2NUM(buf.tms_stime / hertz),
+			 cutime = DBL2NUM(buf.tms_cutime / hertz),
+			 sctime = DBL2NUM(buf.tms_cstime / hertz));
 }
+#else
+#define rb_proc_times rb_f_notimplement
+#endif
 
 VALUE rb_mProcess;
 VALUE rb_mProcUID;
@@ -5087,7 +5459,6 @@ Init_process(void)
     rb_objc_define_method(rb_cProcessStatus, "&", pst_bitand, 1);
     rb_objc_define_method(rb_cProcessStatus, ">>", pst_rshift, 1);
     rb_objc_define_method(rb_cProcessStatus, "to_i", pst_to_i, 0);
-    rb_objc_define_method(rb_cProcessStatus, "to_int", pst_to_i, 0);
     rb_objc_define_method(rb_cProcessStatus, "to_s", pst_to_s, 0);
     rb_objc_define_method(rb_cProcessStatus, "inspect", pst_inspect, 0);
 
@@ -5125,15 +5496,19 @@ Init_process(void)
     rb_objc_define_method(*(VALUE *)rb_mProcess, "setrlimit", proc_setrlimit, -1);
 #ifdef RLIM2NUM
     {
-        VALUE inf = RLIM2NUM(RLIM_INFINITY), v;
-        rb_define_const(rb_mProcess, "RLIM_INFINITY", inf);
+        VALUE inf = RLIM2NUM(RLIM_INFINITY);
 #ifdef RLIM_SAVED_MAX
-        v = RLIM_INFINITY == RLIM_SAVED_MAX ? inf : RLIM2NUM(RLIM_SAVED_MAX);
-        rb_define_const(rb_mProcess, "RLIM_SAVED_MAX", v);
+	{
+	    VALUE v = RLIM_INFINITY == RLIM_SAVED_MAX ? inf : RLIM2NUM(RLIM_SAVED_MAX);
+	    rb_define_const(rb_mProcess, "RLIM_SAVED_MAX", v);
+	}
 #endif
+        rb_define_const(rb_mProcess, "RLIM_INFINITY", inf);
 #ifdef RLIM_SAVED_CUR
-        v = RLIM_INFINITY == RLIM_SAVED_CUR ? inf : RLIM2NUM(RLIM_SAVED_CUR);
-        rb_define_const(rb_mProcess, "RLIM_SAVED_CUR", v);
+	{
+	    VALUE v = RLIM_INFINITY == RLIM_SAVED_CUR ? inf : RLIM2NUM(RLIM_SAVED_CUR);
+	    rb_define_const(rb_mProcess, "RLIM_SAVED_CUR", v);
+	}
 #endif
     }
 #ifdef RLIMIT_CORE
@@ -5176,9 +5551,9 @@ Init_process(void)
     rb_objc_define_method(*(VALUE *)rb_mProcess, "gid", proc_getgid, 0);
     rb_objc_define_method(*(VALUE *)rb_mProcess, "gid=", proc_setgid, 1);
     rb_objc_define_method(*(VALUE *)rb_mProcess, "euid", proc_geteuid, 0);
-    rb_objc_define_method(*(VALUE *)rb_mProcess, "euid=", proc_seteuid, 1);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "euid=", proc_seteuid_m, 1);
     rb_objc_define_method(*(VALUE *)rb_mProcess, "egid", proc_getegid, 0);
-    rb_objc_define_method(*(VALUE *)rb_mProcess, "egid=", proc_setegid, 1);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "egid=", proc_setegid_m, 1);
     rb_objc_define_method(*(VALUE *)rb_mProcess, "initgroups", proc_initgroups, 2);
     rb_objc_define_method(*(VALUE *)rb_mProcess, "groups", proc_getgroups, 0);
     rb_objc_define_method(*(VALUE *)rb_mProcess, "groups=", proc_setgroups, 1);

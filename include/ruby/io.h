@@ -57,6 +57,8 @@ NORETURN(void rb_eof_error(void));
 
 long rb_io_primitive_read(struct rb_io_t *io_struct, char *buffer, long len);
 
+int rb_io_modestr_fmode(const char *modestr);
+int rb_io_modestr_oflags(const char *modestr);
 int rb_io_wait_readable(int fd);
 int rb_io_wait_writable(int fd);
 int rb_io_read_pending(rb_io_t *io_struct);
