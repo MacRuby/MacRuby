@@ -173,3 +173,12 @@ The following environment variables might help you debug easy bugs.
 
 * To print the GC references of a given memory object:
   (gdb) info gc-references <address>
+  
+* To print the content of Ruby object:
+  (gdb) rp <variable name of Ruby object>
+  
+  ex)
+  (gdb) rp str
+  $1 = "T_STRING:"
+  $2 = {basic = {klass = 17183054944, flags = 0}, encoding = 0x40040a280, capacity_in_bytes = 6, length_in_bytes = 5, cached_length = 0, 
+    bytes = 0x40049e640 "hello", flags = 0 '\0'}
