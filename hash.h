@@ -12,7 +12,8 @@
 extern "C" {
 #endif
 
-typedef struct {
+
+typedef struct RHash {
     struct RBasic basic;
     st_table *tbl;
     VALUE ifnone;

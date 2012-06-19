@@ -14,7 +14,7 @@
 extern "C" {
 #endif
 
-typedef struct {
+typedef struct RArray {
     struct RBasic basic;
     size_t beg;
     size_t len;

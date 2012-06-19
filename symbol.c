@@ -26,7 +26,7 @@ static pthread_mutex_t local_lock = PTHREAD_MUTEX_INITIALIZER;
 static CFMutableDictionaryRef sym_id = NULL, id_str = NULL;
 static long last_id = 0;
 
-typedef struct {
+typedef struct rb_sym_t {
     VALUE klass;
     VALUE str;
     ID id;

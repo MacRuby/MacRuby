@@ -53,7 +53,7 @@ extern "C" {
 
 typedef uint8_t str_flag_t;
 
-typedef struct {
+typedef struct RString {
     struct RBasic basic;
     struct rb_encoding *encoding;
     long capacity_in_bytes;
