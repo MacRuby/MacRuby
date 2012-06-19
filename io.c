@@ -487,6 +487,13 @@ prep_io(int fd, int mode, VALUE klass, const char *path)
     return io;
 }
 
+void
+rb_io_synchronized(rb_io_t *io_struct)
+{
+    rb_io_check_initialized(io_struct);
+    io_struct->mode |= FMODE_SYNC;
+}
+
 /*
  *  call-seq:
  *     ios.syswrite(string)   => integer
@@ -4328,6 +4335,8 @@ rb_io_s_pipe(VALUE recv, SEL sel, int argc, VALUE *argv)
 
     rd = prep_io(fd[0], FMODE_READABLE, recv, NULL);
     wr = prep_io(fd[1], FMODE_WRITABLE, recv, NULL);
+    rb_io_t *io_struct_wr = ExtractIOStruct(wr);
+    rb_io_synchronized(io_struct_wr);
 
     VALUE ret = rb_assoc_new(rd, wr);
     if (rb_block_given_p()) {
