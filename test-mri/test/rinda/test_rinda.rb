@@ -264,8 +264,6 @@ module TupleSpaceTestModule
   end
 
   def test_core_01
-    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
-
     5.times do |n|
       @ts.write([:req, 2])
     end
@@ -322,8 +320,6 @@ module TupleSpaceTestModule
   end
 
   def test_core_03_notify
-    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
-
     notify1 = @ts.notify(nil, [:req, Integer])
     notify2 = @ts.notify(nil, [:ans, Integer], 8)
     notify3 = @ts.notify(nil, {"message"=>String, "name"=>String}, 8)

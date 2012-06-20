@@ -240,8 +240,6 @@ class TestClass < Test::Unit::TestCase
   end
 
   def test_nested_class_removal
-    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
-
     assert_normal_exit('File.__send__(:remove_const, :Stat); at_exit{File.stat(".")}; GC.start')
   end
 end

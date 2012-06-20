@@ -38,8 +38,6 @@ class TestOpen3 < Test::Unit::TestCase
   end
 
   def test_block
-    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
-
     r = Open3.popen3(RUBY, '-e', 'STDOUT.print STDIN.read') {|i,o,e,t|
       i.print "baz"
       i.close
@@ -125,8 +123,6 @@ class TestOpen3 < Test::Unit::TestCase
   end
 
   def test_capture3
-    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
-
     o, e, s = Open3.capture3(RUBY, '-e', 'i=STDIN.read; print i+"o"; STDOUT.flush; STDERR.print i+"e"', :stdin_data=>"i")
     assert_equal("io", o)
     assert_equal("ie", e)
@@ -141,16 +137,12 @@ class TestOpen3 < Test::Unit::TestCase
   end
 
   def test_capture2
-    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
-
     o, s = Open3.capture2(RUBY, '-e', 'i=STDIN.read; print i+"o"', :stdin_data=>"i")
     assert_equal("io", o)
     assert(s.success?)
   end
 
   def test_capture2e
-    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
-
     oe, s = Open3.capture2e(RUBY, '-e', 'i=STDIN.read; print i+"o"; STDOUT.flush; STDERR.print i+"e"', :stdin_data=>"i")
     assert_equal("ioie", oe)
     assert(s.success?)

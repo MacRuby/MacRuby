@@ -232,8 +232,6 @@ class TestProcess < Test::Unit::TestCase
   ENVCOMMAND = [RUBY].concat(PREENVARG).concat(ENVARG)
 
   def test_execopts_env
-    skip("[BUG : #???] Abort")
-
     assert_raise(ArgumentError) {
       system({"F=O"=>"BAR"}, *TRUECOMMAND)
     }

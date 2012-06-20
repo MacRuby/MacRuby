@@ -400,8 +400,6 @@ class TestTimeExtension < Test::Unit::TestCase # :nodoc:
   end
 
   def test_huge_precision
-    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
-
     bug4456 = '[ruby-dev:43284]'
     assert_normal_exit %q{ Time.now.strftime("%1000000000F") }, bug4456
   end
