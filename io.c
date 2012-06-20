@@ -32,6 +32,10 @@
 #include <sys/syscall.h>
 #include <spawn.h>
 
+#if !defined NOFILE
+# define NOFILE 64
+#endif
+
 #define IS_FD_OF_STDIO(x) (x <= 2)
 #define CLOSE_FD(fd)					\
     do {						\
@@ -89,6 +93,8 @@ struct foreach_arg {
 
 #define argf_of(obj) (*(struct argf *)DATA_PTR(obj))
 #define ARGF argf_of(argf)
+
+static int max_file_descriptor = NOFILE;
 
 static VALUE
 pop_last_hash(int *argc_p, VALUE *argv)
@@ -494,6 +500,33 @@ rb_io_synchronized(rb_io_t *io_struct)
     io_struct->mode |= FMODE_SYNC;
 }
 
+void
+rb_close_before_exec(int lowfd, int maxhint, VALUE noclose_fds)
+{
+    int fd, ret;
+    int max = max_file_descriptor;
+    if (max < maxhint)
+        max = maxhint;
+    for (fd = lowfd; fd <= max; fd++) {
+        if (!NIL_P(noclose_fds) &&
+            RTEST(rb_hash_lookup(noclose_fds, INT2FIX(fd))))
+            continue;
+#ifdef FD_CLOEXEC
+	ret = fcntl(fd, F_GETFD);
+	if (ret != -1 && !(ret & FD_CLOEXEC)) {
+            fcntl(fd, F_SETFD, ret|FD_CLOEXEC);
+        }
+#else
+	ret = close(fd);
+#endif
+#define CONTIGUOUS_CLOSED_FDS 20
+        if (ret != -1) {
+	    if (max < fd + CONTIGUOUS_CLOSED_FDS)
+		max = fd + CONTIGUOUS_CLOSED_FDS;
+	}
+    }
+}
+
 /*
  *  call-seq:
  *     ios.syswrite(string)   => integer
@@ -578,6 +611,7 @@ io_write(VALUE io, SEL sel, VALUE data)
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_writable(io_struct);
 
+    rb_thread_fd_writable(io_struct->write_fd);
     ssize_t code = write(io_struct->write_fd, buffer, length);
     if (code == -1) {
 	rb_sys_fail("write() failed");

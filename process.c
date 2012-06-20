@@ -2273,7 +2273,7 @@ rb_run_exec_options_err(const struct rb_exec_arg *e, struct rb_exec_arg *s, char
 #ifdef HAVE_FORK
     obj = rb_ary_entry(options, EXEC_OPTION_CLOSE_OTHERS);
     if (obj != Qfalse) {
-        // TODO rb_close_before_exec(3, FIX2INT(obj), e->redirect_fds);
+	rb_close_before_exec(3, FIX2INT(obj), e->redirect_fds);
     }
 #endif
 
