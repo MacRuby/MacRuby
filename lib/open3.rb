@@ -203,11 +203,13 @@ module Open3
     wait_thr = Process.detach(pid)
     child_io.each {|io| io.close }
     result = [*parent_io, wait_thr]
-    begin
-      return yield(*result)
-    ensure
-      parent_io.each{|io| io.close unless io.closed?}
-      wait_thr.join if wait_thr
+    if defined? yield
+      begin
+	return yield(*result)
+      ensure
+	parent_io.each{|io| io.close unless io.closed?}
+        wait_thr.join
+      end
     end
     result
   end
