@@ -348,6 +348,31 @@ env_select(VALUE ehash, SEL sel)
 }
 
 static VALUE
+env_select_bang(VALUE ehash, SEL sel)
+{
+    volatile VALUE keys;
+    long i;
+    int del = 0;
+
+    RETURN_ENUMERATOR(ehash, 0, 0);
+    keys = env_keys(Qnil, 0);	/* rb_secure(4); */
+    for (i=0; i<RARRAY_LEN(keys); i++) {
+	VALUE val = rb_f_getenv(Qnil, 0, RARRAY_AT(keys, i));
+	if (!NIL_P(val)) {
+	    if (!RTEST(rb_yield_values(2, RARRAY_AT(keys, i), val))) {
+		rb_obj_untaint(RARRAY_AT(keys, i));
+		env_delete(Qnil, RARRAY_PTR(keys)[i]);
+		del++;
+	    }
+	}
+    }
+    if (del == 0) {
+	return Qnil;
+    }
+    return envtbl;
+}
+
+static VALUE
 rb_env_clear_imp(VALUE rcv, SEL sel)
 {
     VALUE keys = env_keys(Qnil, 0);	/* rb_secure(4); */
@@ -710,6 +735,7 @@ Init_ENV(void)
     rb_objc_define_method(klass, "reject", env_reject, 0);
     rb_objc_define_method(klass, "reject!", env_reject_bang, 0);
     rb_objc_define_method(klass, "select", env_select, 0);
+    rb_objc_define_method(klass, "select!", env_select_bang, 0);
     rb_objc_define_method(klass, "shift", env_shift, 0);
     rb_objc_define_method(klass, "invert", env_invert, 0);
     rb_objc_define_method(klass, "replace", env_replace, 1);
