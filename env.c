@@ -152,10 +152,14 @@ void
 ruby_setenv(const char *name, const char *value)
 {
     if (value != NULL) {
-	setenv(name, value, 1);
+	if (setenv(name, value, 1)) {
+	    rb_sys_fail("setenv");
+	}
     }
     else {
-	unsetenv(name);
+	if (unsetenv(name)) {
+	    rb_sys_fail("unsetenv");
+	}
     }
 }
 
