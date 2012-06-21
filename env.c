@@ -373,6 +373,14 @@ env_select_bang(VALUE ehash, SEL sel)
 }
 
 static VALUE
+env_keep_if(VALUE ehash, SEL sel)
+{
+    RETURN_ENUMERATOR(ehash, 0, 0);
+    env_select_bang(ehash, 0);
+    return envtbl;
+}
+
+static VALUE
 rb_env_clear_imp(VALUE rcv, SEL sel)
 {
     VALUE keys = env_keys(Qnil, 0);	/* rb_secure(4); */
@@ -731,6 +739,7 @@ Init_ENV(void)
     rb_objc_define_method(klass, "each_value", env_each_value, 0);
     rb_objc_define_method(klass, "delete", env_delete_m, 1);
     rb_objc_define_method(klass, "delete_if", env_delete_if, 0);
+    rb_objc_define_method(klass, "keep_if", env_keep_if, 0);
     rb_objc_define_method(klass, "clear", rb_env_clear_imp, 0);
     rb_objc_define_method(klass, "reject", env_reject, 0);
     rb_objc_define_method(klass, "reject!", env_reject_bang, 0);
