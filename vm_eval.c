@@ -338,7 +338,7 @@ specific_eval(int argc, VALUE *argv, VALUE klass, VALUE self)
 		    argc);
         }
 	rb_vm_set_current_scope(klass, SCOPE_PUBLIC);
-        retval = rb_vm_yield_under(klass, self, 0, NULL);
+        retval = rb_vm_yield_under(klass, self, 1, &self);
     }
     else {
 	const char *file = "(eval)";
