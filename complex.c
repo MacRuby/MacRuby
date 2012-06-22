@@ -1425,7 +1425,7 @@ nucomp_to_r(VALUE self, SEL sel)
  * eps is always ignored.
  */
 static VALUE
-nucomp_rationalize(VALUE self, int argc, VALUE *argv)
+nucomp_rationalize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     rb_scan_args(argc, argv, "01", NULL);
     return nucomp_to_r(self, 0);
