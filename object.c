@@ -264,7 +264,7 @@ static VALUE rb_class_s_alloc(VALUE, SEL);
 static VALUE
 rb_obj_clone_imp(VALUE obj, SEL sel)
 {
-    if (rb_special_const_p(obj)) {
+    if (rb_special_const_p(obj) || TYPE(obj) == T_SYMBOL) {
         rb_raise(rb_eTypeError, "can't clone %s", rb_obj_classname(obj));
     }
 
