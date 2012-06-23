@@ -326,6 +326,20 @@ Init_PreSymbol(void)
 /*
  * call-seq:
  *
+ *   sym.succ
+ *
+ * Same as <code>sym.to_s.succ.intern</code>.
+ */
+
+static VALUE
+rsym_succ(VALUE sym, SEL sel)
+{
+    return rb_str_intern(rb_str_succ(rb_sym_to_s(sym)));
+}
+
+/*
+ * call-seq:
+ *
  *   str <=> other       => -1, 0, +1 or nil
  *
  * Compares _sym_ with _other_ in string form.
@@ -818,6 +832,8 @@ Init_Symbol(void)
     rb_objc_define_method(rb_cSymbol, "downcase", rsym_downcase, 0);
     rb_objc_define_method(rb_cSymbol, "swapcase", rsym_swapcase, 0);
     rb_objc_define_method(rb_cSymbol, "capitalize", rsym_capitalize, 0);
+    rb_objc_define_method(rb_cSymbol, "succ", rsym_succ, 0);
+    rb_objc_define_method(rb_cSymbol, "next", rsym_succ, 0);
 
     // Cocoa primitives.
     rb_objc_install_method2((Class)rb_cSymbol, "copy",

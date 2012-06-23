@@ -5127,6 +5127,12 @@ rstr_succ(VALUE str, SEL sel)
     return newstr;
 }
 
+VALUE
+rb_str_succ(VALUE str)
+{
+    return rstr_succ(str, 0);
+}
+
 /*
  *  call-seq:
  *     str.succ!   => str
