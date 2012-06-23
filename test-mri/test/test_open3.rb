@@ -130,6 +130,8 @@ class TestOpen3 < Test::Unit::TestCase
   end
 
   def test_capture3_flip
+    skip("[BUG : #???]")
+
     o, e, s = Open3.capture3(RUBY, '-e', 'STDOUT.sync=true; 1000.times { print "o"*1000; STDERR.print "e"*1000 }')
     assert_equal("o"*1000000, o)
     assert_equal("e"*1000000, e)
