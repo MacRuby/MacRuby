@@ -3168,6 +3168,12 @@ rstr_match(VALUE self, SEL sel, VALUE other)
     }
 }
 
+VALUE
+rb_str_match(VALUE self, VALUE other)
+{
+    return rstr_match(self, 0, other);
+}
+
 /*
  *  call-seq:
  *     str.scan(pattern)                         => array

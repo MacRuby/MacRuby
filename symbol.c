@@ -678,6 +678,19 @@ rsym_aref(VALUE sym, SEL sel, int argc, VALUE *argv)
 
 /*
  * call-seq:
+ *   sym =~ obj   -> fixnum or nil
+ *
+ * Returns <code>sym.to_s =~ obj</code>.
+ */
+
+static VALUE
+rsym_match(VALUE sym, SEL sel, VALUE other)
+{
+    return rb_str_match(rb_sym_to_s(sym), other);
+}
+
+/*
+ * call-seq:
  *   sym.upcase    => symbol
  *
  * Same as <code>sym.to_s.upcase.intern</code>.
@@ -799,6 +812,8 @@ Init_Symbol(void)
     rb_objc_define_method(rb_cSymbol, "to_sym", rsym_to_sym, 0);
     rb_objc_define_method(rb_cSymbol, "empty?", rsym_empty, 0);
     rb_objc_define_method(rb_cSymbol, "[]", rsym_aref, -1);
+    rb_objc_define_method(rb_cSymbol, "=~", rsym_match, 1);
+    rb_objc_define_method(rb_cSymbol, "match", rsym_match, 1);
     rb_objc_define_method(rb_cSymbol, "upcase", rsym_upcase, 0);
     rb_objc_define_method(rb_cSymbol, "downcase", rsym_downcase, 0);
     rb_objc_define_method(rb_cSymbol, "swapcase", rsym_swapcase, 0);

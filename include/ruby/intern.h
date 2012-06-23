@@ -561,6 +561,7 @@ void rb_str_setter(VALUE, ID, VALUE*);
 VALUE rb_str_intern(VALUE);
 VALUE rb_sym_to_s(VALUE);
 VALUE rb_str_length(VALUE);
+VALUE rb_str_match(VALUE, VALUE);
 
 // Return a string object appropriate for bstr_ calls. This does nothing for
 // data/binary RubyStrings.

@@ -1,2 +1,0 @@
-fails:Symbol#match returns the index of the beginning of the match
-fails:Symbol#match sets the last match pseudo-variables
