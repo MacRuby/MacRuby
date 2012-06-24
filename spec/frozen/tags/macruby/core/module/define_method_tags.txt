@@ -5,4 +5,3 @@ fails:Module#define_method passed { |a, *b|  } creates a method that raises an A
 fails:Module#define_method passed { |a, b, *c|  } creates a method that raises an ArgumentError when passed zero arguments
 fails:Module#define_method passed { |a, b, *c|  } creates a method that raises an ArgumentError when passed one argument
 fails:Module#define_method passed { |a, b, *c|  } creates a method that raises an ArgumentError when passed one argument and a block
-fails:Module#define_method raises a RuntimeError if frozen

@@ -2671,6 +2671,10 @@ __rb_vm_define_method(Class klass, SEL sel, IMP objc_imp, IMP ruby_imp,
 	return NULL;
     }
 
+    if (OBJ_FROZEN(klass)) {
+	rb_error_frozen("class/module");
+    }
+
     const char *sel_name = sel_getName(sel);
     const bool genuine_selector = sel_name[strlen(sel_name) - 1] == ':';
     int types_count = genuine_selector ? arity.real + 3 : 3;
