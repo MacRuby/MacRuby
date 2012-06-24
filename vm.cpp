@@ -2123,6 +2123,9 @@ prepare_method(Class klass, bool dynamic_class, SEL sel, void *data,
 	const rb_vm_arity_t &arity, int flags, bool precompiled,
 	void *objc_imp_types)
 {
+    if (OBJ_FROZEN(klass)) {
+	rb_error_frozen("class/module");
+    }
     if (dynamic_class) {
 	Class k;
 	rb_vm_outer_t *o = GET_VM()->get_outer_stack();
