@@ -2816,6 +2816,8 @@ rb_vm_undef_method(Class klass, ID name, bool check)
 	rb_raise(rb_eTypeError, "no class to undef method");
     }
 
+    rb_frozen_class_p((VALUE)klass);
+
     const char *name_str = rb_id2name(name);
     SEL sel0 = rb_vm_name_to_sel(name_str, 0);
     SEL sel1 = rb_vm_name_to_sel(name_str, 1);
