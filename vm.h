@@ -667,8 +667,9 @@ rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *argv)
 static inline VALUE
 rb_vm_call_super(VALUE self, SEL sel, int argc, const VALUE *argv)
 {
+    rb_vm_block_t *b = rb_vm_current_block();
     return rb_vm_call0(rb_vm_current_vm(), 0, self, (Class)CLASS_OF(self), sel,
-	    NULL, DISPATCH_SUPER, argc, argv);
+	    b, DISPATCH_SUPER, argc, argv);
 }
 
 static inline VALUE
