@@ -4769,9 +4769,8 @@ RoxorVM::exec_recursive(VALUE (*func) (VALUE, VALUE, int), VALUE obj,
 	    throw;
 	}
 	catch (...) {
-	    RoxorSpecialException *exc = get_special_exc();
 	    remove_recursive_object(obj);
-	    throw exc;
+	    throw;
 	}
 	remove_recursive_object(obj);
 	return ret;
