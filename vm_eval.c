@@ -682,8 +682,15 @@ rb_throw_obj(VALUE tag, VALUE val)
  */
 
 static VALUE
-rb_f_catch(VALUE rcv, SEL sel, VALUE tag)
+rb_f_catch(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
+    VALUE tag;
+    if (argc == 0) {
+	tag = rb_obj_alloc(rb_cObject);
+    }
+    else {
+	rb_scan_args(argc, argv, "01", &tag);
+    }
     return rb_vm_catch(tag);
 }
 
@@ -751,7 +758,7 @@ rb_make_backtrace(void)
 void
 Init_vm_eval(void)
 {
-    rb_objc_define_module_function(rb_mKernel, "catch", rb_f_catch, 1);
+    rb_objc_define_module_function(rb_mKernel, "catch", rb_f_catch, -1);
     rb_objc_define_module_function(rb_mKernel, "throw", rb_f_throw, -1);
 
     rb_objc_define_module_function(rb_mKernel, "loop", rb_f_loop, 0);

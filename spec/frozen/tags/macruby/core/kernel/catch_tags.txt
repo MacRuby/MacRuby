@@ -1,2 +1,1 @@
 fails:Kernel.catch yields a new, unique object when called without arguments
-fails:Kernel.catch yields an object when called without arguments
