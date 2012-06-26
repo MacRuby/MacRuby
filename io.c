@@ -3496,6 +3496,7 @@ rb_io_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
     }
 
     ofmode = convert_oflags_to_fmode(oflags);
+    mode = rb_check_string_type(mode);
     if (NIL_P(mode)) {
 	mode_flags = ofmode;
     }
