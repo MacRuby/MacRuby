@@ -2648,6 +2648,7 @@ io_from_spawning_new_process(VALUE klass, VALUE prog, VALUE mode)
 	rb_sys_fail("posix_spawn() failed");
     }
 
+    StringValue(mode);
     io_struct->fd = fd_r[0];
     io_struct->pid = pid;
     io_struct->mode = mode;
