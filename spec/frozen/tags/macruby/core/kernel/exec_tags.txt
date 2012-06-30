@@ -1,2 +1,0 @@
-fails:Kernel#exec raises an ArgumentError if the command includes a null byte
-fails:Kernel.exec raises an ArgumentError if the command includes a null byte

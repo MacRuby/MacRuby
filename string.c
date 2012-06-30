@@ -6579,13 +6579,20 @@ char *
 rb_string_value_cstr(volatile VALUE *ptr)
 {
     VALUE str = rb_string_value(ptr);
-    return (char *)rb_str_cstr(str);
+    const char *s = rb_str_cstr(str);
+    long len = RSTRING_LEN(str);
+
+    if (len != strlen(s)) {
+	rb_raise(rb_eArgError, "string contains null byte");
+    }
+    return (char *)s;
 }
 
 char *
 rb_string_value_ptr(volatile VALUE *ptr)
 {
-    return rb_string_value_cstr(ptr);
+    VALUE str = rb_string_value(ptr);
+    return (char*)rb_str_cstr(str);
 }
 
 VALUE
