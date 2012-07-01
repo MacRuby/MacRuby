@@ -643,7 +643,7 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	    arg->taint = Qtrue;
 	}
 
-	if (rb_obj_respond_to(obj, s_mdump, Qtrue)) {
+	if (rb_respond_to(obj, s_mdump)) {
 	    volatile VALUE v;
 
             st_add_direct(arg->data, obj, arg->data->num_entries);
@@ -655,7 +655,7 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	    if (hasiv) w_ivar(obj, 0, &c_arg);
 	    return;
 	}
-	if (rb_obj_respond_to(obj, s_dump, Qtrue)) {
+	if (rb_respond_to(obj, s_dump)) {
 	    VALUE v;
             st_table *ivtbl2 = 0;
             int hasiv2;
@@ -842,7 +842,7 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	    {
 		VALUE v;
 
-		if (!rb_obj_respond_to(obj, s_dump_data, Qtrue)) {
+		if (!rb_respond_to(obj, s_dump_data)) {
 		    rb_raise(rb_eTypeError,
 			     "no marshal_dump is defined for class %s",
 			     rb_obj_classname(obj));
@@ -954,7 +954,7 @@ marshal_dump(VALUE self, SEL sel, int argc, VALUE *argv)
     arg->dest = 0;
     bool got_io = false;
     if (!NIL_P(port)) {
-	if (!rb_obj_respond_to(port, s_write, Qtrue)) {
+	if (!rb_respond_to(port, s_write)) {
 type_error:
 	    rb_raise(rb_eTypeError, "instance of IO needed");
 	}
@@ -962,7 +962,7 @@ type_error:
 #if 0 // unused
 	GC_WB(&arg->dest, port);
 #endif
-	if (rb_obj_respond_to(port, s_binmode, Qtrue)) {
+	if (rb_respond_to(port, s_binmode)) {
 	    rb_funcall2(port, s_binmode, 0, 0);
 	}
 	got_io = true;
@@ -1547,7 +1547,7 @@ format_error:
 	    VALUE klass = path2class(r_unique(arg));
 	    VALUE data;
 
-	    if (!rb_obj_respond_to(klass, s_load, Qtrue)) {
+	    if (!rb_respond_to(klass, s_load)) {
 		rb_raise(rb_eTypeError, "class %s needs to have method `_load'",
 			 rb_class2name(klass));
 	    }
@@ -1575,7 +1575,7 @@ format_error:
                     rb_extend_object(v, m);
                 }
             }
-	    if (!rb_obj_respond_to(v, s_mload, Qtrue)) {
+	    if (!rb_respond_to(v, s_mload)) {
 		rb_raise(rb_eTypeError, "instance of %s needs to have method `marshal_load'",
 			 rb_class2name(klass));
 	    }
@@ -1603,7 +1603,7 @@ format_error:
       case TYPE_DATA:
        {
            VALUE klass = path2class(r_unique(arg));
-           if (rb_obj_respond_to(klass, s_alloc, Qtrue)) {
+           if (rb_respond_to(klass, s_alloc)) {
 	       static int warn = Qtrue;
 	       if (warn) {
 		   rb_warn("define `allocate' instead of `_alloc'");
@@ -1619,7 +1619,7 @@ format_error:
                rb_raise(rb_eArgError, "dump format error");
            }
            v = r_entry(v, arg);
-           if (!rb_obj_respond_to(v, s_load_data, Qtrue)) {
+           if (!rb_respond_to(v, s_load_data)) {
                rb_raise(rb_eTypeError,
                         "class %s needs to have instance method `_load_data'",
                         rb_class2name(klass));
@@ -1728,9 +1728,8 @@ marshal_load(VALUE self, SEL sel, int argc, VALUE *argv)
 	v = rb_str_bstr(v);
 	port = v;
     }
-    else if (rb_obj_respond_to(port, s_getbyte, Qtrue)
-	    && rb_obj_respond_to(port, s_read, Qtrue)) {
-	if (rb_obj_respond_to(port, s_binmode, Qtrue)) {
+    else if (rb_respond_to(port, s_getbyte) && rb_respond_to(port, s_read)) {
+	if (rb_respond_to(port, s_binmode)) {
 	    rb_funcall2(port, s_binmode, 0, 0);
 	}
 	arg->taint = Qtrue;
