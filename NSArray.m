@@ -765,7 +765,7 @@ nsary_reject(id rcv, SEL sel)
     RETURN_ENUMERATOR(rcv, 0, 0);
     NSMutableArray *result = [NSMutableArray arrayWithArray:rcv];
     reject(result);
-    return (VALUE)rcv;
+    return (VALUE)result;
 }
 
 static VALUE
