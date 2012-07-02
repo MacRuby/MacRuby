@@ -546,7 +546,7 @@ nsary_rindex(id rcv, SEL sel, int argc, VALUE *argv)
     if (argc == 0) {
 	RETURN_ENUMERATOR(rcv, 0, 0);
 	long i = len;
-	while (i-- >= 0) {
+	while (i-- > 0) {
 	    VALUE test = rb_yield(OC2RB([rcv objectAtIndex:i]));
 	    RETURN_IF_BROKEN();
 	    if (RTEST(test)) {
