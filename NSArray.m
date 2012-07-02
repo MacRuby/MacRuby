@@ -666,6 +666,11 @@ nsary_values_at(id rcv, SEL sel, int argc, VALUE *argv)
     NSMutableArray *result = [NSMutableArray new];
     for (long i = 0; i < argc; i++) {
 	long beg, len;
+	if (FIXNUM_P(argv[i])) {
+	    id entry = (id)nsary_entry(rcv, FIX2LONG(argv[i]));
+	    [result addObject:RB2OC(entry)];
+	    continue;
+	}
 	switch (rb_range_beg_len(argv[i], &beg, &len, rcvlen, 0)) {
 	    // Check if Range.
 	    case Qfalse:
