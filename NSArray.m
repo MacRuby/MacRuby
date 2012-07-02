@@ -619,7 +619,7 @@ nsary_sort(id rcv, SEL sel)
 static VALUE
 nsary_sort_by_i(VALUE i)
 {
-    return rb_yield(OC2RB(i));
+    return rb_yield(i);
 }
 
 static VALUE
