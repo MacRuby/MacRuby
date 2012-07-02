@@ -617,6 +617,25 @@ nsary_sort(id rcv, SEL sel)
 }
 
 static VALUE
+nsary_sort_by_i(VALUE i)
+{
+    return rb_yield(OC2RB(i));
+}
+
+static VALUE
+nsary_sort_by_bang(id rcv, SEL sel)
+{
+    RETURN_ENUMERATOR(rcv, 0, 0);
+
+    CHECK_MUTABLE(rcv);
+    VALUE sorted = rb_objc_block_call((VALUE)rcv, sel_registerName("sort_by"), 0, 0,
+	    nsary_sort_by_i, 0);
+    TRY_MOP([rcv setArray:(id)sorted]);
+
+    return (VALUE)rcv;
+}
+
+static VALUE
 collect(id rcv)
 {
     CHECK_MUTABLE(rcv);
@@ -1029,6 +1048,7 @@ Init_NSArray(void)
     rb_objc_define_method(rb_cArray, "reverse!", nsary_reverse_bang, 0);
     rb_objc_define_method(rb_cArray, "sort", nsary_sort, 0);
     rb_objc_define_method(rb_cArray, "sort!", nsary_sort_bang, 0);
+    rb_objc_define_method(rb_cArray, "sort_by!", nsary_sort_by_bang, 0);
     rb_objc_define_method(rb_cArray, "collect", nsary_collect, 0);
     rb_objc_define_method(rb_cArray, "collect!", nsary_collect_bang, 0);
     rb_objc_define_method(rb_cArray, "map", nsary_collect, 0);
