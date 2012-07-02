@@ -3103,7 +3103,7 @@ rary_flatten(VALUE ary, SEL sel, int argc, VALUE *argv)
 	level = NUM2INT(lv);
     }
     if (level == 0) {
-	return rary_dup(ary, 0);
+	return rb_ary_dup(ary);
     }
 
     result = flatten(ary, level, &mod);
