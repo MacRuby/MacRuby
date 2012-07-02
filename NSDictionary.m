@@ -261,6 +261,9 @@ nshash_values_at(id rcv, SEL sel, int argc, VALUE *argv)
     NSMutableArray *ary = [NSMutableArray new];
     for (int i = 0; i < argc; i++) {
 	id value = [rcv objectForKey:RB2OC(argv[i])];
+	if (value == NULL) {
+	    value = (id)kCFNull;
+	}
 	[ary addObject:value];
     }
     return ary;
