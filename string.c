@@ -6735,6 +6735,9 @@ rb_enc_str_buf_cat(VALUE str, const char *cstr, long len, rb_encoding_t *enc)
 VALUE
 rb_str_buf_cat(VALUE str, const char *cstr, long len)
 {
+    if (!IS_RSTR(str)) {
+	str = (VALUE)str_new_from_cfstring((CFStringRef)str);
+    }
     return rb_enc_str_buf_cat(str, cstr, len, RSTR(str)->encoding);
 }
 
