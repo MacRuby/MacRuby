@@ -922,24 +922,53 @@ nsary_times(id rcv, SEL sel, VALUE times)
     return result;
 }
 
+static int
+nsary_push_value(st_data_t key, st_data_t val, st_data_t ary)
+{
+    rb_ary_push((VALUE)ary, (VALUE)val);
+    return ST_CONTINUE;
+}
+
 static VALUE
 nsary_uniq_bang(id rcv, SEL sel)
 {
     CHECK_MUTABLE(rcv);
+    VALUE hash;
     long len = [rcv count];
     bool changed = false;
-    for (long i = 0; i < len; i++) {
-	id elem = [rcv objectAtIndex:i];
-	NSRange range = NSMakeRange(i + 1, len - i - 1);
-	NSUInteger index;
-	while ((index = [rcv indexOfObject:elem inRange:range]) != NSNotFound) {
-	    TRY_MOP([rcv removeObjectAtIndex:index]);
-	    range.location = index;
-	    range.length = --len - index;
-	    changed = true;
+    if (len <= 1) {
+	return Qnil;
+    }
+
+    NSMutableArray *result = [NSMutableArray new];
+    if (rb_block_given_p()) {
+	hash = rb_ary_make_hash_by((VALUE)rcv);
+	if (len == RHASH_SIZE(hash)) {
+	    return Qnil;
+	}
+	st_foreach(RHASH_TBL(hash), nsary_push_value, (st_data_t)result);
+	changed = true;
+    }
+    else {
+	hash = rb_ary_make_hash((VALUE)rcv, 0);
+	if (len == RHASH_SIZE(hash)) {
+	    return Qnil;
+	}
+	for (long i = 0; i < len; i++) {
+	    id elem = [rcv objectAtIndex:i];
+	    st_data_t vv = (st_data_t)OC2RB(elem);
+	    if (st_delete(RHASH_TBL(hash), &vv, 0)) {
+		[result addObject:elem];
+		changed = true;
+	    }
 	}
     }
-    return changed ? (VALUE)rcv : Qnil;
+
+    if (!changed) {
+	return Qnil;
+    }
+    [rcv setArray:result];
+    return (VALUE)rcv;
 }
 
 static id 

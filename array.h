@@ -185,6 +185,9 @@ VALUE rary_diff(VALUE ary1, SEL sel, VALUE ary2);
 VALUE rary_and(VALUE ary1, SEL sel, VALUE ary2);
 VALUE rary_or(VALUE ary1, SEL sel, VALUE ary2);
 
+VALUE rb_ary_make_hash(VALUE ary1, VALUE ary2);
+VALUE rb_ary_make_hash_by(VALUE ary);
+
 unsigned long rb_ary_hash(VALUE ary);
 VALUE rb_f_array(VALUE, SEL, VALUE);
 

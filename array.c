@@ -2698,8 +2698,8 @@ rary_cmp(VALUE ary1, SEL sel, VALUE ary2)
  *     [ 1, 1, 2, 2, 3, 3, 4, 5 ] - [ 1, 2, 4 ]  #=>  [ 3, 3, 5 ]
  */
 
-static VALUE
-ary_make_hash(VALUE ary1, VALUE ary2)
+VALUE
+rb_ary_make_hash(VALUE ary1, VALUE ary2)
 {
     VALUE hash = rb_hash_new();
     for (long i = 0; i < RARRAY_LEN(ary1); i++) {
@@ -2713,8 +2713,8 @@ ary_make_hash(VALUE ary1, VALUE ary2)
     return hash;
 }
 
-static VALUE
-ary_make_hash_by(VALUE ary)
+VALUE
+rb_ary_make_hash_by(VALUE ary)
 {
     VALUE hash = rb_hash_new();
     for (long i = 0; i < RARRAY_LEN(ary); ++i) {
@@ -2741,7 +2741,7 @@ rary_diff(VALUE ary1, SEL sel, VALUE ary2)
 	return ary3;
     }
 
-    VALUE hash = ary_make_hash(ary2, 0);
+    VALUE hash = rb_ary_make_hash(ary2, 0);
     for (long i = 0; i < ary1_len; i++) {
 	VALUE v = RARRAY_AT(ary1, i);
 	if (rb_hash_has_key(hash, v) == Qfalse) {
@@ -2779,7 +2779,7 @@ rary_and(VALUE ary1, SEL sel, VALUE ary2)
     ary2 = to_ary(ary2);
     VALUE ary3 = rb_ary_new2(RARRAY_LEN(ary1) < RARRAY_LEN(ary2) ?
 	    RARRAY_LEN(ary1) : RARRAY_LEN(ary2));
-    VALUE hash = ary_make_hash(ary2, 0);
+    VALUE hash = rb_ary_make_hash(ary2, 0);
     if (RHASH_EMPTY_P(hash)) {
         return ary3;
     }
@@ -2804,7 +2804,7 @@ rary_or(VALUE ary1, SEL sel, VALUE ary2)
 {
     ary2 = to_ary(ary2);
     VALUE ary3 = rb_ary_new2(RARRAY_LEN(ary1) + RARRAY_LEN(ary2));
-    VALUE hash = ary_make_hash(ary1, ary2);
+    VALUE hash = rb_ary_make_hash(ary1, ary2);
     filter_diff(ary1, ary3, hash);
     filter_diff(ary2, ary3, hash);
     return ary3;
@@ -2842,7 +2842,7 @@ rary_uniq_bang(VALUE ary, SEL sel)
         return Qnil;
     }
     if (rb_block_given_p()) {
-	hash = ary_make_hash_by(ary);
+	hash = rb_ary_make_hash_by(ary);
 	if (RARRAY_LEN(ary) == RHASH_SIZE(hash)) {
 	    return Qnil;
 	}
@@ -2851,7 +2851,7 @@ rary_uniq_bang(VALUE ary, SEL sel)
 	rary_resize(ary, RHASH_SIZE(hash));
     }
     else {
-	hash = ary_make_hash(ary, 0);
+	hash = rb_ary_make_hash(ary, 0);
 	if (RARRAY_LEN(ary) == RHASH_SIZE(hash)) {
 	    return Qnil;
 	}
