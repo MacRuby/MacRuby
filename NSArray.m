@@ -699,6 +699,14 @@ nsary_select_bang(id rcv, SEL sel)
     return (VALUE)rcv;
 }
 
+static VALUE
+nsary_keep_if(id rcv, SEL sel)
+{
+    RETURN_ENUMERATOR(rcv, 0, 0);
+    nsary_select_bang(rcv, 0);
+    return (VALUE)rcv;
+}
+
 static id
 nsary_values_at(id rcv, SEL sel, int argc, VALUE *argv)
 {
@@ -1076,6 +1084,7 @@ Init_NSArray(void)
     rb_objc_define_method(rb_cArray, "map!", nsary_collect_bang, 0);
     rb_objc_define_method(rb_cArray, "select", nsary_select, 0);
     rb_objc_define_method(rb_cArray, "select!", nsary_select_bang, 0);
+    rb_objc_define_method(rb_cArray, "keep_if", nsary_keep_if, 0);
     rb_objc_define_method(rb_cArray, "values_at", nsary_values_at, -1);
     rb_objc_define_method(rb_cArray, "delete", nsary_delete, 1);
     rb_objc_define_method(rb_cArray, "delete_at", nsary_delete_at, 1);
