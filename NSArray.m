@@ -1155,6 +1155,8 @@ Init_NSArray(void)
     rb_objc_define_method(rb_cArray, "permutation", rary_permutation, -1);
     rb_objc_define_method(rb_cArray, "cycle", rary_cycle, -1);
     rb_objc_define_method(rb_cArray, "sample", rary_sample, -1);
+    rb_objc_define_method(rb_cArray, "rotate", rary_rotate, -1);
+    rb_objc_define_method(rb_cArray, "rotate!", rary_rotate_bang, -1);
 }
 
 // MRI compatibility API.
@@ -1198,6 +1200,17 @@ rb_ary_elt(VALUE ary, long offset)
 	}
     }
     return Qnil;
+}
+
+void
+rb_ary_elt_set(VALUE ary, long offset, VALUE item)
+{
+    if (IS_RARY(ary)) {
+	rary_elt_set(ary, offset, item);
+    }
+    else {
+	[(id)ary replaceObjectAtIndex:(NSUInteger)offset withObject:RB2OC(item)];
+    }
 }
 
 VALUE

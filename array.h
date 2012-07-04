@@ -184,6 +184,8 @@ VALUE rary_sample(VALUE ary, SEL sel, int argc, VALUE *argv);
 VALUE rary_diff(VALUE ary1, SEL sel, VALUE ary2);
 VALUE rary_and(VALUE ary1, SEL sel, VALUE ary2);
 VALUE rary_or(VALUE ary1, SEL sel, VALUE ary2);
+VALUE rary_rotate(VALUE ary, SEL sel, int argc, VALUE *argv);
+VALUE rary_rotate_bang(VALUE ary, SEL sel, int argc, VALUE *argv);
 
 VALUE rb_ary_make_hash(VALUE ary1, VALUE ary2);
 VALUE rb_ary_make_hash_by(VALUE ary);

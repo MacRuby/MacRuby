@@ -1347,9 +1347,9 @@ static void
 ary_reverse(VALUE ary, long pos1, long pos2)
 {
     while (pos1 < pos2) {
-	VALUE elem = rary_elt(ary, pos1);
-	rary_elt_set(ary, pos1, rary_elt(ary, pos2));
-	rary_elt_set(ary, pos2, elem);
+	VALUE elem = rb_ary_elt(ary, pos1);
+	rb_ary_elt_set(ary, pos1, rb_ary_elt(ary, pos2));
+	rb_ary_elt_set(ary, pos2, elem);
 	pos1++;
 	pos2--;
     }
@@ -1359,7 +1359,7 @@ VALUE
 ary_rotate(VALUE ary, long cnt)
 {
     if (cnt != 0) {
-	long len = RARY(ary)->len;
+	long len = rb_ary_len(ary);
 	if (len > 0 && (cnt = rotate_count(cnt, len)) > 0) {
 	    --len;
 	    if (cnt < len) {
@@ -1393,7 +1393,7 @@ ary_rotate(VALUE ary, long cnt)
  *     a.rotate!(-3)    #=> ["a", "b", "c", "d"]
  */
 
-static VALUE
+VALUE
 rary_rotate_bang(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     VALUE n;
@@ -1423,7 +1423,7 @@ rary_rotate_bang(VALUE ary, SEL sel, int argc, VALUE *argv)
  *     a.rotate(-3)     #=> ["b", "c", "d", "a"]
  */
 
-static VALUE
+VALUE
 rary_rotate(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     VALUE rotated;
@@ -1435,8 +1435,8 @@ rary_rotate(VALUE ary, SEL sel, int argc, VALUE *argv)
 	cnt = NUM2LONG(n);
     }
 
-    rotated = rary_dup(ary, 0);
-    if (RARY(ary)->len > 0) {
+    rotated = rb_ary_dup(ary);
+    if (rb_ary_len(ary) > 0) {
 	ary_rotate(rotated, cnt);
     }
     return rotated;
@@ -3829,8 +3829,6 @@ Init_Array(void)
     rb_objc_define_method(rb_cRubyArray, "rindex", rary_rindex, -1);
     rb_objc_define_method(rb_cRubyArray, "reverse", rary_reverse, 0);
     rb_objc_define_method(rb_cRubyArray, "reverse!", rary_reverse_bang, 0);
-    rb_objc_define_method(rb_cRubyArray, "rotate", rary_rotate, -1);
-    rb_objc_define_method(rb_cRubyArray, "rotate!", rary_rotate_bang, -1);
     rb_objc_define_method(rb_cRubyArray, "sort", rary_sort, 0);
     rb_objc_define_method(rb_cRubyArray, "sort!", rary_sort_bang, 0);
     rb_objc_define_method(rb_cRubyArray, "sort_by!", rary_sort_by_bang, 0);

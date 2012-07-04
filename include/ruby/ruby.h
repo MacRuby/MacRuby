@@ -475,6 +475,8 @@ long rb_str_clen(VALUE);
 
 long rb_ary_len(VALUE);
 VALUE rb_ary_elt(VALUE, long);
+void rb_ary_elt_set(VALUE, long, VALUE);
+
 #define RARRAY_LEN(a) (rb_ary_len((VALUE)a))
 #define RARRAY_AT(a,i) (rb_ary_elt((VALUE)a, (long)i))
 /* IMPORTANT: try to avoid using RARRAY_PTR if necessary, because it's
