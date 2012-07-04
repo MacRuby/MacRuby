@@ -131,14 +131,6 @@ rary_push(VALUE ary, VALUE item)
     RARY(ary)->len++;
 }
 
-static inline void
-rb_ary_modify(VALUE ary)
-{
-    if (IS_RARY(ary)) {
-	rary_modify(ary);
-    }
-}
-
 static inline VALUE
 to_ary(VALUE ary)
 {

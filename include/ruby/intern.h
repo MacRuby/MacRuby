@@ -43,6 +43,7 @@ VALUE rb_ary_freeze(VALUE);
 VALUE rb_ary_aref(int, VALUE *, VALUE);
 VALUE rb_ary_subseq(VALUE, long, long);
 void rb_ary_store(VALUE, long, VALUE);
+void rb_ary_modify(VALUE ary);
 VALUE rb_ary_dup(VALUE);
 VALUE rb_ary_to_ary(VALUE);
 VALUE rb_ary_push(VALUE, VALUE);

@@ -1209,7 +1209,7 @@ rb_ary_elt_set(VALUE ary, long offset, VALUE item)
 	rary_elt_set(ary, offset, item);
     }
     else {
-	[(id)ary replaceObjectAtIndex:(NSUInteger)offset withObject:RB2OC(item)];
+	TRY_MOP([(id)ary replaceObjectAtIndex:(NSUInteger)offset withObject:RB2OC(item)]);
     }
 }
 
@@ -1320,6 +1320,17 @@ rb_ary_join(VALUE ary, VALUE sep)
         OBJ_UNTRUST(result);
     }
     return result;
+}
+
+void
+rb_ary_modify(VALUE ary)
+{
+    if (IS_RARY(ary)) {
+	rary_modify(ary);
+    }
+    else {
+	CHECK_MUTABLE((id)ary);
+    }
 }
 
 VALUE
