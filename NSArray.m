@@ -553,7 +553,7 @@ nsary_rindex(id rcv, SEL sel, int argc, VALUE *argv)
 		return LONG2NUM(i);
 	    }
 	    const long n = [rcv count];
-	    if (n != i) {
+	    if (n != len) {
 		// Array was modified.
 		i = n;
 	    }
