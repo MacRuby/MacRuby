@@ -462,15 +462,9 @@ static VALUE
 nsary_each(id rcv, SEL sel)
 {
     RETURN_ENUMERATOR(rcv, 0, 0);
-    long len = [rcv count];
-    for (long i = 0; i < len; i++) {
+    for (long i = 0; i < [rcv count]; i++) {
 	rb_yield(OC2RB([rcv objectAtIndex:i]));
 	RETURN_IF_BROKEN();
-	const long n = [rcv count];
-	if (n != len) {
-	    // Array was modified.
-	    len = n;
-	}
     }
     return (VALUE)rcv;
 }
@@ -479,15 +473,9 @@ static VALUE
 nsary_each_index(id rcv, SEL sel)
 {
     RETURN_ENUMERATOR(rcv, 0, 0);
-    long len = [rcv count];
-    for (long i = 0; i < len; i++) {
+    for (long i = 0; i < [rcv count]; i++) {
 	rb_yield(LONG2NUM(i));
 	RETURN_IF_BROKEN();
-	const long n = [rcv count];
-	if (n != len) {
-	    // Array was modified.
-	    len = n;
-	}
     }
     return (VALUE)rcv;
 }
@@ -685,18 +673,12 @@ nsary_select(id rcv, SEL sel)
 {
     RETURN_ENUMERATOR(rcv, 0, 0);
     NSMutableArray *result = [NSMutableArray new];
-    long len = [rcv count];
-    for (long i = 0; i < len; i++) {
+    for (long i = 0; i < [rcv count]; i++) {
 	id elem = [rcv objectAtIndex:i];
 	VALUE test = rb_yield(OC2RB(elem));
 	RETURN_IF_BROKEN();
 	if (RTEST(test)) {
 	    [result addObject:elem];
-	}
-	const long n = [rcv count];
-	if (n != len) {
-	    // Array was modified.
-	    len = n;
 	}
     }
     return (VALUE)result;
@@ -708,8 +690,7 @@ nsary_select_bang(id rcv, SEL sel)
     RETURN_ENUMERATOR(rcv, 0, 0);
     CHECK_MUTABLE(rcv);
     NSMutableArray *result = [NSMutableArray new];
-    long len = [rcv count];
-    for (long i = 0; i < len; i++) {
+    for (long i = 0; i < [rcv count]; i++) {
 	id elem = [rcv objectAtIndex:i];
 	VALUE test = rb_yield(OC2RB(elem));
 	RETURN_IF_BROKEN();
@@ -717,11 +698,6 @@ nsary_select_bang(id rcv, SEL sel)
 	    continue;
 	}
 	[result addObject:elem];
-	const long n = [rcv count];
-	if (n != len) {
-	    // Array was modified.
-	    len = n;
-	}
     }
     if ([result count] == [rcv count]) {
 	return Qnil;
