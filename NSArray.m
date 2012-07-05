@@ -467,7 +467,7 @@ nsary_each(id rcv, SEL sel)
 	rb_yield(OC2RB([rcv objectAtIndex:i]));
 	RETURN_IF_BROKEN();
 	const long n = [rcv count];
-	if (n < len) {
+	if (n != len) {
 	    // Array was modified.
 	    len = n;
 	}
@@ -484,7 +484,7 @@ nsary_each_index(id rcv, SEL sel)
 	rb_yield(LONG2NUM(i));
 	RETURN_IF_BROKEN();
 	const long n = [rcv count];
-	if (n < len) {
+	if (n != len) {
 	    // Array was modified.
 	    len = n;
 	}
@@ -501,7 +501,7 @@ nsary_reverse_each(id rcv, SEL sel)
 	rb_yield(OC2RB([rcv objectAtIndex:len]));
 	RETURN_IF_BROKEN();
 	const long n = [rcv count];
-	if (n < len) {
+	if (n != len) {
 	    // Array was modified.
 	    len = n;
 	}
@@ -565,7 +565,7 @@ nsary_rindex(id rcv, SEL sel, int argc, VALUE *argv)
 		return LONG2NUM(i);
 	    }
 	    const long n = [rcv count];
-	    if (n < i) {
+	    if (n != i) {
 		// Array was modified.
 		i = n;
 	    }
@@ -694,7 +694,7 @@ nsary_select(id rcv, SEL sel)
 	    [result addObject:elem];
 	}
 	const long n = [rcv count];
-	if (n < len) {
+	if (n != len) {
 	    // Array was modified.
 	    len = n;
 	}
@@ -718,7 +718,7 @@ nsary_select_bang(id rcv, SEL sel)
 	}
 	[result addObject:elem];
 	const long n = [rcv count];
-	if (n < len) {
+	if (n != len) {
 	    // Array was modified.
 	    len = n;
 	}
