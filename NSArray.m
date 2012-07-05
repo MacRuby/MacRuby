@@ -708,13 +708,20 @@ nsary_select_bang(id rcv, SEL sel)
     RETURN_ENUMERATOR(rcv, 0, 0);
     CHECK_MUTABLE(rcv);
     NSMutableArray *result = [NSMutableArray new];
-    for (id elem in rcv) {
+    long len = [rcv count];
+    for (long i = 0; i < len; i++) {
+	id elem = [rcv objectAtIndex:i];
 	VALUE test = rb_yield(OC2RB(elem));
 	RETURN_IF_BROKEN();
 	if (!RTEST(test)) {
 	    continue;
 	}
 	[result addObject:elem];
+	const long n = [rcv count];
+	if (n < len) {
+	    // Array was modified.
+	    len = n;
+	}
     }
     if ([result count] == [rcv count]) {
 	return Qnil;
