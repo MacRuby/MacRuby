@@ -809,7 +809,8 @@ static VALUE
 nsary_delete_if(id rcv, SEL sel)
 {
     RETURN_ENUMERATOR(rcv, 0, 0);
-    return reject(rcv);
+    reject(rcv);
+    return (VALUE)rcv;
 }
 
 static VALUE
