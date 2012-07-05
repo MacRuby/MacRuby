@@ -489,7 +489,7 @@ nsary_reverse_each(id rcv, SEL sel)
 	rb_yield(OC2RB([rcv objectAtIndex:len]));
 	RETURN_IF_BROKEN();
 	const long n = [rcv count];
-	if (n != len) {
+	if (n < len) {
 	    // Array was modified.
 	    len = n;
 	}
@@ -553,7 +553,7 @@ nsary_rindex(id rcv, SEL sel, int argc, VALUE *argv)
 		return LONG2NUM(i);
 	    }
 	    const long n = [rcv count];
-	    if (n != len) {
+	    if (n < len) {
 		// Array was modified.
 		i = n;
 	    }
