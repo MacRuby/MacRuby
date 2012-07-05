@@ -685,11 +685,18 @@ nsary_select(id rcv, SEL sel)
 {
     RETURN_ENUMERATOR(rcv, 0, 0);
     NSMutableArray *result = [NSMutableArray new];
-    for (id elem in rcv) {
+    long len = [rcv count];
+    for (long i = 0; i < len; i++) {
+	id elem = [rcv objectAtIndex:i];
 	VALUE test = rb_yield(OC2RB(elem));
 	RETURN_IF_BROKEN();
 	if (RTEST(test)) {
 	    [result addObject:elem];
+	}
+	const long n = [rcv count];
+	if (n < len) {
+	    // Array was modified.
+	    len = n;
 	}
     }
     return (VALUE)result;
