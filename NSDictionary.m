@@ -213,7 +213,8 @@ static VALUE
 nshash_each_value(id rcv, SEL sel)
 {
     RETURN_ENUMERATOR(rcv, 0, 0);
-    for (id key in rcv) {
+    // TODO: should handle the element which is inserted in iterator block.
+    for (id key in [rcv allKeys]) {
 	rb_yield(OC2RB([rcv objectForKey:key]));
 	RETURN_IF_BROKEN();
     }
@@ -224,7 +225,8 @@ static VALUE
 nshash_each_key(id rcv, SEL sel)
 {
     RETURN_ENUMERATOR(rcv, 0, 0);
-    for (id key in rcv) {
+    // TODO: should handle the element which is inserted in iterator block.
+    for (id key in [rcv allKeys]) {
 	rb_yield(OC2RB(key));
 	RETURN_IF_BROKEN();
     }
@@ -235,7 +237,8 @@ static VALUE
 nshash_each_pair(id rcv, SEL sel)
 {
     RETURN_ENUMERATOR(rcv, 0, 0);
-    for (id key in rcv) {
+    // TODO: should handle the element which is inserted in iterator block.
+    for (id key in [rcv allKeys]) {
 	id value = [rcv objectForKey:key];
 	rb_yield(rb_assoc_new(OC2RB(key), OC2RB(value)));
 	RETURN_IF_BROKEN();

@@ -317,8 +317,6 @@ class TestNSDictionary < Test::Unit::TestCase
   end
 
   def test_each
-    skip("[BUG : #???]")
-
     count = 0
     @cls[].each { |k, v| count + 1 }
     assert_equal(0, count)
@@ -331,8 +329,6 @@ class TestNSDictionary < Test::Unit::TestCase
   end
 
   def test_each_key
-    skip("[BUG : #???]")
-
     count = 0
     @cls[].each_key { |k| count + 1 }
     assert_equal(0, count)
@@ -345,8 +341,6 @@ class TestNSDictionary < Test::Unit::TestCase
   end
 
   def test_each_pair
-    skip("[BUG : #???]")
-
     count = 0
     @cls[].each_pair { |k, v| count + 1 }
     assert_equal(0, count)
@@ -704,8 +698,6 @@ class TestNSDictionary < Test::Unit::TestCase
   end
 
   def test_rehash2
-    skip("[BUG : #???]")
-
     h = @cls[1 => 2, 3 => 4]
     assert_equal(h.dup, h.rehash)
     assert_raise(RuntimeError) { h.each { h.rehash } }
