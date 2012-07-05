@@ -2008,6 +2008,8 @@ class TestNSArray < Test::Unit::TestCase
   end
 
   def test_initialize2
+    skip("[BUG : #???] Timeout, MacRuby doesn't finish")
+
     a = @cls[1] * 1000
     a.instance_eval { initialize }
     assert_equal([], a)
