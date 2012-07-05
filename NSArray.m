@@ -462,9 +462,15 @@ static VALUE
 nsary_each(id rcv, SEL sel)
 {
     RETURN_ENUMERATOR(rcv, 0, 0);
-    for (id item in rcv) {
-	rb_yield(OC2RB(item));
+    long len = [rcv count];
+    for (long i = 0; i < len; i++) {
+	rb_yield(OC2RB([rcv objectAtIndex:i]));
 	RETURN_IF_BROKEN();
+	const long n = [rcv count];
+	if (n < len) {
+	    // Array was modified.
+	    len = n;
+	}
     }
     return (VALUE)rcv;
 }
