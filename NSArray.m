@@ -479,9 +479,15 @@ static VALUE
 nsary_each_index(id rcv, SEL sel)
 {
     RETURN_ENUMERATOR(rcv, 0, 0);
-    for (long i = 0, count = [rcv count]; i < count; i++) {
+    long len = [rcv count];
+    for (long i = 0; i < len; i++) {
 	rb_yield(LONG2NUM(i));
 	RETURN_IF_BROKEN();
+	const long n = [rcv count];
+	if (n < len) {
+	    // Array was modified.
+	    len = n;
+	}
     }
     return (VALUE)rcv;
 }
