@@ -647,6 +647,12 @@ class TestNSArray < Test::Unit::TestCase
     assert_equal(0, i)
 
     assert_equal(a, a.each {})
+
+    a = @cls[1, 2, 5, 3, 4, 2]
+    b = a.each { |e|
+      a.delete(e) if e == 2
+    }
+    assert_equal(b, a)
   end
 
   def test_each_index
@@ -667,6 +673,12 @@ class TestNSArray < Test::Unit::TestCase
     assert_equal(0, i)
 
     assert_equal(a, a.each_index {})
+
+    a = @cls[1, 2, 5, 3, 4, 2]
+    b = a.each_index { |ind|
+      a.delete_at(ind) if ind == 2
+    }
+    assert_equal(b, a)
   end
 
   def test_empty?
