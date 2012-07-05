@@ -67,6 +67,7 @@ typedef unsigned long VALUE;
 # define PRIuVALUE "lu"
 # define PRIxVALUE "lx"
 # define PRIXVALUE "lX"
+# define PRI_TIMET_PREFIX "l"
 #elif SIZEOF_LONG_LONG == SIZEOF_VOIDP
 typedef unsigned LONG_LONG VALUE;
 typedef unsigned LONG_LONG ID;
@@ -79,6 +80,7 @@ typedef unsigned LONG_LONG ID;
 # define PRIuVALUE "llu"
 # define PRIxVALUE "llx"
 # define PRIXVALUE "llX"
+# define PRI_TIMET_PREFIX "ll"
 #else
 # error ---->> ruby requires sizeof(void*) == sizeof(long) to be compiled. <<----
 #endif

@@ -66,8 +66,6 @@
 #endif
 #include <math.h>
 
-#define PRI_TIMET_PREFIX "l"
-
 /* defaults: season to taste */
 #define SYSV_EXT	1	/* stuff in System V ascftime routine */
 #define SUNOS_EXT	1	/* stuff in SunOS strftime routine */
