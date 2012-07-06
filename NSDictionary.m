@@ -338,6 +338,32 @@ nshash_select(id rcv, SEL sel)
 }
 
 static VALUE
+keep_if(id rcv)
+{
+    CHECK_MUTABLE(rcv);
+    NSMutableDictionary *dict = [NSMutableDictionary new];
+    // TODO: should handle the element which is inserted in iterator block.
+    for (id key in [rcv allKeys]) {
+	id value = [rcv objectForKey:key];
+	if (RTEST(rb_yield_values(2, OC2RB(key), OC2RB(value)))) {
+	    TRY_MOP([dict setObject:value forKey:key]);
+	}
+	RETURN_IF_BROKEN();
+    }
+    TRY_MOP([rcv setDictionary:dict]);
+    return (VALUE)rcv;
+}
+
+static VALUE
+nshash_keep_if(id rcv, SEL sel)
+{
+    CHECK_MUTABLE(rcv);
+    RETURN_ENUMERATOR(rcv, 0, 0);
+    keep_if(rcv);
+    return (VALUE)rcv;
+}
+
+static VALUE
 nshash_reject(id rcv, SEL sel)
 {
     RETURN_ENUMERATOR(rcv, 0, 0);
@@ -503,6 +529,7 @@ Init_NSDictionary(void)
     rb_objc_define_method(rb_cHash, "shift", nshash_shift, 0);
     rb_objc_define_method(rb_cHash, "delete", nshash_delete, 1);
     rb_objc_define_method(rb_cHash, "delete_if", nshash_delete_if, 0);
+    rb_objc_define_method(rb_cHash, "keep_if", nshash_keep_if, 0);
     rb_objc_define_method(rb_cHash, "select", nshash_select, 0);
     rb_objc_define_method(rb_cHash, "reject", nshash_reject, 0);
     rb_objc_define_method(rb_cHash, "reject!", nshash_reject_bang, 0);
