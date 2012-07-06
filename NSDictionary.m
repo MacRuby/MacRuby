@@ -355,6 +355,20 @@ keep_if(id rcv)
 }
 
 static VALUE
+nshash_select_bang(id rcv, SEL sel)
+{
+    CHECK_MUTABLE(rcv);
+    RETURN_ENUMERATOR(rcv, 0, 0);
+    const long n = [rcv count];
+
+    keep_if(rcv);
+    if (n == [rcv count]) {
+	return Qnil;
+    }
+    return (VALUE)rcv;
+}
+
+static VALUE
 nshash_keep_if(id rcv, SEL sel)
 {
     CHECK_MUTABLE(rcv);
@@ -531,6 +545,7 @@ Init_NSDictionary(void)
     rb_objc_define_method(rb_cHash, "delete_if", nshash_delete_if, 0);
     rb_objc_define_method(rb_cHash, "keep_if", nshash_keep_if, 0);
     rb_objc_define_method(rb_cHash, "select", nshash_select, 0);
+    rb_objc_define_method(rb_cHash, "select!", nshash_select_bang, 0);
     rb_objc_define_method(rb_cHash, "reject", nshash_reject, 0);
     rb_objc_define_method(rb_cHash, "reject!", nshash_reject_bang, 0);
     rb_objc_define_method(rb_cHash, "clear", nshash_clear, 0);
