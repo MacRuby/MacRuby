@@ -308,7 +308,8 @@ nshash_delete_if(id rcv, SEL sel)
     CHECK_MUTABLE(rcv);
     RETURN_ENUMERATOR(rcv, 0, 0);
     NSMutableArray *ary = [NSMutableArray new];
-    for (id key in rcv) {
+    // TODO: should handle the element which is inserted in iterator block.
+    for (id key in [rcv allKeys]) {
 	id value = [rcv objectForKey:key];
 	if (RTEST(rb_yield_values(2, OC2RB(key), OC2RB(value)))) {
 	    [ary addObject:key];
@@ -325,7 +326,8 @@ nshash_select(id rcv, SEL sel)
     CHECK_MUTABLE(rcv);
     RETURN_ENUMERATOR(rcv, 0, 0);
     NSMutableDictionary *dict = [NSMutableDictionary new];
-    for (id key in rcv) {
+    // TODO: should handle the element which is inserted in iterator block.
+    for (id key in [rcv allKeys]) {
 	id value = [rcv objectForKey:key];
 	if (RTEST(rb_yield_values(2, OC2RB(key), OC2RB(value)))) {
 	    TRY_MOP([dict setObject:value forKey:key]);
