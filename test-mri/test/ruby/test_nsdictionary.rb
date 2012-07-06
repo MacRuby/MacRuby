@@ -255,8 +255,6 @@ class TestNSDictionary < Test::Unit::TestCase
   end
 
   def test_delete_if
-    skip("[BUG : #???]")
-
     base = @cls[ 1 => 'one', 2 => false, true => 'true', 'cat' => 99 ]
     h1   = @cls[ 1 => 'one', 2 => false, true => 'true' ]
     h2   = @cls[ 2 => false, 'cat' => 99 ]
@@ -753,8 +751,6 @@ class TestNSDictionary < Test::Unit::TestCase
   end
 
   def test_clear2
-    skip("[BUG : #???]")
-
     assert_equal({}, @cls[1=>2,3=>4,5=>6].clear)
     h = @cls[1=>2,3=>4,5=>6]
     h.each { h.clear }
