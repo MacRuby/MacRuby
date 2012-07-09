@@ -423,6 +423,12 @@ if MACOSX_VERSION >= 10.6
         sleep 0.1
         @count.should == 1
       end
+
+      it "should not raise an exception if passed the main queue" do
+        gcdq = Dispatch::Queue.main
+        lambda { @src = Dispatch::Source.timer(0, 5, 0.1, gcdq){} }.should_not raise_error
+      end
+
     end
   end
 
