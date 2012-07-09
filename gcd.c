@@ -119,7 +119,7 @@ static VALUE const_time_forever;
 static inline void
 Check_Queue(VALUE object)
 {
-    if (CLASS_OF(object) != cQueue) {
+    if (CLASS_OF(object) != cQueue && object != qMain) {
 	rb_raise(rb_eArgError, "expected Queue object, but got %s",
 		rb_class2name(CLASS_OF(object)));
     }
