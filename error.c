@@ -746,11 +746,7 @@ static VALUE
 nometh_err_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE args = (argc > 2) ? argv[--argc] : Qnil;
-    //name_err_initialize(self, sel, argc, argv);
-    if (sel == 0) {
-	sel = argc == 0 ? selInitialize : selInitialize2;
-    }
-    rb_vm_call_super(self, sel, argc, argv);
+    name_err_initialize(self, sel, argc, argv);
     rb_iv_set(self, "args", args);
     return self;
 }
