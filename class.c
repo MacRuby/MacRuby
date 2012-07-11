@@ -1242,8 +1242,10 @@ rb_scan_args(int argc, const VALUE *argv, const char *fmt, ...)
 
     if (ISDIGIT(*p)) {
 	n = *p - '0';
-	if (n > argc)
+	if (n > argc) {
+	    va_end(vargs);
 	    rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)", argc, n);
+	}
 	for (i=0; i<n; i++) {
 	    var = va_arg(vargs, VALUE*);
 	    if (var) *var = argv[i];
