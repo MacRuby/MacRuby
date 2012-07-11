@@ -219,8 +219,9 @@ ossl_x509attr_get_value(VALUE self)
 	ossl_str_adjust(str, p);
     }
     else{
-	length = i2d_ASN1_SET_OF_ASN1_TYPE(attr->value.set, NULL,
-			i2d_ASN1_TYPE, V_ASN1_SET, V_ASN1_UNIVERSAL, 0);
+	length = i2d_ASN1_SET_OF_ASN1_TYPE(attr->value.set,
+			(unsigned char **) NULL, i2d_ASN1_TYPE,
+			V_ASN1_SET, V_ASN1_UNIVERSAL, 0);
 	str = rb_bstr_new();
 	rb_bstr_resize(str, length);
 	p = (unsigned char *)rb_bstr_bytes(str);
