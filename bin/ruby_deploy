@@ -169,11 +169,11 @@ class Deployer
   def gem_deps_libdirs(gem_name)
     # Locate gem spec.
     require 'rubygems'
-    gemspecs = Gem.source_index.find_name(gem_name)
-    if gemspecs.size == 0
+    begin
+      gemspec = Gem::Specification::find_by_name(gem_name)
+    rescue Gem::LoadError
       die "Cannot locate gem `#{gem_name}' in #{Gem.path}"
     end
-    gemspec = gemspecs.last
 
     # Load dependencies libdirs first.
     gem_libdirs = []
