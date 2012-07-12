@@ -1871,7 +1871,7 @@ time_s_alloc(VALUE klass, SEL sel)
     tobj->basic.klass = klass;
     tobj->basic.flags = 0;
     tobj->tm_got=0;
-    tobj->timew = WINT2FIXWV(0);
+    GC_WB(&tobj->timew, WINT2FIXWV(0));
 
     return (VALUE)tobj;
 }
@@ -1944,7 +1944,7 @@ time_init_0(VALUE time)
     time_modify(time);
     GetTimeval(time, tobj);
     tobj->tm_got=0;
-    tobj->timew = WINT2FIXWV(0);
+    GC_WB(&tobj->timew, WINT2FIXWV(0));
 #ifdef HAVE_CLOCK_GETTIME
     if (clock_gettime(CLOCK_REALTIME, &ts) == -1) {
 	rb_sys_fail("clock_gettime");
@@ -1959,7 +1959,7 @@ time_init_0(VALUE time)
         ts.tv_nsec = tv.tv_usec * 1000;
     }
 #endif
-    tobj->timew = timespec2timew(&ts);
+    GC_WB(&tobj->timew, timespec2timew(&ts));
 
     return time;
 }
@@ -2185,17 +2185,17 @@ time_init_1(int argc, VALUE *argv, VALUE time)
     time_modify(time);
     GetTimeval(time, tobj);
     tobj->tm_got=0;
-    tobj->timew = WINT2FIXWV(0);
+    GC_WB(&tobj->timew, WINT2FIXWV(0));
 
     if (!NIL_P(vtm.utc_offset)) {
         VALUE off = vtm.utc_offset;
         vtm_add_offset(&vtm, neg(off));
         vtm.utc_offset = Qnil;
-        tobj->timew = timegmw(&vtm);
+        GC_WB(&tobj->timew, timegmw(&vtm));
         return time_set_utc_offset(time, off);
     }
     else {
-        tobj->timew = timelocalw(&vtm);
+        GC_WB(&tobj->timew, timelocalw(&vtm));
         return time_localtime(time);
     }
 }
@@ -2300,7 +2300,7 @@ time_new_timew(VALUE klass, wideval_t timew)
     struct time_object *tobj;
 
     GetTimeval(time, tobj);
-    tobj->timew = timew;
+    GC_WB(&tobj->timew, timew);
 
     return time;
 }
@@ -4708,7 +4708,7 @@ end_submicro: ;
 
     GetTimeval(time, tobj);
     tobj->tm_got = 0;
-    tobj->timew = timew;
+    GC_WB(&tobj->timew, timew);
     if (gmt) {
 	TIME_SET_UTC(tobj);
     }
@@ -4749,7 +4749,7 @@ imp_initWithTimeIntervalSinceReferenceDate(void *rcv, SEL sel, double interval)
     struct timespec ts = rb_time_timespec(DOUBLE2NUM(interval + SINCE_EPOCH));
     struct time_object *tobj;
     GetTimeval(rcv, tobj);
-    tobj->timew = timespec2timew(&ts);
+    GC_WB(&tobj->timew, timespec2timew(&ts));
     return rcv;
 }
 
