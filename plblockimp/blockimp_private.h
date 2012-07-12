@@ -29,8 +29,8 @@
 #pragma once
 
 #if defined(__i386__)
-# include "blockimp_x86_32.h"
-# include "blockimp_x86_32_stret.h"
+# include "blockimp_i386.h"
+# include "blockimp_i386_stret.h"
 #elif defined(__x86_64__)
 # include "blockimp_x86_64.h"
 # include "blockimp_x86_64_stret.h"
