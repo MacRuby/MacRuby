@@ -1584,8 +1584,8 @@ nurat_marshal_load(VALUE self, SEL sel, VALUE a)
 {
     get_dat1(self);
     VALUE ary = rb_convert_type(a, T_ARRAY, "Array", "to_ary");
-    dat->num = RARRAY_AT(ary, 0);
-    dat->den = RARRAY_AT(ary ,1);
+    GC_WB(&dat->num, RARRAY_AT(ary, 0));
+    GC_WB(&dat->den, RARRAY_AT(ary ,1));
     rb_copy_generic_ivar(self, ary);
     if (f_zero_p(dat->den)) {
 	rb_raise_zerodiv();
