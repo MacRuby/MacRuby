@@ -1322,10 +1322,10 @@ static VALUE
 nucomp_marshal_load(VALUE self, SEL sel, VALUE a)
 {
     get_dat1(self);
-    VALUE ary = rb_convert_type(a, T_ARRAY, "Array", "to_ary");
-    GC_WB(&dat->real, RARRAY_AT(ary, 0));
-    GC_WB(&dat->imag, RARRAY_AT(ary, 1));
-    rb_copy_generic_ivar(self, ary);
+    Check_Type(a, T_ARRAY);
+    GC_WB(&dat->real, RARRAY_AT(a, 0));
+    GC_WB(&dat->imag, RARRAY_AT(a, 1));
+    rb_copy_generic_ivar(self, a);
     return self;
 }
 

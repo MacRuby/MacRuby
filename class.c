@@ -779,6 +779,7 @@ rb_mod_included_modules(VALUE mod)
 VALUE
 rb_mod_include_p(VALUE mod, SEL sel, VALUE mod2)
 {
+    Check_Type(mod2, T_MODULE);
     return rb_ary_includes(rb_mod_included_modules(mod), mod2);
 }
 
