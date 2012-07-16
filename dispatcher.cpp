@@ -394,7 +394,7 @@ extern "C"
 void *
 rb_vm_undefined_imp(void *rcv, SEL sel)
 {
-    method_missing((VALUE)rcv, sel, NULL, NULL, NULL, METHOD_MISSING_DEFAULT);
+    method_missing((VALUE)rcv, sel, NULL, 0, NULL, METHOD_MISSING_DEFAULT);
     return NULL; // never reached
 }
 
@@ -402,7 +402,7 @@ extern "C"
 void *
 rb_vm_removed_imp(void *rcv, SEL sel)
 {
-    method_missing((VALUE)rcv, sel, NULL, NULL, NULL, METHOD_MISSING_DEFAULT);
+    method_missing((VALUE)rcv, sel, NULL, 0, NULL, METHOD_MISSING_DEFAULT);
     return NULL; // never reached
 }
 
