@@ -2012,9 +2012,6 @@ make_patterns(void)
 #define id_split rb_intern("split")
 #define f_split(x,y) rb_funcall(x, id_split, 1, y)
 
-#define id_strip rb_intern("strip")
-#define f_strip(x) rb_funcall(x, id_strip, 0)
-
 #include <ctype.h>
 
 static VALUE
