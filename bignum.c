@@ -2495,7 +2495,7 @@ bigdivrem(VALUE x, VALUE y, volatile VALUE *divp, volatile VALUE *modp)
     if (modp) {			/* normalize remainder */
 	*modp = zz = rb_big_clone(z);
 	zds = BDIGITS(zz);
-	while (--ny && !zds[ny]); ++ny;
+	while (--ny && !zds[ny]){} ++ny;
 	if (dd) {
 	    t2 = 0; i = ny;
 	    while(i--) {
