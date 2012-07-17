@@ -3247,6 +3247,12 @@ private:
   } fUnion;
 };
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunknown-pragmas"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wreturn-type-c-linkage"
+#endif
 /**
  * Create a new UnicodeString with the concatenation of two others.
  *
@@ -3257,6 +3263,11 @@ private:
  */
 U_COMMON_API UnicodeString U_EXPORT2
 operator+ (const UnicodeString &s1, const UnicodeString &s2);
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#pragma clang diagnostic pop
+#endif
 
 //========================================
 // Inline members
