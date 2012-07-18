@@ -78,7 +78,7 @@ rb_apply(VALUE recv, ID mid, VALUE args)
     int argc;
     VALUE *argv;
 
-    argc = RARRAY_LEN(args);	/* Assigns LONG, but argc is INT */
+    argc = RARRAY_LENINT(args);
     argv = ALLOCA_N(VALUE, argc);
     MEMCPY(argv, RARRAY_PTR(args), VALUE, argc);
     return rb_call(recv, mid, argc, argv, CALL_FCALL, false);
@@ -220,7 +220,7 @@ rb_yield_splat(VALUE values)
     if (NIL_P(tmp)) {
         rb_raise(rb_eArgError, "not an array");
     }
-    return rb_vm_yield(RARRAY_LEN(tmp), RARRAY_PTR(tmp));
+    return rb_vm_yield(RARRAY_LENINT(tmp), RARRAY_PTR(tmp));
 }
 
 static VALUE
@@ -461,7 +461,7 @@ rb_eval_cmd(VALUE cmd, VALUE arg, int level)
 
     if (TYPE(cmd) != T_STRING) {
 	rb_set_safe_level_force(level);
-	val = rb_funcall2(cmd, rb_intern("call"), RARRAY_LEN(arg),
+	    val = rb_funcall2(cmd, rb_intern("call"), RARRAY_LENINT(arg),
 		RARRAY_PTR(arg));
 	rb_set_safe_level_force(safe);
 	return val;

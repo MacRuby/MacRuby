@@ -243,7 +243,7 @@ iconv_create(VALUE to, VALUE from, struct rb_iconv_opt_t *opt, int *idx)
 	    VALUE error = rb_str_new2(inval ? "invalid encoding " : "iconv");
 	    VALUE format = rb_str_new2("%s(\"%s\", \"%s\")");
 	    VALUE format_args = rb_ary_new3(3, error, to, from);
-	    VALUE msg = rb_str_format(RARRAY_LEN(format_args),
+	    VALUE msg = rb_str_format(RARRAY_LENINT(format_args),
 		RARRAY_PTR(format_args), format);
 
 	    s = RSTRING_PTR(msg);

@@ -1147,7 +1147,7 @@ vm_block_eval(RoxorVM *vm, rb_vm_block_t *b, SEL sel, VALUE self,
 		&& (arity.min > 1
 		    || (arity.min == 1 && arity.min != arity.max))) {
 	    // Expand the array.
-	    const long ary_len = RARRAY_LEN(argv[0]);
+	    const int ary_len = RARRAY_LENINT(argv[0]);
 	    if (ary_len > 0) {
 		new_argv = (VALUE *)RARRAY_PTR(argv[0]);
 	    }

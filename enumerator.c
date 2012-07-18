@@ -294,7 +294,7 @@ enumerator_block_call(VALUE obj, VALUE (*func)(ANYARGS), VALUE arg)
 
     e = enumerator_ptr(obj);
     if (e->args != 0) {
-	argc = RARRAY_LEN(e->args);
+	argc = RARRAY_LENINT(e->args);
 	argv = RARRAY_PTR(e->args);
     }
     return rb_objc_block_call(e->obj, e->sel, argc, (VALUE *)argv,
