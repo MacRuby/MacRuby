@@ -1115,7 +1115,7 @@ Init_Exception(void)
     rb_objc_define_method(*(VALUE *)rb_cNameErrorMesg, "!", name_err_mesg_new, 3);
     rb_objc_define_method(rb_cNameErrorMesg, "==", name_err_mesg_equal, 1);
     rb_objc_define_method(rb_cNameErrorMesg, "to_str", name_err_mesg_to_str, 0);
-    rb_objc_define_method(rb_cNameErrorMesg, "_dump", name_err_mesg_to_str, 0);
+    rb_objc_define_method(rb_cNameErrorMesg, "_dump", name_err_mesg_to_str, 1);
     rb_objc_define_method(*(VALUE *)rb_cNameErrorMesg, "_load", name_err_mesg_load, 1);
     rb_eNoMethodError = rb_define_class("NoMethodError", rb_eNameError);
     rb_objc_define_method(rb_eNoMethodError, "initialize", nometh_err_initialize, -1);
