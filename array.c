@@ -1396,13 +1396,14 @@ ary_rotate(VALUE ary, long cnt)
 VALUE
 rary_rotate_bang(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
-    VALUE n;
     long cnt = 1;
 
-    rb_scan_args(argc, argv, "01", &n);
-    if (!NIL_P(n)) {
-	cnt = NUM2LONG(n);
+    switch (argc) {
+      case 1: cnt = NUM2LONG(argv[0]);
+      case 0: break;
+      default: rb_scan_args(argc, argv, "01", NULL);
     }
+
     rb_ary_modify(ary);
     ary_rotate(ary, cnt);
     return ary;
@@ -1427,12 +1428,12 @@ VALUE
 rary_rotate(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     VALUE rotated;
-    VALUE n;
     long cnt = 1;
 
-    rb_scan_args(argc, argv, "01", &n);
-    if (!NIL_P(n)) {
-	cnt = NUM2LONG(n);
+    switch (argc) {
+      case 1: cnt = NUM2LONG(argv[0]);
+      case 0: break;
+      default: rb_scan_args(argc, argv, "01", NULL);
     }
 
     rotated = rb_ary_dup(ary);

@@ -1,2 +1,0 @@
-fails:Array#rotate with an argument n raises a TypeError if not passed an integer-like argument
-fails:Array#rotate! with an argument n raises a TypeError if not passed an integer-like argument
