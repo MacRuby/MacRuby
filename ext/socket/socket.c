@@ -620,7 +620,7 @@ bsock_setsockopt(VALUE sock, SEL sel, VALUE lev, VALUE optname, VALUE val)
       default:
 	StringValue(val);
 	v = RSTRING_PTR(val);
-	vlen = RSTRING_LEN(val);
+	vlen = RSTRING_LENINT(val);
 	break;
     }
 
@@ -3322,7 +3322,7 @@ sock_connect(VALUE sock, SEL sel, VALUE addr)
     addr = rb_str_new4(addr);
     GetOpenFile(sock, fptr);
     fd = fptr->fd;
-    n = ruby_connect(fd, (struct sockaddr*)RSTRING_PTR(addr), RSTRING_LEN(addr), 0);
+    n = ruby_connect(fd, (struct sockaddr*)RSTRING_PTR(addr), RSTRING_LENINT(addr), 0);
     if (n < 0) {
 	rb_sys_fail("connect(2)");
     }
@@ -3382,7 +3382,7 @@ sock_connect_nonblock(VALUE sock, SEL sel, VALUE addr)
     addr = rb_str_new4(addr);
     GetOpenFile(sock, fptr);
     rb_io_set_nonblock(fptr);
-    n = connect(fptr->fd, (struct sockaddr*)RSTRING_PTR(addr), RSTRING_LEN(addr));
+    n = connect(fptr->fd, (struct sockaddr*)RSTRING_PTR(addr), RSTRING_LENINT(addr));
     if (n < 0) {
         if (errno == EINPROGRESS) {
             rb_mod_sys_fail(rb_mWaitWritable, "connect(2) would block");
@@ -3486,7 +3486,7 @@ sock_bind(VALUE sock, SEL sel, VALUE addr)
 
     SockAddrStringValue(addr);
     GetOpenFile(sock, fptr);
-    if (bind(fptr->fd, (struct sockaddr*)RSTRING_PTR(addr), RSTRING_LEN(addr)) < 0)
+    if (bind(fptr->fd, (struct sockaddr*)RSTRING_PTR(addr), RSTRING_LENINT(addr)) < 0)
 	rb_sys_fail("bind(2)");
 
     return INT2FIX(0);
@@ -4096,7 +4096,7 @@ sock_s_gethostbyaddr(VALUE self, SEL sel, int argc, VALUE *argv)
 	t = AF_INET6;
     }
 #endif
-    h = gethostbyaddr(RSTRING_PTR(addr), RSTRING_LEN(addr), t);
+    h = gethostbyaddr(RSTRING_PTR(addr), RSTRING_LENINT(addr), t);
     if (h == NULL) {
 #ifdef HAVE_HSTRERROR
 	extern int h_errno;
@@ -4573,7 +4573,7 @@ sock_s_unpack_sockaddr_un(VALUE self, SEL sel, VALUE addr)
 	rb_raise(rb_eTypeError, "too long sockaddr_un - %ld longer than %ld",
 		 RSTRING_LEN(addr), sizeof(struct sockaddr_un));
     }
-    sun_path = unixpath(sockaddr, RSTRING_LEN(addr));
+    sun_path = unixpath(sockaddr, RSTRING_LENINT(addr));
     if (sizeof(struct sockaddr_un) == RSTRING_LEN(addr) &&
         sun_path == sockaddr->sun_path &&
         sun_path + strlen(sun_path) == RSTRING_PTR(addr) + RSTRING_LEN(addr)) {
@@ -5289,7 +5289,7 @@ addrinfo_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
         VALUE afamily = rb_ary_entry(sockaddr_ary, 0);
         int af;
         StringValue(afamily);
-        if (family_to_int((char *)RSTRING_PTR(afamily), RSTRING_LEN(afamily), &af) == -1)
+        if (family_to_int((char *)RSTRING_PTR(afamily), RSTRING_LENINT(afamily), &af) == -1)
 	    rb_raise(rb_eSocket, "unknown address family: %s", StringValueCStr(afamily));
         switch (af) {
           case AF_INET: /* ["AF_INET", 46102, "localhost.localdomain", "127.0.0.1"] */
@@ -5335,7 +5335,7 @@ addrinfo_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
     else {
         StringValue(sockaddr_arg);
         sockaddr_ptr = (struct sockaddr *)RSTRING_PTR(sockaddr_arg);
-        sockaddr_len = RSTRING_LEN(sockaddr_arg);
+        sockaddr_len = RSTRING_LENINT(sockaddr_arg);
         init_addrinfo(rai, sockaddr_ptr, sockaddr_len,
                       i_pfamily, i_socktype, i_protocol,
                       canonname, inspectname);
