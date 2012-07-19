@@ -678,10 +678,7 @@ num_exact(VALUE v)
         goto typeerror;
 
       default:
-	tmp = Qundef;
-	if (rb_vm_respond_to(v, sel_to_r, true)) {
-	    tmp = rb_vm_call(v, sel_to_r, 0, NULL);
-	}
+	tmp = rb_vm_check_call(v, sel_to_r, 0, NULL);
 	if (tmp != Qundef) {
 	    if (rb_respond_to(v, rb_intern("to_str"))) goto typeerror;
             v = tmp;
@@ -1502,7 +1499,7 @@ calc_wday(int year, int month, int day)
 static VALUE
 guess_local_offset(struct vtm *vtm_utc, int *isdst_ret, const char **zone_ret)
 {
-    struct tm tm;
+    struct tm tm = {0}; // avoid warning for gcc
     long gmtoff;
     const char *zone;
     time_t t;
@@ -2381,10 +2378,7 @@ time_timespec(VALUE num, int interval)
 
       default:
 	i = INT2FIX(1);
-	ary = Qundef;
-	if (rb_vm_respond_to(num, sel_divmod, true)) {
-	    ary = rb_vm_call(num, sel_divmod, 1, &i);
-	}
+	ary = rb_vm_check_call(num, sel_divmod, 1, &i);
 	if (ary != Qundef && !NIL_P(ary = rb_check_array_type(ary))) {
             i = rb_ary_entry(ary, 0);
             f = rb_ary_entry(ary, 1);

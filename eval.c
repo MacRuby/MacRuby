@@ -357,7 +357,7 @@ VALUE
 rb_make_exception(int argc, VALUE *argv)
 {
     VALUE mesg;
-    ID exception;
+    SEL sel_exception;
     int n;
 
     mesg = Qnil;
@@ -382,11 +382,11 @@ rb_make_exception(int argc, VALUE *argv)
       case 3:
 	n = 1;
       exception_call:
-	exception = rb_intern("exception");
-	if (!rb_respond_to(argv[0], exception)) {
+	sel_exception = sel_registerName("exception");
+	mesg = rb_vm_check_call(argv[0], sel_exception, n, argv+1);
+	if (mesg == Qundef) {
 	    rb_raise(rb_eTypeError, "exception class/object expected");
 	}
-	mesg = rb_funcall(argv[0], exception, n, argv[1]);
 	break;
       default:
 	rb_raise(rb_eArgError, "wrong number of arguments");

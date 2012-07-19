@@ -2500,7 +2500,8 @@ convert_type(VALUE val, const char *tname, const char *method, int raise)
 //    if (!rb_obj_respond_to(val, m, Qtrue)) {
 
     SEL sel = sel_registerName(method);
-    if (!rb_vm_respond_to(val, sel, true)) {
+    VALUE result = rb_vm_check_call(val, sel, 0, NULL);
+    if (result ==  Qundef) {
 	if (raise) {
 	    rb_raise(rb_eTypeError, "can't convert %s into %s",
 		    NIL_P(val) ? "nil" :
@@ -2509,11 +2510,9 @@ convert_type(VALUE val, const char *tname, const char *method, int raise)
 		    rb_obj_classname(val), 
 		    tname);
 	}
-	else {
-	    return Qnil;
-	}
+	return Qnil;
     }
-    return rb_vm_call(val, sel, 0, NULL);
+    return result;
 }
 
 VALUE

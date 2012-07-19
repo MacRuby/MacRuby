@@ -108,14 +108,9 @@ rb_get_path_check(VALUE obj, int level)
 	rb_insecure_operation();
     }
 
-    if (rb_vm_respond_to(obj, selToPath, true)) {
-	tmp = rb_vm_call(obj, selToPath, 0, NULL);
-    }
-    else {
-	tmp = rb_check_string_type(obj);
-	if (NIL_P(tmp)) {
-	    tmp = obj;
-	}
+    tmp = rb_vm_check_call(obj, selToPath, 0, NULL);
+    if (tmp == Qundef) {
+	tmp = obj;
     }
     StringValue(tmp);
 

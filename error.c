@@ -581,12 +581,15 @@ exc_equal(VALUE exc, SEL sel, VALUE obj)
     if (rb_obj_class(exc) != rb_obj_class(obj)) {
 	SEL sel_message = sel_registerName("message");
 	SEL sel_backtrace = sel_registerName("backtrace");
-	if (!rb_vm_respond_to(obj, sel_message, false)
-		|| !rb_vm_respond_to(obj, sel_backtrace, false)) {
+
+	mesg = rb_vm_check_call(obj, sel_message, 0, NULL);
+	if (mesg == Qundef) {
 	    return Qfalse;
 	}
-	mesg = rb_vm_call(obj, sel_message, 0, NULL);
-	backtrace = rb_vm_call(obj, sel_backtrace, 0, NULL);
+	backtrace = rb_vm_check_call(obj, sel_backtrace, 0, NULL);
+	if (backtrace == Qundef) {
+	    return Qfalse;
+	}
     }
     else {
         mesg = rb_attr_get(obj, id_mesg);

@@ -692,6 +692,15 @@ rb_vm_method_call(rb_vm_method_t *m, rb_vm_block_t *block, int argc,
 	    argc, argv);
 }
 
+static inline VALUE
+rb_vm_check_call(VALUE self, SEL sel, int argc, const VALUE *argv)
+{
+    if (!rb_vm_respond_to(self, sel, true)) {
+	return Qundef;
+    }
+    return rb_vm_call(self, sel, argc, argv);
+}
+
 VALUE rb_vm_yield_args(void *vm, int argc, const VALUE *argv);
 
 static inline VALUE
