@@ -2383,7 +2383,7 @@ time_timespec(VALUE num, int interval)
 	i = INT2FIX(1);
 	ary = Qundef;
 	if (rb_vm_respond_to(num, sel_divmod, true)) {
-	    ary = rb_vm_call(num, sel_divmod, 0, NULL);
+	    ary = rb_vm_call(num, sel_divmod, 1, &i);
 	}
 	if (ary != Qundef && !NIL_P(ary = rb_check_array_type(ary))) {
             i = rb_ary_entry(ary, 0);
