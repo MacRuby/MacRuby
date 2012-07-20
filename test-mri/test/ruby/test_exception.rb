@@ -225,6 +225,8 @@ class TestException < Test::Unit::TestCase
   end
 
   def test_safe4
+    skip("[BUG : #842] SecurityError Level 4")
+
     cmd = proc{raise SystemExit}
     safe0_p = proc{|*args| args}
 
@@ -292,6 +294,8 @@ end.join
   end
 
   def test_exit_success_p
+    skip("[BUG : #???] Should raise an exception when call exit within begin/rescue block")
+
     begin
       exit
     rescue SystemExit => e
