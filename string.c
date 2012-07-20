@@ -1471,6 +1471,7 @@ rb_str_xcopy_uchars(VALUE str, long *len_p)
     UChar *chars = NULL;
     long len = 0;
 
+    str = (VALUE)str_need_string(str);
     if (IS_RSTR(str)) {
 	rb_str_t *rstr = RSTR(str);
 	len = str_length(rstr);
