@@ -3115,7 +3115,8 @@ rb_io_init_copy(VALUE dest, SEL sel, VALUE origin)
 VALUE
 rb_io_printf(VALUE out, SEL sel, int argc, VALUE *argv)
 {
-    return rb_io_write(out, rb_f_sprintf(argc, argv));
+    rb_io_write(out, rb_f_sprintf(argc, argv));
+    return Qnil;
 }
 
 /*
