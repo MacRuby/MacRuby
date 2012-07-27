@@ -20,6 +20,8 @@
 				<string>required</string>
 				<key>ARCHS</key>
 				<string>x86_64</string>
+				<key>FRAMEWORK_SEARCH_PATHS</key>
+				<string>&quot;$(LOCAL_LIBRARY_DIR)/Frameworks&quot;</string>
 			</dict>
 			<!-- 
 			Don't forget to include MacRuby
