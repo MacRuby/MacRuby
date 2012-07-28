@@ -1406,7 +1406,7 @@ format_error:
 		d = ruby_strtod(ptr, &e);
 		d = load_mantissa(d, e, strlen(ptr) - (e - ptr));
 	    }
-	    v = DOUBLE2NUM(d);
+	    v = DBL2NUM(d);
 	    v = r_entry(v, arg);
             v = r_leave(v, arg);
 	}
