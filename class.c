@@ -1193,6 +1193,12 @@ rb_singleton_class(VALUE obj)
 	    klass = rb_make_metaclass(obj, RBASIC(obj)->klass);
 	    break;
     }
+
+    OBJ_INFECT(klass, obj);
+    if (OBJ_FROZEN(obj)) {
+	OBJ_FREEZE(klass);
+    }
+
     return klass;
 }
 
