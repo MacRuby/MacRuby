@@ -1002,17 +1002,17 @@ struct load_arg {
     VALUE src;
     long offset;
     st_table *symbols;
-    VALUE data;
+    st_table *data;
     VALUE proc;
     int taint;
     st_table *compat_tbl;
-    VALUE compat_tbl_wrapper;
+    VALUE wrapper;
 };
 
 static void
 check_load_arg(struct load_arg *arg)
 {
-    if (!DATA_PTR(arg->compat_tbl_wrapper)) {
+    if (!DATA_PTR(arg->wrapper)) {
 	rb_raise(rb_eRuntimeError, "Marshal.load reentered");
     }
 }
@@ -1195,10 +1195,10 @@ r_entry(VALUE v, struct load_arg *arg)
 {
     st_data_t real_obj = (VALUE)Qundef;
     if (st_lookup(arg->compat_tbl, v, &real_obj)) {
-        rb_hash_aset(arg->data, INT2FIX(RHASH_SIZE(arg->data)), (VALUE)real_obj);
+        st_insert(arg->data, arg->data->num_entries, (st_data_t)real_obj);
     }
     else {
-        rb_hash_aset(arg->data, INT2FIX(RHASH_SIZE(arg->data)), v);
+        st_insert(arg->data, arg->data->num_entries, (st_data_t)v);
     }
     if (arg->taint) {
         OBJ_TAINT(v);
@@ -1303,15 +1303,15 @@ r_object0(struct load_arg *arg, int *ivp, VALUE extmod)
     VALUE v = Qnil;
     int type = r_byte(arg);
     long id;
+    st_data_t link;
 
     switch (type) {
       case TYPE_LINK:
 	id = r_long(arg);
-	v = rb_hash_aref(arg->data, LONG2FIX(id));
-	check_load_arg(arg);
-	if (NIL_P(v)) {
+	if (!st_lookup(arg->data, (st_data_t)id, &link)) {
 	    rb_raise(rb_eArgError, "dump format error (unlinked)");
 	}
+	v = (VALUE)link;
 	if (arg->proc) {
 	    v = rb_funcall(arg->proc, rb_intern("call"), 1, v);
 	    check_load_arg(arg);
@@ -1691,13 +1691,14 @@ load(struct load_arg *arg)
 static VALUE
 load_ensure(struct load_arg *arg)
 {
-    if (!DATA_PTR(arg->compat_tbl_wrapper)) {
+    if (!DATA_PTR(arg->wrapper)) {
 	return 0;
     }
     st_free_table(arg->symbols);
+    st_free_table(arg->data);
     st_free_table(arg->compat_tbl);
-    DATA_PTR(arg->compat_tbl_wrapper) = 0;
-    arg->compat_tbl_wrapper = 0;
+    DATA_PTR(arg->wrapper) = 0;
+    arg->wrapper = 0;
     return 0;
 }
 
@@ -1739,8 +1740,11 @@ marshal_load(VALUE self, SEL sel, int argc, VALUE *argv)
     }
     GC_WB(&arg->src, port);
     arg->offset = 0;
+    GC_WB(&arg->symbols, st_init_numtable());
+    GC_WB(&arg->data, st_init_numtable());
     GC_WB(&arg->compat_tbl, st_init_numtable());
-    GC_WB(&arg->compat_tbl_wrapper, Data_Wrap_Struct(rb_cData, NULL, 0, arg->compat_tbl));
+    arg->proc = 0;
+    GC_WB(&arg->wrapper, Data_Wrap_Struct(rb_cData, NULL, 0, arg->compat_tbl));
 
     major = r_byte(arg);
     minor = r_byte(arg);
@@ -1755,12 +1759,7 @@ marshal_load(VALUE self, SEL sel, int argc, VALUE *argv)
 		MARSHAL_MAJOR, MARSHAL_MINOR, major, minor);
     }
 
-    GC_WB(&arg->symbols, st_init_numtable());
-    GC_WB(&arg->data, rb_hash_new());
-    if (NIL_P(proc)) {
-	arg->proc = 0;
-    }
-    else {
+    if (!NIL_P(proc)) {
 	GC_WB(&arg->proc, proc);
     }
     v = rb_ensure(load, (VALUE)arg, load_ensure, (VALUE)arg);
