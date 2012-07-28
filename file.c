@@ -1815,12 +1815,7 @@ rb_file_s_chmod(VALUE rcv, SEL sel, int argc, VALUE *argv)
     if (argc < 1) {
         rb_raise(rb_eArgError, "wrong number of arguments (%d for 1)", argc);
     }
-    VALUE vmode = argv[0];
-    vmode = rb_check_to_integer(vmode, "to_int");
-    if (NIL_P(vmode)) {
-	rb_raise(rb_eTypeError, "chmod() takes a numeric argument");
-    }
-    int mode = NUM2INT(vmode);
+    int mode = NUM2INT(argv[0]);
 
     long n = apply2files(chmod_internal, argc - 1, &argv[1], &mode);
     return LONG2FIX(n);
@@ -1845,13 +1840,10 @@ rb_file_chmod(VALUE obj, SEL sel, VALUE vmode)
     rb_io_t *io;
 
     rb_secure(2);
-    vmode = rb_check_to_integer(vmode, "to_int");
+    int mode = NUM2INT(vmode);
 
     GetOpenFile(obj, io);
-    if (NIL_P(vmode)) {
-	rb_raise(rb_eTypeError, "chmod() takes a numeric argument");
-    }
-    if (fchmod(io->fd, FIX2INT(vmode)) == -1) {
+    if (fchmod(io->fd, mode) == -1) {
 	rb_sys_fail(RSTRING_PTR(io->path));
     }
     return INT2FIX(0);
