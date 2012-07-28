@@ -1,4 +1,3 @@
-fails:Marshal.restore returns an untrusted object if source is untrusted
 fails:Marshal.restore loads a 1..2
 fails:Marshal.restore loads a 1...2
 fails:Marshal.restore loads a 'a'..'b'

@@ -9,8 +9,6 @@ fails:Marshal.dump dumps an array containing the same objects
 fails:Marshal.dump dumps an extended_array having ivar
 fails:Marshal.dump dumps a struct having ivar
 fails:Marshal.dump dumps an extended_struct having fields with same objects
-fails:Marshal.dump returns an untrusted string if object is untrusted
-fails:Marshal.dump returns an untrusted string if object is untrusted deep in nested structure
 fails:Marshal.dump dumps a String empty
 fails:Marshal.dump dumps a String small
 fails:Marshal.dump dumps a String big
@@ -70,7 +68,6 @@ fails:Marshal.dump Hash subclass returns a binary string
 fails:Marshal.dump Array returns a binary string
 fails:Marshal.dump Array subclass returns a binary string
 fails:Marshal.dump Random returns a binary string
-fails:Marshal.dump returns an untrusted string if nested object is untrusted
 fails:Marshal.dump with a Symbol dumps an encoded Symbol
 fails:Marshal.dump with a String dumps a US-ASCII String
 fails:Marshal.dump with a String dumps a UTF-8 String
