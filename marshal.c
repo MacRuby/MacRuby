@@ -137,6 +137,7 @@ struct dump_arg {
     st_table *symbols;
     st_table *data;
     int taint;
+    int untrust;
     st_table *compat_tbl;
     VALUE wrapper;
     st_table *encodings;
@@ -193,6 +194,9 @@ w_nbyte(const char *s, int n, struct dump_arg *arg)
     if (arg->dest && RSTRING_LEN(buf) >= BUFSIZ) {
 	if (arg->taint) {
 	    OBJ_TAINT(buf);
+	}
+	if (arg->untrust) {
+	    OBJ_UNTRUST(buf);
 	}
 	rb_io_write(arg->dest, buf);
 	rb_str_resize(buf, 0);
@@ -642,6 +646,9 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	if (OBJ_TAINTED(obj)) {
 	    arg->taint = Qtrue;
 	}
+	if (OBJ_UNTRUSTED(obj)) {
+	    arg->untrust = Qtrue;
+	}
 
 	if (rb_respond_to(obj, s_mdump)) {
 	    volatile VALUE v;
@@ -890,6 +897,9 @@ dump_ensure(struct dump_arg *arg)
     if (arg->taint) {
 	OBJ_TAINT(arg->str);
     }
+    if (arg->untrust) {
+	OBJ_UNTRUST(arg->str);
+    }
     return 0;
 }
 
@@ -975,6 +985,7 @@ type_error:
     GC_WB(&arg->symbols, st_init_numtable());
     GC_WB(&arg->data, st_init_numtable());
     arg->taint = Qfalse;
+    arg->untrust = Qfalse;
     GC_WB(&arg->compat_tbl, st_init_numtable());
     GC_WB(&arg->wrapper, Data_Wrap_Struct(rb_cData, NULL, 0, arg));
     arg->encodings = 0;
@@ -1005,6 +1016,7 @@ struct load_arg {
     st_table *data;
     VALUE proc;
     int taint;
+    int untrust;
     st_table *compat_tbl;
     VALUE wrapper;
 };
@@ -1135,6 +1147,9 @@ too_short:
 	if (OBJ_TAINTED(str)) {
 	    arg->taint = Qtrue;
 	}
+	if (OBJ_UNTRUSTED(str)) {
+	     arg->untrust = Qtrue;
+	}
     }
     return str;
 }
@@ -1204,6 +1219,11 @@ r_entry(VALUE v, struct load_arg *arg)
         OBJ_TAINT(v);
         if ((VALUE)real_obj != Qundef)
             OBJ_TAINT((VALUE)real_obj);
+    }
+    if (arg->untrust) {
+        OBJ_UNTRUST(v);
+        if ((VALUE)real_obj != Qundef)
+            OBJ_UNTRUST((VALUE)real_obj);
     }
     return v;
 }
@@ -1738,6 +1758,7 @@ marshal_load(VALUE self, SEL sel, int argc, VALUE *argv)
     else {
 	rb_raise(rb_eTypeError, "instance of IO needed");
     }
+    arg->untrust = OBJ_UNTRUSTED(port);
     GC_WB(&arg->src, port);
     arg->offset = 0;
     GC_WB(&arg->symbols, st_init_numtable());
