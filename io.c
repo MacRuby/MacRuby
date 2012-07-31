@@ -3431,7 +3431,9 @@ rb_obj_display(VALUE self, SEL sel, int argc, VALUE *argv)
     if (NIL_P(port)) {
 	port = rb_stdout;
     }
-    return rb_io_write(port, self);
+    rb_io_write(port, self);
+
+    return Qnil;
 }
 
 // static void
