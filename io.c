@@ -3427,9 +3427,12 @@ static VALUE
 rb_obj_display(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE port;
-    rb_scan_args(argc, argv, "01", &port);
-    if (NIL_P(port)) {
+
+    if (argc == 0) {
 	port = rb_stdout;
+    }
+    else {
+	rb_scan_args(argc, argv, "01", &port);
     }
     rb_io_write(port, self);
 
