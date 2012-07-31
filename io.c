@@ -5323,7 +5323,7 @@ Init_IO(void)
     rb_objc_define_module_function(rb_mKernel, "`", rb_f_backquote, 1);
 
     rb_objc_define_module_function(rb_mKernel, "p", rb_f_p, -1);
-    rb_objc_define_module_function(rb_mKernel, "display", rb_obj_display, -1);
+    rb_objc_define_method(rb_mKernel, "display", rb_obj_display, -1);
 
     rb_cIO = rb_define_class("IO", rb_cObject);
     rb_include_module(rb_cIO, rb_mEnumerable);
