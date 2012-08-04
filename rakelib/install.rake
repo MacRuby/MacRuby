@@ -133,10 +133,6 @@ module Installer
     `xcode-select -print-path`.chomp
   end
 
-  def xcode_example_dir
-    File.expand_path "~/Documents/MacRubyExamples"
-  end
-
   def xcode3_2_template_dir
     '/Library/Application Support/Developer/Shared/Xcode'
   end
@@ -348,7 +344,7 @@ namespace :install do
   end
 
   desc 'Install all Xcode related things'
-  task :xcode_support => [:nibtool, :xcode_templates, :xcode_samples]
+  task :xcode_support => [:nibtool, :xcode_templates]
 
   task :nibtool do
     puts 'Installing IB support'
@@ -364,11 +360,6 @@ namespace :install do
     install_recursive 'misc/xcode4-templates', xcode4_template_dir, :mode => prog_mode
     install_recursive 'misc/xcode-templates', xcode3_template_dir, :mode => prog_mode
     install_recursive 'misc/xcode-templates', xcode3_2_template_dir, :mode => prog_mode
-  end
-
-  task :xcode_samples do
-    puts 'Installing MacRuby sample projects'
-    install_recursive 'sample-macruby', xcode_example_dir, :mode => script_mode
   end
 
 end

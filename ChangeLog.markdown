@@ -1,3 +1,6 @@
+# 0.13
+ * Move the MacRuby Samples to https://github.com/MacRuby/MacRubySamples
+
 # 0.12
 
 MacRuby 0.12 was a milestone release...

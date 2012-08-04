@@ -1,3 +1,0 @@
-Suru is a small to-do list app built entirely in MacRuby that uses Core Data for its internal storage.
-It was built to show how easy it is to use Core Data from MacRuby.
-The name 'Suru' is the romanization of the Japanese word する, which means 'to do'.
