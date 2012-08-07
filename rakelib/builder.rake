@@ -30,9 +30,11 @@ task :plblockimp do
     }
     as_sources.each do |s|
       t = s.sub(%r{\.s$}, ".o")
-      unless sh "as -arch #{a} -o #{t} #{s}"
-        $stderr.puts "Failed to assemble trampolines for plblockimp"
-        exit 1
+      if !File.exist?(t) || File.mtime(t) < File.mtime(s)
+        unless sh "as -arch #{a} -o #{t} #{s}"
+          $stderr.puts "Failed to assemble trampolines for plblockimp"
+          exit 1
+        end
       end
       plblockimp_targets << t
     end
@@ -46,15 +48,29 @@ task :plblockimp do
   plblockimp_sources.each do |s|
     t = s.sub(%r{.c$}, ".o")
     a = ARCHS.map { |x| "-arch #{x}" }.join(' ')
-    unless sh "#{CC} #{a} -c #{cflags} -DPL_BLOCKIMP_PRIVATE -o #{t} #{s}"
-      exit 1
+    if !File.exist?(t) || File.mtime(t) < File.mtime(s)
+      unless sh "#{CC} #{a} -c #{cflags} -DPL_BLOCKIMP_PRIVATE -o #{t} #{s}"
+        exit 1
+      end
     end
     plblockimp_targets << t
   end
-  plbi_o = plblockimp_targets.join(' ')
-  unless sh "ld #{plbi_o} -r -o #{$builder.objsdir}/plblockimp.o"
-    $stderr.puts "Failed to link plblockimp components"
-    exit 1
+
+  need_compile = false
+  obj = "#{$builder.objsdir}/plblockimp.o"
+  plblockimp_targets.each do |t|
+    if !File.exist?(obj) || File.mtime(obj) < File.mtime(t)
+      need_compile = true
+      break
+    end
+  end
+
+  if need_compile
+    plbi_o = plblockimp_targets.join(' ')
+    unless sh "ld #{plbi_o} -r -o #{$builder.objsdir}/plblockimp.o"
+      $stderr.puts "Failed to link plblockimp components"
+      exit 1
+    end
   end
 end
 

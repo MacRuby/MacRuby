@@ -136,6 +136,9 @@ EOF
 }
 
 main () {
+    if [ -e "${SRC_OUTPUT}" -a -e "${SRC_C_OUTPUT}" -a -e "${HEADER_OUTPUT}" ] ; then
+	return;
+    fi
     echo '' > "${SRC_OUTPUT}"
     echo '' > "${SRC_C_OUTPUT}"
     echo '' > "${HEADER_OUTPUT}"
