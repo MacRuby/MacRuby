@@ -3533,30 +3533,34 @@ rary_product(VALUE ary, SEL sel, int argc, VALUE *argv)
     /* initialize the arrays of arrays */
     arrays[0] = ary;
     for (i = 1; i < n; i++) arrays[i] = to_ary(argv[i-1]);
-    
+
     /* initialize the counters for the arrays */
     for (i = 0; i < n; i++) counters[i] = 0;
 
-    /* Compute the length of the result array; return [] if any is empty */
-    for (i = 0; i < n; i++) {
-	long k = RARRAY_LEN(arrays[i]), l = resultlen;
-	if (k == 0) {
-	    if (rb_block_given_p()) {
+	/* Otherwise, allocate and fill in an array of results */
+    if (rb_block_given_p()) {
+	/* Make defensive copies of arrays; exit if any is empty */
+	for (i = 0; i < n; i++) {
+	    if (RARRAY_LEN(arrays[i]) == 0) {
 		return ary;
 	    }
-	    return rb_ary_new2(0);
-	}
-	resultlen *= k;
-	if (resultlen < k || resultlen < l || resultlen / k != l) {
-	    rb_raise(rb_eRangeError, "too big to product");
 	}
     }
-
-    if (!rb_block_given_p()) {
-	/* Otherwise, allocate and fill in an array of results */
+    else {
+	/* Compute the length of the result array; return [] if any is empty */
+	for (i = 0; i < n; i++) {
+	    long k = RARRAY_LEN(arrays[i]), l = resultlen;
+	    if (k == 0) {
+		return rb_ary_new2(0);
+	    }
+	    resultlen *= k;
+	    if (resultlen < k || resultlen < l || resultlen / k != l) {
+		rb_raise(rb_eRangeError, "too big to product");
+	    }
+	}
 	result = rb_ary_new2(resultlen);
     }
-    for (i = 0; i < resultlen; i++) {
+    for (;;) {
 	int m;
 	/* fill in one subarray */
 	VALUE subarray = rb_ary_new2(n);
@@ -3566,6 +3570,7 @@ rary_product(VALUE ary, SEL sel, int argc, VALUE *argv)
 
 	if (NIL_P(result)) {
 	    rb_yield(subarray);
+	    RETURN_IF_BROKEN();
 	}
 	else {
 	    /* put it on the result array */
@@ -3578,13 +3583,16 @@ rary_product(VALUE ary, SEL sel, int argc, VALUE *argv)
 	 */
 	m = n-1;
 	counters[m]++;
-	while (m > 0 && counters[m] == RARRAY_LEN(arrays[m])) {
+	while (counters[m] == RARRAY_LEN(arrays[m])) {
 	    counters[m] = 0;
-	    m--;
+	    if (--m < 0) {
+		goto done;
+	    }
 	    counters[m]++;
 	}
     }
 
+  done:
     return NIL_P(result) ? ary : result;
 }
 

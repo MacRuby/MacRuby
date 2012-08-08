@@ -1990,8 +1990,6 @@ class TestNSArray < Test::Unit::TestCase
   end
 
   def test_product2
-    skip("[BUG : #???] Abort")
-
     a = (0..100).to_a.to_ns
     assert_raise(RangeError) do
       a.product(a, a, a, a, a, a, a, a, a, a)
