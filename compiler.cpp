@@ -3673,8 +3673,8 @@ RoxorCompiler::compile_node0(NODE *node)
 		int argc = 0;
 		std::vector<Value *> arguments;
 		if (nd_type(node) == NODE_OP_ASGN1) {
-		    assert(node->nd_args->nd_body != NULL);
-		    compile_dispatch_arguments(node->nd_args->nd_body,
+		    assert(node->nd_args->nd_head != NULL);
+		    compile_dispatch_arguments(node->nd_args->nd_head,
 			    arguments,
 			    &argc);
 		}
@@ -3703,7 +3703,7 @@ RoxorCompiler::compile_node0(NODE *node)
 		BasicBlock *untouchedBB = NULL;
 		Value *tmp2;
 		NODE *value = nd_type(node) == NODE_OP_ASGN1
-		    ? node->nd_args->nd_head : node->nd_value;
+		    ? node->nd_args->nd_body : node->nd_value;
 		assert(value != NULL);
 		if (type == 0 || type == 1) {
 		    // 0 means OR, 1 means AND
