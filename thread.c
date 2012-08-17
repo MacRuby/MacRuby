@@ -67,6 +67,8 @@ thread_finalize_imp(void *rcv, SEL sel)
     }
 }
 
+static VALUE thgroup_add_m(VALUE group, VALUE thread, bool check_enclose);
+
 static VALUE
 thread_initialize(VALUE thread, SEL sel, int argc, const VALUE *argv)
 {
@@ -86,7 +88,7 @@ thread_initialize(VALUE thread, SEL sel, int argc, const VALUE *argv)
     // The parent group might be nil (ex. if created from GCD).
     VALUE group = GetThreadPtr(rb_vm_current_thread())->group;
     if (group != Qnil) {
-	rb_thgroup_add(group, thread);
+	thgroup_add_m(group, thread, false);
     }
 
     // Retain the Thread object to avoid a potential GC, the corresponding
@@ -1311,7 +1313,7 @@ thgroup_unlock(rb_thread_group_t *tg)
 }
 
 static VALUE
-thgroup_add(VALUE group, SEL sel, VALUE thread)
+thgroup_add_m(VALUE group, VALUE thread, bool check_enclose)
 {
     if (OBJ_FROZEN(group)) {
 	rb_raise(rb_eThreadError, "can't move to the frozen thread group");
@@ -1320,7 +1322,7 @@ thgroup_add(VALUE group, SEL sel, VALUE thread)
     rb_vm_thread_t *t = GetThreadPtr(thread);
 
     rb_thread_group_t *new_tg = GetThreadGroupPtr(group);
-    if (new_tg->enclosed) {
+    if (new_tg->enclosed && check_enclose) {
 	rb_raise(rb_eThreadError, "can't move from the enclosed thread group");
     }
 
@@ -1330,7 +1332,7 @@ thgroup_add(VALUE group, SEL sel, VALUE thread)
 		    "can't move from the frozen thread group");
 	}
 	rb_thread_group_t *old_tg = GetThreadGroupPtr(t->group);
-	if (old_tg->enclosed) {
+	if (old_tg->enclosed && check_enclose) {
 	    rb_raise(rb_eThreadError,
 		    "can't move from the enclosed thread group");
 	}
@@ -1345,6 +1347,12 @@ thgroup_add(VALUE group, SEL sel, VALUE thread)
     GC_WB(&t->group, group);
 
     return group;
+}
+
+static VALUE
+thgroup_add(VALUE group, SEL sel, VALUE thread)
+{
+    return thgroup_add_m(group, thread, true);
 }
 
 VALUE

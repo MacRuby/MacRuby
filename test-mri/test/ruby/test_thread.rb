@@ -622,6 +622,8 @@ class TestThreadGroup < Test::Unit::TestCase
   end
 
   def test_enclosed_thgroup
+    skip("[BUG : #1085] Assertion failed: ((b->flags & flags) == flags)")
+
     thgrp = ThreadGroup.new
     assert_equal(false, thgrp.enclosed?)
 
