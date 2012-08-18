@@ -10208,7 +10208,7 @@ ripper_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
     parser_initialize(parser);
 
     GC_WB(&parser->parser_ruby_sourcefile_string, fname);
-    parser->parser_ruby_sourcefile = (char *)RSTRING_PTR(fname);
+    parser->parser_ruby_sourcefile = RSTRING_PTR(fname);
     parser->parser_ruby_sourceline = NIL_P(lineno) ? 0 : NUM2INT(lineno) - 1;
 
     return Qnil;

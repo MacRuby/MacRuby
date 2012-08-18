@@ -6555,7 +6555,7 @@ rb_str_new_cstr(const char *ptr)
 }
 
 
-const char *
+char *
 rb_str_cstr(VALUE str)
 {
     if (IS_RSTR(str)) {
@@ -6565,7 +6565,7 @@ rb_str_cstr(VALUE str)
 	str_ensure_null_terminator(RSTR(str));
 	return RSTR(str)->bytes;
     }
-    return nsstr_cstr(str);
+    return (char*)nsstr_cstr(str);
 }
 
 long
@@ -6594,7 +6594,7 @@ char *
 rb_string_value_ptr(volatile VALUE *ptr)
 {
     VALUE str = rb_string_value(ptr);
-    return (char*)rb_str_cstr(str);
+    return rb_str_cstr(str);
 }
 
 VALUE

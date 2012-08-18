@@ -311,7 +311,7 @@ constant_arg(VALUE arg, int (*str_to_int)(char*, int, int*), const char *errmsg)
 	arg = tmp;
       str:
 	rb_check_safe_obj(arg);
-        ptr = (char *)RSTRING_PTR(arg);
+        ptr = RSTRING_PTR(arg);
         if (str_to_int(ptr, RSTRING_LEN(arg), &ret) == -1)
 	    rb_raise(rb_eSocket, "%s: %s", errmsg, ptr);
     }
@@ -5289,7 +5289,7 @@ addrinfo_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
         VALUE afamily = rb_ary_entry(sockaddr_ary, 0);
         int af;
         StringValue(afamily);
-        if (family_to_int((char *)RSTRING_PTR(afamily), RSTRING_LENINT(afamily), &af) == -1)
+        if (family_to_int(RSTRING_PTR(afamily), RSTRING_LENINT(afamily), &af) == -1)
 	    rb_raise(rb_eSocket, "unknown address family: %s", StringValueCStr(afamily));
         switch (af) {
           case AF_INET: /* ["AF_INET", 46102, "localhost.localdomain", "127.0.0.1"] */
@@ -6346,7 +6346,7 @@ static char *
 sockaddr_string_value_ptr(volatile VALUE *v)
 {
     sockaddr_string_value(v);
-    return (char *)RSTRING_PTR(*v);
+    return RSTRING_PTR(*v);
 }
 
 static VALUE

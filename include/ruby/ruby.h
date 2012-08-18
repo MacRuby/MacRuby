@@ -468,7 +468,7 @@ int rb_class_ismeta(VALUE klass);
 
 #define ELTS_SHARED FL_USER2
 
-const char *rb_str_cstr(VALUE);
+char *rb_str_cstr(VALUE);
 long rb_str_clen(VALUE);
 #define RSTRING_PTR(str) (rb_str_cstr((VALUE)str))
 #define RSTRING_LEN(str) (rb_str_clen((VALUE)str))

@@ -2110,7 +2110,7 @@ utc_offset_arg(VALUE arg)
     VALUE tmp;
     if (!NIL_P(tmp = rb_check_string_type(arg))) {
         int n;
-        char *s = (char*)RSTRING_PTR(tmp);
+        char *s = RSTRING_PTR(tmp);
         if (!rb_enc_str_asciicompat_p(tmp) ||
             RSTRING_LEN(tmp) != 6 ||
             (s[0] != '+' && s[0] != '-') ||

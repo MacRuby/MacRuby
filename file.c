@@ -2504,7 +2504,7 @@ realpath_rec(long *prefixlenp, VALUE *resolvedp, char *unresolved, VALUE loopche
         }
         else if (testnamelen == 2 && testname[0] == '.' && testname[1] == '.') {
             if (*prefixlenp < RSTRING_LEN(*resolvedp)) {
-                char *resolved_names = (char *)RSTRING_PTR(*resolvedp) + *prefixlenp;
+                char *resolved_names = RSTRING_PTR(*resolvedp) + *prefixlenp;
                 char *lastsep = rb_path_last_separator(resolved_names);
                 long len = lastsep ? lastsep - resolved_names : 0;
                 rb_str_set_len(*resolvedp, *prefixlenp + len);
@@ -2530,7 +2530,7 @@ realpath_rec(long *prefixlenp, VALUE *resolvedp, char *unresolved, VALUE loopche
                 struct stat sbuf;
                 int ret;
                 VALUE testpath2 = rb_str_encode_ospath(testpath);
-                ret = lstat((char *)RSTRING_PTR(testpath2), &sbuf);
+                ret = lstat(RSTRING_PTR(testpath2), &sbuf);
                 if (ret == -1) {
                     if (errno == ENOENT) {
                         if (strict || !last || *unresolved_firstsep)
@@ -2549,7 +2549,7 @@ realpath_rec(long *prefixlenp, VALUE *resolvedp, char *unresolved, VALUE loopche
                     long link_prefixlen;
                     rb_hash_aset(loopcheck, testpath, ID2SYM(resolving));
                     link = rb_file_s_readlink(rb_cFile, 0, testpath);
-                    link_prefix = (char *)RSTRING_PTR(link);
+                    link_prefix = RSTRING_PTR(link);
                     link_names = skiproot(link_prefix);
                     link_prefixlen = link_names - link_prefix;
                     if (link_prefixlen == 0) {
@@ -2596,7 +2596,7 @@ rb_realpath_internal(VALUE basedir, VALUE path, int strict)
         basedir = rb_str_dup_frozen(basedir);
     }
 
-    ptr = (char *)RSTRING_PTR(unresolved_path);
+    ptr = RSTRING_PTR(unresolved_path);
     path_names = skiproot(ptr);
     if (ptr != path_names) {
         resolved = rb_str_new(ptr, path_names - ptr);
@@ -2604,7 +2604,7 @@ rb_realpath_internal(VALUE basedir, VALUE path, int strict)
     }
 
     if (!NIL_P(basedir)) {
-        ptr = (char *)RSTRING_PTR(basedir);
+        ptr = RSTRING_PTR(basedir);
         basedir_names = skiproot(ptr);
         if (ptr != basedir_names) {
             resolved = rb_str_new(ptr, basedir_names - ptr);
@@ -2613,12 +2613,12 @@ rb_realpath_internal(VALUE basedir, VALUE path, int strict)
     }
 
     curdir = ruby_getcwd();
-    ptr = (char *)RSTRING_PTR(curdir);
+    ptr = RSTRING_PTR(curdir);
     curdir_names = skiproot(ptr);
     resolved = rb_str_new(ptr, curdir_names - ptr);
 
   root_found:
-    prefixptr = (char *)RSTRING_PTR(resolved);
+    prefixptr = RSTRING_PTR(resolved);
     prefixlen = RSTRING_LEN(resolved);
     ptr = chompdirsep(prefixptr);
     if (*ptr) {
