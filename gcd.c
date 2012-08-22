@@ -612,12 +612,13 @@ rb_block_applier(void *data, size_t ii)
  *  call-seq:
  *    gcdq.apply(count) { |index| block }
  *
- *  Runs a block count number of times in parallel via 
+ *  Runs a block _count_ number of times asynchronously via
  *  dispatch_apply(3)[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch_apply.3.html],
- *  passing in an index and waiting until all of them are done
+ *  passing in an index and waiting until all of them are done.
+ *  You must use a concurrent queue to run the blocks concurrently.
  *  
  *     gcdq = Dispatch::Queue.new('doc')
- *     @result = []
+ *     @result = Array.new(5)
  *     gcdq.apply(5) {|i| @result[i] = i*i }
  *     p @result  #=> [0, 1, 4, 9, 16]
  *
