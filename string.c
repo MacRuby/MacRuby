@@ -2705,7 +2705,7 @@ rstr_concat(VALUE self, SEL sel, VALUE other)
     return self;
 
 out_of_range:
-    rb_raise(rb_eArgError, "codepoint %ld out of range", codepoint);
+    rb_raise(rb_eRangeError, "codepoint %ld out of range", codepoint);
 }
 
 /*
