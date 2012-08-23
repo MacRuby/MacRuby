@@ -341,7 +341,7 @@ static int
 discrete_object_p(VALUE obj)
 {
     if (rb_obj_is_kind_of(obj, rb_cTime)) return FALSE; /* until Time#succ removed */
-    return rb_vm_respond_to(obj, selSucc, true);
+    return rb_vm_respond_to(obj, selSucc, false);
 }
 
 

@@ -2517,7 +2517,7 @@ rary_equal(VALUE ary1, SEL sel, VALUE ary2)
 	return Qtrue;
     }
     if (TYPE(ary2) != T_ARRAY) {
-	if (!rb_vm_respond_to(ary2, selToAry, true)) {
+	if (!rb_vm_respond_to(ary2, selToAry, false)) {
 	    return Qfalse;
 	}
 	return rb_equal(ary2, ary1);
