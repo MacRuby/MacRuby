@@ -18,7 +18,7 @@
 #define RUBY_VERSION_MAJOR 	1
 #define RUBY_VERSION_MINOR 	9
 #define RUBY_VERSION_TEENY 	0
-#define RUBY_RELEASE_YEAR 	2008
+#define RUBY_RELEASE_YEAR 	2012
 #define RUBY_RELEASE_MONTH 	6
 #define RUBY_RELEASE_DAY 	3
 
@@ -33,7 +33,7 @@ RUBY_EXTERN const char ruby_copyright[];
 #endif
 
 #define RUBY_AUTHOR 		"The MacRuby Team"
-#define RUBY_BIRTH_YEAR 	2012
+#define RUBY_BIRTH_YEAR 	2008
 
 #ifndef RUBY_REVISION
 # define RUBY_REVISION 0
