@@ -1,0 +1,69 @@
+#!/usr/bin/ruby
+# MacRuby Xcode Integration Setup
+#
+# This file is covered by the Ruby license.
+#
+# Copyright (C) 2012, The MacRuby Team
+
+framework 'Foundation'
+NSLog("Installing MacRuby Xcode integration")
+
+
+unless ENV["USER"] == "root"
+  NSLog("ERROR: This script must be run as root.\nTry `sudo #{$0}`")
+  exit 1
+end
+
+
+XCODE_SELECT = `which xcode-select`.chomp
+if XCODE_SELECT.empty?
+  NSLog("ERROR: xcode-select not found, integration cannot be installed")
+  exit
+end
+
+
+XCODE_PATH = `#{XCODE_SELECT} -print-path`.chomp
+if XCODE_PATH.empty?
+  NSLog("Xcode path not set, attempting to set it now")
+
+  default_xcode_path = "/Applications/Xcode.app/Contents/Developer"
+  output = `sudo xcode-select -switch #{default_xcode_path}`
+  unless $?.success?
+    NSLog("ERROR: Could not set the Xcode path:\n#{output}")
+    NSLog("MacRuby integration cannot be installed, aborting")
+    exit
+  end
+
+  NSLog("Xcode path set successfully")
+end
+
+
+# everything is ready, let's go for gold now
+require 'fileutils'
+FRAMEWORK = "/Library/Frameworks/MacRuby.framework/Versions/Current"
+
+
+NSLog("Installing IB support")
+NIBTOOL_SRC  = "#{FRAMEWORK}/usr/bin/rb_nibtool"
+NIBTOOL_DEST = "#{XCODE_PATH}/Tools/rb_nibtool"
+
+if File.exist?(NIBTOOL_DEST)
+  NSLog("IB support already installed, skipping reinstallation")
+else
+  FileUtils.mkdir_p(File.split(NIBTOOL_DEST).first)
+  File.symlink(NIBTOOL_SRC, NIBTOOL_DEST)
+end
+
+
+NSLog("Installing XCode templates")
+TEMPLATE_SRC  = "#{FRAMEWORK}/Resources/Templates"
+TEMPLATE_DEST = "/Library/Developer/Xcode/Templates/Application"
+
+if File.exist?(TEMPLATE_DEST)
+  NSLog("Templates already installed, skipping reinstallation")
+else
+  FileUtils.mkdir_p(File.split(TEMPLATE_DEST).first) # might need to be created
+  File.symlink(TEMPLATE_SRC, TEMPLATE_DEST)
+end
+
+NSLog("MacRuby Xcode integration successfully installed")

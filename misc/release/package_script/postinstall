@@ -1,32 +1,5 @@
 #!/bin/bash
 
-# create the symbolic link of rb_nibtool
-NIBTOOL=/Library/Frameworks/MacRuby.framework/Versions/Current/usr/bin/rb_nibtool
-XCODE43_DIR="/Applications/Xcode.app/Contents/Developer"
-XCODE_DIR=`xcode-select -print-path`
-if test $? -ne 0 ; then
-    XCODE_DIR=$XCODE43_DIR
-    if [ ! -e "$XCODE_DIR" ] ; then
-	exit 1
-    fi
-    sudo xcode-select -switch "$XCODE_DIR"
-fi
-
-if [ $XCODE_DIR != $XCODE43_DIR ] ; then
-    DEST_NIBTOOL_PATH="$XCODE43_DIR/Tools/rb_nibtool"
-    if [ -e "$XCODE43_DIR" -a ! -L "$DEST_NIBTOOL_PATH" ] ; then
-	ln -s "$NIBTOOL" "$DEST_NIBTOOL_PATH"
-    fi
-fi
-
-DEST_NIBTOOL_PATH="$XCODE_DIR/Tools/rb_nibtool"
-XCODE_MAJOR_VER=`xcodebuild -version | sed -e '2,$d' -e 's/Xcode \([0-9]*\).*/\1/'`
-if test $XCODE_MAJOR_VER -le 3 ; then
-    DEST_NIBTOOL_PATH="$XCODE_DIR/usr/bin/rb_nibtool"
-fi
-
-if [ ! -L "$DEST_NIBTOOL_PATH" ] ; then
-    ln -s "$NIBTOOL" "$DEST_NIBTOOL_PATH"
-fi
+/usr/local/bin/macruby_install_xcode_support
 
 exit 0

@@ -129,26 +129,6 @@ module Installer
     "#{header_dir}/#{NEW_RUBY_PLATFORM}"
   end
 
-  def xcode_dir
-    `xcode-select -print-path`.chomp
-  end
-
-  def xcode3_2_template_dir
-    '/Library/Application Support/Developer/Shared/Xcode'
-  end
-
-  def xcode3_template_dir
-    '/Library/Application Support/Developer/3.0/Xcode'
-  end
-
-  def xcode4_template_dir
-    '/Library/Developer/Xcode/Templates/Application'
-  end
-
-  def xcode_usr_bin
-    "#{xcode_dir}/usr/bin"
-  end
-
   def dest_bin
     "#{SYM_INSTDIR}/bin"
   end
@@ -341,25 +321,13 @@ namespace :install do
         ln_sfh link, "#{dest_man}/#{File.basename(man_set)}"
       end
     end
+
+    install_recursive 'misc/xcode4-templates', "#{FRAMEWORK_RESOURCES}/Templates", :mode => prog_mode
   end
 
   desc 'Install all Xcode related things'
-  task :xcode_support => [:nibtool, :xcode_templates]
-
-  task :nibtool do
-    puts 'Installing IB support'
-    nibtool_dir = "#{xcode_dir}/Tools/"
-    makedirs nibtool_dir
-    ln_sfh "#{FRAMEWORK_USR_BIN}/rb_nibtool", nibtool_dir
-  end
-
-  task :xcode_templates do
-    # TODO only install templates for installed Xcodes
-    puts 'Installing XCode templates'
-    makedirs xcode4_template_dir
-    install_recursive 'misc/xcode4-templates', xcode4_template_dir, :mode => prog_mode
-    install_recursive 'misc/xcode-templates', xcode3_template_dir, :mode => prog_mode
-    install_recursive 'misc/xcode-templates', xcode3_2_template_dir, :mode => prog_mode
+  task :xcode_support do
+    `/usr/local/bin/macruby_install_xcode_support`
   end
 
 end
