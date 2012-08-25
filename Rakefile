@@ -8,7 +8,7 @@ desc "Same as all"
 task :default => :all
 
 desc "Same as install:all"
-task :install => 'install:all'
+task :install => 'install:standard'
 
 desc "Same as macruby:build"
 task :macruby => 'macruby:build'

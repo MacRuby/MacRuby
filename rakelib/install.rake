@@ -143,10 +143,10 @@ end
 namespace :install do
   extend Installer
 
-  task :all => [:bin, :scripts, :lib, :ext, :headers, :doc, :man, :resources, :xcode_support]
+  task :all => [:standard, :xcode_support]
 
   desc 'Install MacRuby without Xcode support'
-  task :most => [:bin, :scripts, :lib, :ext, :headers, :doc, :man, :resources]
+  task :standard => [:bin, :scripts, :lib, :ext, :headers, :doc, :man, :resources]
 
   desc 'Install MacRuby binaries'
   task :bin do
