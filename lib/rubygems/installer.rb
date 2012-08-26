@@ -467,7 +467,13 @@ WARN_MESSAGE
   def check_that_user_bin_dir_is_in_path
     user_bin_dir = @bin_dir || Gem.bindir(gem_home)
     user_bin_dir.gsub!(File::SEPARATOR, File::ALT_SEPARATOR) if File::ALT_SEPARATOR
-    unless ENV['PATH'].split(File::PATH_SEPARATOR).include? user_bin_dir then
+    path = ENV['PATH']
+    if Gem.win_platform? then
+      path = path.downcase
+      user_bin_dir = user_bin_dir.downcase
+    end
+
+    unless path.split(File::PATH_SEPARATOR).include? user_bin_dir then
       unless self.class.path_warning then
         alert_warning "You don't have #{user_bin_dir} in your PATH,\n\t  gem executables will not run."
         self.class.path_warning = true
@@ -498,9 +504,13 @@ require 'rubygems'
 
 version = "#{Gem::Requirement.default}"
 
-if ARGV.first =~ /^_(.*)_$/ and Gem::Version.correct? $1 then
-  version = $1
-  ARGV.shift
+if ARGV.first
+  str = ARGV.first
+  str = str.dup.force_encoding("BINARY") if str.respond_to? :force_encoding
+  if str =~ /\\A_(.*)_\\z/
+    version = $1
+    ARGV.shift
+  end
 end
 
 gem '#{spec.name}', version

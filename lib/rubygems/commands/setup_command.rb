@@ -165,7 +165,7 @@ By default, this RubyGems will install gem as:
                              end
 
         dest_file = File.join bin_dir, bin_file_formatted
-        bin_tmp_file = File.join Dir.tmpdir, bin_file
+        bin_tmp_file = File.join Dir.tmpdir, "#{bin_file}.#{$$}"
 
         begin
           bin = File.readlines bin_file
@@ -210,6 +210,9 @@ TEXT
 
     Dir.chdir 'lib' do
       lib_files = Dir[File.join('**', '*rb')]
+
+      # Be sure to include our SSL ca bundles
+      lib_files += Dir[File.join('**', '*pem')]
 
       lib_files.each do |lib_file|
         dest_file = File.join lib_dir, lib_file

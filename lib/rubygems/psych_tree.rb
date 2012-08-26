@@ -12,5 +12,16 @@ module Gem
       def register(target, obj)
       end
     end
+
+    # This is ported over from the yaml_tree in 1.9.3
+    def format_time time
+      if time.utc?
+        time.strftime("%Y-%m-%d %H:%M:%S.%9N Z")
+      else
+        time.strftime("%Y-%m-%d %H:%M:%S.%9N %:z")
+      end
+    end
+
+    private :format_time
   end
 end
