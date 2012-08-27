@@ -1,0 +1,1 @@
+fails:A BridgeSupport structure has a nice #inspect message that lists the fields
