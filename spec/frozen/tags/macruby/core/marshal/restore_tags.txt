@@ -4,3 +4,4 @@ fails:Marshal.restore loads a 'a'..'b'
 fails:Marshal.restore loads a Random
 fails:Marshal.restore for a Hash preserves hash ivars when hash contains a string having ivar
 fails:Marshal.restore for a wrapped C pointer loads
+fails:Marshal.restore for a String loads a string through StringIO stream

@@ -1,7 +1,8 @@
-critical:Process.kill sends the given signal to the current process if pid is zero
-critical:Process.kill accepts POSIX signal names without 'SIG' prefix
-critical:Process.kill accepts integer signal numbers
-critical:Process.kill accepts POSIX signal names with 'SIG' prefix
+critical:Process.kill signals the process group if the PID is zero
+critical:Process.kill signals the process group if the PID is zero
+critical:Process.kill signals the process group if the signal number is negative
+critical:Process.kill signals the process group if the short signal name starts with a minus sign
+critical:Process.kill signals the process group if the full signal name starts with a minus sign
 fails:Process.kill tests for the existence of a process without sending a signal
 fails:Process.kill sends the given signal to the specified process
 fails:Process.kill kills process groups if signal is negative

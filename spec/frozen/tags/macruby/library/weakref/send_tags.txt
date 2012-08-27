@@ -1,0 +1,3 @@
+fails:WeakRef#__send__ delegates to public methods of the weakly-referenced object
+fails:WeakRef#__send__ delegates to protected methods of the weakly-referenced object
+fails:WeakRef#__send__ does not delegate to private methods of the weakly-referenced object

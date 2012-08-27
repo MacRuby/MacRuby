@@ -1,3 +1,4 @@
 fails:File.expand_path produces a String in the default external encoding
 fails:File.expand_path when HOME is not set raises an ArgumentError when passed '~' if HOME is nil
 fails:File.expand_path when HOME is not set raises an ArgumentError when passed '~' if HOME == ''
+fails:File.expand_path when HOME is not set raises an ArgumentError when passed '~/' if HOME is nil

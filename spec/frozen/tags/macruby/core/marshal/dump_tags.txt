@@ -86,3 +86,4 @@ fails:Marshal.dump with a Hash raises a TypeError with hash having default proc
 fails:Marshal.dump with a Hash dumps a Hash with instance variables
 fails:Marshal.dump with a Hash dumps an Hash subclass with a parameter to initialize
 fails:Marshal.dump with a Struct dumps a Struct with instance variables
+fails:Marshal.dump with a String dumps multiple strings using symlinks for the :E (encoding) symbol

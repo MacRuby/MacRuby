@@ -9,3 +9,4 @@ fails:A block taking |a, | arguments calls #to_ary to convert a single yielded o
 fails:A block taking |a, | arguments raises an TypeError if #to_ary does not return an Array
 fails:A block taking |(a, b), c| arguments calls #to_ary to convert a single yielded object to an Array
 fails:Post-args are required
+fails:A block arguments with _ assigns the first variable named

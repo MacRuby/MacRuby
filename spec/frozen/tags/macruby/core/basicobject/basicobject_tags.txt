@@ -1,1 +1,2 @@
 fails:BasicObject metaclass has Class as superclass
+fails:BasicObject includes itself in its list of constants

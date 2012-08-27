@@ -1,0 +1,4 @@
+fails:Process.spawn does not unset environment variables included in the environment hash
+fails:Process.spawn joins a new process group if :pgroup => :true
+fails:Process.spawn joins the specified process group if :pgroup => pgid
+fails:Process.spawn does not unset environment variables included in the environment hash
