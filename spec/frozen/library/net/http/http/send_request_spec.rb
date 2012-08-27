@@ -16,7 +16,7 @@ describe "Net::HTTP#send_request" do
   end
 
   after(:each) do
-    @http.finish
+    @http.finish if @http.started?
   end
 
   # TODO: Does only work with GET and POST requests

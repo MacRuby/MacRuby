@@ -1,4 +1,5 @@
 require File.expand_path('../spec_helper', __FILE__)
+require "stringio"
 
 load_extension("globals")
 
@@ -9,8 +10,8 @@ describe "CApiGlobalSpecs" do
 
   it "correctly gets global values" do
     @f.sb_gv_get("$BLAH").should == nil
-    @f.sb_gv_get("$SAFE").should == 0
-    @f.sb_gv_get("SAFE").should == 0 # rb_gv_get should change SAFE to $SAFE
+    @f.sb_gv_get("$\\").should == nil
+    @f.sb_gv_get("\\").should == nil # rb_gv_get should change \ to $\
   end
 
   it "returns $~" do
@@ -66,6 +67,81 @@ describe "CApiGlobalSpecs" do
         @f.rb_set_kcode("U")
         $KCODE.should == "UTF8"
       end
+    end
+  end
+
+  describe "rb_rs" do
+    before :each do
+      @dollar_slash = $/
+    end
+
+    after :each do
+      $/ = @dollar_slash
+    end
+
+    it "returns \\n by default" do
+      @f.rb_rs.should == "\n"
+    end
+
+    it "returns the value of $/" do
+      $/ = "foo"
+      @f.rb_rs.should == "foo"
+    end
+  end
+
+  describe "rb_default_rs" do
+    it "returns \\n" do
+      @f.rb_default_rs.should == "\n"
+    end
+  end
+
+  describe "rb_lastline_set" do
+    it "sets the value of $_" do
+      @f.rb_lastline_set("last line")
+      $_.should == "last line"
+    end
+
+    it "sets a Thread-local value" do
+      $_ = nil
+      running = false
+
+      thr = Thread.new do
+        @f.rb_lastline_set("last line")
+        $_.should == "last line"
+        running = true
+      end
+
+      Thread.pass until running
+      $_.should be_nil
+
+      thr.join
+    end
+  end
+
+  describe "rb_lastline_get" do
+    before do
+      @io = StringIO.new("last line")
+    end
+
+    it "gets the value of $_" do
+      @io.gets
+      @f.rb_lastline_get.should == "last line"
+    end
+
+    it "gets a Thread-local value" do
+      $_ = nil
+      running = false
+
+      thr = Thread.new do
+        @io.gets
+        @f.rb_lastline_get.should == "last line"
+        running = true
+      end
+
+      Thread.pass until running
+      $_.should be_nil
+
+      thr.join
     end
   end
 end

@@ -651,7 +651,7 @@ describe "String#%" do
   it "taints result for %s when argument is tainted" do
     ("%s" % "x".taint).tainted?.should == true
     ("%s" % mock('x').taint).tainted?.should == true
-    ("%s" % 5.0.taint).tainted?.should == true
+    ("%s" % -0.0.taint).tainted?.should == true # -0.0 is not flonum
   end
 
   # MRI crashes on this one.

@@ -16,7 +16,7 @@ describe "Net::HTTP#propfind" do
   end
 
   after(:each) do
-    @http.finish
+    @http.finish if @http.started?
   end
 
   it "sends an propfind request to the passed path and returns the response" do

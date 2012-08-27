@@ -11,18 +11,24 @@ describe "Net::HTTP.start" do
     NetHTTPSpecs.stop_server
   end
 
-  it "returns a new Net::HTTP object for the passed address and port" do
-    net = Net::HTTP.start("localhost", 3333)
-    net.should be_kind_of(Net::HTTP)
-    net.address.should == "localhost"
-    net.port.should == 3333
-    net.finish
-  end
+  describe "when not passed a block" do
+    before(:each) do
+      @http = Net::HTTP.start("localhost", 3333)
+    end
 
-  it "opens the tcp connection" do
-    net = Net::HTTP.start("localhost", 3333)
-    net.started?.should be_true
-    net.finish
+    after(:each) do
+      @http.finish if @http.started?
+    end
+
+    it "returns a new Net::HTTP object for the passed address and port" do
+      @http.should be_kind_of(Net::HTTP)
+      @http.address.should == "localhost"
+      @http.port.should == 3333
+    end
+
+    it "opens the tcp connection" do
+      @http.started?.should be_true
+    end
   end
 
   describe "when passed a block" do

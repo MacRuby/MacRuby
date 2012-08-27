@@ -12,7 +12,7 @@ describe :net_ftp_request_put, :shared => true do
   end
 
   after(:each) do
-    @http.finish
+    @http.finish if @http.started?
   end
 
   describe "when passed no block" do

@@ -31,7 +31,7 @@ describe "Net::HTTP.get when passed URI" do
       end
 
       after(:each) do
-        @http.finish
+        @http.finish if @http.started?
         Net::HTTP.version_1_2
       end
 

@@ -129,6 +129,7 @@
 #define HAVE_RB_CSYMBOL                    1
 #define HAVE_RB_CTHREAD                    1
 #define HAVE_RB_CTRUECLASS                 1
+#define HAVE_RB_CNUMERATOR                 1
 #define HAVE_RB_EARGERROR                  1
 #define HAVE_RB_EEOFERROR                  1
 #define HAVE_RB_EEXCEPTION                 1
@@ -198,6 +199,7 @@
 #define HAVE_RB_ENC_TO_INDEX               1
 #define HAVE_RB_OBJ_ENCODING               1
 
+#define HAVE_RB_USASCII_STR_NEW            1
 #define HAVE_RB_USASCII_STR_NEW_CSTR       1
 #define HAVE_RB_EXTERNAL_STR_NEW           1
 #define HAVE_RB_EXTERNAL_STR_NEW_CSTR      1
@@ -220,6 +222,11 @@
 #define HAVE_RB_LONG2INT                   1
 #endif
 
+/* Enumerable */
+#ifdef RUBY_VERSION_IS_1_8_7
+#define HAVE_RB_ENUMERATORIZE              1
+#endif
+
 /* Exception */
 #define HAVE_RB_EXC_NEW                    1
 #define HAVE_RB_EXC_NEW2                   1
@@ -237,13 +244,18 @@
 #define HAVE_RFLOAT_VALUE                  1
 
 /* Globals */
+#define HAVE_RB_DEFAULT_RS                 1
 #define HAVE_RB_DEFINE_HOOKED_VARIABLE     1
 #define HAVE_RB_DEFINE_READONLY_VARIABLE   1
 #define HAVE_RB_DEFINE_VARIABLE            1
 #define HAVE_RB_F_GLOBAL_VARIABLES         1
 #define HAVE_RB_GV_GET                     1
 #define HAVE_RB_GV_SET                     1
+#define HAVE_RB_RS                         1
 #define HAVE_RB_SET_KCODE                  1
+
+#define HAVE_RB_LASTLINE_SET               1
+#define HAVE_RB_LASTLINE_GET               1
 
 /* Hash */
 #define HAVE_RB_HASH                       1
@@ -258,10 +270,14 @@
 
 /* IO */
 #define HAVE_GET_OPEN_FILE                 1
+#define HAVE_RB_IO_ADDSTR                  1
 #define HAVE_RB_IO_CHECK_CLOSED            1
 #define HAVE_RB_IO_CHECK_READABLE          1
 #define HAVE_RB_IO_CHECK_WRITABLE          1
 #define HAVE_RB_IO_CLOSE                   1
+#define HAVE_RB_IO_PRINT                   1
+#define HAVE_RB_IO_PRINTF                  1
+#define HAVE_RB_IO_PUTS                    1
 #define HAVE_RB_IO_WAIT_READABLE           1
 #define HAVE_RB_IO_WAIT_WRITABLE           1
 #define HAVE_RB_IO_WRITE                   1
