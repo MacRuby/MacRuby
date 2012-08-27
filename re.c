@@ -1787,9 +1787,12 @@ match_aref(VALUE rcv, SEL sel, int argc, VALUE *argv)
 
     if (NIL_P(rest)) {
 	switch (TYPE(backref)) {
+	    case T_FIXNUM:
+		if (FIX2INT(backref) < 0) {
+		    break;
+		}
 	    case T_STRING:
 	    case T_SYMBOL:
-	    case T_FIXNUM:
 		{
 		    const int pos = match_backref_number(rcv, backref, false);
 		    return rb_reg_nth_match(pos, rcv);
