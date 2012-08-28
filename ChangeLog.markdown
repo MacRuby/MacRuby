@@ -1,5 +1,12 @@
 # 0.13
  * Move the MacRuby Samples to https://github.com/MacRuby/MacRubySamples
+ * MacRuby Xcode integration can now be re-installed (GH-90)
+
+```bash
+$ sudo /usr/local/bin/macruby_install_xcode_support
+```
+
+  * Upgrade RubyGems to version 1.8.24
 
 # 0.12
 
