@@ -2,8 +2,8 @@
 #ifndef _FBUFFER_H_
 #define _FBUFFER_H_
 
-#include <assert.h>
 #include "ruby.h"
+#include <assert.h>
 
 #ifdef __MACRUBY__
 /* We cannot use the GC memory functions here
@@ -17,6 +17,27 @@
 # define REALLOC_N(var,type,n) \
     (var)=(type*)realloc((char*)(var),(n) * sizeof(type))
 # define ruby_xfree(x) free(x)
+#endif
+
+#ifndef RHASH_SIZE
+#define RHASH_SIZE(hsh) (RHASH(hsh)->tbl->num_entries)
+#endif
+
+#ifndef RFLOAT_VALUE
+#define RFLOAT_VALUE(val) (RFLOAT(val)->value)
+#endif
+
+#ifndef RARRAY_PTR
+#define RARRAY_PTR(ARRAY) RARRAY(ARRAY)->ptr
+#endif
+#ifndef RARRAY_LEN
+#define RARRAY_LEN(ARRAY) RARRAY(ARRAY)->len
+#endif
+#ifndef RSTRING_PTR
+#define RSTRING_PTR(string) RSTRING(string)->ptr
+#endif
+#ifndef RSTRING_LEN
+#define RSTRING_LEN(string) RSTRING(string)->len
 #endif
 
 #ifdef HAVE_RUBY_ENCODING_H
@@ -49,10 +70,14 @@ static FBuffer *fbuffer_alloc(unsigned long initial_length);
 static void fbuffer_free(FBuffer *fb);
 static void fbuffer_clear(FBuffer *fb);
 static void fbuffer_append(FBuffer *fb, const char *newstr, unsigned long len);
+#ifdef JSON_GENERATOR
 static void fbuffer_append_long(FBuffer *fb, long number);
+#endif
 static void fbuffer_append_char(FBuffer *fb, char newchr);
+#ifdef JSON_GENERATOR
 static FBuffer *fbuffer_dup(FBuffer *fb);
 static VALUE fbuffer_to_s(FBuffer *fb);
+#endif
 
 static FBuffer *fbuffer_alloc(unsigned long initial_length)
 {
@@ -101,6 +126,7 @@ static void fbuffer_append(FBuffer *fb, const char *newstr, unsigned long len)
     }
 }
 
+#ifdef JSON_GENERATOR
 static void fbuffer_append_str(FBuffer *fb, VALUE str)
 {
     const char *newstr = StringValuePtr(str);
@@ -110,6 +136,7 @@ static void fbuffer_append_str(FBuffer *fb, VALUE str)
 
     fbuffer_append(fb, newstr, len);
 }
+#endif
 
 static void fbuffer_append_char(FBuffer *fb, char newchr)
 {
@@ -118,6 +145,7 @@ static void fbuffer_append_char(FBuffer *fb, char newchr)
     fb->len++;
 }
 
+#ifdef JSON_GENERATOR
 static void freverse(char *start, char *end)
 {
     char c;
@@ -167,4 +195,5 @@ static VALUE fbuffer_to_s(FBuffer *fb)
     FORCE_UTF8(result);
     return result;
 }
+#endif
 #endif

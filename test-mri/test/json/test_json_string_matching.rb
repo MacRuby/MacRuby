@@ -6,7 +6,7 @@ require File.join(File.dirname(__FILE__), 'setup_variant')
 require 'stringio'
 require 'time'
 
-class TestJsonStringMatching < Test::Unit::TestCase
+class TestJSONStringMatching < Test::Unit::TestCase
   include JSON
 
   class TestTime < ::Time
@@ -28,13 +28,13 @@ class TestJsonStringMatching < Test::Unit::TestCase
     t_json = [ t ].to_json
     assert_equal [ t ],
       JSON.parse(t_json,
-        :match_string => { /\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{4}\Z/ => TestTime })
+        :match_string => { /\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{4}\z/ => TestTime })
     assert_equal [ t.strftime('%FT%T%z') ],
       JSON.parse(t_json,
-        :match_string => { /\A\d{3}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{4}\Z/ => TestTime })
+        :match_string => { /\A\d{3}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{4}\z/ => TestTime })
     assert_equal [ t.strftime('%FT%T%z') ],
       JSON.parse(t_json,
-        :match_string => { /\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{4}\Z/ => TestTime },
+        :match_string => { /\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{4}\z/ => TestTime },
         :create_additions => false)
   end
 end

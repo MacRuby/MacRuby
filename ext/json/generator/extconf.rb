@@ -10,4 +10,5 @@ if CONFIG['CC'] =~ /gcc/
   end
 end
 
+$defs << "-DJSON_GENERATOR"
 create_makefile 'json/ext/generator'
