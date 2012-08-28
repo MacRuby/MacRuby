@@ -7,6 +7,7 @@ $ sudo /usr/local/bin/macruby_install_xcode_support
 ```
 
   * Upgrade RubyGems to version 1.8.24
+  * Upgrade json to version 1.7.5
 
 # 0.12
 
