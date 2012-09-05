@@ -514,7 +514,7 @@ regexp_last_match(VALUE klass, SEL sel, int argc, VALUE *argv)
 	if (NIL_P(match)) {
 	    return Qnil;
 	}
-	const int n = match_backref_number(match, nth, true);
+	const int n = match_backref_number(match, nth, false);
 	return rb_reg_nth_match(n, match);
     }
     return match_getter();
