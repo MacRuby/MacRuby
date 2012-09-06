@@ -5328,6 +5328,35 @@ rstr_transform(VALUE str, SEL sel, VALUE transform_pat)
     return rb_unicode_str_new(new_chars, (long)capacity);
 }
 
+void
+rstr_reverse_bang_uchar32(VALUE str)
+{
+    char *new_bytes = xmalloc(RSTR(str)->length_in_bytes);
+    __block long pos = RSTR(str)->length_in_bytes;
+    str_each_uchar32(RSTR(str), ^(UChar32 c, long start_index, long char_len, bool *stop) {
+	pos -= char_len;
+	memcpy(&new_bytes[pos], &RSTR(str)->bytes[start_index], char_len);
+    });
+    assert(pos == 0);
+
+    RSTR(str)->capacity_in_bytes = RSTR(str)->length_in_bytes;
+    GC_WB(&RSTR(str)->bytes, new_bytes);
+}
+
+void
+rstr_reverse_bang_ascii(VALUE str)
+{
+    char *s, *e, c;
+    s = RSTR(str)->bytes;
+    e = RSTR(str)->bytes + RSTR(str)->length_in_bytes - 1;
+
+    while (s < e) {
+	c = *s;
+	*s++ = *e;
+	*e-- = c;
+    }
+}
+
 /*
  *  call-seq:
  *     str.reverse!   => str
@@ -5344,20 +5373,12 @@ rstr_reverse_bang(VALUE str, SEL sel)
 	return str;
     }
 
-    char *new_bytes = xmalloc(RSTR(str)->length_in_bytes);
-    __block long pos = RSTR(str)->length_in_bytes;
-    str_each_uchar32(RSTR(str), ^(UChar32 c, long start_index, long char_len, bool *stop) {
-	pos -= char_len;
-	memcpy(&new_bytes[pos], &RSTR(str)->bytes[start_index], char_len);
-    });
-    assert(pos == 0);
-
-    RSTR(str)->capacity_in_bytes = RSTR(str)->length_in_bytes;
-    GC_WB(&RSTR(str)->bytes, new_bytes);
-
-    // we modify it directly so the information stored
-    // in the facultative flags might be outdated
-    str_reset_flags(RSTR(str));
+    if (str_is_ruby_ascii_only(RSTR(str))) {
+	rstr_reverse_bang_ascii(str);
+    }
+    else {
+	rstr_reverse_bang_uchar32(str);
+    }
 
     return str;
 }
