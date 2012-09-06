@@ -5328,7 +5328,7 @@ rstr_transform(VALUE str, SEL sel, VALUE transform_pat)
     return rb_unicode_str_new(new_chars, (long)capacity);
 }
 
-void
+static void
 rstr_reverse_bang_uchar32(VALUE str)
 {
     char *new_bytes = xmalloc(RSTR(str)->length_in_bytes);
@@ -5343,7 +5343,7 @@ rstr_reverse_bang_uchar32(VALUE str)
     GC_WB(&RSTR(str)->bytes, new_bytes);
 }
 
-void
+static void
 rstr_reverse_bang_ascii(VALUE str)
 {
     char *s, *e, c;
