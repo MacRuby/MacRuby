@@ -140,8 +140,12 @@ class Deployer
     @archs
   end
 
+  def macruby_version_base
+    @macruby_version_base ||= ensure_path(File.join(@macruby_framework_path, 'Versions', @macruby_install_version))
+  end
+
   def macruby_usr
-    @macruby_usr ||= ensure_path(File.join(@macruby_framework_path, 'Versions', @macruby_install_version, 'usr'))
+    @macruby_usr ||= ensure_path(File.join(macruby_version_base, 'usr'))
   end
 
   def compile_files
@@ -194,11 +198,13 @@ class Deployer
     gems_libdirs_to_embed = @gems.map { |x| gem_deps_libdirs(x) }.flatten
 
     # Exclude unnecessary things in the MacRuby.framework copy.
-    dirs = ['bin', 'include', 'lib/libmacruby-static.a', 'share']
+    dirs = ['bin', 'include', 'lib/libmacruby-static.a', 'share', 'lib/ruby/Gems']
     dirs << 'lib/ruby' if @no_stdlib
-    dirs << 'lib/ruby/Gems'
-    relative_usr = macruby_usr.sub(/#{@macruby_framework_path}\//, '')
-    exclude_dirs = dirs.map { |dir| "--exclude='#{File.join(relative_usr,dir)}'" }
+    exclude_dirs = dirs.map { |dir| "usr/#{dir}" }
+    exclude_dirs << 'Resources/Templates' # do not include Xcode templates
+
+    relative_base = macruby_version_base.sub(/#{@macruby_framework_path}\//, '')
+    exclude_dirs.map! { |dir| "--exclude='#{File.join(relative_base,dir)}'" }
 
     # Only copy the Current version of the MacRuby.framework.
     Dir.glob(File.join(@macruby_framework_path, 'Versions/*')).select { |x|
