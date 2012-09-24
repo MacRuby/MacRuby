@@ -175,7 +175,7 @@ namespace :install do
 
     makedirs FRAMEWORK_USR_BIN
 
-    for src in Dir['bin/*']
+    for src in Dir.glob('bin/*')
       next unless File.file?(src)
       next if /\/[.#]|(\.(old|bak|orig|rej|diff|patch|core)|~|\/core)$/i =~ src
 
@@ -223,7 +223,7 @@ namespace :install do
       ext_name, sub_path = path.scan(/^ext\/(.+)\/lib\/(.+)$/)[0]
       next unless EXTENSIONS.include?(ext_name)
       sub_dir = File.dirname(sub_path)
-      install path, "#{RUBY_SITE_LIB2}/#{sub_dir}", :mode => prog_mode
+      install_recursive path, "#{RUBY_SITE_LIB2}/#{sub_dir}", :mode => prog_mode
     end
 
     puts 'Installing extension objects'
@@ -292,7 +292,7 @@ namespace :install do
       next if file.match(/^\./)
       # Except rb_nibtool & llc!
       next if file == 'rb_nibtool' or file == 'llc'
-      link = "../../../#{FRAMEWORK_USR_BIN}/#{file}"
+      link = with_destdir "#{FRAMEWORK_USR_BIN}/#{file}"
       link.sub!(/#{INSTALL_VERSION}/, 'Current')
       link_dest = "#{dest_bin}/#{File.basename(file)}"
       unless File.exists?(with_destdir(link_dest))
