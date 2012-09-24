@@ -40,7 +40,10 @@ end
 
 # everything is ready, let's go for gold now
 require 'fileutils'
-FRAMEWORK = "/Library/Frameworks/MacRuby.framework/Versions/Current"
+require 'rbconfig'
+
+version = RbConfig::CONFIG['INSTALL_VERSION']
+FRAMEWORK = RbConfig::CONFIG['prefix'].sub /#{version}.+$/, 'Current'
 
 
 NSLog("Installing IB support")
@@ -50,6 +53,8 @@ NIBTOOL_DEST = "#{XCODE_PATH}/Tools/rb_nibtool"
 if File.exist?(NIBTOOL_DEST)
   NSLog("IB support already installed, skipping reinstallation")
 else
+  # File.exist? will return false if the file is a broken symlink
+  FileUtils.rm_f(NIBTOOL_DEST) # so we remove it no matter what
   FileUtils.mkdir_p(File.split(NIBTOOL_DEST).first)
   File.symlink(NIBTOOL_SRC, NIBTOOL_DEST)
 end
@@ -57,12 +62,15 @@ end
 
 NSLog("Installing XCode templates")
 TEMPLATE_SRC  = "#{FRAMEWORK}/Resources/Templates"
-TEMPLATE_DEST = "/Library/Developer/Xcode/Templates/Application"
+TEMPLATE_DEST = "/Library/Developer/Xcode/Templates/MacRuby"
 
 if File.exist?(TEMPLATE_DEST)
   NSLog("Templates already installed, skipping reinstallation")
 else
   FileUtils.mkdir_p(File.split(TEMPLATE_DEST).first) # might need to be created
+  FileUtils.rm_f(TEMPLATE_DEST)
+  # File.exist? will return false if the file is a broken symlink
+  FileUtils.rm_f(NIBTOOL_DEST) # so we remove it no matter what
   File.symlink(TEMPLATE_SRC, TEMPLATE_DEST)
 end
 
