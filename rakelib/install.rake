@@ -1,10 +1,10 @@
-require 'rake/file_utils_ext'
+require 'fileutils'
 
 # TODO abstract usage of with_destdir out of the rake tasks
 #      so that they only appear in helper methods
 
 module Installer
-  include Rake::FileUtilsExt
+  include FileUtils
 
   # Hard coded
   def prog_mode;   0755; end
