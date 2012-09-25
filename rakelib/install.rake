@@ -323,12 +323,6 @@ namespace :install do
     end
 
     install_recursive 'misc/xcode4-templates', "#{FRAMEWORK_RESOURCES}/Templates", :mode => prog_mode
-    # We need to set the correct search path for new projects
-    template_settings = "#{FRAMEWORK_RESOURCES}/Templates/Project Templates/Base/MacRuby Application.xctemplate/TemplateInfo.plist"
-    input = File.read(template_settings)
-    File.open(template_settings, 'w') do |fd|
-      fd.write input.gsub(/@@@FRAMEWORK_INSTDIR@@@/, FRAMEWORK_INSTDIR)
-    end
   end
 
   desc 'Install all Xcode related things'

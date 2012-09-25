@@ -42,8 +42,9 @@ end
 require 'fileutils'
 require 'rbconfig'
 
-version = RbConfig::CONFIG['INSTALL_VERSION']
-FRAMEWORK = RbConfig::CONFIG['prefix'].sub /#{version}.+$/, 'Current'
+version   = RbConfig::CONFIG['INSTALL_VERSION']
+FRAMEWORK = RbConfig::CONFIG['prefix'].sub(/#{version}.+$/, 'Current')
+INSTDIR   = FRAMEWORK.sub(/\/MacRuby.framework\/Versions.+$/, '')
 
 
 NSLog("Installing IB support")
@@ -72,6 +73,14 @@ else
   # File.exist? will return false if the file is a broken symlink
   FileUtils.rm_f(NIBTOOL_DEST) # so we remove it no matter what
   File.symlink(TEMPLATE_SRC, TEMPLATE_DEST)
+
+  # We need to set the correct search path for new projects
+
+  template_settings = "#{FRAMEWORK}/Resources/Templates/Project Templates/Base/MacRuby Application.xctemplate/TemplateInfo.plist"
+  input = File.read(template_settings)
+  File.open(template_settings, 'w') do |fd|
+    fd.write input.gsub(/@@@FRAMEWORK_INSTDIR@@@/, INSTDIR)
+  end
 end
 
 NSLog("MacRuby Xcode integration successfully installed")
