@@ -160,6 +160,7 @@ bool rary_eql_fast(rb_ary_t *ary1, rb_ary_t *ary2);
 
 // Shared implementations.
 VALUE rary_join(VALUE ary, SEL sel, int argc, VALUE *argv);
+VALUE rary_hash(VALUE ary, SEL sel);
 VALUE rary_zip(VALUE ary, SEL sel, int argc, VALUE *argv);
 VALUE rary_transpose(VALUE ary, SEL sel);
 VALUE rary_fill(VALUE ary, SEL sel, int argc, VALUE *argv);
