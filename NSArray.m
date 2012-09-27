@@ -1150,6 +1150,7 @@ Init_NSArray(void)
     rb_objc_define_method(rb_cArray, "&", rary_and, 1);
     rb_objc_define_method(rb_cArray, "|", rary_or, 1);
     rb_objc_define_method(rb_cArray, "join", rary_join, -1);
+    rb_objc_define_method(rb_cArray, "hash", rary_hash, 0);
     rb_objc_define_method(rb_cArray, "zip", rary_zip, -1);
     rb_objc_define_method(rb_cArray, "transpose", rary_transpose, 0);
     rb_objc_define_method(rb_cArray, "fill", rary_fill, -1);

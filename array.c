@@ -2596,7 +2596,7 @@ rary_eql_fast(rb_ary_t *ary1, rb_ary_t *ary2)
  *  will have the same hash code (and will compare using <code>eql?</code>).
  */
 
-static VALUE
+VALUE
 rary_hash(VALUE ary, SEL sel)
 {
     return LONG2FIX(rb_ary_hash(ary));
@@ -3813,7 +3813,6 @@ Init_Array(void)
     rb_objc_define_method(rb_cRubyArray, "inspect", rary_inspect, 0);
     rb_objc_define_method(rb_cRubyArray, "==", rary_equal, 1);
     rb_objc_define_method(rb_cRubyArray, "eql?", rary_eql, 1);
-    rb_objc_define_method(rb_cRubyArray, "hash", rary_hash, 0);
     rb_objc_define_method(rb_cRubyArray, "[]", rary_aref, -1);
     rb_objc_define_method(rb_cRubyArray, "[]=", rary_aset, -1);
     rb_objc_define_method(rb_cRubyArray, "at", rary_at, 1);
