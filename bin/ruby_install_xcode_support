@@ -68,10 +68,9 @@ TEMPLATE_DEST = "/Library/Developer/Xcode/Templates/MacRuby"
 if File.exist?(TEMPLATE_DEST)
   NSLog("Templates already installed, skipping reinstallation")
 else
-  FileUtils.mkdir_p(File.split(TEMPLATE_DEST).first) # might need to be created
-  FileUtils.rm_f(TEMPLATE_DEST)
   # File.exist? will return false if the file is a broken symlink
-  FileUtils.rm_f(NIBTOOL_DEST) # so we remove it no matter what
+  FileUtils.rm_f(TEMPLATE_DEST) # so we remove it no matter what
+  FileUtils.mkdir_p(File.split(TEMPLATE_DEST).first) # might need to be created
   File.symlink(TEMPLATE_SRC, TEMPLATE_DEST)
 
   # We need to set the correct search path for new projects
