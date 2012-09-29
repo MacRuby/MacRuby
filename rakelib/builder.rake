@@ -170,17 +170,8 @@ namespace :macruby do
     end
   end
 
-  desc "Build static library"
-  task :static => :files do
-    if ENABLE_STATIC_LIBRARY
-      $builder.config = STATIC_CONFIG
-      build_objects
-      $builder.link_archive("lib#{RUBY_SO_NAME}-static.a", $builder.objs - ['main', 'gc-stub'] + ['plblockimp'])
-    end
-  end
-
   desc "Build MacRuby"
-  task :build => [:dylib, :static] do
+  task :build => [:dylib] do
     $builder.config = FULL_CONFIG
     $builder.link_executable(RUBY_INSTALL_NAME, ['main', 'gc-stub'], "-L. -l#{RUBY_SO_NAME} -lobjc")
   end
@@ -191,7 +182,7 @@ EXTOUT = (ENV['EXTOUT'] or ".ext")
 INSTALLED_LIST = '.installed.list'
 
 desc "Build extensions"
-task :extensions => [:miniruby, "macruby:static"] do
+task :extensions => [:miniruby] do
   Builder::Ext.build
 end
 

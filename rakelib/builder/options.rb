@@ -41,7 +41,6 @@ LLVM_PATH = b.option('llvm_path', llvm_default_path)
 FRAMEWORK_NAME = b.option('framework_name', 'MacRuby')
 FRAMEWORK_INSTDIR = b.option('framework_instdir', '/Library/Frameworks')
 SYM_INSTDIR = b.option('sym_instdir', '/usr/local')
-ENABLE_STATIC_LIBRARY = b.option('enable_static_library', false) { |x| x == 'true' }
 ENABLE_DEBUG_LOGGING = b.option('enable_debug_logging', true) { |x| x == 'true' }
 SIMULTANEOUS_JOBS = b.option('jobs', 1) { |x| x.to_i }
 COMPILE_STDLIB = b.option('compile_stdlib', true) { |x| x == 'true' }
@@ -138,11 +137,6 @@ OBJS = %w{
   transcode sandbox
 }
 
-# Static MacRuby builds less objects.
-STATIC_OBJS = OBJS - %w{
-  bs compiler debugger interpreter MacRubyDebuggerConnector parse
-}
-
 # Additional compilation flags for certain objects.
 OBJS_CFLAGS = {
   'dispatcher' => '-x objective-c++', # compile as Objective-C++.
@@ -165,15 +159,9 @@ class BuilderConfig
     @cxxflags = "-I. -I./include -fblocks -g -Wall -Wno-deprecated-declarations -Werror #{archflags} #{EXTRA_CFLAGS}"
     @ldflags = '-lpthread -ldl -lxml2 -lobjc -licucore -framework Foundation'
     @ldflags << " -lauto" if has_libauto
-    if opt.delete(:static)
-      @cflags << ' -DMACRUBY_STATIC'
-      @cxxflags << ' -DMACRUBY_STATIC'
-      @cxxflags << " -O#{OPTZ_LEVEL} "
-    else
-      @cxxflags << ' ' << `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.sub(/-DNDEBUG/, '').sub(/-fno-exceptions/, '').sub(/-Wcast-qual/, '').sub!(/-O\d/, "-O#{OPTZ_LEVEL}").strip.gsub(/\n/, '')
-      @cxxflags << ' -DLLVM_TOT' if ENV['LLVM_TOT']
-      @ldflags << ' ' << `#{LLVM_CONFIG} --ldflags --libs #{LLVM_MODULES}`.strip.gsub(/\n/, '')
-    end
+    @cxxflags << ' ' << `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.sub(/-DNDEBUG/, '').sub(/-fno-exceptions/, '').sub(/-Wcast-qual/, '').sub!(/-O\d/, "-O#{OPTZ_LEVEL}").strip.gsub(/\n/, '')
+    @cxxflags << ' -DLLVM_TOT' if ENV['LLVM_TOT']
+    @ldflags << ' ' << `#{LLVM_CONFIG} --ldflags --libs #{LLVM_MODULES}`.strip.gsub(/\n/, '')
     unless has_libauto
       @cflags << ' -DNO_LIBAUTO'
       @cxxflags << ' -DNO_LIBAUTO'
@@ -195,8 +183,7 @@ class BuilderConfig
 end
 
 FULL_CONFIG = BuilderConfig.new(:objsdir => '.objs')
-STATIC_CONFIG = BuilderConfig.new(:objsdir => '.static-objs', :static => true, :objs => STATIC_OBJS)
-CONFIGS = [FULL_CONFIG, STATIC_CONFIG]
+CONFIGS = [FULL_CONFIG]
 
 # We monkey-patch the method that Rake uses to display the tasks so we can add
 # the build options.

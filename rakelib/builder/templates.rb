@@ -191,7 +191,7 @@ module RbConfig
   CONFIG["SOLIBS"] = ""
   CONFIG["DLDLIBS"] = ""
   CONFIG["ENABLE_SHARED"] = "yes"
-  CONFIG["ENABLE_STATIC"] = "#{ENABLE_STATIC_LIBRARY ? 'yes' : 'no'}"
+  CONFIG["ENABLE_STATIC"] = "no"
   CONFIG["MAINLIBS"] = ""
   CONFIG["COMMON_LIBS"] = ""
   CONFIG["COMMON_MACROS"] = ""

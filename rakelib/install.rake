@@ -93,10 +93,6 @@ module Installer
     "lib#{RUBY_SO_NAME}.#{NEW_RUBY_VERSION}.dylib"
   end
 
-  def static
-    "lib#{RUBY_SO_NAME}-static.a"
-  end
-
   def ruby_shebang
     "#{FRAMEWORK_USR_BIN}/#{RUBY_INSTALL_NAME}"
   end
@@ -158,9 +154,6 @@ namespace :install do
     install 'rbconfig.rb',  arch_lib_dir,         :mode => data_mode
     install 'rbconfig.rbo', arch_lib_dir,         :mode => data_mode
     install dylib,          FRAMEWORK_USR_LIB,    :mode => prog_mode, :strip => true
-    if File.exists?(static)
-      install static,       FRAMEWORK_USR_LIB,    :mode => data_mode, :strip => true
-    end
     for link in DYLIB_ALIASES.split
       ln_sf dylib, "#{FRAMEWORK_USR_LIB}/#{link}"
     end
