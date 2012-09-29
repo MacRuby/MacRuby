@@ -16,10 +16,6 @@ require 'rbconfig'
 # except with slightly different names:
 #
 # :output:: name of the file to output
-# :static:: boolean indicating if the output should be a standalone static
-#           executable
-#   :frameworks:: an array of frameworks to link a static executable against
-#   :sdk:: path to an SDK to use during static compilation
 # :dylib:: boolean indicating whether to create a dynamic library
 # :linkf:: array of options for linking (e.g. '-compatibility_version 0.9')
 # :bundle:: boolean indicating the output should be compiled, assembled, and
@@ -74,13 +70,11 @@ class MacRuby::Compiler
   end
 
   def initialize(opts)
-    @frameworks = ['Foundation'] | (opts[:foundation] || [])
+    @frameworks = ['Foundation']
     @archs = (opts[:archs] || []).uniq
     @files = opts[:files] || []
     @dont_link = opts[:dont_link]
     @output = opts[:output]
-    @static = opts[:static]
-    @sdk = opts[:sdk]
     @dylib = opts[:dylib]
     @linkf = opts[:linkf]
     @bundle = opts[:bundle]
@@ -94,12 +88,6 @@ class MacRuby::Compiler
       end
     end
 
-    if @sdk and !File.exist?(@sdk)
-      raise ArgumentError, "Given SDK path `#{@sdk}' doesn't exist."
-    end
-    if @static and RbConfig::CONFIG['ENABLE_STATIC'] != 'yes'
-      raise ArgumentError, "This version of MacRuby does not support static compilation."
-    end
 
     @tmpfiles = []
 
@@ -129,26 +117,7 @@ class MacRuby::Compiler
 
   def run
     @uses_bs_flags = ''
-    if @static
-      $stderr.puts "Warning: static compilation is currently a work in progress and provided for development only. The compilation process may simply fail or generate non-functional machine code objects. Use it at your own risk."
-      # BridgeSupport compilation is only enabled during static compilation.
-      @frameworks.each do |f|
-        p =
-          if File.exist?(f)
-  	  "#{f}/Resources/BridgeSupport/#{File.basename(f)}Full.bridgesupport"
-          else
-            base = (@sdk || '')
-            File.join(base, "/System/Library/Frameworks/#{f}.framework/Resources/BridgeSupport/#{f}Full.bridgesupport")
-          end
-        if File.exist?(p)
-          @uses_bs_flags << "--uses-bs #{p} "
-        else
-          $stderr.puts "Couldn't locate the Full BridgeSupport file for framework `#{f}' at path `#{p}', compilation might generate a unusable binary!"
-        end
-      end
-    end
     if @dont_link or @bundle
-      raise ArgumentError, "Cannot specify --static when not building an executable" if @static
       raise ArgumentError, "Cannot specify -c or -C when building a dynamic library" if @dylib
       raise ArgumentError, "Cannot specify -c and -C at the same time" if @bundle and @dont_link
       if @files.size > 1 and @output
@@ -165,7 +134,6 @@ class MacRuby::Compiler
         end
       end
     else
-      raise ArgumentError, "Cannot specify --static and --dylib at the same time" if @dylib and @static
       objs = @files.map do |file|
         raise ArgumentError, "Given input file `#{file} must exist" unless File.exist?(file)
         case File.extname(file)
@@ -207,18 +175,9 @@ class MacRuby::Compiler
 
     tmp_objs = []
     @archs.each do |arch|
-      # Locate the kernel bitcode file if needed.
-      env = ''
-      if @sdk
-        kernel_path = File.join(@sdk, "usr/lib/libmacruby-kernel-#{arch}.bc")
-        if File.exist?(kernel_path)
-          env = "/usr/bin/env VM_KERNEL_PATH=\"#{kernel_path}\""
-        end
-      end
-
       # Compile the file into LLVM bitcode.
       bc = gen_tmpfile(base + arch, 'bc')
-      execute("#{env} arch -#{arch} #{@macruby} #{@uses_bs_flags} --emit-llvm \"#{bc}\" #{init_func} \"#{path}\"")
+      execute("arch -#{arch} #{@macruby} #{@uses_bs_flags} --emit-llvm \"#{bc}\" #{init_func} \"#{path}\"")
 
       # Compile the bitcode as assembly.
       asm = gen_tmpfile(base + arch, 's')
@@ -366,15 +325,9 @@ EOS
     # Link all objects into executable.
     path = @internal ? "-L." : "-L#{RbConfig::CONFIG['libdir']}"
     linkf = ""
-    if @sdk
-      path = ''
-      linkf << "-F#{@sdk}/System/Library/Frameworks -L#{@sdk}/usr/lib "
-    end
     linkf << "-lobjc -licucore -lauto "
     @frameworks.each { |f| linkf << "-framework #{f} " }
-    linkf << (@static ?
-      "#{path} #{RbConfig::CONFIG['LIBRUBYARG_STATIC_REALLY']}" :
-      "#{path} -lmacruby")
+    linkf << "#{path} -lmacruby"
     line = "#{@gcxx} -o \"#{output}\" #{arch_flags} #{linkf} "
     objs.each { |o| line << " \"#{o}\"" }
     execute(line)
@@ -452,7 +405,7 @@ if __FILE__ == $0
     exit 1
   end
 
-  options = { frameworks: [], linkf: [], archs: [] }
+  options = { linkf: [], archs: [] }
   options[:internal] = ARGV.delete('--internal')
 
   OptionParser.new do |opts|
@@ -460,9 +413,6 @@ if __FILE__ == $0
 
     opts.on('-c',                                'Compile and assemble, but do not link')                  { options[:dont_link] = true }
     opts.on('-o <file>',                         'Place the output into <file>')                           { |output| options[:output] = output }
-    opts.on('--static',                          'Create a standalone static executable')                  { options[:static] = true }
-    opts.on('--framework <name>',                'Link standalone static executable with given framework') { |p| options[:frameworks] << p }
-    opts.on('--sdk <path>',                      'Use SDK when compiling standalone static executable')    { |x| options[:sdk] = x }
     opts.on('--dylib',                           'Create a dynamic library')                               { options[:dylib] = true }
     opts.on('--compatibility_version <VERSION>', 'Compatibility Version for linking')                      { |ver| options[:linkf] << "-compatibility_version #{ver}" }
     opts.on('--current_version <VERSION>',       'Current Version for linking')                            { |ver| options[:linkf] << "-current_version #{ver}" }
