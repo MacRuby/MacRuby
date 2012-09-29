@@ -152,21 +152,25 @@ class Deployer
     Dir.glob(File.join(app_resources, '**', '*.rb'))
   end
 
+  def try_to_compile(source, to: obj)
+    unless File.exist?(obj) && File.mtime(obj) > File.mtime(source)
+      MacRuby::Compiler.compile_file(source, archs: app_archs)
+    end
+  rescue
+    die "Can't compile \"#{source}\""
+  end
+
   def compile
     log "Compiling files"
     compile_files.each do |source|
       base = File.basename(source, '.rb')
       next if base == 'rb_main'
+
       obj = File.join(File.dirname(source), base + '.rbo')
-      if !File.exist?(obj) or File.mtime(source) > File.mtime(obj)
-        begin
-          MacRuby::Compiler.compile_file(source, archs: app_archs)
-          rm_rf(source)
-        rescue
-          die "Can't compile \"#{source}\""
-        end
-      end
+      try_to_compile(source, to: obj)
+      rm_rf(source) if File.exists?(obj) # mtime doesn't matter, MR prefers .rbo
     end
+
     fix_install_name if File.exist?(app_macruby)
   end
 
