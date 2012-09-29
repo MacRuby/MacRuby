@@ -285,7 +285,7 @@ namespace :install do
       next if file.match(/^\./)
       # Except rb_nibtool & llc!
       next if file == 'rb_nibtool' or file == 'llc'
-      link = with_destdir "#{FRAMEWORK_USR_BIN}/#{file}"
+      link = "#{FRAMEWORK_USR_BIN}/#{file}"
       link.sub!(/#{INSTALL_VERSION}/, 'Current')
       link_dest = "#{dest_bin}/#{File.basename(file)}"
       unless File.exists?(with_destdir(link_dest))
