@@ -2,7 +2,7 @@
 
 echo "Running the Xcode integration installer"
 
-/usr/local/bin/macruby_install_xcode_support
+sudo /usr/local/bin/macruby_install_xcode_support
 
 echo "Xcode integration installer exited with status $?"
 
