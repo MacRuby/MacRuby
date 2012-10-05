@@ -606,6 +606,18 @@ recache:
 	Method method;
 	if (opt & DISPATCH_SUPER) {
 	    if (!sel_equal(klass, current_super_sel, sel)) {
+		const char *selname = sel_getName(sel);
+		const size_t selname_len = strlen(selname);
+		char buf[100];
+		if (argc == 0 && selname[selname_len - 1] == ':') {
+		    strlcpy(buf, selname, sizeof buf);
+		    buf[selname_len - 1] = '\0';
+		    sel = sel_registerName(buf);
+		}
+		else if (argc > 0 && selname[selname_len - 1] != ':') {
+		    snprintf(buf, sizeof buf, "%s:", selname);
+		    sel = sel_registerName(buf);
+		}
 		current_super_sel = sel;
 		current_super_class = klass;
 	    }
