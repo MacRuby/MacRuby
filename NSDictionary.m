@@ -323,7 +323,6 @@ nshash_delete_if(id rcv, SEL sel)
 static VALUE
 nshash_select(id rcv, SEL sel)
 {
-    CHECK_MUTABLE(rcv);
     RETURN_ENUMERATOR(rcv, 0, 0);
     NSMutableDictionary *dict = [NSMutableDictionary new];
     // TODO: should handle the element which is inserted in iterator block.
