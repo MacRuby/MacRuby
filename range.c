@@ -544,7 +544,7 @@ range_each(VALUE range, SEL sel)
 
 	    args[0] = end;
 	    args[1] = EXCL(range) ? Qtrue : Qfalse;
-	    rb_objc_block_call(beg, selUpto, 2, args, rb_yield, 0);
+	    rb_objc_block_call(tmp, selUpto, 2, args, rb_yield, 0);
 	}
 	else {
 	    if (!discrete_object_p(beg)) {
