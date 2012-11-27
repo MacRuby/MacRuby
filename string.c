@@ -5197,6 +5197,9 @@ rstr_upto(VALUE str, SEL sel, int argc, VALUE *argv)
     bool excl = RTEST(exclusive);
     SEL succ_sel = sel_registerName("succ");
     StringValue(end);
+    beg = (VALUE)str_need_string(beg);
+    end = (VALUE)str_need_string(end);
+
     enc = str_must_have_compatible_encoding(RSTR(beg), RSTR(end));
     ascii = (str_is_ruby_ascii_only(RSTR(beg)) && str_is_ruby_ascii_only(RSTR(end)));
 
