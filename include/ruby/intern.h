@@ -607,7 +607,10 @@ VALUE rb_barrier_release(VALUE self);
 /* time.c */
 VALUE rb_time_new(time_t, long);
 VALUE rb_time_nano_new(time_t, long);
+VALUE rb_time_num_new(VALUE, VALUE);
 struct timeval rb_time_interval(VALUE num);
+struct timeval rb_time_timeval(VALUE time);
+struct timespec rb_time_timespec(VALUE time);
 
 /* variable.c */
 VALUE rb_class_path(VALUE);
