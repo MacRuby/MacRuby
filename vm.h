@@ -640,7 +640,7 @@ struct mcache *rb_vm_get_mcache(void *vm) __attribute__((const));
 static inline int
 rb_vm_mcache_hash(Class klass, SEL sel)
 {
-    return (((unsigned long)klass >> 3) ^ (unsigned long)sel)
+    return (((unsigned long)klass >> 3) ^ (unsigned long)sel_getName(sel))
 	& (VM_MCACHE_SIZE - 1);
 }
 
