@@ -636,8 +636,7 @@ str_get_character_boundaries(rb_str_t *self, long index,
     character_boundaries_t boundaries = {-1, -1};
 
     // fast paths
-    if (self->encoding->single_byte_encoding
-	    || (self->encoding->ascii_compatible && str_is_ascii_only(self))) {
+    if (self->encoding->single_byte_encoding || str_is_ruby_ascii_only(self)) {
 	if (index < 0) {
 	    index += self->length_in_bytes;
 	    if (index < 0) {
@@ -1119,8 +1118,7 @@ str_offset_in_bytes_to_index(rb_str_t *self, long offset_in_bytes)
 	return 0;
     }
 
-    if (self->encoding->single_byte_encoding
-	    || (self->encoding->ascii_compatible && str_is_ascii_only(self))) {
+    if (self->encoding->single_byte_encoding || str_is_ruby_ascii_only(self)) {
 	return offset_in_bytes;
     }
     else if (IS_UTF16_ENC(self->encoding)) {
