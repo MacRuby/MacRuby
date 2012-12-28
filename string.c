@@ -476,7 +476,7 @@ str_each_uchar32_starting_from(rb_str_t *self,
 	long start_offset_in_bytes,
 	each_uchar32_callback_t callback)
 {
-    if (IS_BINARY_ENC(self->encoding) || IS_ASCII_ENC(self->encoding)) {
+    if (self->encoding->single_byte_encoding || str_is_ruby_ascii_only(self)) {
 	bool stop = false;
 	for (long i = start_offset_in_bytes; i < self->length_in_bytes; ++i) {
 	    UChar32 c = (uint8_t)self->bytes[i];
