@@ -5638,11 +5638,9 @@ rstr_delete_bang(VALUE str, SEL sel, int argc, VALUE *argv)
     bool modified = false;
     for (long i = 0; i < chars_len; i++) {
 	while (i < chars_len && CHARSET_TABLE_INCLUDES(chars[i])) {
-	    for (long j = i; j < chars_len - 1; j++) {
-		chars[j] = chars[j + 1];
-	    }
 	    chars_len--;
 	    modified = true;
+	    memmove(&chars[i], &chars[i + 1], sizeof(UChar) * (chars_len - i));
 	}
     }
 
