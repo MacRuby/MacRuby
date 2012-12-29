@@ -1208,10 +1208,15 @@ str_index_for_string_with_cache(rb_str_t *self, rb_str_t *searched,
 	    assert(start_index >= 0);
 	    return start_index;
 	}
-	if (searched->length_in_bytes == 1 && str_is_ruby_ascii_only(self)) {
+
+	if (str_is_ruby_ascii_only(self)) {
 	    for (int i = start_index; i < self->length_in_bytes; i++) {
 		if (self->bytes[i] == searched->bytes[0]) {
-		    return i;
+		    if (searched->length_in_bytes == 1 ||
+			memcmp(&self->bytes[i],
+			    searched->bytes, searched->length_in_bytes) == 0) {
+			return i;
+		    }
 		}
 	    }
 	    return -1;
