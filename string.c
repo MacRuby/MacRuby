@@ -2582,8 +2582,10 @@ rstr_plus(VALUE self, SEL sel, VALUE other)
 {
     StringValue(other);
 
-    rb_str_t *newstr = str_dup(RSTR(self));
     rb_str_t *otherstr = str_need_string(other);
+    rb_str_t *newstr = (rb_str_t*)rb_str_new(NULL, RSTR(self)->length_in_bytes + otherstr->length_in_bytes);
+    newstr->encoding = RSTR(self)->encoding;
+    str_concat_string(newstr, RSTR(self));
     str_concat_string(newstr, otherstr);
     if (OBJ_TAINTED(self) || OBJ_TAINTED(other)) {
 	OBJ_TAINT(newstr);
