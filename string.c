@@ -1064,6 +1064,28 @@ str_compare(rb_str_t *self, rb_str_t *str)
     return res > 0 ? 1 : -1;
 }
 
+static VALUE
+str_eql(rb_str_t *str1, rb_str_t *str2)
+{
+    const long len = str1->length_in_bytes;
+
+    if (str1 == str2) {
+	return Qtrue;
+    }
+
+    if (len != str2->length_in_bytes) {
+	return Qfalse;
+    }
+    if (str_compatible_encoding(str1, str2) == NULL) {
+	return Qfalse;
+    }
+
+    if (memcmp(str1->bytes, str2->bytes, len) == 0) {
+	return Qtrue;
+    }
+    return Qfalse;
+}
+
 int
 rstr_compare(rb_str_t *str1, rb_str_t *str2)
 {
@@ -2743,8 +2765,7 @@ rstr_equal(VALUE self, SEL sel, VALUE other)
 	}
 	return rb_equal(other, self);
     }
-    return str_compare(RSTR(self), str_need_string(other)) == 0
-	? Qtrue : Qfalse;
+    return str_eql(RSTR(self), str_need_string(other));
 }
 
 /*
@@ -2833,8 +2854,7 @@ rstr_eql(VALUE self, SEL sel, VALUE other)
     if (TYPE(other) != T_STRING) {
 	return Qfalse;
     }
-    return str_compare(RSTR(self), str_need_string(other)) == 0
-	? Qtrue : Qfalse;
+    return str_eql(RSTR(self), str_need_string(other));
 }
 
 /*
