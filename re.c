@@ -1508,6 +1508,14 @@ Init_Regexp(void)
     Init_Match();
 }
 
+static void
+match_check(VALUE match)
+{
+    if (RMATCH(match)->regexp == NULL) {
+	rb_raise(rb_eTypeError, "uninitialized Match");
+    }
+}
+
 static VALUE
 match_initialize_copy(VALUE rcv, SEL sel, VALUE other)
 {
@@ -1539,7 +1547,7 @@ match_initialize_copy(VALUE rcv, SEL sel, VALUE other)
 static VALUE
 match_regexp(VALUE rcv, SEL sel)
 {
-    assert(RMATCH(rcv)->regexp != NULL);
+    match_check(rcv);
     return (VALUE)RMATCH(rcv)->regexp;
 }
 
@@ -1561,6 +1569,7 @@ static VALUE
 match_names(VALUE rcv, SEL sel)
 {
     // TODO
+    match_check(rcv);
     return rb_ary_new();
 }
 
@@ -1579,6 +1588,7 @@ match_names(VALUE rcv, SEL sel)
 static VALUE
 match_size(VALUE rcv, SEL sel)
 {
+    match_check(rcv);
     return INT2FIX(RMATCH(rcv)->results_count);
 }
 
@@ -1605,6 +1615,7 @@ match_backref_number(VALUE match, VALUE backref, bool check)
 {
     const char *name;
 
+    match_check(match);
     switch (TYPE(backref)) {
 	default:
 	    {
@@ -1712,6 +1723,7 @@ match_end(VALUE rcv, SEL sel, VALUE backref)
 static VALUE
 match_array(VALUE match, int start)
 {
+    match_check(match);
     const int len = RMATCH(match)->results_count;
     assert(start >= 0);
     const bool tainted = OBJ_TAINTED(match);
@@ -1783,6 +1795,7 @@ match_aref(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     VALUE backref, rest;
 
+    match_check(rcv);
     rb_scan_args(argc, argv, "11", &backref, &rest);
 
     if (NIL_P(rest)) {
@@ -1824,6 +1837,7 @@ match_entry(VALUE match, long n)
 static VALUE
 match_values_at(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
+    match_check(rcv);
     return rb_get_values_at(rcv, RMATCH(rcv)->results_count, argc, argv,
 	    match_entry);
 }
@@ -1842,7 +1856,7 @@ match_values_at(VALUE rcv, SEL sel, int argc, VALUE *argv)
 static VALUE
 match_pre(VALUE rcv, SEL sel)
 {
-    assert(RMATCH(rcv)->results_count > 0);
+    match_check(rcv);
 
     VALUE str = rb_str_substr(RMATCH(rcv)->str, 0,
 	    RMATCH(rcv)->results[0].beg);
@@ -1876,7 +1890,7 @@ rb_reg_match_pre(VALUE rcv)
 static VALUE
 match_post(VALUE rcv, SEL sel)
 {
-    assert(RMATCH(rcv)->results_count > 0);
+    match_check(rcv);
 
     const int pos = RMATCH(rcv)->results[0].end;
     VALUE str = rb_str_substr(RMATCH(rcv)->str, pos,
@@ -1903,7 +1917,7 @@ rb_reg_match_last(VALUE rcv)
     if (NIL_P(rcv)) {
 	return Qnil;
     }
-    assert(RMATCH(rcv)->results_count > 0);
+    match_check(rcv);
 
     int nth = RMATCH(rcv)->results_count - 1;
     while(nth > 0) {
@@ -1955,6 +1969,7 @@ rb_reg_nth_match_with_cache(int nth, VALUE match,
     if (NIL_P(match)) {
 	return Qnil;
     }
+    match_check(match);
     if (nth >= RMATCH(match)->results_count) {
 	return Qnil;
     }
@@ -1989,8 +2004,13 @@ rb_reg_last_match(VALUE match)
 static VALUE
 match_inspect(VALUE rcv, SEL sel)
 {
+    const char *cname = rb_obj_classname(rcv);
+    if (RMATCH(rcv)->regexp == NULL) {
+        return rb_sprintf("#<%s:%p>", cname, (void*)rcv);
+    }
+
     VALUE str = rb_str_buf_new2("#<");
-    rb_str_buf_cat2(str, rb_obj_classname(rcv));
+    rb_str_buf_cat2(str, cname);
     for (int i = 0; i < RMATCH(rcv)->results_count; i++) {
 	rb_str_buf_cat2(str, " ");
 	if (i > 0) {
@@ -2023,7 +2043,7 @@ match_inspect(VALUE rcv, SEL sel)
 static VALUE
 match_string(VALUE rcv, SEL sel)
 {
-    assert(RMATCH(rcv)->str != 0);
+    match_check(rcv);
     return RMATCH(rcv)->str;
 }
 
