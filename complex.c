@@ -21,7 +21,7 @@
 
 VALUE rb_cComplex;
 
-static SEL sel_abs, sel_abs2, sel_arg, sel_cmp, sel_conj, sel_convert,
+static SEL sel_abs, sel_abs2, sel_arg, sel_conj, sel_convert,
     sel_denominator, sel_divmod, sel_expt, sel_fdiv,  sel_floor,
     sel_idiv, sel_imag, sel_inspect, sel_negate, sel_numerator, sel_quo,
     sel_real, sel_real_p, sel_to_f, sel_to_i, sel_to_r, sel_to_s;
@@ -1901,7 +1901,6 @@ Init_Complex(void)
     sel_abs = sel_registerName("abs");
     sel_abs2 = sel_registerName("abs2");
     sel_arg = sel_registerName("arg");
-    sel_cmp = sel_registerName("<=>");
     sel_conj = sel_registerName("conj");
     sel_convert = sel_registerName("convert");
     sel_denominator = sel_registerName("denominator");
