@@ -11,6 +11,7 @@
 #include "macruby_internal.h"
 #include "ruby/node.h"
 #include "vm.h"
+#include "id.h"
 #include "objc.h"
 #include "encoding.h"
 #include "class.h"
@@ -28,9 +29,8 @@
 
 #include "timev.h"
 
-static SEL sel_to_r, sel_divmod;
-static ID id_divmod, id_mul, id_submicro, id_nano_num, id_nano_den, id_offset;
-static ID id_eq, id_ne, id_quo, id_div, id_cmp, id_lshift;
+static SEL sel_to_r, sel_divmod, sel_quo;
+static ID id_submicro, id_nano_num, id_nano_den, id_offset;
 
 #define NDIV(x,y) (-(-((x)+1)/(y))-1)
 #define NMOD(x,y) ((y)-(-((x)+1)%(y))-1)
@@ -43,7 +43,7 @@ eq(VALUE x, VALUE y)
     if (FIXNUM_P(x) && FIXNUM_P(y)) {
         return x == y;
     }
-    return RTEST(rb_funcall(x, id_eq, 1, y));
+    return RTEST(rb_vm_call(x, selEq, 1, &y));
 }
 
 static int
@@ -56,7 +56,7 @@ cmp(VALUE x, VALUE y)
             return 1;
         return 0;
     }
-    return rb_cmpint(rb_funcall(x, id_cmp, 1, y), x, y);
+    return rb_cmpint(rb_vm_call(x, selCmp, 1, &y), x, y);
 }
 
 #define ne(x,y) (!eq((x),(y)))
@@ -74,7 +74,7 @@ add(VALUE x, VALUE y)
         return LONG2NUM(l);
     }
     if (TYPE(x) == T_BIGNUM) return rb_big_plus(x, y);
-    return rb_funcall(x, '+', 1, y);
+    return rb_vm_call(x, selPLUS, 1, &y);
 }
 
 static VALUE
@@ -86,7 +86,7 @@ sub(VALUE x, VALUE y)
         return LONG2NUM(l);
     }
     if (TYPE(x) == T_BIGNUM) return rb_big_minus(x, y);
-    return rb_funcall(x, '-', 1, y);
+    return rb_vm_call(x, selMINUS, 1, &y);
 }
 
 #if !(HAVE_LONG_LONG && SIZEOF_LONG * 2 <= SIZEOF_LONG_LONG)
@@ -150,22 +150,22 @@ mul(VALUE x, VALUE y)
     }
     if (TYPE(x) == T_BIGNUM)
         return rb_big_mul(x, y);
-    return rb_funcall(x, '*', 1, y);
+    return rb_vm_call(x, selMULT, 1, &y);
 }
 
-#define div(x,y) (rb_funcall((x), id_div, 1, (y)))
+#define div(x,y) (rb_vm_call((x), selDIV, 1, &(y)))
 
 static VALUE
 mod(VALUE x, VALUE y)
 {
     switch (TYPE(x)) {
       case T_BIGNUM: return rb_big_modulo(x, y);
-      default: return rb_funcall(x, '%', 1, y);
+      default: return rb_vm_call(x, selMOD, 1, &y);
     }
 }
 
 #define neg(x) (sub(INT2FIX(0), (x)))
-#define lshift(x,y) (rb_funcall((x), id_lshift, 1, (y)))
+#define lshift(x,y) (rb_vm_call((x), selLTLT, 1, &(y)))
 
 static VALUE
 quo(VALUE x, VALUE y)
@@ -181,7 +181,7 @@ quo(VALUE x, VALUE y)
             return LONG2NUM(c);
         }
     }
-    ret = rb_funcall(x, id_quo, 1, y);
+    ret = rb_vm_call(x, sel_quo, 1, &y);
     if (TYPE(ret) == T_RATIONAL &&
         RRATIONAL(ret)->den == INT2FIX(1)) {
         ret = RRATIONAL(ret)->num;
@@ -195,7 +195,7 @@ static void
 divmodv(VALUE n, VALUE d, VALUE *q, VALUE *r)
 {
     VALUE tmp, ary;
-    tmp = rb_funcall(n, id_divmod, 1, d);
+    tmp = rb_vm_call(n, sel_divmod, 1, &d);
     ary = rb_check_array_type(tmp);
     if (NIL_P(ary)) {
         rb_raise(rb_eTypeError, "unexpected divmod result: into %s",
@@ -406,7 +406,8 @@ weq(wideval_t wx, wideval_t wy)
     if (FIXWV_P(wx) && FIXWV_P(wy)) {
         return WIDEVAL_GET(wx) == WIDEVAL_GET(wy);
     }
-    return RTEST(rb_funcall(w2v(wx), id_eq, 1, w2v(wy)));
+    VALUE wy = w2v(wy);
+    return RTEST(rb_vm_call(w2v(wx), selEq, 1, &wy));
 #else
     return eq(WIDEVAL_GET(wx), WIDEVAL_GET(wy));
 #endif
@@ -430,7 +431,7 @@ wcmp(wideval_t wx, wideval_t wy)
 #endif
     x = w2v(wx);
     y = w2v(wy);
-    return rb_cmpint(rb_funcall(x, id_cmp, 1, y), x, y);
+    return rb_cmpint(rb_vm_call(x, selCmp, 1, &y), x, y);
 }
 
 #define wne(x,y) (!weq((x),(y)))
@@ -452,7 +453,8 @@ wadd(wideval_t wx, wideval_t wy)
 #endif
     x = w2v(wx);
     if (TYPE(x) == T_BIGNUM) return v2w(rb_big_plus(x, w2v(wy)));
-    return v2w(rb_funcall(x, '+', 1, w2v(wy)));
+    VALUE y = w2v(wy);
+    return v2w(rb_vm_call(x, selPLUS, 1, &y));
 }
 
 static wideval_t
@@ -468,7 +470,8 @@ wsub(wideval_t wx, wideval_t wy)
 #endif
     x = w2v(wx);
     if (TYPE(x) == T_BIGNUM) return v2w(rb_big_minus(x, w2v(wy)));
-    return v2w(rb_funcall(x, '-', 1, w2v(wy)));
+    VALUE y = w2v(wy);
+    return v2w(rb_vm_call(x, selMINUS, 1, &y));
 }
 
 static int
@@ -526,7 +529,8 @@ wmul(wideval_t wx, wideval_t wy)
 #endif
     x = w2v(wx);
     if (TYPE(x) == T_BIGNUM) return v2w(rb_big_mul(x, w2v(wy)));
-    z = rb_funcall(x, '*', 1, w2v(wy));
+    VALUE y = w2v(wy);
+    z = rb_vm_call(x, selMULT, 1, &y);
     if (TYPE(z) == T_RATIONAL && RRATIONAL(z)->den == INT2FIX(1)) {
         z = RRATIONAL(z)->num;
     }
@@ -551,7 +555,7 @@ wquo(wideval_t wx, wideval_t wy)
 #endif
     x = w2v(wx);
     y = w2v(wy);
-    ret = rb_funcall(x, id_quo, 1, y);
+    ret = rb_vm_call(x, sel_quo, 1, &y);
     if (TYPE(ret) == T_RATIONAL &&
         RRATIONAL(ret)->den == INT2FIX(1)) {
         ret = RRATIONAL(ret)->num;
@@ -621,7 +625,8 @@ wdivmod(wideval_t wn, wideval_t wd, wideval_t *wq, wideval_t *wr)
         return;
     }
 #endif
-    tmp = rb_funcall(w2v(wn), id_divmod, 1, w2v(wd));
+    VALUE d = w2v(wd);
+    tmp = rb_vm_call(w2v(wn), sel_divmod, 1, &d);
     ary = rb_check_array_type(tmp);
     if (NIL_P(ary)) {
         rb_raise(rb_eTypeError, "unexpected divmod result: into %s",
@@ -2385,7 +2390,8 @@ time_timespec(VALUE num, int interval)
             t.tv_sec = NUM2TIMET(i);
             if (interval && t.tv_sec < 0)
                 rb_raise(rb_eArgError, "%s must be positive", tstr);
-            f = rb_funcall(f, id_mul, 1, INT2FIX(1000000000));
+            VALUE tmp = INT2FIX(1000000000);
+            f = rb_vm_call(f, selMULT, 1, &tmp);
             t.tv_nsec = NUM2LONG(f);
         }
         else {
@@ -3322,7 +3328,7 @@ time_cmp(VALUE time1, SEL sel, VALUE time2)
     else {
 	VALUE tmp;
 
-	tmp = rb_funcall(time2, rb_intern("<=>"), 1, time1);
+	tmp = rb_vm_call(time2, selCmp, 1, &time1);
 	if (NIL_P(tmp)) return Qnil;
 
 	n = -rb_cmpint(tmp, time1, time2);
@@ -4772,15 +4778,8 @@ Init_Time(void)
 
     sel_to_r = sel_registerName("to_r");
     sel_divmod = sel_registerName("divmod:");
+    sel_quo = sel_registerName("quo:");
 
-    id_eq = rb_intern("==");
-    id_ne = rb_intern("!=");
-    id_quo = rb_intern("quo");
-    id_div = rb_intern("div");
-    id_cmp = rb_intern("<=>");
-    id_lshift = rb_intern("<<");
-    id_divmod = rb_intern("divmod");
-    id_mul = rb_intern("*");
     id_submicro = rb_intern("submicro");
     id_nano_num = rb_intern("nano_num");
     id_nano_den = rb_intern("nano_den");
