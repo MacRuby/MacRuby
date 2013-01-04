@@ -10,6 +10,19 @@
 ************************************************/
 
 #include "ruby.h"
+#ifdef __MACRUBY__
+/* We cannot use the GC memory functions here
+ * function will call free() on the memory, resulting in a leak.
+ */
+# undef ALLOC
+# define ALLOC(type) (type*)malloc(sizeof(type))
+# undef ALLOC_N
+# define ALLOC_N(type,n) ((type *)malloc(sizeof(type) * (n)))
+# undef REALLOC_N
+# define REALLOC_N(var,type,n) \
+    (var)=(type*)realloc((char*)(var),(n) * sizeof(type))
+# define ruby_xfree(x) free(x)
+#endif
 
 #include <gdbm.h>
 #include <fcntl.h>
