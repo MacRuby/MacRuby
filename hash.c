@@ -764,6 +764,12 @@ rhash_delete_if(VALUE hash, SEL sel)
     return hash;
 }
 
+VALUE
+rb_hash_delete_if(VALUE hash)
+{
+    return rhash_delete_if(hash, 0);
+}
+
 /*
  *  call-seq:
  *     hsh.reject! {| key, value | block }  -> hsh or nil

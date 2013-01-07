@@ -1182,9 +1182,7 @@ fgdbm_to_hash(VALUE obj, SEL sel)
 static VALUE
 fgdbm_reject(VALUE obj, SEL sel)
 {
-    // FIXME
-    //return rb_hash_delete_if(fgdbm_to_hash(obj, 0));
-    return Qnil;
+    return rb_hash_delete_if(fgdbm_to_hash(obj, 0));
 }
 
 void
