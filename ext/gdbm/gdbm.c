@@ -24,6 +24,8 @@
 # define ruby_xfree(x) free(x)
 #endif
 
+#include "macruby_internal.h"
+
 #include <gdbm.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -134,7 +136,7 @@ free_dbm(struct dbmdata *dbmp)
  * Closes the associated database file.
  */
 static VALUE
-fgdbm_close(VALUE obj)
+fgdbm_close(VALUE obj, SEL sel)
 {
     struct dbmdata *dbmp;
 
@@ -152,7 +154,7 @@ fgdbm_close(VALUE obj)
  * Returns true if the associated database file has been closed.
  */
 static VALUE
-fgdbm_closed(VALUE obj)
+fgdbm_closed(VALUE obj, SEL sel)
 {
     struct dbmdata *dbmp;
 
@@ -166,7 +168,7 @@ fgdbm_closed(VALUE obj)
 }
 
 static VALUE
-fgdbm_s_alloc(VALUE klass)
+fgdbm_s_alloc(VALUE klass, SEL sel)
 {
     return Data_Wrap_Struct(klass, 0, free_dbm, 0);
 }
@@ -195,7 +197,7 @@ fgdbm_s_alloc(VALUE klass)
  * database file as a reader (cf. flag <tt>READER</tt>).
  */
 static VALUE
-fgdbm_initialize(int argc, VALUE *argv, VALUE obj)
+fgdbm_initialize(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
     VALUE file, vmode, vflags;
     GDBM_FILE dbm;
@@ -275,11 +277,11 @@ fgdbm_initialize(int argc, VALUE *argv, VALUE obj)
  *   end
  */
 static VALUE
-fgdbm_s_open(int argc, VALUE *argv, VALUE klass)
+fgdbm_s_open(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     VALUE obj = Data_Wrap_Struct(klass, 0, free_dbm, 0);
 
-    if (NIL_P(fgdbm_initialize(argc, argv, obj))) {
+    if (NIL_P(fgdbm_initialize(obj, 0, argc, argv))) {
         return Qnil;
     }
 
@@ -383,7 +385,7 @@ fgdbm_fetch(VALUE obj, VALUE keystr, VALUE ifnone)
  * Retrieves the _value_ corresponding to _key_.
  */
 static VALUE
-fgdbm_aref(VALUE obj, VALUE keystr)
+fgdbm_aref(VALUE obj, SEL sel, VALUE keystr)
 {
     return rb_gdbm_fetch3(obj, keystr);
 }
@@ -396,7 +398,7 @@ fgdbm_aref(VALUE obj, VALUE keystr)
  * associated with _key_, _default_ will be returned instead.
  */
 static VALUE
-fgdbm_fetch_m(int argc, VALUE *argv, VALUE obj)
+fgdbm_fetch_m(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
     VALUE keystr, valstr, ifnone;
 
@@ -416,7 +418,7 @@ fgdbm_fetch_m(int argc, VALUE *argv, VALUE obj)
  * same value, the key that is found first will be returned.
  */
 static VALUE
-fgdbm_key(VALUE obj, VALUE valstr)
+fgdbm_key(VALUE obj, SEL sel, VALUE valstr)
 {
     struct dbmdata *dbmp;
     GDBM_FILE dbm;
@@ -440,10 +442,10 @@ fgdbm_key(VALUE obj, VALUE valstr)
 
 /* :nodoc: */
 static VALUE
-fgdbm_index(VALUE obj, VALUE value)
+fgdbm_index(VALUE obj, SEL sel, VALUE value)
 {
     rb_warn("GDBM#index is deprecated; use GDBM#key");
-    return fgdbm_key(obj, value);
+    return fgdbm_key(obj, 0, value);
 }
 
 /*
@@ -454,7 +456,7 @@ fgdbm_index(VALUE obj, VALUE value)
  * evaluates to true.
  */
 static VALUE
-fgdbm_select(VALUE obj)
+fgdbm_select(VALUE obj, SEL sel)
 {
     VALUE new = rb_ary_new();
     GDBM_FILE dbm;
@@ -483,7 +485,7 @@ fgdbm_select(VALUE obj)
  * Returns an array of the values associated with each specified _key_.
  */
 static VALUE
-fgdbm_values_at(int argc, VALUE *argv, VALUE obj)
+fgdbm_values_at(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
     VALUE new = rb_ary_new2(argc);
     int i;
@@ -537,7 +539,7 @@ rb_gdbm_delete(VALUE obj, VALUE keystr)
  * returns the corresponding _value_. Returns nil if the database is empty.
  */
 static VALUE
-fgdbm_delete(VALUE obj, VALUE keystr)
+fgdbm_delete(VALUE obj, SEL sel, VALUE keystr)
 {
     VALUE valstr;
 
@@ -554,7 +556,7 @@ fgdbm_delete(VALUE obj, VALUE keystr)
  * two-item array [ _key_, _value_ ]. Returns nil if the database is empty.
  */
 static VALUE
-fgdbm_shift(VALUE obj)
+fgdbm_shift(VALUE obj, SEL sel)
 {
     struct dbmdata *dbmp;
     GDBM_FILE dbm;
@@ -578,7 +580,7 @@ fgdbm_shift(VALUE obj)
  * Deletes every key-value pair from _gdbm_ for which _block_ evaluates to true.
  */
 static VALUE
-fgdbm_delete_if(VALUE obj)
+fgdbm_delete_if(VALUE obj, SEL sel)
 {
     struct dbmdata *dbmp;
     GDBM_FILE dbm;
@@ -616,7 +618,7 @@ fgdbm_delete_if(VALUE obj)
  * Removes all the key-value pairs within _gdbm_.
  */
 static VALUE
-fgdbm_clear(VALUE obj)
+fgdbm_clear(VALUE obj, SEL sel)
 {
     datum key, nextkey;
     struct dbmdata *dbmp;
@@ -660,7 +662,7 @@ fgdbm_clear(VALUE obj)
  * as values.
  */
 static VALUE
-fgdbm_invert(VALUE obj)
+fgdbm_invert(VALUE obj, SEL sel)
 {
     struct dbmdata *dbmp;
     GDBM_FILE dbm;
@@ -685,7 +687,7 @@ fgdbm_invert(VALUE obj)
  * Associates the value _value_ with the specified _key_.
  */
 static VALUE
-fgdbm_store(VALUE obj, VALUE keystr, VALUE valstr)
+fgdbm_store(VALUE obj, SEL sel, VALUE keystr, VALUE valstr)
 {
     datum key, val;
     struct dbmdata *dbmp;
@@ -718,7 +720,7 @@ update_i(VALUE pair, VALUE dbm)
     if (RARRAY_LEN(pair) < 2) {
         rb_raise(rb_eArgError, "pair must be [key, value]");
     }
-    fgdbm_store(dbm, RARRAY_PTR(pair)[0], RARRAY_PTR(pair)[1]);
+    fgdbm_store(dbm, 0, RARRAY_PTR(pair)[0], RARRAY_PTR(pair)[1]);
     return Qnil;
 }
 
@@ -731,7 +733,7 @@ update_i(VALUE pair, VALUE dbm)
  * method.
  */
 static VALUE
-fgdbm_update(VALUE obj, VALUE other)
+fgdbm_update(VALUE obj, SEL sel, VALUE other)
 {
     rb_block_call(other, rb_intern("each_pair"), 0, 0, update_i, obj);
     return obj;
@@ -745,9 +747,9 @@ fgdbm_update(VALUE obj, VALUE other)
  * _other_ must have an each_pair method.
  */
 static VALUE
-fgdbm_replace(VALUE obj, VALUE other)
+fgdbm_replace(VALUE obj, SEL sel, VALUE other)
 {
-    fgdbm_clear(obj);
+    fgdbm_clear(obj, 0);
     rb_block_call(other, rb_intern("each_pair"), 0, 0, update_i, obj);
     return obj;
 }
@@ -760,7 +762,7 @@ fgdbm_replace(VALUE obj, VALUE other)
  * Returns the number of key-value pairs in this database.
  */
 static VALUE
-fgdbm_length(VALUE obj)
+fgdbm_length(VALUE obj, SEL sel)
 {
     datum key, nextkey;
     struct dbmdata *dbmp;
@@ -787,7 +789,7 @@ fgdbm_length(VALUE obj)
  * Returns true if the database is empty.
  */
 static VALUE
-fgdbm_empty_p(VALUE obj)
+fgdbm_empty_p(VALUE obj, SEL sel)
 {
     datum key;
     struct dbmdata *dbmp;
@@ -817,7 +819,7 @@ fgdbm_empty_p(VALUE obj)
  * _value_ as a parameter.
  */
 static VALUE
-fgdbm_each_value(VALUE obj)
+fgdbm_each_value(VALUE obj, SEL sel)
 {
     struct dbmdata *dbmp;
     GDBM_FILE dbm;
@@ -843,7 +845,7 @@ fgdbm_each_value(VALUE obj)
  * _key_ as a parameter.
  */
 static VALUE
-fgdbm_each_key(VALUE obj)
+fgdbm_each_key(VALUE obj, SEL sel)
 {
     struct dbmdata *dbmp;
     GDBM_FILE dbm;
@@ -869,7 +871,7 @@ fgdbm_each_key(VALUE obj)
  * correspoding _value_ as a parameter.
  */
 static VALUE
-fgdbm_each_pair(VALUE obj)
+fgdbm_each_pair(VALUE obj, SEL sel)
 {
     GDBM_FILE dbm;
     struct dbmdata *dbmp;
@@ -895,7 +897,7 @@ fgdbm_each_pair(VALUE obj)
  * Returns an array of all keys of this database.
  */
 static VALUE
-fgdbm_keys(VALUE obj)
+fgdbm_keys(VALUE obj, SEL sel)
 {
     struct dbmdata *dbmp;
     GDBM_FILE dbm;
@@ -919,7 +921,7 @@ fgdbm_keys(VALUE obj)
  * Returns an array of all values of this database.
  */
 static VALUE
-fgdbm_values(VALUE obj)
+fgdbm_values(VALUE obj, SEL sel)
 {
     datum key, nextkey;
     struct dbmdata *dbmp;
@@ -947,7 +949,7 @@ fgdbm_values(VALUE obj)
  * Returns false otherwise.
  */
 static VALUE
-fgdbm_has_key(VALUE obj, VALUE keystr)
+fgdbm_has_key(VALUE obj, SEL sel, VALUE keystr)
 {
     datum key;
     struct dbmdata *dbmp;
@@ -972,7 +974,7 @@ fgdbm_has_key(VALUE obj, VALUE keystr)
  * Returns false otherwise.
  */
 static VALUE
-fgdbm_has_value(VALUE obj, VALUE valstr)
+fgdbm_has_value(VALUE obj, SEL sel, VALUE valstr)
 {
     struct dbmdata *dbmp;
     GDBM_FILE dbm;
@@ -1002,7 +1004,7 @@ fgdbm_has_value(VALUE obj, VALUE valstr)
  * Returns an array of all key-value pairs contained in the database.
  */
 static VALUE
-fgdbm_to_a(VALUE obj)
+fgdbm_to_a(VALUE obj, SEL sel)
 {
     struct dbmdata *dbmp;
     GDBM_FILE dbm;
@@ -1028,7 +1030,7 @@ fgdbm_to_a(VALUE obj)
  * deletions in the database.
  */
 static VALUE
-fgdbm_reorganize(VALUE obj)
+fgdbm_reorganize(VALUE obj, SEL sel)
 {
     struct dbmdata *dbmp;
     GDBM_FILE dbm;
@@ -1050,7 +1052,7 @@ fgdbm_reorganize(VALUE obj)
  * to the disk have been finished.
  */
 static VALUE
-fgdbm_sync(VALUE obj)
+fgdbm_sync(VALUE obj, SEL sel)
 {
     struct dbmdata *dbmp;
     GDBM_FILE dbm;
@@ -1068,7 +1070,7 @@ fgdbm_sync(VALUE obj)
  * Sets the size of the internal bucket cache to _size_.
  */
 static VALUE
-fgdbm_set_cachesize(VALUE obj, VALUE val)
+fgdbm_set_cachesize(VALUE obj, SEL sel, VALUE val)
 {
     struct dbmdata *dbmp;
     GDBM_FILE dbm;
@@ -1093,7 +1095,7 @@ fgdbm_set_cachesize(VALUE obj, VALUE val)
  * default. See also: #syncmode=
  */
 static VALUE
-fgdbm_set_fastmode(VALUE obj, VALUE val)
+fgdbm_set_fastmode(VALUE obj, SEL sel, VALUE val)
 {
     struct dbmdata *dbmp;
     GDBM_FILE dbm;
@@ -1124,7 +1126,7 @@ fgdbm_set_fastmode(VALUE obj, VALUE val)
  * by default. See also: #fastmode=
  */
 static VALUE
-fgdbm_set_syncmode(VALUE obj, VALUE val)
+fgdbm_set_syncmode(VALUE obj, SEL sel, VALUE val)
 {
 #if !defined(GDBM_SYNCMODE)
     fgdbm_set_fastmode(obj, RTEST(val) ? Qfalse : Qtrue);
@@ -1153,7 +1155,7 @@ fgdbm_set_syncmode(VALUE obj, VALUE val)
  * Returns a hash of all key-value pairs contained in the database.
  */
 static VALUE
-fgdbm_to_hash(VALUE obj)
+fgdbm_to_hash(VALUE obj, SEL sel)
 {
     struct dbmdata *dbmp;
     GDBM_FILE dbm;
@@ -1178,9 +1180,11 @@ fgdbm_to_hash(VALUE obj)
  * which _block_ evaluates to true are removed. See also: #delete_if
  */
 static VALUE
-fgdbm_reject(VALUE obj)
+fgdbm_reject(VALUE obj, SEL sel)
 {
-    return rb_hash_delete_if(fgdbm_to_hash(obj));
+    // FIXME
+    //return rb_hash_delete_if(fgdbm_to_hash(obj, 0));
+    return Qnil;
 }
 
 void
@@ -1191,54 +1195,54 @@ Init_gdbm(void)
     rb_eGDBMFatalError = rb_define_class("GDBMFatalError", rb_eException);
     rb_include_module(rb_cGDBM, rb_mEnumerable);
 
-    rb_define_alloc_func(rb_cGDBM, fgdbm_s_alloc);
-    rb_define_singleton_method(rb_cGDBM, "open", fgdbm_s_open, -1);
+    rb_objc_define_method(*(VALUE *)rb_cGDBM, "alloc", fgdbm_s_alloc, 0);
+    rb_objc_define_method(*(VALUE *)rb_cGDBM, "open",  fgdbm_s_open, -1);
 
-    rb_define_method(rb_cGDBM, "initialize", fgdbm_initialize, -1);
-    rb_define_method(rb_cGDBM, "close", fgdbm_close, 0);
-    rb_define_method(rb_cGDBM, "closed?", fgdbm_closed, 0);
-    rb_define_method(rb_cGDBM, "[]", fgdbm_aref, 1);
-    rb_define_method(rb_cGDBM, "fetch", fgdbm_fetch_m, -1);
-    rb_define_method(rb_cGDBM, "[]=", fgdbm_store, 2);
-    rb_define_method(rb_cGDBM, "store", fgdbm_store, 2);
-    rb_define_method(rb_cGDBM, "index",  fgdbm_index, 1);
-    rb_define_method(rb_cGDBM, "key",  fgdbm_key, 1);
-    rb_define_method(rb_cGDBM, "select",  fgdbm_select, 0);
-    rb_define_method(rb_cGDBM, "values_at",  fgdbm_values_at, -1);
-    rb_define_method(rb_cGDBM, "length", fgdbm_length, 0);
-    rb_define_method(rb_cGDBM, "size", fgdbm_length, 0);
-    rb_define_method(rb_cGDBM, "empty?", fgdbm_empty_p, 0);
-    rb_define_method(rb_cGDBM, "each", fgdbm_each_pair, 0);
-    rb_define_method(rb_cGDBM, "each_value", fgdbm_each_value, 0);
-    rb_define_method(rb_cGDBM, "each_key", fgdbm_each_key, 0);
-    rb_define_method(rb_cGDBM, "each_pair", fgdbm_each_pair, 0);
-    rb_define_method(rb_cGDBM, "keys", fgdbm_keys, 0);
-    rb_define_method(rb_cGDBM, "values", fgdbm_values, 0);
-    rb_define_method(rb_cGDBM, "shift", fgdbm_shift, 0);
-    rb_define_method(rb_cGDBM, "delete", fgdbm_delete, 1);
-    rb_define_method(rb_cGDBM, "delete_if", fgdbm_delete_if, 0);
-    rb_define_method(rb_cGDBM, "reject!", fgdbm_delete_if, 0);
-    rb_define_method(rb_cGDBM, "reject", fgdbm_reject, 0);
-    rb_define_method(rb_cGDBM, "clear", fgdbm_clear, 0);
-    rb_define_method(rb_cGDBM, "invert", fgdbm_invert, 0);
-    rb_define_method(rb_cGDBM, "update", fgdbm_update, 1);
-    rb_define_method(rb_cGDBM, "replace", fgdbm_replace, 1);
-    rb_define_method(rb_cGDBM, "reorganize", fgdbm_reorganize, 0);
-    rb_define_method(rb_cGDBM, "sync", fgdbm_sync, 0);
+    rb_objc_define_method(rb_cGDBM, "initialize", fgdbm_initialize, -1);
+    rb_objc_define_method(rb_cGDBM, "close", fgdbm_close, 0);
+    rb_objc_define_method(rb_cGDBM, "closed?", fgdbm_closed, 0);
+    rb_objc_define_method(rb_cGDBM, "[]", fgdbm_aref, 1);
+    rb_objc_define_method(rb_cGDBM, "fetch", fgdbm_fetch_m, -1);
+    rb_objc_define_method(rb_cGDBM, "[]=", fgdbm_store, 2);
+    rb_objc_define_method(rb_cGDBM, "store", fgdbm_store, 2);
+    rb_objc_define_method(rb_cGDBM, "index",  fgdbm_index, 1);
+    rb_objc_define_method(rb_cGDBM, "key",  fgdbm_key, 1);
+    rb_objc_define_method(rb_cGDBM, "select",  fgdbm_select, 0);
+    rb_objc_define_method(rb_cGDBM, "values_at",  fgdbm_values_at, -1);
+    rb_objc_define_method(rb_cGDBM, "length", fgdbm_length, 0);
+    rb_objc_define_method(rb_cGDBM, "size", fgdbm_length, 0);
+    rb_objc_define_method(rb_cGDBM, "empty?", fgdbm_empty_p, 0);
+    rb_objc_define_method(rb_cGDBM, "each", fgdbm_each_pair, 0);
+    rb_objc_define_method(rb_cGDBM, "each_value", fgdbm_each_value, 0);
+    rb_objc_define_method(rb_cGDBM, "each_key", fgdbm_each_key, 0);
+    rb_objc_define_method(rb_cGDBM, "each_pair", fgdbm_each_pair, 0);
+    rb_objc_define_method(rb_cGDBM, "keys", fgdbm_keys, 0);
+    rb_objc_define_method(rb_cGDBM, "values", fgdbm_values, 0);
+    rb_objc_define_method(rb_cGDBM, "shift", fgdbm_shift, 0);
+    rb_objc_define_method(rb_cGDBM, "delete", fgdbm_delete, 1);
+    rb_objc_define_method(rb_cGDBM, "delete_if", fgdbm_delete_if, 0);
+    rb_objc_define_method(rb_cGDBM, "reject!", fgdbm_delete_if, 0);
+    rb_objc_define_method(rb_cGDBM, "reject", fgdbm_reject, 0);
+    rb_objc_define_method(rb_cGDBM, "clear", fgdbm_clear, 0);
+    rb_objc_define_method(rb_cGDBM, "invert", fgdbm_invert, 0);
+    rb_objc_define_method(rb_cGDBM, "update", fgdbm_update, 1);
+    rb_objc_define_method(rb_cGDBM, "replace", fgdbm_replace, 1);
+    rb_objc_define_method(rb_cGDBM, "reorganize", fgdbm_reorganize, 0);
+    rb_objc_define_method(rb_cGDBM, "sync", fgdbm_sync, 0);
     /* rb_define_method(rb_cGDBM, "setopt", fgdbm_setopt, 2); */
-    rb_define_method(rb_cGDBM, "cachesize=", fgdbm_set_cachesize, 1);
-    rb_define_method(rb_cGDBM, "fastmode=", fgdbm_set_fastmode, 1);
-    rb_define_method(rb_cGDBM, "syncmode=", fgdbm_set_syncmode, 1);
+    rb_objc_define_method(rb_cGDBM, "cachesize=", fgdbm_set_cachesize, 1);
+    rb_objc_define_method(rb_cGDBM, "fastmode=", fgdbm_set_fastmode, 1);
+    rb_objc_define_method(rb_cGDBM, "syncmode=", fgdbm_set_syncmode, 1);
 
-    rb_define_method(rb_cGDBM, "include?", fgdbm_has_key, 1);
-    rb_define_method(rb_cGDBM, "has_key?", fgdbm_has_key, 1);
-    rb_define_method(rb_cGDBM, "member?", fgdbm_has_key, 1);
-    rb_define_method(rb_cGDBM, "has_value?", fgdbm_has_value, 1);
-    rb_define_method(rb_cGDBM, "key?", fgdbm_has_key, 1);
-    rb_define_method(rb_cGDBM, "value?", fgdbm_has_value, 1);
+    rb_objc_define_method(rb_cGDBM, "include?", fgdbm_has_key, 1);
+    rb_objc_define_method(rb_cGDBM, "has_key?", fgdbm_has_key, 1);
+    rb_objc_define_method(rb_cGDBM, "member?", fgdbm_has_key, 1);
+    rb_objc_define_method(rb_cGDBM, "has_value?", fgdbm_has_value, 1);
+    rb_objc_define_method(rb_cGDBM, "key?", fgdbm_has_key, 1);
+    rb_objc_define_method(rb_cGDBM, "value?", fgdbm_has_value, 1);
 
-    rb_define_method(rb_cGDBM, "to_a", fgdbm_to_a, 0);
-    rb_define_method(rb_cGDBM, "to_hash", fgdbm_to_hash, 0);
+    rb_objc_define_method(rb_cGDBM, "to_a", fgdbm_to_a, 0);
+    rb_objc_define_method(rb_cGDBM, "to_hash", fgdbm_to_hash, 0);
 
     /* flag for #new and #open: open database as a reader */
     rb_define_const(rb_cGDBM, "READER",  INT2FIX(GDBM_READER|RUBY_GDBM_RW_BIT));
