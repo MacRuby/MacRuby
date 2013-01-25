@@ -1579,17 +1579,19 @@ rb_ary_ptr(VALUE ary)
 static unsigned long
 recursive_hash(VALUE ary, VALUE dummy, int recur)
 {
-    long i;
+    long i, len;
     st_index_t h;
     VALUE n;
 
-    h = rb_hash_start(RARRAY_LEN(ary));
+    len = RARRAY_LEN(ary);
+    h = rb_hash_start(len);
     if (recur) {
 	h = rb_hash_uint(h, NUM2LONG(rb_hash(rb_cArray)));
     }
     else {
-	for (i=0; i<RARRAY_LEN(ary); i++) {
-	    n = rb_hash(RARRAY_PTR(ary)[i]);
+	const VALUE *p = RARRAY_PTR(ary);
+	for (i = 0; i < len; i++) {
+	    n = rb_hash(p[i]);
 	    h = rb_hash_uint(h, NUM2LONG(n));
 	}
     }
