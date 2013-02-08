@@ -288,7 +288,7 @@ RoxorCompiler::compile_bs_struct_writer(rb_vm_bs_boxed_t *bs_boxed, int field)
 		RubyObjTy, RubyObjTy, PtrTy, RubyObjTy, NULL));
     Function::arg_iterator arg = f->arg_begin();
     Value *self = arg++; 	// self
-    arg++;			// sel
+    ++arg;			// sel
     Value *val = arg++; 	// val
 
     bb = BasicBlock::Create(context, "EntryBlock", f);
@@ -317,7 +317,7 @@ RoxorCompiler::compile_bs_struct_new(rb_vm_bs_boxed_t *bs_boxed)
 		NULL));
     Function::arg_iterator arg = f->arg_begin();
     Value *klass = arg++; 	// self
-    arg++;			// sel
+    ++arg;			// sel
     Value *argc = arg++; 	// argc
     Value *argv = arg++; 	// argv
 
@@ -1471,8 +1471,8 @@ RoxorCompiler::compile_ffi_function(void *stub, void *imp, int argc)
     bb = BasicBlock::Create(context, "EntryBlock", f);
 
     Function::arg_iterator arg = f->arg_begin();
-    arg++; // skip self
-    arg++; // skip sel
+    ++arg; // skip self
+    ++arg; // skip sel
 
     std::vector<Value *> params;
     std::vector<const Type *> stub_types;

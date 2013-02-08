@@ -5804,7 +5804,7 @@ RoxorCore::dispose_class(Class k)
 	std::multimap<Class, SEL>::iterator last =
 	    method_source_sels.upper_bound(k);
 
-	for (; iter != last; iter++) {
+	for (; iter != last; ++iter) {
 	    SEL sel = iter->second;
 			
 	    std::map<SEL, std::map<Class, rb_vm_method_source_t *> *>::iterator

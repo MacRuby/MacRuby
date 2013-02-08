@@ -2466,7 +2466,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 
 	Function *f = bb->getParent();
 	Function::arg_iterator arg = f->arg_begin();
-	arg++; // skip self
+	++arg; // skip self
 	Value *callee_sel = arg;
 
 	if (selToSymFunc == NULL) {
@@ -3280,7 +3280,7 @@ rescan_args:
 	    //	rb_vm_dispatch(..., super_sel, ...);
 	    Function *f = bb->getParent();
 	    Function::arg_iterator arg = f->arg_begin();
-	    arg++; // skip self
+	    ++arg; // skip self
 	    Value *dyn_sel = arg;
 	    Value *is_null = new ICmpInst(*bb, ICmpInst::ICMP_EQ, dyn_sel,
 		    compile_const_pointer(NULL));
@@ -3333,8 +3333,8 @@ rescan_args:
 	const int fargs_arity = fargs.size() - 2;
 	params.push_back(ConstantInt::get(Int32Ty, fargs_arity));
 	Function::ArgumentListType::iterator iter = fargs.begin();
-	iter++; // skip self
-	iter++; // skip sel
+	++iter; // skip self
+	++iter; // skip sel
 	const int rest_pos = current_arity.max == -1
 	    ? (current_arity.left_req
 		    + (current_arity.real - current_arity.min - 1))
@@ -5399,7 +5399,7 @@ RoxorCompiler::compile_write_attr(ID name)
 
     Function::arg_iterator arg = f->arg_begin();
     current_self = arg++;
-    arg++; // sel
+    ++arg; // sel
     Value *new_val = arg++; // 1st argument
 
     bb = BasicBlock::Create(context, "EntryBlock", f);
