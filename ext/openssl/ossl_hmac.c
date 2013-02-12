@@ -201,7 +201,7 @@ ossl_hmac_s_digest(VALUE klass, SEL sel, VALUE digest, VALUE key, VALUE data)
     buf = HMAC(GetDigestPtr(digest), RSTRING_PTR(key), RSTRING_LEN(key),
 	       (unsigned char *)RSTRING_PTR(data), RSTRING_LEN(data), NULL, &buf_len);
 
-    return rb_str_new((const char *)buf, buf_len);
+    return rb_bstr_new_with_data((UInt8 *)buf, buf_len);
 }
 
 /*
