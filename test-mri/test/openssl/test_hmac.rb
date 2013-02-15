@@ -28,6 +28,10 @@ class OpenSSL::TestHMAC < Test::Unit::TestCase
     assert_equal(OpenSSL::HMAC.hexdigest("MD5", @key, @data), @h2.hexdigest, "hexdigest")
   end
 
+  def test_hmac_digest_encoding
+    assert_equal(Encoding::BINARY, OpenSSL::HMAC.digest("SHA1", @key, @data).encoding)
+  end
+
   def test_dup
     @h1.update(@data)
     h = @h1.dup
