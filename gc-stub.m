@@ -31,7 +31,7 @@
  * The __RBDummy__ class is only to have something Objective-C in the 
  * executable bits, for the compiler.
  */
-#ifdef __GNUC__
+#ifndef __clang__
 @interface __RBDummy__
 #else
 #include <Foundation/Foundation.h>
