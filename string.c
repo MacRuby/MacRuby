@@ -6328,6 +6328,7 @@ Init_String(void)
     VALUE NSData = (VALUE)objc_getClass("NSData");
     assert(NSData != 0);
     rb_objc_define_method(NSData, "to_str", nsdata_to_str, 0);
+    rb_objc_define_method(NSData, "to_s", nsdata_to_str, 0);
 
     selMATCH = sel_registerName("match:");
 }
