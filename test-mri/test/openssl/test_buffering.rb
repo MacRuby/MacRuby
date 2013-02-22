@@ -63,4 +63,10 @@ class OpenSSL::TestBuffering < MiniTest::Unit::TestCase
     refute @io.sync, 'sync must not change'
   end
 
+  def test_print
+    str = "123\r\n".force_encoding(Encoding::UTF_8)
+    @io.print(str)
+    assert(Encoding::BINARY, @io.string.encoding)
+  end
+
 end if defined?(OpenSSL)

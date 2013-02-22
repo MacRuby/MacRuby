@@ -115,7 +115,7 @@ module Buffering
   # underlying IO is writable.
   #
   # So OpenSSL::Buffering#read_nonblock needs two rescue clause as follows.
-  # 
+  #
   #  # emulates blocking read (readpartial).
   #  begin
   #    result = ssl.read_nonblock(maxlen)
@@ -225,6 +225,7 @@ module Buffering
   def do_write(s)
     @wbuffer = "" unless defined? @wbuffer
     @wbuffer << s
+    @wbuffer.force_encoding(Encoding::BINARY)
     @sync ||= false
     if @sync or @wbuffer.size > BLOCK_SIZE or idx = @wbuffer.rindex($/)
       remain = idx ? idx + $/.size : @wbuffer.length
@@ -247,7 +248,7 @@ module Buffering
 
   def write(s)
     do_write(s)
-    s.length
+    s.bytesize
   end
 
   # Writes _str_ in the non-blocking manner.
@@ -270,7 +271,7 @@ module Buffering
   # underlying IO is writable.
   #
   # So OpenSSL::Buffering#write_nonblock needs two rescue clause as follows.
-  # 
+  #
   #  # emulates blocking write.
   #  begin
   #    result = ssl.write_nonblock(str)
