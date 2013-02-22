@@ -248,7 +248,7 @@ module Buffering
 
   def write(s)
     do_write(s)
-    s.length
+    s.bytesize
   end
 
   # Writes _str_ in the non-blocking manner.
