@@ -4167,6 +4167,11 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
     Function *func = compiler->compile_main_function(node, &can_interpret);
     //compiler->set_fname(NULL);
     compiler->set_inside_eval(old_inside_eval);
+    if (compiler->has_syntax_error()) {
+        lock.unlock();
+        rb_raise(rb_eSyntaxError, "%s: syntax error", fname);
+        return NULL;
+    }
     if (binding != NULL) {
 	vm->pop_current_binding();
     }

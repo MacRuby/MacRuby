@@ -82,6 +82,8 @@ class RoxorCompiler {
 
 	void generate_location_path(std::string &path, DILocation loc);
 
+	bool has_syntax_error(void) { return syntax_error; }
+	void set_syntax_error(bool flag) { syntax_error = flag; }
     protected:
 #if !defined(LLVM_TOT)
 	DIBuilder *debug_info;
@@ -152,6 +154,7 @@ class RoxorCompiler {
 	AllocaInst *argv_buffer;
 	GlobalVariable *outer_stack;
 	bool outer_stack_uses;
+	bool syntax_error;
 
 	Function *writeBarrierFunc;
 	Function *dispatchFunc;
@@ -477,6 +480,8 @@ class RoxorCompiler {
 	Value *compile_ff3(NODE *current_node);
 
 	void attach_current_line_metadata(Instruction *insn);
+
+	void report_syntax_error(const char *msg);
 };
 
 #define context (RoxorCompiler::module->getContext())

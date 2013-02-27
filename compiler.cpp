@@ -163,6 +163,7 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     inside_eval = false;
     current_line = 0;
     outer_stack_uses = false;
+    syntax_error = false;
 
     reset_compiler_state();
 
@@ -860,6 +861,12 @@ RoxorCompiler::attach_current_line_metadata(Instruction *insn)
 #endif
 	insn->setMetadata(dbg_mdkind, loc);
     }
+}
+
+void
+RoxorCompiler::report_syntax_error(const char *msg) {
+    syntax_error = true;
+    printf("%s:%d: %s\n", fname, current_line, msg);
 }
 
 void
@@ -2040,10 +2047,8 @@ RoxorCompiler::compile_jump(NODE *node)
 	    // current exception.
 	    compile_pop_exception();
 	    if (begin_bb == NULL) {
-		rb_raise(rb_eSyntaxError, "unexpected retry");
-	    }
-	    // TODO raise a SyntaxError if called outside of a "rescue"
-	    // block.
+                report_syntax_error("Invalid retry");
+            }
 	    BranchInst::Create(begin_bb, bb);
 	    break;
 
@@ -2055,7 +2060,7 @@ RoxorCompiler::compile_jump(NODE *node)
 		compile_break_within_block(val);
 	    }
 	    else {
-		rb_raise(rb_eLocalJumpError, "unexpected break");
+                report_syntax_error("Invalid break");
 	    }
 	    break;
 
@@ -2070,7 +2075,7 @@ RoxorCompiler::compile_jump(NODE *node)
 		compile_simple_return(val);
 	    }
 	    else {
-		rb_raise(rb_eLocalJumpError, "unexpected next");
+                report_syntax_error("Invalid next");
 	    }
 	    break;
 
@@ -2089,7 +2094,7 @@ RoxorCompiler::compile_jump(NODE *node)
 		BranchInst::Create(entry_bb, bb);
 	    }
 	    else {
-		rb_raise(rb_eLocalJumpError, "unexpected redo");
+                report_syntax_error("Invalid redo");
 	    }
 	    break;
 
