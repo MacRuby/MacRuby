@@ -980,7 +980,11 @@ class RoxorCore {
 	void call_all_finalizers(void);
 
 	long respond_to_key(Class klass, SEL sel) {
-	    return (long)klass + (long)sel;
+#if __LP64__
+	    return (long)OSSwapInt64((uint64_t)klass) + (long)sel;
+#else
+	    return (long)OSSwapInt32((uint32_t)klass) + (long)sel;
+#endif
 	}
 	void invalidate_respond_to_cache(void) {
 	    respond_to_cache.clear();
