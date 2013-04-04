@@ -642,6 +642,12 @@ recache:
 	    }
 	    method = rb_vm_super_lookup(current_super_class, sel,
 		    &current_super_class);
+	    if (method == NULL
+		    && cache->flag & MCACHE_SUPER && top == self) {
+		current_super_class = klass;
+		method = rb_vm_super_lookup(current_super_class, sel,
+			&current_super_class);
+	    }
 	}
 	else {
 	    current_super_sel = 0;
