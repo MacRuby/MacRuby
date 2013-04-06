@@ -3,8 +3,6 @@ require File.expand_path('../fixtures/module', __FILE__)
 
 load_extension('module')
 
-autoload :ModuleUnderAutoload, "#{extension_path}/module_under_autoload_spec"
-
 describe "CApiModule" do
 
   before :each do
@@ -42,10 +40,16 @@ describe "CApiModule" do
       mod.name.should == "CApiModuleSpecs::ModuleSpecsModuleUnder2"
     end
 
-    it "defines a module for an existing Autoload" do
+    it "defines a module for an existing Autoload with an extension" do
       compile_extension("module_under_autoload")
 
-      ModuleUnderAutoload.name.should == "ModuleUnderAutoload"
+      CApiModuleSpecs::ModuleUnderAutoload.name.should == "CApiModuleSpecs::ModuleUnderAutoload"
+    end
+
+    it "defines a module for an existing Autoload with a ruby object" do
+      compile_extension("module_under_autoload")
+
+      CApiModuleSpecs::RubyUnderAutoload.name.should == "CApiModuleSpecs::RubyUnderAutoload"
     end
   end
 

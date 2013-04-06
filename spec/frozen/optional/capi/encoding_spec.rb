@@ -1,8 +1,54 @@
+# -*- encoding: utf-8 -*-
 require File.expand_path('../spec_helper', __FILE__)
 require File.expand_path('../fixtures/encoding', __FILE__)
 
 ruby_version_is "1.9" do
   load_extension('encoding')
+
+  describe :rb_enc_get_index, :shared => true do
+    it "returns the index of the encoding of a String" do
+      @s.send(@method, "string").should >= 0
+    end
+
+    it "returns the index of the encoding of a Regexp" do
+      @s.send(@method, /regexp/).should >= 0
+    end
+
+    it "returns the index of the encoding of an Object" do
+      obj = mock("rb_enc_get_index string")
+      @s.rb_enc_set_index(obj, 1)
+      @s.send(@method, obj).should == 1
+    end
+
+    it "returns 0 for an object without an encoding" do
+      obj = mock("rb_enc_get_index string")
+      @s.send(@method, obj).should == 0
+    end
+  end
+
+  describe :rb_enc_set_index, :shared => true do
+    it "sets the object's encoding to the Encoding specified by the index" do
+      obj = "abc"
+      result = @s.send(@method, obj, 2)
+
+      # This is used because indexes should be considered implementation
+      # dependent. So a pair is returned:
+      #   [rb_enc_find_index()->name, rb_enc_get(obj)->name]
+      result.first.should == result.last
+    end
+
+    it "associates an encoding with a subclass of String" do
+      str = CApiEncodingSpecs::S.new "abc"
+      result = @s.send(@method, str, 1)
+      result.first.should == result.last
+    end
+
+    it "associates an encoding with an object" do
+      obj = mock("rb_enc_set_index string")
+      result = @s.send(@method, obj, 1)
+      result.first.should == result.last
+    end
+  end
 
   describe "C-API Encoding function" do
     before :each do
@@ -97,77 +143,94 @@ ruby_version_is "1.9" do
     end
 
     describe "rb_enc_get_index" do
-      it "returns the index of the encoding of a String" do
-        @s.rb_enc_get_index("string").should >= 0
-      end
-
-      it "returns the index of the encoding of a Regexp" do
-        @s.rb_enc_get_index(/regexp/).should >= 0
-      end
+      it_behaves_like :rb_enc_get_index, :rb_enc_get_index
 
       it "returns the index of the encoding of a Symbol" do
-        @s.rb_enc_get_index(:symbol).should >= 0
+        @s.send(@method, :symbol).should >= 0
       end
 
-      it "returns the index of the encoding of an Object" do
-        obj = mock("rb_enc_set_index")
-        @s.rb_enc_set_index(obj, 1)
-        @s.rb_enc_get_index(obj).should == 1
+      it "returns -1 as the index of nil" do
+        @s.send(@method, nil).should == -1
       end
 
-      it "returns 0 for an object without an encoding" do
-        obj = mock("rb_enc_set_index")
-        @s.rb_enc_get_index(obj).should == 0
+      it "returns -1 as the index for immediates" do
+        @s.send(@method, 1).should == -1
       end
     end
 
     describe "rb_enc_set_index" do
-      it "sets the object's encoding to the Encoding specified by the index" do
-        obj = "abc"
-        result = @s.rb_enc_set_index(obj, 2)
+      it_behaves_like :rb_enc_set_index, :rb_enc_set_index
+    end
 
-        # This is used because indexes should be considered implementation
-        # dependent. So a pair is returned:
-        #   [rb_enc_find_index()->name, rb_enc_get(obj)->name]
-        result.first.should == result.last
+    describe "rb_enc_str_new" do
+      it "returns a String in US-ASCII encoding when high bits are set" do
+        result = @s.rb_enc_str_new("\xEE", 1, Encoding::US_ASCII)
+        result.encoding.should equal(Encoding::US_ASCII)
+      end
+    end
+
+    describe "rb_enc_str_coderange" do
+      describe "when the encoding is ASCII-8BIT" do
+        it "returns ENC_CODERANGE_7BIT if there are no high bits set" do
+          result = @s.rb_enc_str_coderange("abc".force_encoding("ascii-8bit"))
+          result.should == :coderange_7bit
+        end
+
+        it "returns ENC_CODERANGE_VALID if there are high bits set" do
+          result = @s.rb_enc_str_coderange("\xEE".force_encoding("ascii-8bit"))
+          result.should == :coderange_valid
+        end
       end
 
-      it "associates an encoding with a subclass of String" do
-        str = CApiEncodingSpecs::S.new "abc"
-        result = @s.rb_enc_set_index(str, 1)
-        result.first.should == result.last
+      describe "when the encoding is UTF-8" do
+        it "returns ENC_CODERANGE_7BIT if there are no high bits set" do
+          result = @s.rb_enc_str_coderange("abc".force_encoding("utf-8"))
+          result.should == :coderange_7bit
+        end
+
+        it "returns ENC_CODERANGE_VALID if there are high bits set in a valid string" do
+          result = @s.rb_enc_str_coderange("\xE3\x81\x82".force_encoding("utf-8"))
+          result.should == :coderange_valid
+        end
+
+        it "returns ENC_CODERANGE_BROKEN if there are high bits set in an invalid string" do
+          result = @s.rb_enc_str_coderange("\xEE".force_encoding("utf-8"))
+          result.should == :coderange_broken
+        end
       end
 
-      it "associates an encoding with an object" do
-        obj = mock("rb_enc_set_index")
-        result = @s.rb_enc_set_index(obj, 1)
-        result.first.should == result.last
+      describe "when the encoding is US-ASCII" do
+        it "returns ENC_CODERANGE_7BIT if there are no high bits set" do
+          result = @s.rb_enc_str_coderange("abc".force_encoding("us-ascii"))
+          result.should == :coderange_7bit
+        end
+
+        it "returns ENC_CODERANGE_BROKEN if there are high bits set" do
+          result = @s.rb_enc_str_coderange("\xEE".force_encoding("us-ascii"))
+          result.should == :coderange_broken
+        end
       end
     end
 
     describe "ENCODING_GET" do
-      it "returns the index of the encoding of a String" do
-        @s.rb_ENCODING_GET("string").should >= 0
-      end
-
-      it "returns the index of the encoding of a Regexp" do
-        @s.rb_ENCODING_GET(/regexp/).should >= 0
-      end
-
-      it "returns the index of the encoding of an Object" do
-        obj = mock("rb_enc_set_index")
-        @s.rb_enc_set_index(obj, 1)
-        @s.rb_ENCODING_GET(obj).should == 1
-      end
-
-      it "returns 0 for an object without an encoding" do
-        obj = mock("rb_enc_set_index")
-        @s.rb_ENCODING_GET(obj).should == 0
-      end
+      it_behaves_like :rb_enc_get_index, :ENCODING_GET
     end
 
     describe "ENCODING_SET" do
+      it_behaves_like :rb_enc_set_index, :ENCODING_SET
+    end
 
+    describe "ENC_CODERANGE_ASCIIONLY" do
+      it "returns true if the object encoding is only ASCII" do
+        str = encode("abc", "us-ascii")
+        str.valid_encoding? # make sure to set the coderange
+        @s.ENC_CODERANGE_ASCIIONLY(str).should be_true
+      end
+
+      it "returns false if the object encoding is not ASCII only" do
+        str = encode("ありがとう", "utf-8")
+        @s.ENC_CODERANGE_ASCIIONLY(str).should be_false
+      end
     end
 
     describe "rb_to_encoding" do
@@ -205,6 +268,23 @@ ruby_version_is "1.9" do
         obj.should_receive(:to_str).and_return("utf-8")
 
         @s.rb_to_encoding_index(obj).should >= 0
+      end
+    end
+
+    describe "rb_enc_compatible" do
+      it "returns 0 if the encodings of the Strings are not compatible" do
+        a = "\xff".force_encoding "ascii-8bit"
+        b = "\u3042".encode("utf-8")
+        @s.rb_enc_compatible(a, b).should == 0
+      end
+
+      # The coverage of this sucks, but there is not a simple way (yet?) to
+      # easily share the specs between rb_enc_compatible and
+      # Encoding.compatible?
+      it "returns the same value as Encoding.compatible? if the Strings have a compatible encoding" do
+        a = "abc".force_encoding("us-ascii")
+        b = "\u3042".encode("utf-8")
+        @s.rb_enc_compatible(a, b).should == Encoding.compatible?(a, b)
       end
     end
 
@@ -275,21 +355,28 @@ ruby_version_is "1.9" do
       it "sets the encoding of a Symbol to the encoding" do
         @s.rb_enc_associate(:symbol, "US-ASCII").encoding.should == Encoding::US_ASCII
       end
+
+      it "sets the encoding of a String to a default when the encoding is NULL" do
+        @s.rb_enc_associate("string", nil).encoding.should == Encoding::ASCII_8BIT
+      end
     end
 
     describe "rb_enc_associate_index" do
       it "sets the encoding of a String to the encoding" do
-        enc = @s.rb_enc_associate_index("string", "ASCII-8BIT").encoding
+        index = @s.rb_enc_find_index("ASCII-8BIT")
+        enc = @s.rb_enc_associate_index("string", index).encoding
         enc.should == Encoding::ASCII_8BIT
       end
 
       it "sets the encoding of a Regexp to the encoding" do
-        enc = @s.rb_enc_associate_index(/regexp/, "ASCII-8BIT").encoding
-        enc.should == Encoding::ASCII_8BIT
+        index = @s.rb_enc_find_index("UTF-8")
+        enc = @s.rb_enc_associate_index(/regexp/, index).encoding
+        enc.should == Encoding::UTF_8
       end
 
       it "sets the encoding of a Symbol to the encoding" do
-        enc = @s.rb_enc_associate(:symbol, "US-ASCII").encoding
+        index = @s.rb_enc_find_index("US-ASCII")
+        enc = @s.rb_enc_associate_index(:symbol, index).encoding
         enc.should == Encoding::US_ASCII
       end
     end
@@ -329,9 +416,18 @@ ruby_version_is "1.9" do
         @s.rb_enc_to_index("UTF-8").should >= 0
       end
 
-      it "returns 0 if the encoding is not defined" do
-        @s.rb_enc_to_index("FTU-81").should == 0
+      it "returns a non-negative int if the encoding is not defined" do
+        # Encoding indexes are an implementation detail and not guaranteed
+        # across implementations.
+        @s.rb_enc_to_index("FTU-81").should >= 0
       end
     end
+
+    describe "rb_enc_nth" do
+      it "returns the byte index of the given character index" do
+        @s.rb_enc_nth("hüllo", 3).should == 4
+      end
+    end
+
   end
 end

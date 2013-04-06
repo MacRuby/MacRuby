@@ -12,9 +12,7 @@ describe "File.readlink" do
       end
 
       after :each do
-        rm_r @file
-        # rm_r would not work since File.exist?(@link) might be false but yet exist
-        File.unlink @link
+        rm_r @file, @link
       end
 
       it "return the name of the file referenced by the given link" do
@@ -51,9 +49,7 @@ describe "File.readlink" do
       end
 
       after :each do
-        rm_r @file
-        # rm_r would not work since File.exist?(@link) might be false but yet exist
-        File.unlink @link
+        rm_r @file, @link
         Dir.chdir @cwd
         Dir.rmdir @tmpdir
       end

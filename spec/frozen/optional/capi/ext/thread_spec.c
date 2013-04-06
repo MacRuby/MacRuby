@@ -40,6 +40,7 @@ static void unblock_func(void *data) {
 }
 
 /* Returns true if the thread is interrupted. */
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 static VALUE thread_spec_rb_thread_blocking_region(VALUE self) {
   int fds[2];
   VALUE ret;
@@ -53,6 +54,7 @@ static VALUE thread_spec_rb_thread_blocking_region(VALUE self) {
   close(fds[1]);
   return ret;
 }
+#pragma GCC diagnostic warning "-Wdeprecated-declarations"
 
 /* This is unblocked by a signal. */
 static VALUE blocking_func_for_udf_io(void *data) {
@@ -67,6 +69,7 @@ static VALUE blocking_func_for_udf_io(void *data) {
 }
 
 /* Returns true if the thread is interrupted. */
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 static VALUE thread_spec_rb_thread_blocking_region_with_ubf_io(VALUE self) {
   int fds[2];
   VALUE ret;
@@ -81,6 +84,7 @@ static VALUE thread_spec_rb_thread_blocking_region_with_ubf_io(VALUE self) {
   close(fds[1]);
   return ret;
 }
+#pragma GCC diagnostic warning "-Wdeprecated-declarations"
 #endif
 
 #ifdef HAVE_RB_THREAD_CURRENT
@@ -102,6 +106,7 @@ static VALUE thread_spec_rb_thread_local_aset(VALUE self, VALUE thr, VALUE sym, 
 #endif
 
 #ifdef HAVE_RB_THREAD_SELECT
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 static VALUE thread_spec_rb_thread_select_fd(VALUE self, VALUE fd_num, VALUE msec) {
   int fd = NUM2INT(fd_num);
   struct timeval tv;
@@ -125,6 +130,7 @@ static VALUE thread_spec_rb_thread_select(VALUE self, VALUE msec) {
   rb_thread_select(0, NULL, NULL, NULL, &tv);
   return Qnil;
 }
+#pragma GCC diagnostic warning "-Wdeprecated-declarations"
 #endif
 
 #ifdef HAVE_RB_THREAD_WAKEUP
@@ -142,6 +148,24 @@ static VALUE thread_spec_rb_thread_wait_for(VALUE self, VALUE s, VALUE ms) {
   return Qnil;
 }
 #endif
+
+#ifdef HAVE_RB_THREAD_CREATE
+
+VALUE thread_spec_call_proc(VALUE arg_array) {
+  VALUE arg = rb_ary_pop(arg_array);
+  VALUE proc = rb_ary_pop(arg_array);
+  return rb_funcall(proc, rb_intern("call"), 1, arg);
+}
+
+static VALUE thread_spec_rb_thread_create(VALUE self, VALUE proc, VALUE arg) {
+  VALUE args = rb_ary_new();
+  rb_ary_push(args, proc);
+  rb_ary_push(args, arg);
+
+  return rb_thread_create(thread_spec_call_proc, (void*)args);
+}
+#endif
+
 
 void Init_thread_spec() {
   VALUE cls;
@@ -179,6 +203,10 @@ void Init_thread_spec() {
 
 #ifdef HAVE_RB_THREAD_WAIT_FOR
   rb_define_method(cls,  "rb_thread_wait_for", thread_spec_rb_thread_wait_for, 2);
+#endif
+
+#ifdef HAVE_RB_THREAD_CREATE
+  rb_define_method(cls,  "rb_thread_create", thread_spec_rb_thread_create, 2);
 #endif
 }
 

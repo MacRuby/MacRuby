@@ -29,6 +29,7 @@ describe "A Symbol literal" do
       [:'++',           ':"++"'],
       [:'9',            ':"9"'],
       [:"foo #{1 + 1}", ':"foo 2"'],
+      [:"foo\nbar",     ':"foo\nbar"'],
     ].each { |sym, str|
       sym.should be_kind_of(Symbol)
       sym.inspect.should == str
@@ -72,9 +73,15 @@ describe "A Symbol literal" do
     end
   end
 
-  ruby_version_is "1.9" do
+  ruby_version_is "1.9"..."2.0" do
     it "can contain null in the string" do
       eval(':"\0" ').inspect.should == ':"\\x00"'
+    end
+  end
+
+  ruby_version_is "2.0" do
+    it "can contain null in the string" do
+      eval(':"\0" ').inspect.should == ':"\\0"'
     end
   end
 end

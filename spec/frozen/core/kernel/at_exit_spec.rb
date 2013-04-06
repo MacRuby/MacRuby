@@ -20,6 +20,23 @@ describe "Kernel.at_exit" do
     ruby_exe(code).should == "643"
   end
 
+  it "gives access to the last raised exception" do
+    code = <<-EOC
+      at_exit do
+        puts "The exception matches: #{$! == $exception}"
+      end
+
+      begin
+        raise "foo"
+      rescue => $exception
+        raise
+      end
+    EOC
+
+    result = ruby_exe(code, :args => "2>&1", :escape => true)
+    result.should =~ /The exception matches: true/
+  end
+
 end
 
 describe "Kernel#at_exit" do

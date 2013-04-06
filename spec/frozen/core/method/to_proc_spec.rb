@@ -13,7 +13,7 @@ describe "Method#to_proc" do
     @meth.to_proc.kind_of?(Proc).should == true
   end
 
-  it "Proc object should have the correct arity" do
+  it "returns a Proc object with the correct arity" do
     # This may seem redundant but this bug has cropped up in jruby, mri and yarv.
     # http://jira.codehaus.org/browse/JRUBY-124
     [ :zero, :one_req, :two_req,
@@ -49,7 +49,19 @@ describe "Method#to_proc" do
     x.bar(&m).should == []
     x.baz(1,2,3,&m).should == [1,2,3]
   end
-
+  
+  ruby_bug "#5926", "1.9.2" do
+    it "returns a proc that can receive a block" do
+      x = Object.new
+      def x.foo; yield 'bar'; end
+      
+      m = x.method :foo
+      result = nil
+      m.to_proc.call {|val| result = val}
+      result.should == 'bar'
+    end
+  end
+  
   ruby_version_is ""..."1.9" do
     it "returns a proc that accepts passed arguments like a block would" do
       obj = MethodSpecs::ToProc.new
@@ -64,5 +76,23 @@ describe "Method#to_proc" do
   it "can be called directly and not unwrap arguments like a block" do
     obj = MethodSpecs::ToProcBeta.new
     obj.to_proc.call([1]).should == [1]
+  end
+
+  it "should correct handle arguments (unwrap)" do
+    obj = MethodSpecs::ToProcBeta.new
+
+    array = [[1]]
+    array.each(&obj)
+    ScratchPad.recorded.should == [[1]]
+  end
+
+  ruby_version_is "1.9" do
+    it "executes method with whole array (one argument)" do
+      obj = MethodSpecs::ToProcBeta.new
+
+      array = [[1, 2]]
+      array.each(&obj)
+      ScratchPad.recorded.should == [[1, 2]]
+    end
   end
 end

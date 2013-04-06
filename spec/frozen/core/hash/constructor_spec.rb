@@ -46,13 +46,14 @@ describe "Hash.[]" do
     end
   end
 
+  it "ignores elements that are not arrays" do
+    hash_class[[:a]].should == new_hash
+    hash_class[[:nil]].should == new_hash
+  end
+
   ruby_version_is '1.8.7'...'2.0' do
     it "ignores elements that are arrays of more than 2 elements" do
       hash_class[[[:a, :b, :c]]].should == new_hash
-    end
-
-    it "ignores elements that are not arrays" do
-      hash_class[[:a]].should == new_hash
     end
 
     ruby_bug "#1000 #1385", "1.8.7.167" do
@@ -65,10 +66,6 @@ describe "Hash.[]" do
   ruby_version_is '2.0' do
     it "raises an ArgumentError for arrays of more than 2 elements" do
       lambda{ hash_class[[[:a, :b, :c]]].should == new_hash }.should raise_error(ArgumentError)
-    end
-
-    it "raises an ArgumentError for non arrays" do
-      lambda{ hash_class[[:a]].should == new_hash }.should raise_error(ArgumentError)
     end
 
     it "raises an ArgumentError when passed a list of value-invalid-pairs in an array" do

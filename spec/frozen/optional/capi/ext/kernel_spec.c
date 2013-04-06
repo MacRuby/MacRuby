@@ -32,6 +32,41 @@ VALUE kernel_spec_rb_block_proc(VALUE self) {
 }
 #endif
 
+#ifdef HAVE_RB_BLOCK_CALL
+
+VALUE block_call_inject(VALUE yield_value, VALUE data2) {
+  /* yield_value yields the first block argument */
+  VALUE elem = yield_value;
+  VALUE elem_incr = INT2FIX(FIX2INT(elem) + 1);
+  return elem_incr;
+}
+
+VALUE kernel_spec_rb_block_call(VALUE self, VALUE ary) {
+  return rb_block_call(ary, rb_intern("map"), 0, NULL, block_call_inject, Qnil);
+}
+
+#ifdef RUBY_VERSION_IS_1_9
+VALUE block_call_inject_multi_arg(VALUE yield_value, VALUE data2, int argc, VALUE argv[]) {
+  /* yield_value yields the first block argument */
+  VALUE sum  = yield_value;
+  VALUE elem = argv[1];
+
+  return INT2FIX(FIX2INT(sum) + FIX2INT(elem));
+}
+
+VALUE kernel_spec_rb_block_call_multi_arg(VALUE self, VALUE ary) {
+  VALUE method_args[1];
+  method_args[0] = INT2FIX(0);
+  return rb_block_call(ary, rb_intern("inject"), 1, method_args, block_call_inject_multi_arg, Qnil);
+}
+
+VALUE kernel_spec_rb_block_call_no_func(VALUE self, VALUE ary) {
+  return rb_block_call(ary, rb_intern("map"), 0, NULL, NULL, Qnil);
+}
+
+#endif
+#endif
+
 #ifdef HAVE_RB_ENSURE
 VALUE kernel_spec_rb_ensure(VALUE self, VALUE main_proc, VALUE arg,
                             VALUE ensure_proc, VALUE arg2) {
@@ -47,6 +82,26 @@ VALUE kernel_spec_rb_ensure(VALUE self, VALUE main_proc, VALUE arg,
 
   return rb_ensure(kernel_spec_call_proc, main_array,
       kernel_spec_call_proc, ensure_array);
+}
+#endif
+
+#ifdef HAVE_RB_CATCH
+VALUE kernel_spec_call_proc_with_catch(VALUE arg, VALUE data) {
+  return rb_funcall(data, rb_intern("call"), 0);
+}
+
+VALUE kernel_spec_rb_catch(VALUE self, VALUE sym, VALUE main_proc) {
+  return rb_catch(StringValuePtr(sym), kernel_spec_call_proc_with_catch, main_proc);
+}
+#endif
+
+#ifdef HAVE_RB_CATCH_OBJ
+VALUE kernel_spec_call_proc_with_catch_obj(VALUE arg, VALUE data) {
+  return rb_funcall(data, rb_intern("call"), 0);
+}
+
+VALUE kernel_spec_rb_catch_obj(VALUE self, VALUE obj, VALUE main_proc) {
+  return rb_catch_obj(obj, kernel_spec_call_proc_with_catch, main_proc);
 }
 #endif
 
@@ -68,6 +123,13 @@ VALUE kernel_spec_rb_raise(VALUE self, VALUE hash) {
 #ifdef HAVE_RB_THROW
 VALUE kernel_spec_rb_throw(VALUE self, VALUE result) {
   rb_throw("foo", result);
+  return ID2SYM(rb_intern("rb_throw_failed"));
+}
+#endif
+
+#ifdef HAVE_RB_THROW_OBJ
+VALUE kernel_spec_rb_throw_obj(VALUE self, VALUE obj, VALUE result) {
+  rb_throw_obj(obj, result);
   return ID2SYM(rb_intern("rb_throw_failed"));
 }
 #endif
@@ -134,6 +196,17 @@ VALUE kernel_spec_rb_sys_fail(VALUE self, VALUE msg) {
 }
 #endif
 
+#ifdef HAVE_RB_SYSERR_FAIL
+VALUE kernel_spec_rb_syserr_fail(VALUE self, VALUE err, VALUE msg) {
+  if(msg == Qnil) {
+    rb_syserr_fail(NUM2INT(err), NULL);
+  } else {
+    rb_syserr_fail(NUM2INT(err), StringValuePtr(msg));
+  }
+  return Qnil;
+}
+#endif
+
 #ifdef HAVE_RB_WARN
 VALUE kernel_spec_rb_warn(VALUE self, VALUE msg) {
   rb_warn("%s", StringValuePtr(msg));
@@ -192,6 +265,18 @@ static VALUE kernel_spec_rb_f_sprintf(VALUE self, VALUE ary) {
 }
 #endif
 
+#ifdef HAVE_RB_MAKE_BACKTRACE
+static VALUE kernel_spec_rb_make_backtrace(VALUE self) {
+  return rb_make_backtrace();
+}
+#endif
+
+#ifdef HAVE_RB_OBJ_METHOD
+static VALUE kernel_spec_rb_obj_method(VALUE self, VALUE obj, VALUE method) {
+  return rb_obj_method(obj, method);
+}
+#endif
+
 void Init_kernel_spec() {
   VALUE cls;
   cls = rb_define_class("CApiKernelSpecs", rb_cObject);
@@ -202,6 +287,14 @@ void Init_kernel_spec() {
 
 #ifdef HAVE_RB_NEED_BLOCK
   rb_define_method(cls, "rb_need_block", kernel_spec_rb_need_block, 0);
+#endif
+
+#ifdef HAVE_RB_BLOCK_CALL
+  rb_define_method(cls, "rb_block_call", kernel_spec_rb_block_call, 1);
+#ifdef RUBY_VERSION_IS_1_9
+  rb_define_method(cls, "rb_block_call_multi_arg", kernel_spec_rb_block_call_multi_arg, 1);
+  rb_define_method(cls, "rb_block_call_no_func", kernel_spec_rb_block_call_no_func, 1);
+#endif
 #endif
 
 #ifdef HAVE_RB_BLOCK_PROC
@@ -224,6 +317,10 @@ void Init_kernel_spec() {
   rb_define_method(cls, "rb_throw", kernel_spec_rb_throw, 1);
 #endif
 
+#ifdef HAVE_RB_THROW_OBJ
+  rb_define_method(cls, "rb_throw_obj", kernel_spec_rb_throw_obj, 2);
+#endif
+
 #ifdef HAVE_RB_RESCUE
   rb_define_method(cls, "rb_rescue", kernel_spec_rb_rescue, 4);
 #endif
@@ -232,8 +329,20 @@ void Init_kernel_spec() {
   rb_define_method(cls, "rb_rescue2", kernel_spec_rb_rescue2, -1);
 #endif
 
+#ifdef HAVE_RB_CATCH
+  rb_define_method(cls, "rb_catch", kernel_spec_rb_catch, 2);
+#endif
+
+#ifdef HAVE_RB_CATCH_OBJ
+  rb_define_method(cls, "rb_catch_obj", kernel_spec_rb_catch_obj, 2);
+#endif
+
 #ifdef HAVE_RB_SYS_FAIL
   rb_define_method(cls, "rb_sys_fail", kernel_spec_rb_sys_fail, 1);
+#endif
+
+#ifdef HAVE_RB_SYSERR_FAIL
+  rb_define_method(cls, "rb_syserr_fail", kernel_spec_rb_syserr_fail, 2);
 #endif
 
 #ifdef HAVE_RB_WARN
@@ -262,6 +371,14 @@ void Init_kernel_spec() {
 
 #ifdef HAVE_RB_F_SPRINTF
   rb_define_method(cls, "rb_f_sprintf", kernel_spec_rb_f_sprintf, 1);
+#endif
+
+#ifdef HAVE_RB_MAKE_BACKTRACE
+  rb_define_method(cls, "rb_make_backtrace", kernel_spec_rb_make_backtrace, 0);
+#endif
+
+#ifdef HAVE_RB_OBJ_METHOD
+  rb_define_method(cls, "rb_obj_method", kernel_spec_rb_obj_method, 2);
 #endif
 }
 

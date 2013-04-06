@@ -154,48 +154,28 @@ describe "Module#autoload" do
     ModuleSpecs::Autoload.use_ex1.should == :good
   end
 
-  ruby_version_is "" ... "1.9" do
-    it "removes the constant from the constant table if load fails" do
-      ModuleSpecs::Autoload.autoload :Fail, @non_existent
-      ModuleSpecs::Autoload.should have_constant(:Fail)
-
-      lambda { ModuleSpecs::Autoload::Fail }.should raise_error(LoadError)
-      ModuleSpecs::Autoload.should_not have_constant(:Fail)
+  it "does not load the file when refering to the constant in defined?" do
+    module ModuleSpecs::Autoload::Q
+      autoload :R, fixture(__FILE__, "autoload.rb")
+      defined?(R).should == "constant"
     end
-
-    it "removes the constant from the constant table if the loaded files does not define it" do
-      ModuleSpecs::Autoload.autoload :O, fixture(__FILE__, "autoload_o.rb")
-      ModuleSpecs::Autoload.should have_constant(:O)
-
-      lambda { ModuleSpecs::Autoload::O }.should raise_error(NameError)
-      ModuleSpecs::Autoload.should_not have_constant(:O)
-    end
-
-    it "does not load the file when refering to the constant in defined?" do
-      module ModuleSpecs::Autoload::Q
-        autoload :R, fixture(__FILE__, "autoload.rb")
-        defined?(R).should == "constant"
-      end
-      ModuleSpecs::Autoload::Q.should have_constant(:R)
-    end
+    ModuleSpecs::Autoload::Q.should have_constant(:R)
   end
 
-  ruby_version_is "1.9" do
-    it "does not remove the constant from the constant table if load fails" do
-      ModuleSpecs::Autoload.autoload :Fail, @non_existent
-      ModuleSpecs::Autoload.should have_constant(:Fail)
+  it "does not remove the constant from the constant table if load fails" do
+    ModuleSpecs::Autoload.autoload :Fail, @non_existent
+    ModuleSpecs::Autoload.should have_constant(:Fail)
 
-      lambda { ModuleSpecs::Autoload::Fail }.should raise_error(LoadError)
-      ModuleSpecs::Autoload.should have_constant(:Fail)
-    end
+    lambda { ModuleSpecs::Autoload::Fail }.should raise_error(LoadError)
+    ModuleSpecs::Autoload.should have_constant(:Fail)
+  end
 
-    it "does not remove the constant from the constant table if the loaded files does not define it" do
-      ModuleSpecs::Autoload.autoload :O, fixture(__FILE__, "autoload_o.rb")
-      ModuleSpecs::Autoload.should have_constant(:O)
+  it "does not remove the constant from the constant table if the loaded files does not define it" do
+    ModuleSpecs::Autoload.autoload :O, fixture(__FILE__, "autoload_o.rb")
+    ModuleSpecs::Autoload.should have_constant(:O)
 
-      lambda { ModuleSpecs::Autoload::O }.should raise_error(NameError)
-      ModuleSpecs::Autoload.should have_constant(:O)
-    end
+    lambda { ModuleSpecs::Autoload::O }.should raise_error(NameError)
+    ModuleSpecs::Autoload.should have_constant(:O)
   end
 
   ruby_version_is '1.9' ... '1.9.3' do
@@ -250,6 +230,32 @@ describe "Module#autoload" do
     end
 
     ModuleSpecs::Autoload::XX::YY.superclass.should == YY
+  end
+
+
+  it "looks up the constant in the scope where it is referred" do
+    module ModuleSpecs
+      module Autoload
+        autoload :QQ, fixture(__FILE__, "autoload_scope.rb")
+        class PP
+          QQ.new.should be_kind_of(ModuleSpecs::Autoload::PP::QQ)
+        end
+      end
+    end
+  end
+
+  it "looks up the constant when in a meta class scope" do
+    module ModuleSpecs
+      module Autoload
+        autoload :R, fixture(__FILE__, "autoload_r.rb")
+        class << self
+          def r
+            R.new
+          end
+        end
+      end
+    end
+    ModuleSpecs::Autoload.r.should be_kind_of(ModuleSpecs::Autoload::R)
   end
 
   ruby_version_is "1.9" do

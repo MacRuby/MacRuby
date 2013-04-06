@@ -4,6 +4,10 @@ module IOSpecs
   class SubIO < IO
   end
 
+  def self.collector
+    Proc.new { |x| ScratchPad << x }
+  end
+
   def self.lines
     [ "Voici la ligne une.\n",
       "Qui \303\250 la linea due.\n",
@@ -14,6 +18,56 @@ module IOSpecs
       "\n",
       "Est\303\241 aqui a linha cinco.\n",
       "Here is line six.\n" ]
+  end
+
+  def self.lines_limit
+    [ "Voici la l",
+      "igne une.\n",
+      "Qui è la ",
+      "linea due.",
+      "\n",
+      "\n",
+      "\n",
+      "Aquí está",
+      " la línea",
+      " tres.\n",
+      "Ist hier L",
+      "inie vier.",
+      "\n",
+      "\n",
+      "Está aqui",
+      " a linha c",
+      "inco.\n",
+      "Here is li",
+      "ne six.\n" ]
+  end
+
+  def self.lines_space_separator_limit
+    [ "Voici ",
+      "la ",
+      "ligne ",
+      "une.\nQui ",
+      "è ",
+      "la ",
+      "linea ",
+      "due.\n\n\nAqu",
+      "í ",
+      "está ",
+      "la ",
+      "línea ",
+      "tres.\nIst ",
+      "hier ",
+      "Linie ",
+      "vier.\n\nEst",
+      "á ",
+      "aqui ",
+      "a ",
+      "linha ",
+      "cinco.\nHer",
+      "e ",
+      "is ",
+      "line ",
+      "six.\n" ]
   end
 
   def self.lines_r_separator
@@ -53,10 +107,10 @@ module IOSpecs
 
   # Creates an IO instance for an existing fixture file. The
   # file should obviously not be deleted.
-  def self.io_fixture(name, mode="r:utf-8")
+  def self.io_fixture(name, options_or_mode="r:utf-8")
     path = fixture __FILE__, name
     name = path if File.exists? path
-    new_io name, fmode(mode)
+    new_io name, options_or_mode
   end
 
   # Returns a closed instance of IO that was opened to reference
@@ -66,6 +120,15 @@ module IOSpecs
     io = io_fixture "lines.txt"
     io.close
     io
+  end
+  
+  # Creates a pipe-based IO fixture containing the specified
+  # contents
+  def self.pipe_fixture(content)
+    source, sink = IO.pipe
+    sink.write content
+    sink.close
+    source
   end
 
   # Defines +method+ on +obj+ using the provided +block+. This

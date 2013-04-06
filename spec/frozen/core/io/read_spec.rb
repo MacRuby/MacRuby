@@ -221,6 +221,17 @@ describe "IO#read" do
     buf.should == @contents[0..4]
   end
 
+  ruby_version_is ""..."1.9" do
+    it "trucates the buffer to the limit when no data remains" do
+      buf = "abc"
+      @io.read
+
+      @io.read(2, buf).should be_nil
+      buf.should == "ab"
+      buf.size.should == 2
+    end
+  end
+
   it "returns the given buffer" do
     buf = ""
 
@@ -294,7 +305,7 @@ platform_is :windows do
   end
 end
 
-describe "IO#read with encodings" do
+describe "IO#read with $KCODE set to UTF-8" do
   before :each do
     @kcode, $KCODE = $KCODE, "utf-8"
     @io = IOSpecs.io_fixture "lines.txt"
@@ -311,25 +322,201 @@ describe "IO#read with encodings" do
 end
 
 ruby_version_is "1.9" do
-  describe "IO#read with 1.9 encodings" do
+  describe "IO#read in binary mode" do
     before :each do
-      @file = tmp("io_read_bom.txt")
-      @text = "\uFEFFT"
+      @internal = Encoding.default_internal
+      @name = fixture __FILE__, "read_binary.txt"
     end
 
     after :each do
-      rm_r @file
+      Encoding.default_internal = @internal
     end
 
-    # Example derived from test/ruby/test_io_m17n.rb on MRI
-    it "strips the BOM when given 'rb:utf-7-bom' as the mode" do
-      %w/UTF-8 UTF-16BE UTF-16LE UTF-32BE UTF-32LE/.each do |encoding|
-        content = @text.encode(encoding)
-        content_ascii = content[1].force_encoding("ascii-8bit")
-        touch(@file) { |f| f.print content }
+    it "does not transcode file contents when Encoding.default_internal is set" do
+      Encoding.default_internal = "utf-8"
 
-        result = File.read(@file, :mode => "rb:BOM|#{encoding}")
-        result.force_encoding("ascii-8bit").should == content_ascii
+      result = File.open(@name, "rb") { |f| f.read }.chomp
+
+      result.encoding.should == Encoding::ASCII_8BIT
+      result.should == "abc\xE2def".force_encoding(Encoding::ASCII_8BIT)
+    end
+
+    it "does transcode file contents when an internal encoding is specified" do
+      Encoding.default_internal = "euc-jp"
+
+      lambda do
+        File.open(@name, "r:binary:utf-8") { |f| f.read }
+      end.should raise_error(Encoding::UndefinedConversionError)
+    end
+  end
+
+  describe "IO.read with BOM" do
+    it "reads a file without a bom" do
+      name = fixture __FILE__, "no_bom_UTF-8.txt"
+      result = File.read(name, :mode => "rb:BOM|utf-8")
+      result.force_encoding("ascii-8bit").should == "UTF-8\n"
+    end
+
+    it "reads a file with a utf-8 bom" do
+      name = fixture __FILE__, "bom_UTF-8.txt"
+      result = File.read(name, :mode => "rb:BOM|utf-16le")
+      result.force_encoding("ascii-8bit").should == "UTF-8\n"
+    end
+
+    it "reads a file with a utf-16le bom" do
+      name = fixture __FILE__, "bom_UTF-16LE.txt"
+      result = File.read(name, :mode => "rb:BOM|utf-8")
+      result.force_encoding("ascii-8bit").should == "U\x00T\x00F\x00-\x001\x006\x00L\x00E\x00\n\x00"
+    end
+
+    it "reads a file with a utf-16be bom" do
+      name = fixture __FILE__, "bom_UTF-16BE.txt"
+      result = File.read(name, :mode => "rb:BOM|utf-8")
+      result.force_encoding("ascii-8bit").should == "\x00U\x00T\x00F\x00-\x001\x006\x00B\x00E\x00\n"
+    end
+
+    it "reads a file with a utf-32le bom" do
+      name = fixture __FILE__, "bom_UTF-32LE.txt"
+      result = File.read(name, :mode => "rb:BOM|utf-8")
+      result.force_encoding("ascii-8bit").should == "U\x00\x00\x00T\x00\x00\x00F\x00\x00\x00-\x00\x00\x003\x00\x00\x002\x00\x00\x00L\x00\x00\x00E\x00\x00\x00\n\x00\x00\x00"
+    end
+
+    it "reads a file with a utf-32be bom" do
+      name = fixture __FILE__, "bom_UTF-32BE.txt"
+      result = File.read(name, :mode => "rb:BOM|utf-8")
+      result.force_encoding("ascii-8bit").should == "\x00\x00\x00U\x00\x00\x00T\x00\x00\x00F\x00\x00\x00-\x00\x00\x003\x00\x00\x002\x00\x00\x00B\x00\x00\x00E\x00\x00\x00\n"
+    end
+  end
+end
+
+with_feature :encoding do
+  describe :io_read_internal_encoding, :shared => true do
+    it "returns a transcoded String" do
+      @io.read.should == "ありがとう\n"
+    end
+
+    it "sets the String encoding to the internal encoding" do
+      @io.read.encoding.should equal(Encoding::UTF_8)
+    end
+
+    describe "when passed nil for limit" do
+      it "sets the buffer to a transcoded String" do
+        result = @io.read(nil, buf = "")
+        buf.should equal(result)
+        buf.should == "ありがとう\n"
+      end
+
+      it "sets the buffer's encoding to the internal encoding" do
+        buf = "".force_encoding Encoding::ISO_8859_1
+        @io.read(nil, buf)
+        buf.encoding.should equal(Encoding::UTF_8)
+      end
+    end
+  end
+
+  describe :io_read_size_internal_encoding, :shared => true do
+    it "reads bytes when passed a size" do
+      @io.read(2).should == "\xa4\xa2".force_encoding(Encoding::ASCII_8BIT)
+    end
+
+    it "returns a String in ASCII-8BIT when passed a size" do
+      @io.read(4).encoding.should equal(Encoding::ASCII_8BIT)
+    end
+
+    it "does not change the buffer's encoding when passed a limit" do
+      buf = "".force_encoding Encoding::ISO_8859_1
+      @io.read(4, buf)
+      buf.should == "\xa4\xa2\xa4\xea".force_encoding(Encoding::ISO_8859_1)
+      buf.encoding.should equal(Encoding::ISO_8859_1)
+    end
+
+    it "trucates the buffer but does not change the buffer's encoding when no data remains" do
+      buf = "abc".force_encoding Encoding::ISO_8859_1
+      @io.read
+
+      @io.read(1, buf).should be_nil
+      buf.size.should == 0
+      buf.encoding.should equal(Encoding::ISO_8859_1)
+    end
+  end
+
+  describe "IO#read" do
+    describe "when IO#external_encoding and IO#internal_encoding are nil" do
+      before :each do
+        @name = tmp("io_read.txt")
+        touch(@name) { |f| f.write "\x00\x01\x02" }
+        @io = new_io @name, "r+"
+      end
+
+      after :each do
+        @io.close if @io and not @io.closed?
+        rm_r @name
+      end
+
+      it "sets the String encoding to Encoding.default_external" do
+        @io.read.encoding.should equal(Encoding.default_external)
+      end
+    end
+
+    describe "with internal encoding" do
+      after :each do
+        @io.close unless @io.closed?
+      end
+
+      describe "not specified" do
+        before :each do
+          @io = IOSpecs.io_fixture "read_euc_jp.txt", "r:euc-jp"
+        end
+
+        it "does not transcode the String" do
+          @io.read.should == ("ありがとう\n").encode(Encoding::EUC_JP)
+        end
+
+        it "sets the String encoding to the external encoding" do
+          @io.read.encoding.should equal(Encoding::EUC_JP)
+        end
+
+        it_behaves_like :io_read_size_internal_encoding, nil
+      end
+
+      describe "specified by open mode" do
+        before :each do
+          @io = IOSpecs.io_fixture "read_euc_jp.txt", "r:euc-jp:utf-8"
+        end
+
+        it_behaves_like :io_read_internal_encoding, nil
+        it_behaves_like :io_read_size_internal_encoding, nil
+      end
+
+      describe "specified by mode: option" do
+        before :each do
+          @io = IOSpecs.io_fixture "read_euc_jp.txt", :mode => "r:euc-jp:utf-8"
+        end
+
+        it_behaves_like :io_read_internal_encoding, nil
+        it_behaves_like :io_read_size_internal_encoding, nil
+      end
+
+      describe "specified by internal_encoding: option" do
+        before :each do
+          options = { :mode => "r",
+                      :internal_encoding => "utf-8",
+                      :external_encoding => "euc-jp" }
+          @io = IOSpecs.io_fixture "read_euc_jp.txt", options
+        end
+
+        it_behaves_like :io_read_internal_encoding, nil
+        it_behaves_like :io_read_size_internal_encoding, nil
+      end
+
+      describe "specified by encoding: option" do
+        before :each do
+          options = { :mode => "r", :encoding => "euc-jp:utf-8" }
+          @io = IOSpecs.io_fixture "read_euc_jp.txt", options
+        end
+
+        it_behaves_like :io_read_internal_encoding, nil
+        it_behaves_like :io_read_size_internal_encoding, nil
       end
     end
   end

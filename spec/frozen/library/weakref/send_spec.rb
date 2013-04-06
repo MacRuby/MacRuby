@@ -2,6 +2,10 @@ require File.expand_path('../../../spec_helper', __FILE__)
 require 'weakref'
 
 describe "WeakRef#__send__" do
+  after :all do
+    GC.start
+  end
+
   module WeakRefSpecs
     def self.delegated_method
       :result

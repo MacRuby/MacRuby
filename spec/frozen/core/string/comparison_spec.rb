@@ -1,3 +1,4 @@
+# -*- encoding: utf-8 -*-
 require File.expand_path('../../../spec_helper', __FILE__)
 require File.expand_path('../fixtures/classes.rb', __FILE__)
 
@@ -42,31 +43,77 @@ describe "String#<=> with String" do
     (a <=> b).should == 0
     (b <=> a).should == 0
   end
+
+  ruby_version_is "1.9" do
+    it "returns 0 if self and other are bytewise identical and have the same encoding" do
+      ("ÄÖÜ" <=> "ÄÖÜ").should == 0
+    end
+
+    it "returns 0 if self and other are bytewise identical and have the same encoding" do
+      ("ÄÖÜ" <=> "ÄÖÜ").should == 0
+    end
+
+    it "returns -1 if self is bytewise less than other" do
+      ("ÄÖÛ" <=> "ÄÖÜ").should == -1
+    end
+
+    it "returns 1 if self is bytewise greater than other" do
+      ("ÄÖÜ" <=> "ÄÖÛ").should == 1
+    end
+
+    it "returns 0 if self and other contain identical ASCII-compatible bytes in different encodings" do
+      ("abc".force_encoding("utf-8") <=> "abc".force_encoding("iso-8859-1")).should == 0
+    end
+
+    it "does not return 0 if self and other contain identical non-ASCII-compatible bytes in different encodings" do
+      ("\xff".force_encoding("utf-8") <=> "\xff".force_encoding("iso-8859-1")).should_not == 0
+    end
+  end
 end
 
 # Note: This is inconsistent with Array#<=> which calls #to_ary instead of
 # just using it as an indicator.
 describe "String#<=>" do
-  it "returns nil if its argument does not provide #to_str" do
-    ("abc" <=> 1).should == nil
-    ("abc" <=> :abc).should == nil
-    ("abc" <=> mock('x')).should == nil
+  ruby_version_is ""..."2.0" do
+    it "returns nil if its argument does not provide #to_str" do
+      ("abc" <=> mock('x')).should be_nil
+    end
+
+    it "returns nil if its argument does not provide #<=>" do
+      obj = mock('x')
+      ("abc" <=> obj).should be_nil
+    end
+
+    it "calls #to_str to convert the argument to a String and calls #<=> to compare with self" do
+      obj = mock('x')
+
+      # String#<=> merely checks if #to_str is defined on the object. It
+      # does not call the method.
+      obj.stub!(:to_str)
+      obj.should_not_receive(:to_str)
+      obj.should_receive(:<=>).with("abc").and_return(1)
+
+      ("abc" <=> obj).should == -1
+    end
   end
 
-  it "returns nil if its argument does not provide #<=>" do
-    obj = mock('x')
-    ("abc" <=> obj).should == nil
-  end
+  ruby_version_is "2.0" do
+    it "returns nil if its argument provides neither #to_str nor #<=>" do
+      ("abc" <=> mock('x')).should be_nil
+    end
 
-  it "calls #to_str to convert the argument to a String and calls #<=> to compare with self" do
-    obj = mock('x')
+    it "uses the result of calling #to_str for comparison when #to_str is defined" do
+      obj = mock('x')
+      obj.should_receive(:to_str).and_return("aaa")
 
-    # String#<=> merely checks if #to_str is defined on the object. It
-    # does not call the method.
-    obj.stub!(:to_str)
+      ("abc" <=> obj).should == 1
+    end
 
-    obj.should_receive(:<=>).with("abc").and_return(1)
+    it "uses the result of calling #<=> on its argument when #<=> is defined but #to_str is not" do
+      obj = mock('x')
+      obj.should_receive(:<=>).and_return(-1)
 
-    ("abc" <=> obj).should == -1
+      ("abc" <=> obj).should == 1
+    end
   end
 end

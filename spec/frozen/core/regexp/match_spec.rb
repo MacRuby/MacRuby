@@ -1,3 +1,4 @@
+# -*- encoding: utf-8 -*-
 require File.expand_path('../../../spec_helper', __FILE__)
 
 describe :regexp_match, :shared => true do
@@ -16,6 +17,12 @@ describe "Regexp#=~" do
   it "returns the index of the first character of the matching region" do
     (/(.)(.)(.)/ =~ "abc").should == 0
   end
+
+  ruby_version_is "1.9" do
+    it "returns the index too, when argument is a Symbol" do
+      (/(.)(.)(.)/ =~ :abc).should == 0
+    end
+  end
 end
 
 describe "Regexp#match" do
@@ -26,8 +33,16 @@ describe "Regexp#match" do
   end
 
   ruby_version_is "1.9" do
+    it "returns a MatchData object, when argument is a Symbol" do
+      /(.)(.)(.)/.match(:abc).should be_kind_of(MatchData)
+    end
+
     it "matches the input at a given position" do
       /./.match("abc", 1).begin(0).should == 1
+    end
+
+    it "uses the start as a character offset" do
+      /(.+)/.match("hüllo", 2)[0].should == 'llo'
     end
 
     describe "when passed a block" do

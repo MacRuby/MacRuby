@@ -14,11 +14,15 @@ ruby_version_is "1.9" do
 
       touch @file
       File.symlink(@file, @link)
+
+      @fake_file = File.join(@real_dir, 'fake_file')
+      @fake_link = File.join(@link_dir, 'fake_link')
+
+      File.symlink(@fake_file, @fake_link)
     end
 
     after :each do
-      File.unlink @link, @link_dir
-      rm_r @file, @real_dir
+      rm_r @file, @link, @fake_link, @real_dir, @link_dir
     end
 
     it "returns '/' when passed '/'" do
@@ -39,10 +43,18 @@ ruby_version_is "1.9" do
       end
     end
 
-    it "raises a Errno::ELOOP if symlink points itself" do
+    it "raises a Errno::ELOOP if the symlink points to itself" do
       File.unlink @link
       File.symlink(@link, @link)
       lambda { File.realpath(@link) }.should raise_error(Errno::ELOOP)
+    end
+
+    it "raises Errno::ENOENT if the file is absent" do
+      lambda { File.realpath(@fake_file) }.should raise_error(Errno::ENOENT)
+    end
+
+    it "raises Errno::ENOENT if the symlink points to an absent file" do
+      lambda { File.realpath(@fake_link) }.should raise_error(Errno::ENOENT)
     end
   end
 end
