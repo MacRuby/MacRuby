@@ -44,8 +44,6 @@ fails:The defined? keyword for yield returns 'yield' if a block is passed to a m
 fails:The defined? keyword for yield returns 'yield' if a block is passed to a method taking a block parameter
 fails:The defined? keyword for super returns nil when a superclass undef's the method
 fails:The defined? keyword for super for a method taking no arguments returns 'super' from a #define_method when a superclass method exists
-fails:The defined? keyword for super for a method taking no arguments returns 'super' from a block in a #define_method when a superclass method exists
 fails:The defined? keyword for super for a method taking arguments returns 'super' from a #define_method when a superclass method exists
-fails:The defined? keyword for super for a method taking arguments returns 'super' from a block in a #define_method when a superclass method exists
 fails:The defined? keyword for super for a method taking no arguments returns 'super' from a block when a superclass method exists
 fails:The defined? keyword for super for a method taking arguments returns 'super' from a block when a superclass method exists
