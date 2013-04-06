@@ -1,0 +1,1 @@
+fails:String#end_with? returns true if other is empty

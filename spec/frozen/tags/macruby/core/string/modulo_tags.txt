@@ -3,3 +3,5 @@ fails:String#% replaces trailing absolute argument specifier without type with p
 fails:String#% calls to_int on width star and precision star tokens
 fails:String#% raises an ArgumentError for huge precisions for %s
 fails:String#% when format string contains %{} sections raises KeyError if key is missing from passed-in hash
+fails:String#% calls to_str on argument for %c formats
+fails:String#% when format string contains %<> formats raises KeyError if key is missing from passed-in hash

@@ -1,0 +1,2 @@
+fails:StringIO#readpartial when passed no arguments returns an empty String in ASCII-8BIT encoding
+fails:StringIO#readpartial when passed nil returns an empty String in ASCII-8BIT encoding

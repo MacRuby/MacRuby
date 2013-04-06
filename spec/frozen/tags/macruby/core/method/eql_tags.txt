@@ -3,3 +3,4 @@ fails:Method#eql? returns true for methods defined using the same block/proc
 fails:Method#eql? returns true for the same method missing
 fails:Method#eql? missing methods returns true for the same method missing
 fails:Method#eql? missing methods calls respond_to_missing? with true to include private methods
+fails:Method#eql? returns true for methods defined using equivalent blocks

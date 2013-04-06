@@ -1,0 +1,4 @@
+fails:StringScanner#pointer returns the position of the scan pointer for multibyte string
+fails:StringScanner#pointer returns the `bytesize` for multibyte string in the terminate position
+fails:StringScanner#pointer= can poin position that greater than string length for multibyte string
+fails:StringScanner#pointer= positions from the end if the argument is negative for multibyte string

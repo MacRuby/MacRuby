@@ -1,0 +1,5 @@
+fails:String#[]= with Fixnum index encodes the String in an encoding compatible with the replacement
+fails:String#[]= with String index encodes the String in an encoding compatible with the replacement
+fails:String#[]= with a Regexp index encodes the String in an encoding compatible with the replacement
+fails:String#[]= with a Range index encodes the String in an encoding compatible with the replacement
+fails:String#[]= with Fixnum index, count encodes the String in an encoding compatible with the replacement

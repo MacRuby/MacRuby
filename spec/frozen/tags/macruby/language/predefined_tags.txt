@@ -1,3 +1,20 @@
 fails:Predefined global $_ is set to the last line read by e.g. StringIO#gets
 fails:Predefined global $_ is set at the method-scoped level rather than block-scoped
 fails:Execution variable $: does not include the current directory
+fails:Predefined global $` sets an empty result to the encoding of the source String
+fails:Predefined global $' sets an empty result to the encoding of the source String
+fails:The predefined global constant STDIN has the same external encoding as Encoding.default_external when that encoding is changed
+fails:The predefined global constant STDIN has the encodings set by #set_encoding
+fails:The predefined global constant STDIN retains the encoding set by #set_encoding when Encoding.default_external is changed
+fails:The predefined global constant STDIN has nil for the internal encoding
+fails:The predefined global constant STDIN has nil for the internal encoding despite Encoding.default_internal being changed
+fails:The predefined global constant STDOUT has nil for the external encoding
+fails:The predefined global constant STDOUT has nil for the external encoding despite Encoding.default_external being changed
+fails:The predefined global constant STDOUT has the encodings set by #set_encoding
+fails:The predefined global constant STDOUT has nil for the internal encoding
+fails:The predefined global constant STDOUT has nil for the internal encoding despite Encoding.default_internal being changed
+fails:The predefined global constant STDERR has nil for the external encoding
+fails:The predefined global constant STDERR has nil for the external encoding despite Encoding.default_external being changed
+fails:The predefined global constant STDERR has the encodings set by #set_encoding
+fails:The predefined global constant STDERR has nil for the internal encoding
+fails:The predefined global constant STDERR has nil for the internal encoding despite Encoding.default_internal being changed

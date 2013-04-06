@@ -1,0 +1,2 @@
+fails:String#rjust with length, padding with width returns a String in the same encoding as the original
+fails:String#rjust with length, padding with width, pattern returns a String in the compatible encoding

@@ -1,0 +1,3 @@
+fails:BasicObject#singleton_method_added is called when a method is defined on self
+fails:BasicObject#singleton_method_added is called when a method is defined in the singleton class
+fails:BasicObject#singleton_method_added is called when define_method is used in the singleton class

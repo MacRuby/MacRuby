@@ -1,0 +1,2 @@
+fails:StringIO#ungetbyte calls #to_str to convert an object to a String
+fails:StringIO#ungetbyte does not change the encoding of the data

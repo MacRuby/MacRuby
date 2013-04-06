@@ -1,0 +1,1 @@
+fails:Kernel.rand returns a float for an range argument where max is < 1

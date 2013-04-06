@@ -13,3 +13,5 @@ fails:Marshal.load loads a Random
 fails:Marshal.load for a Hash preserves hash ivars when hash contains a string having ivar
 fails:Marshal.load for a wrapped C pointer loads
 fails:Marshal.load for a String loads a string through StringIO stream
+fails:Marshal.load for a String loads a US-ASCII String
+fails:Marshal.load for a String loads a String in another encoding

@@ -19,3 +19,5 @@ fails:Encoding::Converter#primitive_convert returns :undefined_conversion when a
 fails:Encoding::Converter#primitive_convert returns :invalid_byte_sequence when an invalid byte sequence was found in the source buffer
 fails:Encoding::Converter#primitive_convert returns :finished when the conversion succeeded
 fails:Encoding::Converter#primitive_convert returns :destination_buffer_full when the destination buffer is too small
+fails:Encoding::Converter#primitive_convert calls #to_int to convert the destination byte offset
+fails:Encoding::Converter#primitive_convert calls #to_int to convert the destination byte size

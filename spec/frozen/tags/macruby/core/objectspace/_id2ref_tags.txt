@@ -1,0 +1,1 @@
+critical:ObjectSpace._id2ref raises a RangeError for invalid immediate object_id

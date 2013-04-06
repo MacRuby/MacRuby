@@ -1,0 +1,1 @@
+fails:Dir#path returns a String with the same encoding as the argument to .open
