@@ -1782,6 +1782,7 @@ rb_const_set(VALUE klass, ID id, VALUE val)
 	rb_raise(rb_eTypeError, "no class/module to define constant %s",
 		 rb_id2name(id));
     }
+    rb_vm_check_if_module(klass);
     mod_av_set(klass, id, val, Qtrue);
 }
 
