@@ -1133,7 +1133,7 @@ RoxorVM::uncache_or_dup_block(rb_vm_block_t *b)
     return b;
 }
 
-static force_inline VALUE
+static inline VALUE
 vm_block_eval(RoxorVM *vm, rb_vm_block_t *b, SEL sel, VALUE self,
 	int argc, const VALUE *argv)
 {
