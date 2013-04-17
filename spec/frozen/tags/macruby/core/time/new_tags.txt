@@ -1,2 +1,3 @@
 fails:Time.new handles a String second
 fails:Time.new interprets all numerals as base 10
+fails:Time.new with a utc_offset argument raises ArgumentError if the minute value is greater than 59
