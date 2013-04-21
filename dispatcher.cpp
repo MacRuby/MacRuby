@@ -471,7 +471,9 @@ static
 #if __LP64__
 // This method can't be inlined in 32-bit because @try compiles as a call
 // to setjmp().
-force_inline
+inline
+#else
+__attribute__ ((noinline))
 #endif
 VALUE
 __rb_vm_objc_dispatch(rb_vm_objc_stub_t *stub, IMP imp, id rcv, SEL sel,
