@@ -1079,6 +1079,7 @@ Init_GC(void)
     nomem_error = rb_exc_new2(rb_eNoMemError, "failed to allocate memory");
     GC_RETAIN(nomem_error);
 
+    rb_objc_define_method(rb_cBasicObject, "__id__", rb_obj_id, 0);
     rb_objc_define_method(rb_mKernel, "__id__", rb_obj_id, 0);
     rb_objc_define_method(rb_mKernel, "object_id", rb_obj_id, 0);
 
