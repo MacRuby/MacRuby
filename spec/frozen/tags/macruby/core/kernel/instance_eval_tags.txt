@@ -1,3 +1,2 @@
-fails:Kernel#instance_eval doesn't pass the object to the block
-fails:Kernel#instance_eval treats block-local variables as local to the block
 fails:Kernel#instance_eval returns nil
+fails:Kernel#instance_eval treats block-local variables as local to the block

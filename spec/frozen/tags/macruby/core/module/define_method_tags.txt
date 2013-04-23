@@ -1,6 +1,4 @@
 fails:Module#define_method calls #method_added after the method is added to the Module
-fails:Module#define_method accepts a Method (still bound)
-fails:Module#define_method supports being called with a splat
 fails:Module#define_method passed { |a, *b|  } creates a method that raises an ArgumentError when passed zero arguments
 fails:Module#define_method passed { |a, b, *c|  } creates a method that raises an ArgumentError when passed zero arguments
 fails:Module#define_method passed { |a, b, *c|  } creates a method that raises an ArgumentError when passed one argument

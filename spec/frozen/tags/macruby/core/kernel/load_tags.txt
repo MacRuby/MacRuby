@@ -1,6 +1,6 @@
+fails:Kernel#load loads from the current working directory
 fails:Kernel#load sets the enclosing scope to an anonymous module if passed true for 'wrap'
 fails:Kernel#load (shell expansion) expands a tilde to the HOME environment variable as the path to load
+fails:Kernel.load loads from the current working directory
 fails:Kernel.load sets the enclosing scope to an anonymous module if passed true for 'wrap'
 fails:Kernel.load (shell expansion) expands a tilde to the HOME environment variable as the path to load
-fails:Kernel#load loads from the current working directory
-fails:Kernel.load loads from the current working directory

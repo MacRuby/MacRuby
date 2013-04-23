@@ -1,4 +1,3 @@
-fails:Regexp.union raises ArgumentError if the kcodes conflict
 fails:Regexp.union returns a Regexp with the encoding of an ASCII-incompatible String argument
 fails:Regexp.union returns a Regexp with the encoding of a String containing non-ASCII-compatible characters
 fails:Regexp.union returns a Regexp with US-ASCII encoding if all arguments are ASCII-only

@@ -1,4 +1,3 @@
-fails:Encoding.compatible? returns nil unless both arguments are Strings
 fails:Encoding.compatible? String, String when the first's Encoding is valid US-ASCII returns ASCII-8BIT if the second String is ASCII-8BIT but not ASCII only
 fails:Encoding.compatible? String, String when the first's Encoding is ASCII compatible but not ASCII only returns the first's Encoding if the second's is valid US-ASCII
 fails:Encoding.compatible? String, String when the first's Encoding is ASCII compatible but not ASCII only returns the first's Encoding if the second's is UTF-8 and ASCII only

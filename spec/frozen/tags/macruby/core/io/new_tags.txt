@@ -1,16 +1,20 @@
+fails:IO.new raises an error if passed modes two ways
 fails:IO.new uses the external and the internal encoding specified in the mode argument
 fails:IO.new uses the internal encoding specified via the :internal_encoding option
 fails:IO.new uses the colon-separated encodings specified via the :encoding option
 fails:IO.new ingores the :encoding option when the :internal_encoding option is present
 fails:IO.new uses the encoding specified via the :mode option hash
 fails:IO.new ignores the :internal_encoding option when the same as the external encoding
-fails:IO.new raises an Errno::EINVAL if the new mode is not compatible with the descriptor's current mode
-fails:IO.new raises an error when trying to set both binmode and textmode
-fails:IO.new raises an error if passed modes two ways
 fails:IO.new sets internal encoding to nil when passed '-'
 fails:IO.new raises an error if passed encodings two ways
 fails:IO.new sets binmode from :binmode option
+fails:IO.new raises an error if passed binary/text mode two ways
+fails:IO.new raises an error when trying to set both binmode and textmode
 fails:IO.new sets external encoding to binary with binmode in mode string
 fails:IO.new sets external encoding to binary with :binmode option
+fails:IO.new does not use binary encoding when mode encoding is specified
+fails:IO.new does not use binary encoding when :encoding option is specified
+fails:IO.new does not use binary encoding when :external_encoding option is specified
+fails:IO.new does not use binary encoding when :internal_encoding option is specified
 fails:IO.new accepts an :autoclose option
 fails:IO.new accepts any truthy option :autoclose

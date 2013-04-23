@@ -1,2 +1,1 @@
-fails:Process.spawn joins a new process group if :pgroup => :true
 fails:Process.spawn joins the specified process group if :pgroup => pgid

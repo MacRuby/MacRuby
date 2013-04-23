@@ -1,19 +1,23 @@
+fails:IO.open raises an error if passed modes two ways
 fails:IO.open uses the external and the internal encoding specified in the mode argument
 fails:IO.open uses the internal encoding specified via the :internal_encoding option
 fails:IO.open uses the colon-separated encodings specified via the :encoding option
 fails:IO.open ingores the :encoding option when the :internal_encoding option is present
 fails:IO.open uses the encoding specified via the :mode option hash
 fails:IO.open ignores the :internal_encoding option when the same as the external encoding
-fails:IO.open raises an Errno::EINVAL if the new mode is not compatible with the descriptor's current mode
-fails:IO.open calls #close after yielding to the block
-fails:IO.open propagates an exception raised by #close that is not a StandardError
-fails:IO.open does not propagate a StandardError raised by #close
-fails:IO.open raises an error when trying to set both binmode and textmode
-fails:IO.open raises an error if passed modes two ways
 fails:IO.open sets internal encoding to nil when passed '-'
 fails:IO.open raises an error if passed encodings two ways
 fails:IO.open sets binmode from :binmode option
+fails:IO.open raises an error if passed binary/text mode two ways
+fails:IO.open raises an error when trying to set both binmode and textmode
 fails:IO.open sets external encoding to binary with binmode in mode string
 fails:IO.open sets external encoding to binary with :binmode option
+fails:IO.open does not use binary encoding when mode encoding is specified
+fails:IO.open does not use binary encoding when :encoding option is specified
+fails:IO.open does not use binary encoding when :external_encoding option is specified
+fails:IO.open does not use binary encoding when :internal_encoding option is specified
 fails:IO.open accepts an :autoclose option
 fails:IO.open accepts any truthy option :autoclose
+fails:IO.open calls #close after yielding to the block
+fails:IO.open propagates an exception raised by #close that is not a StandardError
+fails:IO.open does not propagate a StandardError raised by #close

@@ -1,7 +1,7 @@
 fails:Method#parameters returns an empty Array when the method expects no arguments
 fails:Method#parameters returns [[:req,:name]] for a method expecting one required argument called 'name'
 fails:Method#parameters returns [[:req,:a],[:req,:b]] for a method expecting two required arguments called 'a' and 'b''
-fails:Method#parameters returns [[:block,:a]] for a method expecting one block argument called 'a'
+fails:Method#parameters returns [[:block,:blk]] for a method expecting one block argument called 'a'
 fails:Method#parameters returns [[:req,:a],[:block,:b] for a method expecting a required argument ('a') and a block argument ('b')
 fails:Method#parameters returns [[:req,:a],[:req,:b],[:block,:c] for a method expecting two required arguments ('a','b') and a block argument ('c')
 fails:Method#parameters returns [[:opt,:a]] for a method expecting one optional argument ('a')
@@ -26,7 +26,6 @@ fails:Method#parameters returns [[:rest,:a],[:req,:b]] for a method expecting a 
 fails:Method#parameters returns [[:rest,:a],[:req,:b],[:req,:c]] for a method expecting a splat argument ('a') and two required arguments ('b','c')
 fails:Method#parameters returns [[:rest,:a],[:req,:b],[:block,:c]] for a method expecting a splat argument ('a'), a required argument ('b'), and a block ('c')
 fails:Method#parameters works with ->(){} as the value of an optional argument
-fails:Method#parameters returns [[:block,:blk]] for a method expecting one block argument called 'a'
 fails:Method#parameters returns [] for a define_method method with explicit no-args || specification
 fails:Method#parameters returns [[:rest, :x]] for a define_method method with rest arg 'x' only
 fails:Method#parameters returns [[:req, :x]] for a define_method method expecting one required argument 'x'

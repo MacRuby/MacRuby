@@ -1,4 +1,2 @@
-fails:Kernel#spawn joins a new process group if :pgroup => :true
 fails:Kernel#spawn joins the specified process group if :pgroup => pgid
-fails:Kernel.spawn joins a new process group if :pgroup => :true
 fails:Kernel.spawn joins the specified process group if :pgroup => pgid

@@ -1,0 +1,4 @@
+fails:IO#close_on_exec= sets the close-on-exec flag if non-false
+fails:IO#close_on_exec= raises IOError if called on a closed IO
+fails:IO#close_on_exec= returns nil
+fails:IO#close_on_exec? raises IOError if called on a closed IO

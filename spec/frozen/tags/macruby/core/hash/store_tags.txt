@@ -1,2 +1,1 @@
 fails:Hash#store stores unequal keys that hash to the same value
-fails:Hash#store raises a RuntimeError if a new key is added during iteration

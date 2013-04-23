@@ -3,8 +3,8 @@ fails:String#tr_s returns a string processed according to tr with newly duplicat
 fails:String#tr_s accepts c1-c2 notation to denote ranges of characters
 fails:String#tr_s pads to_str with its last char if it is shorter than from_string
 fails:String#tr_s translates chars not in from_string when it starts with a ^
-fails:String#tr_s! modifies self in place
 fails:String#tr_s can replace a 7-bit ASCII character with a multibyte one
 fails:String#tr_s can replace multiple 7-bit ASCII characters with a multibyte one
 fails:String#tr_s can replace a multibyte character with a single byte one
 fails:String#tr_s can replace multiple multibyte characters with a single byte one
+fails:String#tr_s! modifies self in place

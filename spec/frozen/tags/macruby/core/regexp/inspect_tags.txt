@@ -1,2 +1,2 @@
-fails:Regexp#inspect doesn't over escape forward slashes
 fails:Regexp#inspect returns options in the order 'mixn'
+fails:Regexp#inspect doesn't over escape forward slashes

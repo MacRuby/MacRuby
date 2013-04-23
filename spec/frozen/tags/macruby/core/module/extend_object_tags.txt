@@ -1,1 +1,0 @@
-fails:Module#extend_object extends the given object with its constants and methods by default

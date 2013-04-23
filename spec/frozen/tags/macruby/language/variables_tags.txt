@@ -1,5 +1,5 @@
 fails:Basic assignment supports the {|r,| } form of block assignment
-fails:Operator assignment 'obj[idx] op= expr' returns result of rhs not result of []=
 fails:Operator assignment 'obj[idx] op= expr' handles single splat index (idx) arguments
 fails:Operator assignment 'obj[idx] op= expr' handles multiple splat index (idx) arguments
 fails:Operator assignment 'obj[idx] op= expr' handles splat index (idx) arguments with normal arguments
+fails:Operator assignment 'obj[idx] op= expr' returns result of rhs not result of []=

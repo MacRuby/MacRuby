@@ -1,5 +1,0 @@
-fails:Prime.each infinitely iterates the given block passing a prime
-fails:Prime#each infinitely iterates the given block passing a prime
-fails:Prime#each when an instance created via Prime.new infinitely iterates the given block passing a prime
-fails:Prime#each when an instance created via Prime.new raises a ArgumentError when is called with some argumetns
-fails:Prime#each when an instance created via Prime.new raises an ArgumentError if no block given and is called with some arguments

@@ -1,3 +1,4 @@
-fails:IO.popen starts returns a forked process if the command is
+fails:IO.popen does not throw an exception if child exited and has been waited for
+fails:IO.popen starts returns a forked process if the command is -
 fails:IO.popen with a leading Array parameter uses a leading Hash in the Array as additional environment variables
 fails:IO.popen with a leading Array parameter uses a trailing Hash in the Array for spawn-like settings

@@ -1,1 +1,1 @@
-fails:StringIO#ungetc when passed [char] pads with \
+fails:StringIO#ungetc when passed [char] pads with \000 when the current position is after the end

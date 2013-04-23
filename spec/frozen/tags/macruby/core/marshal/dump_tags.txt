@@ -1,26 +1,3 @@
-fails:Marshal.dump dumps an object having ivar
-fails:Marshal.dump dumps an extended_user_regexp having ivar
-fails:Marshal.dump raises a TypeError with hash having default proc
-fails:Marshal.dump dumps an extended_user_hash_default
-fails:Marshal.dump dumps an extended_user_hash with a parameter to initialize
-fails:Marshal.dump dumps an array containing objects having _dump method
-fails:Marshal.dump dumps an array containing objects having marshal_dump method
-fails:Marshal.dump dumps an array containing the same objects
-fails:Marshal.dump dumps an extended_array having ivar
-fails:Marshal.dump dumps a struct having ivar
-fails:Marshal.dump dumps an extended_struct having fields with same objects
-fails:Marshal.dump dumps a String empty
-fails:Marshal.dump dumps a String small
-fails:Marshal.dump dumps a String big
-fails:Marshal.dump dumps a String extended
-fails:Marshal.dump dumps a _dump object
-fails:Marshal.dump dumps a _dump object extended
-fails:Marshal.dump dumps a marshal_dump object
-fails:Marshal.dump dumps a Regexp
-fails:Marshal.dump dumps a Regexp subclass /i
-fails:Marshal.dump dumps a Random
-fails:Marshal.dump invokes respond_to? for marshal_dump and _dump on user classes
-fails:Marshal.dump attempts to invoke _dump if respond_to? :_dump is true
 fails:Marshal.dump nil returns a binary string
 fails:Marshal.dump 1..2 returns a binary string
 fails:Marshal.dump 1...2 returns a binary string
@@ -72,6 +49,7 @@ fails:Marshal.dump with a Symbol dumps an encoded Symbol
 fails:Marshal.dump with a String dumps a US-ASCII String
 fails:Marshal.dump with a String dumps a UTF-8 String
 fails:Marshal.dump with a String dumps a String in another encoding
+fails:Marshal.dump with a String dumps multiple strings using symlinks for the :E (encoding) symbol
 fails:Marshal.dump with a Regexp dumps a Regexp
 fails:Marshal.dump with a Regexp dumps a Regexp with flags
 fails:Marshal.dump with a Regexp dumps a Regexp with instance variables
@@ -86,4 +64,3 @@ fails:Marshal.dump with a Hash raises a TypeError with hash having default proc
 fails:Marshal.dump with a Hash dumps a Hash with instance variables
 fails:Marshal.dump with a Hash dumps an Hash subclass with a parameter to initialize
 fails:Marshal.dump with a Struct dumps a Struct with instance variables
-fails:Marshal.dump with a String dumps multiple strings using symlinks for the :E (encoding) symbol

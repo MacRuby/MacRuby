@@ -1,2 +1,0 @@
-fails:GC.stress= can be invoked without any exceptions
-fails:GC.stress= returns a proper boolean result

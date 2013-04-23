@@ -1,3 +1,2 @@
-fails:A method definition in an eval creates a class method
-fails:Defining an 'initialize_copy' method should make it private
 fails:Defining an 'initialize_copy' method sets the method's visibility to private
+fails:A method definition in an eval creates a class method

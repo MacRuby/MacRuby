@@ -1,3 +1,0 @@
-fails:BasicObject#instance_exec sets class variables in the receiver
-fails:BasicObject#instance_exec raises a TypeError when defining methods on an immediate
-fails:BasicObject#instance_exec raises a TypeError when defining methods on numerics

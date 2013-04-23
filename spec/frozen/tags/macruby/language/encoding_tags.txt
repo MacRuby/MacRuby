@@ -1,5 +1,4 @@
 fails:The __ENCODING__ pseudo-variable is the evaluated strings's one inside an eval
-fails:The __ENCODING__ pseudo-variable is US-ASCII by default
 fails:The __ENCODING__ pseudo-variable is Encoding::ASCII_8BIT when the interpreter is invoked with -Ka
 fails:The __ENCODING__ pseudo-variable is Encoding::ASCII_8BIT when the interpreter is invoked with -KA
 fails:The __ENCODING__ pseudo-variable is Encoding::EUC_JP when the interpreter is invoked with -Ke

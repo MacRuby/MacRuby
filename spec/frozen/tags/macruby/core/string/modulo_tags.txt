@@ -1,7 +1,7 @@
 fails:String#% raises an ArgumentError for unused arguments when $DEBUG is true
 fails:String#% replaces trailing absolute argument specifier without type with percent sign
 fails:String#% calls to_int on width star and precision star tokens
+fails:String#% calls to_str on argument for %c formats
 fails:String#% raises an ArgumentError for huge precisions for %s
 fails:String#% when format string contains %{} sections raises KeyError if key is missing from passed-in hash
-fails:String#% calls to_str on argument for %c formats
 fails:String#% when format string contains %<> formats raises KeyError if key is missing from passed-in hash

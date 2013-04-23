@@ -2,12 +2,14 @@ fails:Encoding::Converter#primitive_convert accepts a nil source buffer
 fails:Encoding::Converter#primitive_convert accepts a String as the source buffer
 fails:Encoding::Converter#primitive_convert accepts nil for the destination byte offset
 fails:Encoding::Converter#primitive_convert accepts an integer for the destination byte offset
+fails:Encoding::Converter#primitive_convert calls #to_int to convert the destination byte offset
 fails:Encoding::Converter#primitive_convert raises an ArgumentError if the destination byte offset is greater than the bytesize of the destination buffer
 fails:Encoding::Converter#primitive_convert uses the destination byte offset to determine where to write the result in the destination buffer
 fails:Encoding::Converter#primitive_convert accepts nil for the destination bytesize
 fails:Encoding::Converter#primitive_convert accepts an integer for the destination bytesize
 fails:Encoding::Converter#primitive_convert allows a destination bytesize value greater than the bytesize of the source buffer
 fails:Encoding::Converter#primitive_convert allows a destination bytesize value less than the bytesize of the source buffer
+fails:Encoding::Converter#primitive_convert calls #to_int to convert the destination byte size
 fails:Encoding::Converter#primitive_convert uses destination bytesize as the maximumn bytesize of the destination buffer
 fails:Encoding::Converter#primitive_convert allows a destination buffer of unlimited size if destination bytesize is nil
 fails:Encoding::Converter#primitive_convert accepts an options hash
@@ -19,5 +21,3 @@ fails:Encoding::Converter#primitive_convert returns :undefined_conversion when a
 fails:Encoding::Converter#primitive_convert returns :invalid_byte_sequence when an invalid byte sequence was found in the source buffer
 fails:Encoding::Converter#primitive_convert returns :finished when the conversion succeeded
 fails:Encoding::Converter#primitive_convert returns :destination_buffer_full when the destination buffer is too small
-fails:Encoding::Converter#primitive_convert calls #to_int to convert the destination byte offset
-fails:Encoding::Converter#primitive_convert calls #to_int to convert the destination byte size

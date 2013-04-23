@@ -1,4 +1,3 @@
-fails:Array#join returns a string formed by concatenating each element.to_str separated by separator without trailing separator
 fails:Array#join returns a US-ASCII string for an empty Array
 fails:Array#join with a tainted separator does not taint the result if the array has only one element
 fails:Array#join with an untrusted separator does not untrust the result if the array has only one element

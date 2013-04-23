@@ -1,11 +1,11 @@
-fails:String#encode raises Encoding::ConverterNotFoundError for invalid target encodings
-fails:String#encode! raises Encoding::ConverterNotFoundError for invalid target encodings
 fails:String#encode raises ArgumentError if the value of the :xml option is not :text or :attr
 fails:String#encode when passed no options transcodes a 7-bit String despite no generic converting being available
 fails:String#encode when passed no options raises an Encoding::ConverterNotFoundError when no conversion is possible
 fails:String#encode when passed to encoding transcodes a 7-bit String despite no generic converting being available
 fails:String#encode when passed to encoding raises an Encoding::ConverterNotFoundError when no conversion is possible
 fails:String#encode when passed to encoding raises an Encoding::ConverterNotFoundError for an invalid encoding
+fails:String#encode when passed options does not process transcoding options if not transcoding
+fails:String#encode when passed options calls #to_hash to convert the object
 fails:String#encode when passed options raises an Encoding::ConverterNotFoundError when no conversion is possible despite ':invalid => :replace, :undef => :replace'
 fails:String#encode when passed to, from transcodes between the encodings ignoring the String encoding
 fails:String#encode when passed to, from calls #to_str to convert the from object to an Encoding
@@ -18,6 +18,8 @@ fails:String#encode! when passed no options raises an Encoding::ConverterNotFoun
 fails:String#encode! when passed to encoding transcodes a 7-bit String despite no generic converting being available
 fails:String#encode! when passed to encoding raises an Encoding::ConverterNotFoundError when no conversion is possible
 fails:String#encode! when passed to encoding raises an Encoding::ConverterNotFoundError for an invalid encoding
+fails:String#encode! when passed options does not process transcoding options if not transcoding
+fails:String#encode! when passed options calls #to_hash to convert the object
 fails:String#encode! when passed options raises an Encoding::ConverterNotFoundError when no conversion is possible despite ':invalid => :replace, :undef => :replace'
 fails:String#encode! when passed to, from transcodes between the encodings ignoring the String encoding
 fails:String#encode! when passed to, from calls #to_str to convert the from object to an Encoding

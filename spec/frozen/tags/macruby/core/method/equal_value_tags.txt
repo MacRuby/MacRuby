@@ -1,6 +1,5 @@
 fails:Method#== returns true if the two core methods are aliases
 fails:Method#== returns true for methods defined using the same block/proc
-fails:Method#== returns true for the same method missing
+fails:Method#== returns true for methods defined using equivalent blocks
 fails:Method#== missing methods returns true for the same method missing
 fails:Method#== missing methods calls respond_to_missing? with true to include private methods
-fails:Method#== returns true for methods defined using equivalent blocks

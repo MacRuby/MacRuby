@@ -1,8 +1,2 @@
-fails:Numeric#step with [stop, +infinity] yields once if self < stop
-fails:Numeric#step with [stop, +infinity] yields once when self equals stop
-fails:Numeric#step with [stop, +infinity] does not yield when self > stop
-fails:Numeric#step with [stop, -infinity] yields once if self > stop
-fails:Numeric#step with [stop, -infinity] yields once when self equals stop
-fails:Numeric#step with [stop, -infinity] does not yield when self > stop
 fails:Numeric#step Numeric#step with [stop, +step] when self, stop or step is a Float is careful about not yielding a value greater than limit
 fails:Numeric#step Numeric#step with [stop, -step] when self, stop or step is a Float is careful about not yielding a value smaller than limit
