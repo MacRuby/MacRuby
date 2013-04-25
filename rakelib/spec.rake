@@ -131,7 +131,7 @@ namespace :spec do
       # otherwise macruby fails halfway because apperantly the spec files are loaded when listing tagged specs...
       desc "List all specs that are tagged as `#{tag}'"
       task tag do
-        sh "./mspec/bin/mspec tag --list #{tag} -B ./spec/frozen/ruby.1.9.mspec :full"
+        sh "./mspec/bin/mspec tag --list #{tag} -B ./spec/macruby.mspec :full"
       end
     end
 
