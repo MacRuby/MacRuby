@@ -1119,6 +1119,7 @@ rb_objc_define_module_function(VALUE module, const char *name, void *imp,
     rb_objc_define_method(*(VALUE *)module, name, imp, arity);
 }
 
+#if !MACRUBY_STATIC
 static VALUE
 undef_s_allocate(VALUE class)
 {
@@ -1126,12 +1127,15 @@ undef_s_allocate(VALUE class)
 	 rb_class2name(class));
     return Qnil; /* unreachable */
 }
+#endif
 
 void
 rb_undef_alloc_func(VALUE klass)
 {
+#if !MACRUBY_STATIC
     Check_Type(klass, T_CLASS);
     rb_add_mri_method(rb_singleton_class(klass), "alloc", undef_s_allocate, 0, NOEX_UNDEF);
+#endif
 }
 
 void
