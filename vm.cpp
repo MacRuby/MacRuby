@@ -2871,6 +2871,7 @@ RoxorCore::remove_method(Class klass, SEL sel)
     assert(m != NULL);
     method_setImplementation(m, (IMP)rb_vm_removed_imp);
     invalidate_respond_to_cache();
+    invalidate_method_cache(sel);
 
     ID mid = sanitize_mid(sel);
     if (mid != 0) {
