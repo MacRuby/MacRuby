@@ -1119,14 +1119,19 @@ rb_objc_define_module_function(VALUE module, const char *name, void *imp,
     rb_objc_define_method(*(VALUE *)module, name, imp, arity);
 }
 
+static VALUE
+undef_s_allocate(VALUE class)
+{
+    rb_raise(rb_eTypeError, "allocator undefined for %s",
+	 rb_class2name(class));
+    return Qnil; /* unreachable */
+}
+
 void
 rb_undef_alloc_func(VALUE klass)
 {
-    // TODO
-#if 0
     Check_Type(klass, T_CLASS);
-    rb_add_mri_method(rb_singleton_class(klass), ID_ALLOCATOR, 0, NOEX_UNDEF);
-#endif
+    rb_add_mri_method(rb_singleton_class(klass), "alloc", undef_s_allocate, 0, NOEX_UNDEF);
 }
 
 void
