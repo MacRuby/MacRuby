@@ -2791,6 +2791,7 @@ RoxorCore::undef_method(Class klass, SEL sel)
 
     class_replaceMethod((Class)klass, sel, (IMP)rb_vm_undefined_imp, "@@:");
     invalidate_respond_to_cache();
+    invalidate_method_cache(sel);
 
 #if 0
     std::map<Method, rb_vm_method_node_t *>::iterator iter
