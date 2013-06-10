@@ -6455,24 +6455,32 @@ rb_unicode_str_new(const UniChar *ptr, const size_t len)
 VALUE
 rb_str_new_fast(int argc, ...)
 {
-    VALUE str = rb_str_new(NULL, 0);
+    if (argc <= 0) {
+	return rb_str_new(NULL, 0);
+    }
 
-    if (argc > 0) {
-	va_list ar;
-	va_start(ar, argc);
-	for (int i = 0; i < argc; ++i) {
-	    VALUE fragment = va_arg(ar, VALUE);
-	    switch (TYPE(fragment)) {
-		default:
-		    fragment = rb_obj_as_string(fragment);
-		    // fall through
+    VALUE args[argc];
+    long new_length_in_bytes = 0;
+    va_list ar;
+    va_start(ar, argc);
+    for (int i = 0; i < argc; ++i) {
+	VALUE fragment = va_arg(ar, VALUE);
+	switch (TYPE(fragment)) {
+	    default:
+		fragment = rb_obj_as_string(fragment);
+		// fall through
 
-		case T_STRING:
-		    rstr_concat(str, 0, fragment);
-		    break;
-	    }
+	    case T_STRING:
+		new_length_in_bytes += rb_str_chars_len(fragment);
+		args[i] = fragment;
+		break;
 	}
-	va_end(ar);
+    }
+    va_end(ar);
+
+    VALUE str = rb_str_new(NULL, new_length_in_bytes);
+    for (int i = 0; i < argc; ++i) {
+	rstr_append(str, args[i]);
     }
 
     return str;
