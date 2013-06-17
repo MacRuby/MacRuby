@@ -1687,16 +1687,31 @@ rb_vm_defined(VALUE self, int type, VALUE what, VALUE what2, rb_vm_outer_t *oute
 	case DEFINED_SUPER:
 	case DEFINED_METHOD:
 	    {
-		VALUE klass = CLASS_OF(self);
-		if (type == DEFINED_SUPER) {
-		    klass = RCLASS_SUPER(klass);
-		}
 		if (what == 0) {
 		    rb_raise(rb_eRuntimeError,
 			    "defined?(super) out of a method block isn't supported");
 		}
+
+		VALUE klass = CLASS_OF(self);
 		const char *idname = rb_id2name((ID)what);
 		SEL sel = sel_registerName(idname);
+		if (type == DEFINED_SUPER) {
+		    Class current_super_class = GET_VM()->get_current_super_class();
+		    if (current_super_class) {
+			klass = (VALUE)current_super_class;
+			sel = GET_VM()->get_current_super_sel();
+		    }
+		    else {
+			klass = RCLASS_SUPER(klass);
+		    }
+		    VALUE ary = rb_attr_get(klass, idIncludedModules);
+		    if (ary != Qnil) {
+			int count = RARRAY_LEN(ary);
+			for (int i = 0; i < count; i++) {
+			    klass = RCLASS_SUPER(klass);
+			}
+		    }
+		}
 
 		bool ok = class_getInstanceMethod((Class)klass, sel) != NULL;
 		if (!ok && idname[strlen(idname) - 1] != ':') {
