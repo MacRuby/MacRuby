@@ -1350,9 +1350,7 @@ str_extract_uchars_range(rb_str_t *self, long range_start_offset_in_uchars,
     }
     if (self->encoding->ascii_compatible && str_is_ascii_only(self)) {
 	char *source_bytes = &self->bytes[range_start_offset_in_uchars];
-	for (long i = 0; i < range_length_in_uchars; ++i) {
-	    buffer[i] = source_bytes[i];
-	}
+	rb_str_copy_cstr_to_uchar(buffer, source_bytes, range_length_in_uchars);
     }
     else if (IS_UTF8_ENC(self->encoding)) {
 	long pos_in_src = 0;

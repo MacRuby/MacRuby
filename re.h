@@ -56,6 +56,14 @@ rb_reg_search(VALUE re, VALUE str, int pos, bool reverse)
     return res; 
 }
 
+static inline void
+rb_str_copy_cstr_to_uchar(UChar *chars, const char *str, long len)
+{
+    for(long i = 0; i < len; i++) {
+	chars[i] = str[i];
+    }
+}
+
 int rb_reg_options_to_mri(int opt);
 int rb_reg_options_from_mri(int mri_opt);
 

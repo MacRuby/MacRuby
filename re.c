@@ -111,14 +111,6 @@ is_octal_literal(UChar *chars, long length)
     return ret && i >= 2;
 }
 
-static void
-replace_uchar_with_cstring(UChar *chars, const char *str, long len)
-{
-    for(int i = 0; i < len; i++) {
-	chars[i] = str[i];
-    }
-}
-
 #define copy_if_needed() \
     do { \
 	UChar *tmp = (UChar *)xmalloc(sizeof(UChar) * chars_len); \
@@ -145,7 +137,7 @@ replace_regexp_string(UChar **chars_p, long *chars_len_p, const char* find, cons
     const long replaced_len = replace_len - find_len;
 
     assert(find_len < 30);
-    replace_uchar_with_cstring(buffer, find, find_len);
+    rb_str_copy_cstr_to_uchar(buffer, find, find_len);
     while (true) {
 	UChar *p = u_strFindFirst(chars + pos, chars_len - pos, buffer, find_len);
 	if (p == NULL) {
@@ -159,7 +151,7 @@ replace_regexp_string(UChar **chars_p, long *chars_len_p, const char* find, cons
 
 	memmove(&chars[pos + replace_len], &chars[pos + find_len],
 		sizeof(UChar) * (chars_len - (pos + find_len)));
-	replace_uchar_with_cstring(&chars[pos], replace, replace_len);
+	rb_str_copy_cstr_to_uchar(&chars[pos], replace, replace_len);
 	chars_len += replaced_len;
     }
 
