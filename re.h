@@ -59,7 +59,12 @@ rb_reg_search(VALUE re, VALUE str, int pos, bool reverse)
 static inline void
 rb_str_copy_cstr_to_uchar(UChar *chars, const char *str, long len)
 {
-    for(long i = 0; i < len; i++) {
+    long i = 0;
+    for(; i + 2 <= len; i += 2) {
+	chars[i]   = str[i];
+	chars[i+1] = str[i+1];
+    }
+    if (i < len) {
 	chars[i] = str[i];
     }
 }
