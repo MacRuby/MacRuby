@@ -1191,7 +1191,7 @@ static VALUE
 rary_copy(VALUE rcv, VALUE klass)
 {
     VALUE dup = rary_alloc(klass, 0);
-    rary_concat(dup, rcv, 0, RARY(rcv)->len);
+    rary_concat(dup, rcv, 0, rb_ary_len(rcv));
     return dup;
 }
 
