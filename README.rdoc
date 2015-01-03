@@ -1,5 +1,10 @@
 == MacRuby
 
+<b>Note: Due to Apple’s abandonment of the Objective-C Garbage Collector
+(libauto) which MacRuby relied heavily on, future development of MacRuby is on an
+indefinite hiatus. If you would like to develop applications for iOS and OS X
+please check out RubyMotion, the spiritual successor to the MacRuby project.</b>
+
 MacRuby is a Ruby implementation based on Mac OS X technologies, such as the 
 Objective-C runtime and garbage collector, the CoreFoundation framework and the
 LLVM compiler infrastructure.
