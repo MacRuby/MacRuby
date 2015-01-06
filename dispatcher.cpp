@@ -20,7 +20,8 @@
 #include <execinfo.h>
 #include <dlfcn.h>
 
-#define ROXOR_VM_DEBUG		0
+#include "debug_config.h"
+
 #define MAX_DISPATCH_ARGS 	100
 
 static force_inline void

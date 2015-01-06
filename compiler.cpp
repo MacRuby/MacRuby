@@ -9,7 +9,7 @@
 
 #if !defined(MACRUBY_STATIC)
 
-#define ROXOR_COMPILER_DEBUG 	0
+#include "debug_config.h"
 
 #if !defined(DW_LANG_Ruby)
 # define DW_LANG_Ruby 0x15 // TODO: Python is 0x14, request a real number
