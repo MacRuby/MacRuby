@@ -3605,13 +3605,12 @@ __vm_raise(void)
 	char file[PATH_MAX];
 	unsigned long line = 0;
 	GET_CORE()->symbolize_backtrace_entry(2, file, sizeof file, &line,
-		NULL, 0);
+	    NULL, 0);
 	MACRUBY_RAISE(classname, file, line);
-    } 
+    }
 #if __LP64__
     // In 64-bit, an Objective-C exception is a C++ exception.
-    id exc = rb_rb2oc_exception(rb_exc);
-    objc_exception_throw(exc);
+    objc_exception_throw((id)rb_exc);
 #else
     void *exc = __cxa_allocate_exception(0);
     __cxa_throw(exc, NULL, NULL);
@@ -3671,8 +3670,7 @@ rb_rb2oc_exc_handler(void)
 			__FUNCTION__, __FILE__, __LINE__, RSTRING_PTR(rb_inspect(exc)));
 #endif
     if (exc != Qnil) {
-	id ocexc = rb_rb2oc_exception(exc);
-	objc_exception_throw(ocexc);
+	objc_exception_throw(exc);
     }
     else {
 	__cxa_rethrow();

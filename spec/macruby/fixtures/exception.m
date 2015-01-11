@@ -5,20 +5,35 @@
 
 @implementation TestException
 
-+ (void)raiseObjCException
++ (NSException *)catchObjCException
 {
-    [NSException raise:@"SinkingShipException" format:@"the ship is sinking!"];
+    @try {
+	[NSException raise:@"SinkingShipException" format:@"the ship is sinking!"];
+    }
+    @catch (id e) {
+	return e;
+    }
 }
 
-+ (BOOL)catchRubyException:(id)obj
++ (id)catchRubyException:(id)obj
 {
     @try {
 	[obj performSelector:@selector(raiseRubyException)];
     }
     @catch (id e) {
-	return YES;
+	return e;
     }
-    return NO;
+    return nil;
+}
+
++ (NSString *)catchRubyExceptionAndReturnName:(id)obj
+{
+  return [[self catchRubyException:obj] name];
+}
+
++ (NSString *)catchRubyExceptionAndReturnReason:(id)obj
+{
+  return [[self catchRubyException:obj] reason];
 }
 
 @end

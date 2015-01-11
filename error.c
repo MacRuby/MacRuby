@@ -429,14 +429,27 @@ exc_exception(VALUE self, SEL sel, int argc, VALUE *argv)
  *
  * Returns exception's message (or the name of the exception if
  * no message is set).
+ *
+ * Note that on MacRuby this will return the NSException#reason before it will
+ * return the +name+.
+ *
  */
 
 static VALUE
 exc_to_s(VALUE exc, SEL sel)
 {
     VALUE mesg = rb_attr_get(exc, rb_intern("mesg"));
-
-    if (NIL_P(mesg)) return rb_class_name(CLASS_OF(exc));
+    if (NIL_P(mesg)) {
+	// first see if it's a NSException with a reason string
+	SEL reasonSel = sel_registerName("_reason_before_macruby");
+	id reason = objc_msgSend((id)exc, reasonSel);
+	if (reason != nil) {
+	    mesg = (VALUE)reason;
+	} else {
+	    // or return the class name, which is what MRI does
+	    return rb_class_name(CLASS_OF(exc));
+	}
+    }
     if (OBJ_TAINTED(exc)) OBJ_TAINT(mesg);
     return mesg;
 }
@@ -512,15 +525,27 @@ exc_inspect(VALUE exc, SEL sel)
  *     prog.rb:2:in `a'
  *     prog.rb:6:in `b'
  *     prog.rb:10
+ *
+ *  Note that on MacRuby this will return the NSException#callStackSymbols in
+ *  case there's no Ruby backtrace.
 */
 
 static VALUE
 exc_backtrace(VALUE exc, SEL sel)
 {
     static ID bt;
-
     if (!bt) bt = rb_intern("bt");
-    return rb_attr_get(exc, bt);
+
+    VALUE res = rb_attr_get(exc, bt);
+    if (res == Qnil) {
+	SEL symbolsSel = sel_registerName("callStackSymbols");
+	id symbols = objc_msgSend((id)exc, symbolsSel);
+	if (symbols != nil) {
+	    res = (VALUE)symbols;
+	}
+    }
+
+    return res;
 }
 
 VALUE
@@ -708,7 +733,15 @@ name_err_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 static VALUE
 name_err_name(VALUE self, SEL sel)
 {
-    return rb_attr_get(self, rb_intern("name"));
+    VALUE name = rb_attr_get(self, rb_intern("name"));
+    // 1. Ensure that we always return a string, because this might be called
+    //    by Objective-C code that expects it to return the exception name.
+    // 2. When there is a name, prepend it with an explanation that this is in
+    //    fact a NameError. Otherwise Objective-C code that expects the
+    //    exception name might result in a name being printed that doesn't make
+    //    sense.
+    return name == Qnil ? rb_str_new2("NameError") :
+	rb_sprintf("NameError for name: %s", RSTRING_PTR(name));
 }
 
 /*
@@ -971,10 +1004,6 @@ syserr_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 	    error = mesg; mesg = Qnil;
 	}
 	if (!NIL_P(error) && st_lookup(syserr_tbl, NUM2LONG(error), &klass)) {
-	    /* change class */
-	    if (TYPE(self) != T_OBJECT) { /* insurance to avoid type crash */
-		rb_raise(rb_eTypeError, "invalid instance type");
-	    }
 	    RBASIC(self)->klass = klass;
 	}
     }
@@ -1078,7 +1107,10 @@ errno_code(VALUE self, SEL sel)
 void
 Init_Exception(void)
 {
-    rb_eException   = rb_define_class("Exception", rb_cObject);
+    rb_eException = (VALUE)objc_getClass("NSException");
+    rb_const_set(rb_cObject, rb_intern("Exception"), rb_eException);
+
+    rb_objc_define_method(*(VALUE *)rb_eException, "new", rb_class_new_instance_imp, -1);
     rb_objc_define_method(*(VALUE *)rb_eException, "exception", rb_class_new_instance_imp, -1);
     rb_objc_define_method(rb_eException, "exception", exc_exception, -1);
     rb_objc_define_method(rb_eException, "initialize", exc_initialize, -1);

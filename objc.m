@@ -498,39 +498,41 @@ rb_obj_imp_isaForAutonotifying(void *rcv, SEL sel)
     return ret;
 }
 
-id
-rb_rb2oc_exception(VALUE exc)
-{
-    NSString *name = [NSString stringWithUTF8String:rb_obj_classname(exc)];
-    NSString *reason = (NSString *)rb_format_exception_message(exc);
-    NSDictionary *dict = [NSDictionary dictionaryWithObject:(id)exc
-	forKey:@"RubyException"];
-    return [NSException exceptionWithName:name reason:reason userInfo:dict];
+@implementation NSException (MacRuby)
+
++ (void)overrideNameAndReasonImplementations {
+  Method m1, m2;
+  m1 = class_getInstanceMethod(self, @selector(name));
+  m2 = class_getInstanceMethod(self, @selector(_name_before_macruby));
+  method_exchangeImplementations(m1, m2);
+  m1 = class_getInstanceMethod(self, @selector(reason));
+  m2 = class_getInstanceMethod(self, @selector(_reason_before_macruby));
+  method_exchangeImplementations(m1, m2);
 }
 
-VALUE
-rb_oc2rb_exception(id exc, bool *created)
-{
-    VALUE e;
-    id rubyExc;
-
-    rubyExc = [[exc userInfo] objectForKey:@"RubyException"];
-    if (rubyExc == nil) {
-	*created = true;
-
-	char buf[1000];
-	snprintf(buf, sizeof buf, "%s: %s", [[exc name] UTF8String],
-		[[exc reason] UTF8String]);
-	e = rb_exc_new2(rb_eRuntimeError, buf);
-	// Set the backtrace for Obj-C exceptions
-	rb_iv_set(e, "bt", rb_vm_backtrace(0));
-    }
-    else {
-	*created = false;
-	e = (VALUE)rubyExc;
-    }
-    return e;
++ (void)load {
+  [self overrideNameAndReasonImplementations];
 }
+
+- (NSString *)_name_before_macruby {
+  NSString *str = [self _name_before_macruby]; // this is the original imp
+  if (str == nil) {
+    return (NSString *)rb_class_name(CLASS_OF((VALUE)self));
+  } else {
+    return str;
+  }
+}
+
+- (NSString *)_reason_before_macruby {
+  NSString *str = [self _reason_before_macruby]; // this is the original imp
+  if (str == nil) {
+    return (NSString *)rb_vm_call((VALUE)self, @selector(message), 0, NULL);
+  } else {
+    return str;
+  }
+}
+
+@end
 
 void
 rb_objc_exception_raise(const char *name, const char *message)
