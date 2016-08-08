@@ -182,6 +182,14 @@ str_compatible_encoding(rb_str_t *str1, rb_str_t *str2)
     if (str1->length_in_bytes == 0) {
 	return str2->encoding;
     }
+    if (str1->encoding->index == ENCODING_BINARY)
+    {
+    	return str1->encoding;
+    }
+    if (str2->encoding->index == ENCODING_BINARY)
+    {
+    	return str2->encoding;
+    }
     if (!str1->encoding->ascii_compatible
 	    || !str2->encoding->ascii_compatible) {
 	return NULL;
